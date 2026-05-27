@@ -1,0 +1,242 @@
+package syncer
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+type Config struct {
+	RepoDir       string
+	AutoSync      bool
+	PullInterval  time.Duration
+	PushDebounce  time.Duration
+	CommitMessage string
+}
+
+type Status struct {
+	OK              bool   `json:"ok"`
+	GitRepo         bool   `json:"git_repo"`
+	AutoSyncEnabled bool   `json:"auto_sync_enabled"`
+	PendingPush     bool   `json:"pending_push"`
+	LastPullAt      string `json:"last_pull_at,omitempty"`
+	LastPushAt      string `json:"last_push_at,omitempty"`
+	LastError       string `json:"last_error,omitempty"`
+	Conflict        bool   `json:"conflict"`
+	Ahead           string `json:"ahead,omitempty"`
+	Behind          string `json:"behind,omitempty"`
+	Dirty           bool   `json:"dirty"`
+}
+
+type Manager struct {
+	cfg    Config
+	logger *slog.Logger
+
+	mu          sync.Mutex
+	pendingPush bool
+	lastPullAt  time.Time
+	lastPushAt  time.Time
+	lastError   string
+	conflict    bool
+	debounce    *time.Timer
+}
+
+func NewManager(cfg Config, logger *slog.Logger) *Manager {
+	if cfg.PullInterval <= 0 {
+		cfg.PullInterval = 120 * time.Second
+	}
+	if cfg.PushDebounce <= 0 {
+		cfg.PushDebounce = 10 * time.Second
+	}
+	if strings.TrimSpace(cfg.CommitMessage) == "" {
+		cfg.CommitMessage = "memory: 自动同步记忆"
+	}
+	return &Manager{cfg: cfg, logger: logger}
+}
+
+func (m *Manager) Start(ctx context.Context) {
+	if !m.cfg.AutoSync {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(m.cfg.PullInterval)
+		defer ticker.Stop()
+		_ = m.Pull(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = m.Pull(ctx)
+			}
+		}
+	}()
+}
+
+func (m *Manager) MarkChanged(ctx context.Context) {
+	m.mu.Lock()
+	m.pendingPush = true
+	if !m.cfg.AutoSync || !m.isGitRepoLocked() {
+		m.mu.Unlock()
+		return
+	}
+	if m.debounce != nil {
+		m.debounce.Stop()
+	}
+	delay := m.cfg.PushDebounce
+	m.debounce = time.AfterFunc(delay, func() {
+		_ = m.Sync(context.Background())
+	})
+	m.mu.Unlock()
+	_ = ctx
+}
+
+func (m *Manager) Status(ctx context.Context) Status {
+	m.mu.Lock()
+	status := Status{
+		OK:              true,
+		GitRepo:         m.isGitRepoLocked(),
+		AutoSyncEnabled: m.cfg.AutoSync,
+		PendingPush:     m.pendingPush,
+		LastError:       m.lastError,
+		Conflict:        m.conflict,
+	}
+	if !m.lastPullAt.IsZero() {
+		status.LastPullAt = m.lastPullAt.Format(time.RFC3339)
+	}
+	if !m.lastPushAt.IsZero() {
+		status.LastPushAt = m.lastPushAt.Format(time.RFC3339)
+	}
+	m.mu.Unlock()
+
+	if status.GitRepo {
+		if out, err := m.git(ctx, "status", "--porcelain"); err == nil {
+			status.Dirty = strings.TrimSpace(out) != ""
+		}
+		if out, err := m.git(ctx, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"); err == nil {
+			parts := strings.Fields(out)
+			if len(parts) == 2 {
+				status.Ahead = parts[0]
+				status.Behind = parts[1]
+			}
+		}
+	}
+	return status
+}
+
+func (m *Manager) Pull(ctx context.Context) error {
+	if !m.IsGitRepo() {
+		return nil
+	}
+	_, err := m.git(ctx, "pull", "--rebase", "--autostash")
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err != nil {
+		m.lastError = err.Error()
+		m.conflict = true
+		m.logger.Warn("git pull failed", "error", err)
+		return err
+	}
+	m.lastPullAt = time.Now()
+	m.lastError = ""
+	m.conflict = false
+	return nil
+}
+
+func (m *Manager) Push(ctx context.Context) error {
+	if !m.IsGitRepo() {
+		return nil
+	}
+	dirty, err := m.isDirty(ctx)
+	if err != nil {
+		m.setError(err)
+		return err
+	}
+	if !dirty {
+		m.mu.Lock()
+		m.pendingPush = false
+		m.mu.Unlock()
+		return nil
+	}
+	if _, err := m.git(ctx, "add", "-A"); err != nil {
+		m.setError(err)
+		return err
+	}
+	if _, err := m.git(ctx, "commit", "-m", m.cfg.CommitMessage); err != nil {
+		// git commit exits non-zero when there is nothing to commit. Re-check before treating it as fatal.
+		dirty, dirtyErr := m.isDirty(ctx)
+		if dirtyErr != nil || dirty {
+			m.setError(err)
+			return err
+		}
+	}
+	if _, err := m.git(ctx, "push"); err != nil {
+		m.setError(err)
+		return err
+	}
+	m.mu.Lock()
+	m.pendingPush = false
+	m.lastPushAt = time.Now()
+	m.lastError = ""
+	m.conflict = false
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *Manager) Sync(ctx context.Context) error {
+	if !m.IsGitRepo() {
+		return nil
+	}
+	if err := m.Pull(ctx); err != nil {
+		return err
+	}
+	return m.Push(ctx)
+}
+
+func (m *Manager) IsGitRepo() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.isGitRepoLocked()
+}
+
+func (m *Manager) isGitRepoLocked() bool {
+	info, err := os.Stat(filepath.Join(m.cfg.RepoDir, ".git"))
+	return err == nil && info.IsDir()
+}
+
+func (m *Manager) isDirty(ctx context.Context) (bool, error) {
+	out, err := m.git(ctx, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+func (m *Manager) git(ctx context.Context, args ...string) (string, error) {
+	cmdCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cmdCtx, "git", args...)
+	cmd.Dir = m.cfg.RepoDir
+	out, err := cmd.CombinedOutput()
+	text := strings.TrimSpace(string(out))
+	if err != nil {
+		if text == "" {
+			text = err.Error()
+		}
+		return text, errors.New(text)
+	}
+	return text, nil
+}
+
+func (m *Manager) setError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastError = err.Error()
+	m.conflict = true
+}

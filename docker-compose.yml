@@ -1,0 +1,15 @@
+services:
+  memorydock:
+    build: .
+    container_name: memorydock
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18777:18777"
+    volumes:
+      - ./memory:/memory
+    environment:
+      MEMORYDOCK_STORE_DIR: /memory
+      MEMORYDOCK_AUTO_SYNC: "false"
+      MEMORYDOCK_PULL_INTERVAL_SECONDS: "120"
+      MEMORYDOCK_PUSH_DEBOUNCE_SECONDS: "10"
+
