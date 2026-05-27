@@ -1,5 +1,4 @@
 .DS_Store
-memory/
-*.log
-memorydock
-
+/memory/
+/*.log
+/memorydock
