@@ -29,7 +29,6 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", s.uiIndex)
 	mux.HandleFunc("GET /ui/", s.uiIndex)
-	mux.HandleFunc("GET /ui/app.js", s.uiApp)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/sync/status", s.withAuth(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", s.withAuth(s.gitDiff))

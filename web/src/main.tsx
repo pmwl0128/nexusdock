@@ -1,0 +1,871 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import {
+  Archive,
+  Braces,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Clock3,
+  FileText,
+  Folder,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  PenLine,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Settings,
+  Trash2,
+  Undo2,
+  X,
+} from 'lucide-react';
+import './styles.css';
+
+type Tab = 'memories' | 'git' | 'sync';
+type EntryType = 'file' | 'directory';
+
+type MemoryEntry = {
+  path: string;
+  name: string;
+  type: EntryType;
+  size_bytes?: number;
+};
+
+type Memory = {
+  path: string;
+  content: string;
+};
+
+type TreeNode = {
+  name: string;
+  path: string;
+  type: EntryType;
+  entry?: MemoryEntry;
+  children: Map<string, TreeNode>;
+};
+
+type GitDiff = {
+  ok: boolean;
+  git_repo: boolean;
+  dirty: boolean;
+  status: string;
+  stat: string;
+  diff: string;
+  cached_diff: string;
+};
+
+type GitCommit = {
+  hash: string;
+  short_hash: string;
+  date: string;
+  author: string;
+  subject: string;
+};
+
+type SyncStatus = Record<string, unknown> & {
+  dirty?: boolean;
+  ahead?: string;
+  behind?: string;
+  pending_push?: boolean;
+};
+
+type Toast = { message: string; danger?: boolean } | null;
+
+const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
+const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
+
+async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data?.error?.message || res.statusText);
+  }
+  return data as T;
+}
+
+function normalizePath(path: string): string {
+  return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+}
+
+function fileName(path: string): string {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  return parts[parts.length - 1] || '';
+}
+
+function parentPath(path: string): string {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  parts.pop();
+  return parts.join('/');
+}
+
+function joinPath(dir: string, name: string): string {
+  dir = normalizePath(dir);
+  name = fileName(name);
+  return dir ? `${dir}/${name}` : name;
+}
+
+function formatBytes(bytes?: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function buildTree(entries: MemoryEntry[]): TreeNode {
+  const root: TreeNode = { name: '', path: '', type: 'directory', children: new Map() };
+  for (const entry of entries) {
+    const parts = normalizePath(entry.path).split('/').filter(Boolean);
+    let node = root;
+    let cursor = '';
+    parts.forEach((part, index) => {
+      cursor = cursor ? `${cursor}/${part}` : part;
+      const leaf = index === parts.length - 1;
+      let child = node.children.get(part);
+      if (!child) {
+        child = { name: part, path: cursor, type: 'directory', children: new Map() };
+        node.children.set(part, child);
+      }
+      if (leaf) {
+        child.type = entry.type;
+        child.entry = entry;
+      }
+      node = child;
+    });
+  }
+  return root;
+}
+
+function sortedChildren(node: TreeNode): TreeNode[] {
+  return [...node.children.values()].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+  });
+}
+
+function countFiles(node: TreeNode): number {
+  if (node.type === 'file') return 1;
+  return [...node.children.values()].reduce((sum, child) => sum + countFiles(child), 0);
+}
+
+function isPathInside(path: string, dir: string): boolean {
+  path = normalizePath(path);
+  dir = normalizePath(dir);
+  return Boolean(path && dir && (path === dir || path.startsWith(`${dir}/`)));
+}
+
+function renderInlineMarkdown(input: string): string {
+  let html = escapeHtml(input);
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return html;
+}
+
+function escapeHtml(input: string): string {
+  return String(input).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
+}
+
+function splitFrontmatter(content: string): { meta: string; body: string } {
+  if (!content.startsWith('---\n')) return { meta: '', body: content };
+  const end = content.indexOf('\n---\n', 4);
+  if (end < 0) return { meta: '', body: content };
+  return { meta: content.slice(4, end), body: content.slice(end + 5) };
+}
+
+function markdownToHtml(content: string): string {
+  const { meta, body } = splitFrontmatter(content);
+  const lines = body.replace(/\r\n/g, '\n').split('\n');
+  const out: string[] = [];
+  let paragraph: string[] = [];
+  let list: null | { type: 'ul' | 'ol'; items: string[] } = null;
+  let code: string[] | null = null;
+  let quote: string[] = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    out.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list) return;
+    out.push(`<${list.type}>${list.items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${list.type}>`);
+    list = null;
+  };
+  const flushQuote = () => {
+    if (!quote.length) return;
+    out.push(`<blockquote>${quote.map((line) => `<p>${renderInlineMarkdown(line)}</p>`).join('')}</blockquote>`);
+    quote = [];
+  };
+  const close = () => {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  };
+
+  for (const line of lines) {
+    if (line.startsWith('```')) {
+      if (code) {
+        out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+        code = null;
+      } else {
+        close();
+        code = [];
+      }
+      continue;
+    }
+    if (code) {
+      code.push(line);
+      continue;
+    }
+    if (!line.trim()) {
+      close();
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (heading) {
+      close();
+      const level = Math.min(6, heading[1].length);
+      out.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
+      continue;
+    }
+    if (/^---+$/.test(line.trim())) {
+      close();
+      out.push('<hr />');
+      continue;
+    }
+    if (line.startsWith('>')) {
+      flushParagraph();
+      flushList();
+      quote.push(line.replace(/^>\s?/, ''));
+      continue;
+    }
+    const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
+    const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
+    if (unordered || ordered) {
+      flushParagraph();
+      flushQuote();
+      const type = unordered ? 'ul' : 'ol';
+      if (!list || list.type !== type) flushList();
+      if (!list) list = { type, items: [] };
+      list.items.push((unordered || ordered)![1]);
+      continue;
+    }
+    paragraph.push(line.trim());
+  }
+  if (code) out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+  close();
+  const metaHtml = meta.trim()
+    ? `<details class="frontmatter"><summary>Frontmatter</summary><pre><code>${escapeHtml(meta.trim())}</code></pre></details>`
+    : '';
+  return metaHtml + (out.join('\n') || '<p class="muted">空 Markdown 文件</p>');
+}
+
+function diffFileName(line: string): string {
+  const parts = line.trim().split(/\s+/);
+  const b = parts.find((part) => part.startsWith('b/'));
+  const a = parts.find((part) => part.startsWith('a/'));
+  return (b || a || parts[parts.length - 1] || 'diff').replace(/^[ab]\//, '');
+}
+
+function parseHunkHeader(line: string): { oldLine: number; newLine: number } {
+  const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+  return { oldLine: match ? Number(match[1]) : 0, newLine: match ? Number(match[3]) : 0 };
+}
+
+type DiffRow = {
+  kind: 'ctx' | 'add' | 'del' | 'change' | 'meta' | 'hunk' | 'note';
+  oldNo?: number;
+  newNo?: number;
+  left?: string;
+  right?: string;
+};
+
+type DiffFile = { name: string; rows: DiffRow[] };
+type DiffSection = { title: string; files: DiffFile[] };
+
+function parseSideBySideDiff(sections: { title: string; diff: string }[]): DiffSection[] {
+  const parsed: DiffSection[] = [];
+  for (const section of sections.filter((s) => s.diff?.trim())) {
+    const result: DiffSection = { title: section.title, files: [] };
+    let file: DiffFile | null = null;
+    let oldLine = 0;
+    let newLine = 0;
+    let pendingDeletes: { no: number; text: string }[] = [];
+
+    const ensureFile = (name = 'diff') => {
+      if (!file) {
+        file = { name, rows: [] };
+        result.files.push(file);
+      }
+      return file;
+    };
+    const flushDeletes = () => {
+      const current = ensureFile();
+      for (const item of pendingDeletes) current.rows.push({ kind: 'del', oldNo: item.no, left: item.text, right: '' });
+      pendingDeletes = [];
+    };
+
+    for (const line of section.diff.split('\n')) {
+      if (line.startsWith('diff --git ')) {
+        if (file) flushDeletes();
+        file = { name: diffFileName(line), rows: [] };
+        result.files.push(file);
+        continue;
+      }
+      const current = ensureFile();
+      if (line.startsWith('@@ ')) {
+        flushDeletes();
+        const parsedHeader = parseHunkHeader(line);
+        oldLine = parsedHeader.oldLine;
+        newLine = parsedHeader.newLine;
+        current.rows.push({ kind: 'hunk', left: line, right: line });
+        continue;
+      }
+      if (line.startsWith('index ') || line.startsWith('new file mode') || line.startsWith('deleted file mode') || line.startsWith('similarity index') || line.startsWith('rename from') || line.startsWith('rename to') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+        flushDeletes();
+        current.rows.push({ kind: 'meta', left: line, right: line });
+        continue;
+      }
+      if (line.startsWith('\\ No newline')) {
+        flushDeletes();
+        current.rows.push({ kind: 'note', left: line, right: line });
+        continue;
+      }
+      if (line.startsWith('-')) {
+        pendingDeletes.push({ no: oldLine++, text: line });
+        continue;
+      }
+      if (line.startsWith('+')) {
+        const deleted = pendingDeletes.shift();
+        if (deleted) current.rows.push({ kind: 'change', oldNo: deleted.no, newNo: newLine++, left: deleted.text, right: line });
+        else current.rows.push({ kind: 'add', newNo: newLine++, left: '', right: line });
+        continue;
+      }
+      flushDeletes();
+      current.rows.push({ kind: 'ctx', oldNo: oldLine || undefined, newNo: newLine || undefined, left: line || ' ', right: line || ' ' });
+      if (oldLine) oldLine++;
+      if (newLine) newLine++;
+    }
+    if (file) flushDeletes();
+    if (result.files.length) parsed.push(result);
+  }
+  return parsed;
+}
+
+function useToast() {
+  const [toast, setToast] = useState<Toast>(null);
+  const show = (message: string, danger = false) => {
+    setToast({ message, danger });
+    window.setTimeout(() => setToast(null), 3200);
+  };
+  return { toast, show };
+}
+
+function App() {
+  const { toast, show } = useToast();
+  const [tab, setTab] = useState<Tab>('memories');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
+  const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
+  const [entries, setEntries] = useState<MemoryEntry[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['']));
+  const [current, setCurrent] = useState<Memory | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draftPath, setDraftPath] = useState('');
+  const [draftContent, setDraftContent] = useState('');
+  const [search, setSearch] = useState('');
+  const [prefix, setPrefix] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
+  const [commits, setCommits] = useState<GitCommit[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [draggingPath, setDraggingPath] = useState('');
+
+  const tree = useMemo(() => buildTree(entries), [entries]);
+  const fileCount = entries.filter((entry) => entry.type === 'file').length;
+  const dirCount = entries.filter((entry) => entry.type === 'directory').length;
+
+  useEffect(() => {
+    void loadList();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('memorydock.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('memorydock.explorerCollapsed', explorerCollapsed ? '1' : '0');
+  }, [explorerCollapsed]);
+
+  useEffect(() => {
+    if (tab === 'git') void loadGitPanel();
+    if (tab === 'sync') void loadSyncStatus();
+  }, [tab]);
+
+  function expandPath(path: string) {
+    const parts = normalizePath(path).split('/').filter(Boolean);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let cursor = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        cursor = cursor ? `${cursor}/${parts[i]}` : parts[i];
+        next.add(cursor);
+      }
+      return next;
+    });
+  }
+
+  async function loadList() {
+    const qs = new URLSearchParams({ max_entries: '500' });
+    if (prefix.trim()) qs.set('prefix', prefix.trim());
+    const data = await api<{ entries: MemoryEntry[] }>(`/v1/memories?${qs}`);
+    setEntries(data.entries || []);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      const root = buildTree(data.entries || []);
+      const walk = (node: TreeNode) => {
+        if (node.type === 'directory') next.add(node.path);
+        sortedChildren(node).forEach(walk);
+      };
+      sortedChildren(root).forEach(walk);
+      return next;
+    });
+  }
+
+  async function doSearch() {
+    if (!search.trim()) return loadList();
+    const data = await api<{ results: Array<{ path: string; size_bytes?: number }>; count: number }>('/v1/memories/search', {
+      method: 'POST',
+      body: JSON.stringify({ query: search.trim(), prefix: prefix.trim(), max_results: 100 }),
+    });
+    setEntries((data.results || []).map((result) => ({ path: result.path, name: fileName(result.path), type: 'file', size_bytes: result.size_bytes || 0 })));
+  }
+
+  async function loadMemory(path: string) {
+    const data = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
+    setCurrent(data.memory);
+    setDraftPath(data.memory.path);
+    setDraftContent(data.memory.content);
+    setEditing(false);
+    expandPath(data.memory.path);
+  }
+
+  function newMemory() {
+    const template = '---\ntype: note\nscope: inbox\nsource: user-confirmed\nconfidence: medium\n---\n\n# 新记忆\n\n';
+    setCurrent(null);
+    setDraftPath('inbox/new-memory.md');
+    setDraftContent(template);
+    setEditing(true);
+  }
+
+  async function saveMemory() {
+    if (!draftPath.trim() || !draftContent.trim()) return show('path 和 content 不能为空', true);
+    const existing = Boolean(current?.path);
+    const target = existing ? `/v1/memories/${encodeURIComponent(current!.path)}` : '/v1/memories';
+    const data = await api<{ memory: Memory }>(target, {
+      method: existing ? 'PATCH' : 'POST',
+      body: JSON.stringify({ path: existing ? current!.path : draftPath.trim(), content: draftContent, confirmed: true, overwrite: true }),
+    });
+    show('已保存');
+    await loadList();
+    await loadMemory(data.memory.path);
+  }
+
+  async function deleteCurrent() {
+    if (!current?.path) return;
+    if (!confirm(`确认删除：${current.path} ?`)) return;
+    await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
+    setCurrent(null);
+    setEditing(false);
+    setDraftPath('');
+    setDraftContent('');
+    show('已删除');
+    await loadList();
+  }
+
+  async function moveToDirectory(fromPath: string, dirPath: string) {
+    fromPath = normalizePath(fromPath);
+    const toPath = joinPath(dirPath, fromPath);
+    if (!fromPath || toPath === fromPath) return;
+    if (!confirm(`移动文件？\n\n${fromPath}\n→ ${toPath}`)) return;
+    const data = await api<{ memory: Memory }>('/v1/memories/move', {
+      method: 'POST',
+      body: JSON.stringify({ from_path: fromPath, to_path: toPath, confirmed: true, overwrite: false }),
+    });
+    show(`已移动到 ${toPath}`);
+    await loadList();
+    await loadMemory(data.memory.path);
+  }
+
+  async function renameNode(node: TreeNode) {
+    const oldPath = normalizePath(node.path);
+    const oldName = fileName(oldPath);
+    const newName = prompt(node.type === 'directory' ? '新的文件夹名称' : '新的文件名称', oldName);
+    if (newName === null) return;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.startsWith('.')) return show('名称不能为空，且不能包含 /、\\ 或以 . 开头', true);
+    const newPath = joinPath(parentPath(oldPath), trimmed);
+    if (node.type === 'file' && !TEXT_EXTENSIONS.test(newPath)) return show('文件名需要以 .md、.markdown 或 .txt 结尾', true);
+    if (!confirm(`确认重命名？\n\n${oldPath}\n→ ${newPath}`)) return;
+    await api('/v1/memories/move', { method: 'POST', body: JSON.stringify({ from_path: oldPath, to_path: newPath, confirmed: true, overwrite: false }) });
+    show(`已重命名为 ${newPath}`);
+    const nextCurrent = current?.path && isPathInside(current.path, oldPath) ? current.path.replace(oldPath, newPath) : current?.path;
+    await loadList();
+    if (nextCurrent) await loadMemory(nextCurrent).catch(() => setCurrent(null));
+  }
+
+  async function deleteNode(node: TreeNode) {
+    const path = normalizePath(node.path);
+    const message = node.type === 'directory' ? `确认递归删除整个文件夹？\n\n${path}\n\n其中的所有文件都会被删除。` : `确认删除文件？\n\n${path}`;
+    if (!confirm(message)) return;
+    await api(`/v1/memories/${encodeURIComponent(path)}?confirmed=true`, { method: 'DELETE' });
+    if (current?.path && (node.type === 'directory' ? isPathInside(current.path, path) : current.path === path)) setCurrent(null);
+    show(node.type === 'directory' ? `已删除文件夹 ${path}` : `已删除文件 ${path}`);
+    await loadList();
+  }
+
+  async function loadGitPanel() {
+    await Promise.all([loadGitDiff(), loadGitLog()]);
+  }
+
+  async function loadGitDiff() {
+    const data = await api<GitDiff>('/v1/git/diff');
+    setGitDiff(data);
+  }
+
+  async function loadGitLog() {
+    const data = await api<{ commits: GitCommit[] }>('/v1/git/log?limit=50');
+    setCommits(data.commits || []);
+  }
+
+  async function discardGitChanges(path = '') {
+    const target = path ? `文件：${path}` : '全部未提交变更';
+    if (!confirm(`确认丢弃 ${target}？\n\n这个操作不可撤销。`)) return;
+    await api('/v1/git/discard', { method: 'POST', body: JSON.stringify({ path, confirmed: true }) });
+    show(path ? `已丢弃 ${path} 的变更` : '已丢弃全部未提交变更');
+    await Promise.all([loadGitDiff(), loadList().catch(() => undefined), loadSyncStatus().catch(() => undefined)]);
+    if (current?.path) await loadMemory(current.path).catch(() => setCurrent(null));
+  }
+
+  async function loadSyncStatus() {
+    const data = await api<SyncStatus>('/v1/sync/status');
+    setSyncStatus(data);
+  }
+
+  async function syncAction(action: 'pull' | 'push' | 'now') {
+    const data = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST' });
+    setSyncStatus(data);
+    show('同步操作完成');
+  }
+
+  return (
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={setTab} onToggle={() => setSidebarCollapsed((v) => !v)} />
+      <section className="workspace">
+        <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} />
+        {tab === 'memories' && (
+          <section className={`memory-layout ${explorerCollapsed ? 'explorer-collapsed' : ''}`}>
+            <Explorer
+              tree={tree}
+              expanded={expanded}
+              setExpanded={setExpanded}
+              currentPath={current?.path || ''}
+              fileCount={fileCount}
+              dirCount={dirCount}
+              search={search}
+              prefix={prefix}
+              setSearch={setSearch}
+              setPrefix={setPrefix}
+              onSearch={() => void doSearch().catch((e) => show(e.message, true))}
+              onRefresh={() => void loadList().catch((e) => show(e.message, true))}
+              onOpen={(path) => void loadMemory(path).catch((e) => show(e.message, true))}
+              onRename={(node) => void renameNode(node).catch((e) => show(e.message, true))}
+              onDelete={(node) => void deleteNode(node).catch((e) => show(e.message, true))}
+              draggingPath={draggingPath}
+              setDraggingPath={setDraggingPath}
+              onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
+              collapsed={explorerCollapsed}
+              onToggle={() => setExplorerCollapsed((v) => !v)}
+            />
+            <MemoryEditor
+              current={current}
+              editing={editing}
+              draftPath={draftPath}
+              draftContent={draftContent}
+              setDraftPath={setDraftPath}
+              setDraftContent={setDraftContent}
+              onNew={newMemory}
+              onEdit={() => setEditing(true)}
+              onCancel={() => {
+                setEditing(false);
+                setDraftPath(current?.path || '');
+                setDraftContent(current?.content || '');
+              }}
+              onSave={() => void saveMemory().catch((e) => show(e.message, true))}
+              onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
+            />
+          </section>
+        )}
+        {tab === 'git' && <GitView diff={gitDiff} commits={commits} onRefresh={loadGitPanel} onDiscard={discardGitChanges} />}
+        {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
+      </section>
+      {toast && <div className={`toast ${toast.danger ? 'danger' : ''}`}>{toast.message}</div>}
+    </div>
+  );
+}
+
+function AppSidebar({ collapsed, tab, setTab, onToggle }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void }) {
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <div className="brand-mark">M</div>
+        {!collapsed && (
+          <div className="brand-text">
+            <h1>MemoryDock</h1>
+            <p>Knowledge workspace</p>
+          </div>
+        )}
+        <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? '展开侧栏' : '折叠侧栏'}>
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
+      <nav className="nav">
+        <button className={tab === 'memories' ? 'active' : ''} onClick={() => setTab('memories')} title="记忆库">
+          <Archive size={17} /> {!collapsed && <span>记忆库</span>}
+        </button>
+        <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')} title="变更记录">
+          <GitBranch size={17} /> {!collapsed && <span>变更记录</span>}
+        </button>
+        <button className={tab === 'sync' ? 'active' : ''} onClick={() => setTab('sync')} title="同步设置">
+          <Settings size={17} /> {!collapsed && <span>同步设置</span>}
+        </button>
+      </nav>
+      {!collapsed && (
+        <div className="sidebar-card">
+          <strong>Git backed memory</strong>
+          <span>Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布</span>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function Topbar({ tab, current, fileCount, dirCount }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number }) {
+  const title = tab === 'memories' ? 'Memory workspace' : tab === 'git' ? 'Git review' : 'Sync center';
+  const subtitle = tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '像代码评审一样查看和丢弃变更' : '查看同步状态并手动触发 Git 操作';
+  return (
+    <header className="topbar">
+      <div className="page-title">
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      <div className="status-strip">
+        <span className="pill ok">● Online</span>
+        <span className="pill">{fileCount} files</span>
+        <span className="pill">{dirCount} dirs</span>
+      </div>
+    </header>
+  );
+}
+
+function Explorer(props: {
+  tree: TreeNode;
+  expanded: Set<string>;
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
+  currentPath: string;
+  fileCount: number;
+  dirCount: number;
+  search: string;
+  prefix: string;
+  setSearch: (value: string) => void;
+  setPrefix: (value: string) => void;
+  onSearch: () => void;
+  onRefresh: () => void;
+  onOpen: (path: string) => void;
+  onRename: (node: TreeNode) => void;
+  onDelete: (node: TreeNode) => void;
+  draggingPath: string;
+  setDraggingPath: (path: string) => void;
+  onMove: (from: string, to: string) => void;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <aside className="explorer-panel">
+      <div className="panel-head">
+        <button className="icon-button" onClick={props.onToggle} title={props.collapsed ? '展开 Explorer' : '折叠 Explorer'}>
+          {props.collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+        {!props.collapsed && <h3>Explorer</h3>}
+        {!props.collapsed && <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>}
+      </div>
+      {!props.collapsed && (
+        <>
+          <div className="panel-search">
+            <div className="input-row"><Search size={15} /><input value={props.search} onChange={(e) => props.setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && props.onSearch()} placeholder="搜索关键词" /></div>
+            <div className="input-row"><Folder size={15} /><input value={props.prefix} onChange={(e) => props.setPrefix(e.target.value)} placeholder="prefix，例如 shared/projects" /></div>
+            <div className="button-row"><button className="primary" onClick={props.onSearch}>搜索</button><button onClick={props.onRefresh}><RefreshCw size={14} />刷新</button></div>
+          </div>
+          <div className="tree-scroll">
+            {sortedChildren(props.tree).length ? sortedChildren(props.tree).map((node) => (
+              <TreeItem
+                key={node.path}
+                node={node}
+                depth={0}
+                expanded={props.expanded}
+                setExpanded={props.setExpanded}
+                currentPath={props.currentPath}
+                onOpen={props.onOpen}
+                onRename={props.onRename}
+                onDelete={props.onDelete}
+                draggingPath={props.draggingPath}
+                setDraggingPath={props.setDraggingPath}
+                onMove={props.onMove}
+              />
+            )) : <div className="empty-state">没有记忆文件</div>}
+          </div>
+        </>
+      )}
+    </aside>
+  );
+}
+
+function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onRename, onDelete, draggingPath, setDraggingPath, onMove }: {
+  node: TreeNode;
+  depth: number;
+  expanded: Set<string>;
+  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
+  currentPath: string;
+  onOpen: (path: string) => void;
+  onRename: (node: TreeNode) => void;
+  onDelete: (node: TreeNode) => void;
+  draggingPath: string;
+  setDraggingPath: (path: string) => void;
+  onMove: (from: string, to: string) => void;
+}) {
+  const open = expanded.has(node.path);
+  const active = node.type === 'file' && node.path === currentPath;
+  const isDir = node.type === 'directory';
+  const toggle = () => setExpanded((prev) => {
+    const next = new Set(prev);
+    open ? next.delete(node.path) : next.add(node.path);
+    return next;
+  });
+  return (
+    <>
+      <div
+        className={`tree-row ${isDir ? 'dir' : 'file'} ${active ? 'active' : ''}`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        draggable={!isDir}
+        onDragStart={(e) => { if (!isDir) { setDraggingPath(node.path); e.dataTransfer.setData('text/plain', node.path); } }}
+        onDragEnd={() => setDraggingPath('')}
+        onDragOver={(e) => { if (isDir && draggingPath) e.preventDefault(); }}
+        onDrop={(e) => { if (isDir) { e.preventDefault(); onMove(e.dataTransfer.getData('text/plain') || draggingPath, node.path); } }}
+        onClick={() => isDir ? toggle() : onOpen(node.path)}
+      >
+        <span className="tree-toggle">{isDir ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}</span>
+        <span className="tree-icon">{isDir ? (open ? <FolderOpen size={15} /> : <Folder size={15} />) : <FileText size={15} />}</span>
+        <span className="tree-name" title={node.path}>{node.name}</span>
+        <span className="tree-meta">{isDir ? `${countFiles(node)} 文件` : formatBytes(node.entry?.size_bytes)}</span>
+        <button className="tree-action" onClick={(e) => { e.stopPropagation(); onRename(node); }} title="重命名"><PenLine size={13} /></button>
+        <button className="tree-action danger" onClick={(e) => { e.stopPropagation(); onDelete(node); }} title="删除"><Trash2 size={13} /></button>
+      </div>
+      {isDir && open && sortedChildren(node).map((child) => <TreeItem key={child.path} node={child} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} currentPath={currentPath} onOpen={onOpen} onRename={onRename} onDelete={onDelete} draggingPath={draggingPath} setDraggingPath={setDraggingPath} onMove={onMove} />)}
+    </>
+  );
+}
+
+function MemoryEditor(props: {
+  current: Memory | null;
+  editing: boolean;
+  draftPath: string;
+  draftContent: string;
+  setDraftPath: (value: string) => void;
+  setDraftContent: (value: string) => void;
+  onNew: () => void;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
+  return (
+    <main className="document-panel">
+      <div className="doc-toolbar">
+        <div>
+          <div className="doc-path">{props.current?.path || (props.editing ? '新建记忆' : '未选择文件')}</div>
+          <div className="muted">{props.editing ? '编辑模式 · 保存后会写入 Git 工作区' : '阅读模式 · Markdown 自动渲染'}</div>
+        </div>
+        <div className="toolbar-actions">
+          <button onClick={props.onNew}><Plus size={15} />新建</button>
+          {!props.editing && <button disabled={!props.current} onClick={props.onEdit}><PenLine size={15} />编辑</button>}
+          {props.editing && <button className="primary" onClick={props.onSave}><Save size={15} />保存</button>}
+          {props.editing && <button onClick={props.onCancel}><X size={15} />取消</button>}
+          <button className="danger" disabled={!props.current} onClick={props.onDelete}><Trash2 size={15} />删除</button>
+        </div>
+      </div>
+      {props.editing ? (
+        <div className="editor-body">
+          <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
+          <textarea value={props.draftContent} onChange={(e) => props.setDraftContent(e.target.value)} spellCheck={false} />
+        </div>
+      ) : props.current ? (
+        isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
+      ) : (
+        <div className="hero-empty">
+          <FileText size={42} />
+          <h3>选择一个记忆文件</h3>
+          <p>从左侧 Explorer 选择 Markdown 文件，或新建一条记忆。</p>
+        </div>
+      )}
+    </main>
+  );
+}
+
+function GitView({ diff, commits, onRefresh, onDiscard }: { diff: GitDiff | null; commits: GitCommit[]; onRefresh: () => Promise<void>; onDiscard: (path?: string) => Promise<void> }) {
+  const sections = useMemo(() => parseSideBySideDiff([
+    { title: 'Staged changes', diff: diff?.cached_diff || '' },
+    { title: 'Working tree changes', diff: diff?.diff || '' },
+  ]), [diff]);
+  return (
+    <section className="git-grid">
+      <div className="panel-card diff-card">
+        <div className="card-head">
+          <div><h3>Git Diff</h3><p>{diff?.dirty ? '有未提交更改' : '工作区干净'}</p></div>
+          <div className="button-row"><button className="danger" onClick={() => void onDiscard('')}><Undo2 size={15} />丢弃全部变更</button><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
+        </div>
+        <div className="git-summary"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
+        <div className="diff-viewer">
+          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} />) : <div className="empty-state">没有 diff</div>}
+        </div>
+      </div>
+      <div className="panel-card history-card">
+        <div className="card-head"><div><h3>提交历史</h3><p>最近提交记录</p></div><Clock3 size={17} /></div>
+        <div className="commit-list">
+          {commits.map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DiffSectionView({ section, onDiscard }: { section: DiffSection; onDiscard: (path?: string) => Promise<void> }) {
+  return <div className="diff-section"><div className="diff-stage">{section.title}</div>{section.files.map((file) => <div className="diff-file" key={section.title + file.name}><div className="diff-file-head"><Braces size={14} /><span>{file.name}</span><button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button></div>{file.rows.map((row, index) => <DiffRowView key={index} row={row} />)}</div>)}</div>;
+}
+
+function DiffRowView({ row }: { row: DiffRow }) {
+  return <div className={`diff-row ${row.kind}`}><span className="ln">{row.oldNo || ''}</span><code className="left">{row.left || ' '}</code><span className="ln">{row.newNo || ''}</span><code className="right">{row.right || ' '}</code></div>;
+}
+
+function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void> }) {
+  return <section className="sync-grid"><div className="panel-card"><div className="card-head"><div><h3>同步状态</h3><p>Git 仓库状态和自动同步信息</p></div><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></div><div className="panel-card"><div className="card-head"><div><h3>手动同步</h3><p>调用 MemoryDock 同步 API</p></div></div><div className="sync-actions"><button onClick={() => void onAction('pull')}>Pull</button><button onClick={() => void onAction('push')}>Push</button><button className="primary" onClick={() => void onAction('now')}>Pull + Push</button></div></div></section>;
+}
+
+createRoot(document.getElementById('root')!).render(<App />);
