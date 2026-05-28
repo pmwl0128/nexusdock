@@ -44,9 +44,21 @@ type Memory struct {
 }
 
 type SearchResult struct {
+	Path          string            `json:"path"`
+	Title         string            `json:"title,omitempty"`
+	Snippet       string            `json:"snippet"`
+	Frontmatter   map[string]string `json:"frontmatter"`
+	MatchedTerms  []string          `json:"matched_terms,omitempty"`
+	MatchedFields []string          `json:"matched_fields,omitempty"`
+}
+
+type MemoryIndex struct {
 	Path        string            `json:"path"`
-	Snippet     string            `json:"snippet"`
-	Frontmatter map[string]string `json:"frontmatter"`
+	Title       string            `json:"title,omitempty"`
+	Frontmatter map[string]string `json:"frontmatter,omitempty"`
+	Aliases     []string          `json:"aliases,omitempty"`
+	Keywords    []string          `json:"keywords,omitempty"`
+	SizeBytes   int               `json:"size_bytes,omitempty"`
 }
 
 type WriteRequest struct {
@@ -168,6 +180,10 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 	if maxResults <= 0 || maxResults > 200 {
 		maxResults = 50
 	}
+	terms := queryTerms(query)
+	if len(terms) == 0 {
+		return nil, errors.New("query has no searchable terms")
+	}
 	base := s.root
 	if strings.TrimSpace(prefix) != "" {
 		resolved, err := s.resolve(prefix)
@@ -176,10 +192,13 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 		}
 		base = resolved
 	}
-	lower := strings.ToLower(query)
-	results := []SearchResult{}
+	type scoredResult struct {
+		result SearchResult
+		score  int
+	}
+	results := []scoredResult{}
 	if _, err := os.Stat(base); os.IsNotExist(err) {
-		return results, nil
+		return []SearchResult{}, nil
 	}
 	err := filepath.WalkDir(base, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -201,30 +220,100 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 		rel, _ := filepath.Rel(s.root, path)
 		rel = filepath.ToSlash(rel)
 		text := string(data)
-		idx := strings.Index(strings.ToLower(text), lower)
-		if idx < 0 && !strings.Contains(strings.ToLower(rel), lower) {
+		frontmatter, body := SplitFrontmatter(text)
+		title := firstMarkdownTitle(body)
+
+		pathText := strings.ToLower(rel)
+		nameText := strings.ToLower(filepath.Base(rel))
+		frontText := strings.ToLower(frontmatterText(frontmatter))
+		titleText := strings.ToLower(title)
+		bodyText := strings.ToLower(body)
+		fullText := strings.ToLower(text)
+		lowerQuery := strings.ToLower(query)
+
+		matchedTerms := []string{}
+		fieldSet := map[string]bool{}
+		score := 0
+		for _, term := range terms {
+			matched := false
+			if strings.Contains(pathText, term) {
+				matched = true
+				fieldSet["path"] = true
+				score += 5
+			}
+			if strings.Contains(nameText, term) {
+				matched = true
+				fieldSet["filename"] = true
+				score += 8
+			}
+			if strings.Contains(frontText, term) {
+				matched = true
+				fieldSet["frontmatter"] = true
+				score += 7
+			}
+			if strings.Contains(titleText, term) {
+				matched = true
+				fieldSet["title"] = true
+				score += 6
+			}
+			if strings.Contains(bodyText, term) {
+				matched = true
+				fieldSet["body"] = true
+				score += 1
+			}
+			if matched {
+				matchedTerms = append(matchedTerms, term)
+			}
+		}
+		if strings.Contains(fullText, lowerQuery) || strings.Contains(pathText, lowerQuery) {
+			score += 20
+			fieldSet["exact_query"] = true
+		}
+		if len(matchedTerms) == 0 && !fieldSet["exact_query"] {
 			return nil
 		}
-		snippet := rel
-		if idx >= 0 {
-			start := idx - 120
-			if start < 0 {
-				start = 0
-			}
-			end := idx + len(query) + 180
-			if end > len(text) {
-				end = len(text)
-			}
-			snippet = strings.TrimSpace(text[start:end])
-		}
-		frontmatter, _ := SplitFrontmatter(text)
-		results = append(results, SearchResult{Path: rel, Snippet: snippet, Frontmatter: frontmatter})
-		if len(results) >= maxResults {
-			return filepath.SkipAll
-		}
+		matchedFields := sortedKeys(fieldSet)
+		snippet := buildSnippet(rel, text, body, lowerQuery, matchedTerms)
+		results = append(results, scoredResult{result: SearchResult{Path: rel, Title: title, Snippet: snippet, Frontmatter: frontmatter, MatchedTerms: matchedTerms, MatchedFields: matchedFields}, score: score})
 		return nil
 	})
-	return results, err
+	if err != nil {
+		return nil, err
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		if results[i].score != results[j].score {
+			return results[i].score > results[j].score
+		}
+		return results[i].result.Path < results[j].result.Path
+	})
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+	out := make([]SearchResult, 0, len(results))
+	for _, result := range results {
+		out = append(out, result.result)
+	}
+	return out, nil
+}
+
+func (s *Store) RunbookIndex(project string, maxEntries int) ([]MemoryIndex, error) {
+	if maxEntries <= 0 || maxEntries > 200 {
+		maxEntries = 50
+	}
+	if strings.TrimSpace(project) == "" {
+		return []MemoryIndex{}, nil
+	}
+	base := "shared/projects/" + SafeSegment(project) + "/runbooks"
+	paths := s.listUnder(base, maxEntries)
+	indexes := make([]MemoryIndex, 0, len(paths))
+	for _, rel := range paths {
+		mem, err := s.Read(rel)
+		if err != nil {
+			continue
+		}
+		indexes = append(indexes, MemoryIndex{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Frontmatter: mem.Frontmatter, Aliases: frontmatterList(mem.Frontmatter, "aliases"), Keywords: frontmatterList(mem.Frontmatter, "keywords"), SizeBytes: mem.SizeBytes})
+	}
+	return indexes, nil
 }
 
 func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
@@ -400,6 +489,119 @@ func (s *Store) listUnder(rel string, max int) []string {
 		files = files[len(files)-max:]
 	}
 	return files
+}
+
+func queryTerms(query string) []string {
+	seen := map[string]bool{}
+	terms := []string{}
+	for _, raw := range strings.Fields(query) {
+		term := strings.ToLower(strings.TrimSpace(raw))
+		term = strings.Trim(term, "\"'`.,;:!?()[]{}<>，。；：！？（）【】《》")
+		if term == "" || seen[term] {
+			continue
+		}
+		seen[term] = true
+		terms = append(terms, term)
+	}
+	return terms
+}
+
+func frontmatterText(frontmatter map[string]string) string {
+	if len(frontmatter) == 0 {
+		return ""
+	}
+	keys := sortedMapKeys(frontmatter)
+	parts := make([]string, 0, len(keys)*2)
+	for _, key := range keys {
+		parts = append(parts, key, frontmatter[key])
+	}
+	return strings.Join(parts, " ")
+}
+
+func firstMarkdownTitle(body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") {
+			return strings.TrimSpace(strings.TrimLeft(line, "#"))
+		}
+	}
+	return ""
+}
+
+func buildSnippet(path, content, body, lowerQuery string, terms []string) string {
+	lowerContent := strings.ToLower(content)
+	idx := -1
+	needleLen := len(lowerQuery)
+	if lowerQuery != "" {
+		idx = strings.Index(lowerContent, lowerQuery)
+	}
+	if idx < 0 {
+		for _, term := range terms {
+			if term == "" {
+				continue
+			}
+			if found := strings.Index(lowerContent, term); found >= 0 {
+				idx = found
+				needleLen = len(term)
+				break
+			}
+		}
+	}
+	if idx < 0 {
+		trimmed := strings.TrimSpace(body)
+		if trimmed == "" {
+			return path
+		}
+		if len(trimmed) > 260 {
+			trimmed = trimmed[:260]
+		}
+		return trimmed
+	}
+	start := idx - 120
+	if start < 0 {
+		start = 0
+	}
+	end := idx + needleLen + 180
+	if end > len(content) {
+		end = len(content)
+	}
+	return strings.TrimSpace(content[start:end])
+}
+
+func sortedKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key, ok := range values {
+		if ok {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedMapKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func frontmatterList(frontmatter map[string]string, key string) []string {
+	value := strings.TrimSpace(frontmatter[key])
+	if value == "" {
+		return nil
+	}
+	fields := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ';' || r == '，' || r == '；' })
+	out := []string{}
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field != "" {
+			out = append(out, field)
+		}
+	}
+	return out
 }
 
 func IsTextFile(path string) bool {

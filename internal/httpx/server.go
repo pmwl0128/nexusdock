@@ -182,7 +182,11 @@ func (s *Server) packMemories(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "PACK_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": req.Project, "sections": sections, "count": len(sections), "bytes": bytes})
+	runbookIndex, indexErr := s.store.RunbookIndex(req.Project, 50)
+	if indexErr != nil {
+		runbookIndex = nil
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": req.Project, "sections": sections, "count": len(sections), "bytes": bytes, "runbook_index": runbookIndex, "runbook_index_count": len(runbookIndex)})
 }
 
 func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
