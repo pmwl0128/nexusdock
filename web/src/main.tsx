@@ -991,8 +991,14 @@ function Explorer(props: {
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const compactPath = normalizePath(props.currentPath || props.prefix).split('/').filter(Boolean);
+  const compactItems = compactPath.map((part, index) => ({
+    name: part,
+    path: compactPath.slice(0, index + 1).join('/'),
+    isFile: index === compactPath.length - 1 && /\.[^/]+$/.test(part),
+  }));
   return (
-    <aside className="explorer-panel">
+    <aside className={`explorer-panel ${props.collapsed ? 'explorer-orb-rail' : ''}`}>
       <div className="panel-head">
         <button className="icon-button" onClick={props.onToggle} title={props.collapsed ? '展开 Explorer' : '折叠 Explorer'}>
           {props.collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -1000,6 +1006,28 @@ function Explorer(props: {
         {!props.collapsed && <h3>Explorer</h3>}
         {!props.collapsed && <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>}
       </div>
+      {props.collapsed && (
+        <div className="path-orb-stack" aria-label="当前路径快捷球">
+          <button className="path-orb root" title="展开 Explorer" onClick={props.onToggle}><Folder size={18} /></button>
+          {compactItems.length ? compactItems.map((item) => (
+            <button
+              key={item.path}
+              className={`path-orb ${item.isFile ? 'file' : 'folder'}`}
+              title={item.path}
+              onClick={() => {
+                if (item.isFile) props.onOpen(item.path);
+                else {
+                  props.setPrefix(item.path);
+                  props.onToggle();
+                }
+              }}
+            >
+              {item.isFile ? <FileText size={17} /> : <Folder size={17} />}
+              <span>{item.name.replace(/\.(md|markdown|txt)$/i, '')}</span>
+            </button>
+          )) : <button className="path-orb empty" title="当前没有选中文件" onClick={props.onToggle}><Archive size={18} /></button>}
+        </div>
+      )}
       {!props.collapsed && (
         <>
           <div className="panel-search">
