@@ -91,9 +91,8 @@ pre, code { font-family: var(--mono); }
 
 .app {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 0;
+  display: block;
+  padding-left: 106px;
   position: relative;
 }
 .app::before {
@@ -105,14 +104,18 @@ pre, code { font-family: var(--mono); }
     radial-gradient(circle at 13% 86%, rgba(160, 122, 255, .16), transparent 24%),
     radial-gradient(circle at 94% 62%, rgba(86, 137, 255, .12), transparent 20%);
 }
-.app.sidebar-collapsed { grid-template-columns: 88px minmax(0, 1fr); }
+.app.sidebar-collapsed { padding-left: 106px; }
 .workspace { min-width: 0; position: relative; z-index: 1; display: flex; flex-direction: column; }
 
 .sidebar {
-  position: sticky;
+  position: fixed;
+  z-index: 25;
+  left: 18px;
   top: 18px;
-  height: calc(100vh - 36px);
-  margin: 18px 0 18px 18px;
+  bottom: 18px;
+  width: 70px;
+  height: auto;
+  margin: 0;
   padding: 14px 10px;
   border: 1px solid rgba(255, 255, 255, .70);
   border-radius: 26px;
@@ -197,7 +200,7 @@ pre, code { font-family: var(--mono); }
   gap: 18px;
   transition: grid-template-columns .18s ease;
 }
-.memory-layout.explorer-collapsed { grid-template-columns: 66px minmax(0, 1fr); }
+.memory-layout.explorer-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: 72px minmax(0, 1fr); }
 .explorer-panel, .document-panel, .panel-card, .git-rail, .git-main, .git-history-panel, .sync-status-card, .sync-actions-card {
   border: 1px solid rgba(255, 255, 255, .75);
   background: var(--panel);
@@ -268,8 +271,8 @@ pre, code { font-family: var(--mono); }
 }
 .tree-row:hover .tree-action, .tree-row.active .tree-action { opacity: 1; }
 .tree-action.danger { color: var(--danger); background: rgba(255,246,249,.72); }
-.memory-layout.explorer-collapsed .explorer-panel { border-radius: 22px; }
-.memory-layout.explorer-collapsed .panel-head { padding: 12px 10px; justify-content: center; }
+.memory-layout.explorer-collapsed .explorer-panel { height: 72px; min-height: 72px; max-height: 72px; border-radius: 22px; }
+.memory-layout.explorer-collapsed .panel-head { min-height: 72px; padding: 12px 16px; justify-content: flex-start; }
 
 .document-panel {
   min-width: 0;
@@ -470,7 +473,7 @@ pre, code { font-family: var(--mono); }
 @media (max-width: 900px) {
   body { overflow-x: hidden; }
   button { min-height: 36px; }
-  .app, .app.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .app, .app.sidebar-collapsed { display: block; padding-left: 0; }
   .workspace { min-width: 0; padding-bottom: 84px; }
   .sidebar {
     position: fixed;
@@ -877,4 +880,147 @@ button.primary:hover {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.72), 0 10px 18px rgba(99,91,255,.14);
   backdrop-filter: blur(10px) saturate(1.4);
   -webkit-backdrop-filter: blur(10px) saturate(1.4);
+}
+
+
+/* Fix: keep icon rail pinned and make glass visible without needing hover */
+.sidebar {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.58), rgba(240,244,255,.28)),
+    radial-gradient(circle at 28% 12%, rgba(255,255,255,.78), transparent 30%),
+    radial-gradient(circle at 72% 92%, rgba(100, 91, 255, .22), transparent 42%);
+  border-color: rgba(255,255,255,.82);
+  backdrop-filter: blur(30px) saturate(1.85);
+  -webkit-backdrop-filter: blur(30px) saturate(1.85);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.88),
+    inset 0 -24px 48px rgba(255,255,255,.14),
+    0 28px 70px rgba(46, 57, 110, .20);
+}
+
+.sidebar::before,
+.sidebar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.sidebar::before {
+  inset: 1px;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.76), transparent 34%, rgba(255,255,255,.18) 64%, transparent 82%);
+  opacity: .78;
+}
+
+.sidebar::after {
+  inset: -18% -60%;
+  background: conic-gradient(from 180deg at 50% 50%, transparent, rgba(255,255,255,.32), transparent, rgba(124,108,255,.20), transparent);
+  filter: blur(18px);
+  opacity: .28;
+  animation: liquidRimTravel 5.8s ease-in-out infinite alternate;
+}
+
+.brand,
+.nav { position: relative; z-index: 1; }
+
+.nav button,
+.icon-button,
+.tree-action,
+.file-status,
+button.primary,
+.brand-mark {
+  transform-style: preserve-3d;
+}
+
+.nav button,
+.icon-button {
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.72), rgba(238,243,255,.36)),
+    radial-gradient(circle at 24% 16%, rgba(255,255,255,.92), rgba(255,255,255,.20) 35%, transparent 64%),
+    radial-gradient(circle at 84% 88%, rgba(104, 93, 255, .24), transparent 46%);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.94),
+    inset 0 -14px 28px rgba(255,255,255,.16),
+    0 12px 30px rgba(63, 75, 135, .14);
+  animation: liquidLensBreath 4.6s ease-in-out infinite;
+}
+
+.nav button::before,
+.icon-button::before,
+.tree-action::before,
+.file-status::before,
+button.primary::before,
+.brand-mark::before {
+  opacity: .82;
+  mix-blend-mode: screen;
+}
+
+.nav button::after,
+.icon-button::after,
+.tree-action::after,
+.file-status::after,
+button.primary::after,
+.brand-mark::after {
+  opacity: .30;
+  animation: liquidRimTravel 4.2s ease-in-out infinite alternate;
+}
+
+.nav button:nth-child(2)::after { animation-delay: -.9s; }
+.nav button:nth-child(3)::after { animation-delay: -1.8s; }
+.nav button:nth-child(4)::after { animation-delay: -2.7s; }
+
+.nav button.active {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.98),
+    inset 0 -16px 30px rgba(255,255,255,.22),
+    0 18px 42px rgba(99, 91, 255, .28);
+}
+
+.nav button.active::after {
+  opacity: .55;
+  animation-duration: 2.6s;
+}
+
+.nav button:hover,
+.icon-button:hover {
+  transform: translateY(-5px) scale(1.13) rotateX(8deg) rotateY(-8deg);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,1),
+    inset 0 -18px 32px rgba(255,255,255,.24),
+    0 26px 58px rgba(99, 91, 255, .26);
+}
+
+.explorer-panel,
+.document-panel,
+.panel-card,
+.git-rail,
+.git-main,
+.git-history-panel,
+.sync-status-card,
+.sync-actions-card {
+  backdrop-filter: blur(28px) saturate(1.45);
+  -webkit-backdrop-filter: blur(28px) saturate(1.45);
+}
+
+.memory-layout.explorer-collapsed .explorer-panel {
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.78), rgba(238,243,255,.46)),
+    radial-gradient(circle at 12% 16%, rgba(255,255,255,.92), transparent 30%),
+    radial-gradient(circle at 92% 80%, rgba(99,91,255,.16), transparent 42%);
+}
+
+.memory-layout.explorer-collapsed .panel-head::after {
+  content: "Explorer collapsed · 点击展开";
+  margin-left: 8px;
+  color: #75809a;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+@media (max-width: 900px) {
+  .sidebar { width: auto; }
+  .sidebar::after { inset: -120% -20%; }
 }
