@@ -2670,3 +2670,45 @@ button.primary::after,
 .review-side {
   transform: none !important;
 }
+
+/* Stable background pass: keep the app background visually fixed and stop always-on moving glass backgrounds. */
+body {
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 52%, #faf7ff 100%) !important;
+  background-attachment: scroll !important;
+}
+
+.app::before {
+  background: none !important;
+}
+
+.sidebar::after,
+.brand-mark,
+.nav button,
+.nav button.active,
+.icon-button,
+.tree-action,
+.file-status,
+.path-orb,
+.path-orb::after,
+.floating-explorer-orb,
+.floating-explorer-orb::after,
+button.primary::after {
+  animation: none !important;
+}
+
+.nav button,
+.icon-button,
+.tree-action,
+.file-status {
+  background-position: 50% 50%, 50% 50%, 50% 50% !important;
+}
+
+.nav button:hover::after,
+.icon-button:hover::after,
+.tree-action:hover::after,
+.file-status:hover::after,
+button.primary:hover::after,
+.brand-mark:hover::after,
+.floating-explorer-orb:hover::after {
+  animation: glassSheen .52s var(--ease-smooth) 1 !important;
+}
