@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import {
   Archive,
@@ -683,6 +684,11 @@ function App() {
   return (
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''} ${desktopReviewFocus ? 'desktop-review-focus' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
+      <FloatingExplorerOrb
+        visible={tab === 'memories' && explorerCollapsed}
+        currentPath={current?.path || prefix}
+        onOpen={() => setExplorerCollapsed(false)}
+      />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
         {tab === 'dashboard' && (
@@ -886,6 +892,21 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
         </div>
       </div>
     </div>
+  );
+}
+
+
+function FloatingExplorerOrb({ visible, currentPath, onOpen }: { visible: boolean; currentPath: string; onOpen: () => void }) {
+  const parts = normalizePath(currentPath).split('/').filter(Boolean);
+  const currentName = parts.length ? parts[parts.length - 1] : 'Explorer';
+  const isFile = /\.[^/]+$/.test(currentName);
+  if (!visible || typeof document === 'undefined') return null;
+  return createPortal(
+    <button className={`floating-explorer-orb ${isFile ? 'file' : 'folder'}`} title={parts.length ? currentPath : '展开 Explorer'} onClick={onOpen}>
+      {parts.length ? (isFile ? <FileText size={20} /> : <Folder size={20} />) : <Archive size={20} />}
+      <span>{currentName.replace(/\.(md|markdown|txt)$/i, '')}</span>
+    </button>,
+    document.body,
   );
 }
 
