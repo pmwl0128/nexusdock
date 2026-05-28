@@ -413,8 +413,9 @@ function App() {
   const [renamingPath, setRenamingPath] = useState('');
   const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
-  const [mobileNavCompact, setMobileNavCompact] = useState(false);
+  const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
   const [desktopContentHover, setDesktopContentHover] = useState(false);
+  const [desktopReviewFocus, setDesktopReviewFocus] = useState(false);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
@@ -454,38 +455,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let lastY = window.scrollY;
-    let ticking = false;
-    const compactAt = 170;
-    const isMobile = () => window.matchMedia('(max-width: 900px)').matches;
-    const update = () => {
-      const y = window.scrollY;
-      if (!isMobile()) {
-        setMobileNavCompact(false);
-        lastY = y;
-        ticking = false;
-        return;
-      }
-      const movingDown = y > lastY + 6;
-      const movingUp = y < lastY - 14;
-      if (y > compactAt && movingDown) setMobileNavCompact(true);
-      if (y < 90 || movingUp) setMobileNavCompact(false);
-      lastY = y;
-      ticking = false;
+    const syncMobileDock = () => {
+      const mobile = window.matchMedia('(max-width: 900px)').matches;
+      if (mobile) setMobileNavCompact(true);
+      else setMobileNavCompact(false);
     };
-    const onScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(update);
-        ticking = true;
-      }
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    onScroll();
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-    };
+    syncMobileDock();
+    window.addEventListener('resize', syncMobileDock);
+    return () => window.removeEventListener('resize', syncMobileDock);
   }, []);
 
   function viewChange(update: () => void) {
@@ -500,8 +477,9 @@ function App() {
 
   function selectTab(next: Tab) {
     viewChange(() => {
-      setMobileNavCompact(false);
+      setMobileNavCompact(window.matchMedia('(max-width: 900px)').matches);
       setDesktopContentHover(false);
+      setDesktopReviewFocus(false);
       setTab(next);
     });
   }
@@ -509,6 +487,11 @@ function App() {
   function setContentHover(next: boolean) {
     const desktopPointer = window.matchMedia('(min-width: 901px) and (pointer: fine)').matches;
     setDesktopContentHover(desktopPointer && next);
+  }
+
+  function setReviewFocus(next: boolean) {
+    const desktopPointer = window.matchMedia('(min-width: 901px) and (pointer: fine)').matches;
+    setDesktopReviewFocus(desktopPointer && next);
   }
 
   function expandPath(path: string) {
@@ -698,7 +681,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''} ${desktopReviewFocus ? 'desktop-review-focus' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
@@ -764,7 +747,7 @@ function App() {
             />
           </section>
         )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} />}
+        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFocusDiff={setReviewFocus} />}
         {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
       </section>
       {commandOpen && (
@@ -1190,7 +1173,7 @@ function MemoryEditor(props: {
   );
 }
 
-function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit }: {
+function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit, onFocusDiff }: {
   diff: GitDiff | null;
   commits: GitCommit[];
   selectedCommit: CommitDetail | null;
@@ -1198,6 +1181,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   onDiscard: (path?: string) => Promise<void>;
   onOpenFile: (path: string) => void;
   onSelectCommit: (hash: string) => Promise<void>;
+  onFocusDiff: (focus: boolean) => void;
 }) {
   const sections = useMemo(() => parseSideBySideDiff([
     { title: '已暂存更改', diff: diff?.cached_diff || '' },
@@ -1229,7 +1213,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
           <div className="button-row"><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
         </div>
         <div className="git-summary compact"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
-        <div className="diff-viewer vscode-like">
+        <div className="diff-viewer vscode-like" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
           {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />) : changedFiles.length ? <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} /> : <div className="empty-state">没有 diff</div>}
         </div>
       </main>
@@ -1250,7 +1234,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
             <div className="commit-files">
               {selectedCommit.files.map((file) => <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>)}
             </div>
-            <div className="commit-detail-diff">
+            <div className="commit-detail-diff" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
               {commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>}
             </div>
           </div>

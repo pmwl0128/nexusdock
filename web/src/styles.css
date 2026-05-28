@@ -1764,3 +1764,312 @@ button.primary::after,
   .path-orb span { display: none; }
   .path-orb + .path-orb::before { display: none; }
 }
+
+/* Desktop review focus: hover diff/content, float everything non-essential into glass orbs */
+@keyframes reviewFocusIn {
+  0% { opacity: .78; transform: translate3d(0, 14px, 0) scale(.985); filter: blur(8px) saturate(.96); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0) saturate(1); }
+}
+
+@media (min-width: 901px) and (pointer: fine) {
+  .app.desktop-review-focus { padding-left: 28px; }
+  .app.desktop-review-focus .workspace { transform: translate3d(-18px, 0, 0); }
+  .app.desktop-review-focus .topbar {
+    transform: translate3d(0, -86px, 0) scale(.98);
+    opacity: .08;
+    pointer-events: none;
+    filter: blur(8px);
+  }
+
+  .app.desktop-review-focus .sidebar {
+    top: 22px;
+    left: 22px;
+    bottom: auto;
+    width: 62px;
+    height: 62px;
+    min-height: 62px;
+    padding: 5px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    z-index: 90;
+    animation: desktopOrbMorph .52s var(--ease-spring), orbLiquidPulse 2.9s ease-in-out .42s infinite;
+  }
+  .app.desktop-review-focus .sidebar::before {
+    inset: 1px;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 26% 18%, rgba(255,255,255,.96), rgba(255,255,255,.30) 36%, transparent 62%),
+      linear-gradient(145deg, rgba(255,255,255,.72), transparent 46%, rgba(255,255,255,.24));
+    opacity: .94;
+  }
+  .app.desktop-review-focus .sidebar::after {
+    inset: -52%;
+    border-radius: 999px;
+    opacity: .56;
+    filter: blur(13px);
+    animation: liquidRimTravel 2.2s ease-in-out infinite alternate;
+  }
+  .app.desktop-review-focus .brand { width: 52px; height: 52px; padding: 0; display: grid; place-items: center; }
+  .app.desktop-review-focus .brand-mark {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+    font-size: 18px;
+    animation: liquidGlassShift 3.4s ease-in-out infinite, liquidLensBreath 2.4s ease-in-out infinite;
+  }
+  .app.desktop-review-focus .nav,
+  .app.desktop-review-focus .sidebar-card,
+  .app.desktop-review-focus .sidebar-toggle,
+  .app.desktop-review-focus .brand-text { display: none !important; }
+
+  .app.desktop-review-focus .git-workbench {
+    height: calc(100vh - 38px);
+    min-height: 720px;
+    padding: 22px 30px 28px 104px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    animation: reviewFocusIn .48s var(--ease-spring) both;
+  }
+
+  .app.desktop-review-focus .git-main {
+    grid-column: 1;
+    min-height: 0;
+    border-radius: 30px;
+    transform: translate3d(0, 0, 0) scale(1.008);
+    box-shadow: 0 34px 90px rgba(52, 65, 116, .19), 0 0 0 1px rgba(255,255,255,.86);
+  }
+
+  .app.desktop-review-focus .git-main .git-toolbar {
+    position: fixed;
+    z-index: 86;
+    right: 36px;
+    top: 26px;
+    width: auto;
+    max-width: 360px;
+    min-height: 58px;
+    padding: 10px 12px 10px 16px;
+    border: 1px solid rgba(255,255,255,.78);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 24% 18%, rgba(255,255,255,.92), transparent 32%),
+      linear-gradient(145deg, rgba(255,255,255,.78), rgba(237,242,255,.42));
+    backdrop-filter: blur(26px) saturate(1.65);
+    -webkit-backdrop-filter: blur(26px) saturate(1.65);
+    box-shadow: 0 20px 46px rgba(52,65,116,.18), inset 0 1px 1px rgba(255,255,255,.9);
+  }
+  .app.desktop-review-focus .git-main .git-toolbar p { display: none; }
+  .app.desktop-review-focus .git-main .git-toolbar h3 { font-size: 14px; letter-spacing: -.02em; white-space: nowrap; }
+  .app.desktop-review-focus .git-main .git-toolbar .button-row { margin-left: 8px; }
+  .app.desktop-review-focus .git-main .git-toolbar button { min-height: 40px; border-radius: 999px; }
+
+  .app.desktop-review-focus .git-summary {
+    max-height: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .app.desktop-review-focus .git-rail,
+  .app.desktop-review-focus .git-history-panel {
+    position: fixed;
+    z-index: 82;
+    width: 76px;
+    max-height: min(68vh, 660px);
+    border-radius: 38px;
+    padding: 12px 9px;
+    overflow: visible;
+    background:
+      linear-gradient(145deg, rgba(255,255,255,.62), rgba(237,242,255,.34)),
+      radial-gradient(circle at 30% 8%, rgba(255,255,255,.88), transparent 30%),
+      radial-gradient(circle at 72% 96%, rgba(99,91,255,.20), transparent 42%);
+    backdrop-filter: blur(28px) saturate(1.75);
+    -webkit-backdrop-filter: blur(28px) saturate(1.75);
+    box-shadow: 0 26px 68px rgba(52,65,116,.20), inset 0 1px 1px rgba(255,255,255,.9);
+  }
+  .app.desktop-review-focus .git-rail { left: 106px; top: 150px; }
+  .app.desktop-review-focus .git-history-panel { right: 36px; top: 116px; }
+
+  .app.desktop-review-focus .git-rail .rail-head,
+  .app.desktop-review-focus .git-history-panel .rail-head {
+    min-height: 52px;
+    padding: 0;
+    justify-content: center;
+    border: 0;
+  }
+  .app.desktop-review-focus .git-rail .rail-head strong,
+  .app.desktop-review-focus .git-history-panel .rail-head strong { display: none; }
+
+  .app.desktop-review-focus .changed-file-list,
+  .app.desktop-review-focus .history-list,
+  .app.desktop-review-focus .commit-files {
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .app.desktop-review-focus .changed-file-list::-webkit-scrollbar,
+  .app.desktop-review-focus .history-list::-webkit-scrollbar,
+  .app.desktop-review-focus .commit-files::-webkit-scrollbar { display: none; }
+
+  .app.desktop-review-focus .changed-file-list button,
+  .app.desktop-review-focus .history-list .commit,
+  .app.desktop-review-focus .commit-files button,
+  .app.desktop-review-focus .rail-actions button {
+    width: 52px;
+    height: 52px;
+    min-height: 52px;
+    padding: 0;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    overflow: visible;
+    font-size: 0;
+    background:
+      radial-gradient(circle at 27% 18%, rgba(255,255,255,.98), rgba(255,255,255,.30) 34%, transparent 62%),
+      radial-gradient(circle at 80% 86%, rgba(99,91,255,.24), transparent 46%),
+      linear-gradient(145deg, rgba(255,255,255,.72), rgba(237,242,255,.40));
+    border: 1px solid rgba(255,255,255,.76);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.94), 0 16px 34px rgba(72, 84, 155, .16);
+  }
+
+  .app.desktop-review-focus .changed-file-list button > span:not(.file-status),
+  .app.desktop-review-focus .commit-files button > span:not(.file-status),
+  .app.desktop-review-focus .history-list .commit p,
+  .app.desktop-review-focus .history-list .commit strong { display: none; }
+  .app.desktop-review-focus .history-list .commit div { display: block; width: auto; }
+  .app.desktop-review-focus .history-list .commit span { font-size: 10px; color: #5b55d6; font-weight: 850; }
+
+  .app.desktop-review-focus .rail-actions {
+    border: 0;
+    padding: 8px 0 0;
+    display: grid;
+    place-items: center;
+  }
+  .app.desktop-review-focus .rail-actions button svg { width: 16px; height: 16px; }
+  .app.desktop-review-focus .rail-actions button { color: var(--danger); }
+
+  .app.desktop-review-focus .git-workbench:not(.history-open) .git-history-panel .commit-detail { display: none; }
+  .app.desktop-review-focus .git-workbench.history-open {
+    grid-template-columns: minmax(0, .42fr) minmax(0, 1.58fr);
+    padding-left: 104px;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .git-main {
+    grid-column: 1;
+    opacity: .22;
+    transform: scale(.98);
+    pointer-events: none;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .git-history-panel {
+    position: relative;
+    grid-column: 2;
+    top: auto;
+    right: auto;
+    width: auto;
+    max-height: none;
+    border-radius: 30px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .git-history-panel .rail-head {
+    min-height: 60px;
+    padding: 14px 18px;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(126,141,178,.14);
+  }
+  .app.desktop-review-focus .git-workbench.history-open .git-history-panel .rail-head strong { display: inline; }
+  .app.desktop-review-focus .git-workbench.history-open .history-list {
+    max-height: 78px;
+    padding: 10px 14px;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid rgba(126,141,178,.14);
+  }
+  .app.desktop-review-focus .git-workbench.history-open .history-list .commit {
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .commit-detail {
+    border-top: 0;
+    max-height: none;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .commit-detail-head,
+  .app.desktop-review-focus .git-workbench.history-open .commit-files {
+    max-height: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .app.desktop-review-focus .git-workbench.history-open .commit-detail-diff {
+    padding: 18px;
+    animation: reviewFocusIn .42s var(--ease-spring) both;
+  }
+}
+
+/* Mobile: bottom dock is compact by default; tap the glass orb to expand */
+@media (max-width: 900px) {
+  .app.mobile-nav-orb .workspace {
+    padding-bottom: calc(98px + env(safe-area-inset-bottom));
+  }
+  .app.mobile-nav-orb .sidebar {
+    top: auto;
+    left: 18px;
+    right: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: 70px;
+    height: 70px;
+    min-height: 70px;
+    padding: 7px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    transform-origin: 50% 50%;
+    animation: dockToOrbPop .48s cubic-bezier(.18, .9, .22, 1.18), orbLiquidPulse 2.9s ease-in-out .45s infinite;
+  }
+  .app.mobile-nav-orb .brand {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+  }
+  .app.mobile-nav-orb .brand-mark {
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+  }
+  .app.mobile-nav-orb .memory-layout,
+  .app.mobile-nav-orb .git-workbench,
+  .app.mobile-nav-orb .sync-grid,
+  .app.mobile-nav-orb .dashboard-grid {
+    padding-bottom: calc(116px + env(safe-area-inset-bottom));
+  }
+  .app.mobile-nav-orb .markdown-body {
+    padding-bottom: calc(124px + env(safe-area-inset-bottom));
+  }
+
+  .app:not(.mobile-nav-orb) .sidebar {
+    animation: panelLiftIn .42s var(--ease-spring) both, liquidLensBreath 4.8s ease-in-out infinite;
+  }
+}
+
+@media (max-width: 560px) {
+  .app.mobile-nav-orb .sidebar {
+    left: 16px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    width: 66px;
+    height: 66px;
+    min-height: 66px;
+  }
+  .app.mobile-nav-orb .brand,
+  .app.mobile-nav-orb .brand-mark {
+    width: 52px;
+    height: 52px;
+  }
+}
