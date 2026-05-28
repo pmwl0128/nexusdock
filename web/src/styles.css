@@ -36,7 +36,7 @@ html, body, #root { min-height: 100%; }
 html { background: #f2f5ff; }
 body {
   margin: 0;
-  min-width: 1120px;
+  min-width: 0;
   background:
     radial-gradient(circle at 3% 12%, rgba(158, 133, 255, .22), transparent 28%),
     radial-gradient(circle at 96% 2%, rgba(76, 122, 255, .22), transparent 26%),
@@ -253,6 +253,9 @@ pre, code { font-family: var(--mono); }
 .tree-row.dir .tree-icon { color: #6673e7; }
 .tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: 13px; }
 .tree-meta { color: #9aa4bd; font-size: 11px; margin-left: 6px; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row.renaming { background: rgba(255,255,255,.86); border-color: rgba(99,91,255,.24); box-shadow: 0 10px 26px rgba(99,91,255,.10); }
+.tree-row.renaming .tree-meta { display: none; }
+.tree-rename-input { min-height: 30px; height: 30px; padding: 4px 8px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #202a4b; background: #fff; }
 .tree-action {
   width: 26px;
   height: 26px;
@@ -392,6 +395,7 @@ pre, code { font-family: var(--mono); }
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
   gap: 18px;
 }
+.git-workbench.history-open { grid-template-columns: minmax(210px, 250px) minmax(320px, .65fr) minmax(560px, 1.35fr); }
 .git-rail, .git-main, .git-history-panel { min-width: 0; min-height: 0; border-radius: 26px; overflow: hidden; display: flex; flex-direction: column; }
 .rail-head, .git-toolbar { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(126,141,178,.14); }
 .rail-head strong, .git-toolbar h3 { color: var(--heading); margin: 0; }
@@ -419,7 +423,7 @@ pre, code { font-family: var(--mono); }
 .diff-row.change .left, .diff-row.change .ln:nth-child(1) { background: rgba(229,72,104,.10); }
 .diff-row.change .right, .diff-row.change .ln:nth-child(3) { background: rgba(31,157,107,.10); }
 .history-item.active { border-color: rgba(99,91,255,.24); background: var(--accent-soft); }
-.commit-detail { border-top: 1px solid rgba(126,141,178,.14); max-height: 50%; overflow: auto; padding: 14px; display: grid; gap: 12px; }
+.commit-detail { border-top: 1px solid rgba(126,141,178,.14); max-height: none; flex: 1; overflow: auto; padding: 14px; display: grid; gap: 12px; align-content: start; }
 .commit-detail-head { display: flex; justify-content: space-between; gap: 12px; color: #24304f; }
 .commit-detail-head span { color: var(--muted); }
 .commit-files { display: grid; gap: 7px; }
@@ -452,7 +456,130 @@ pre, code { font-family: var(--mono); }
 
 @media (max-width: 1300px) {
   .memory-layout { grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); }
-  .git-workbench { grid-template-columns: 240px minmax(0, 1fr); }
-  .git-history-panel { display: none; }
+  .git-workbench { grid-template-columns: 220px minmax(0, 1fr); }
+  .git-workbench.history-open { grid-template-columns: 200px minmax(0, 1fr); }
+  .git-history-panel { display: flex; max-height: 440px; }
   .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+
+@media (max-width: 900px) {
+  body { overflow-x: hidden; }
+  button { min-height: 36px; }
+  .app, .app.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .workspace { min-width: 0; padding-bottom: 84px; }
+  .sidebar {
+    position: fixed;
+    z-index: 40;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    top: auto;
+    height: 64px;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 22px;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .brand { width: auto; padding: 0; flex: 0 0 auto; }
+  .brand-mark { width: 40px; height: 40px; border-radius: 14px; }
+  .nav { flex: 1; flex-direction: row; justify-content: space-around; gap: 4px; }
+  .nav button, .icon-button { width: 42px; height: 42px; min-height: 42px; border-radius: 15px; }
+  .topbar { min-height: auto; padding: 18px 16px 14px; flex-direction: column; align-items: stretch; gap: 14px; }
+  .page-title h2 { font-size: 24px; }
+  .page-title p { white-space: normal; line-height: 1.45; }
+  .status-strip { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; flex-wrap: nowrap; }
+  .pill, .badge { flex: 0 0 auto; min-height: 32px; padding: 6px 11px; }
+
+  .memory-layout,
+  .git-workbench,
+  .sync-grid,
+  .dashboard-grid {
+    height: auto;
+    min-height: 0;
+    padding: 0 14px 94px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .memory-layout.explorer-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .explorer-panel { min-height: 280px; max-height: 44vh; border-radius: 24px; }
+  .memory-layout.explorer-collapsed .explorer-panel { max-height: 68px; min-height: 68px; }
+  .document-panel { min-height: 66vh; height: auto; border-radius: 24px; }
+  .doc-toolbar { min-height: auto; padding: 16px; flex-direction: column; align-items: stretch; }
+  .doc-path { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .toolbar-actions { justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .toolbar-actions button { flex: 0 0 auto; }
+  .split-editor { grid-template-columns: minmax(0, 1fr); }
+  .editor-pane { border-right: 0; border-bottom: 1px solid rgba(126, 141, 178, .14); }
+  .editor-pane, .preview-pane { padding: 16px; max-height: none; }
+  .editor-pane textarea { min-height: 44vh; }
+  .preview { min-height: 45vh; }
+  .markdown-body { padding: 30px 22px 54px; font-size: 14px; line-height: 1.76; }
+  .plain-view { margin: 16px; }
+
+  .dashboard-grid { display: grid; }
+  .dashboard-hero, .dashboard-section.wide { grid-column: span 1; }
+  .dashboard-hero { min-height: 230px; align-items: flex-start; flex-direction: column; }
+  .dashboard-hero h2 { font-size: 30px; }
+  .panel-card { border-radius: 24px; padding: 18px; }
+
+  .git-workbench { display: grid; }
+  .git-rail { order: 2; max-height: 260px; }
+  .git-main { order: 1; min-height: 68vh; }
+  .git-history-panel { order: 3; display: flex; max-height: 380px; }
+  .git-summary { grid-template-columns: minmax(0, 1fr); margin: 12px 14px 0; }
+  .git-toolbar { padding: 16px; }
+  .diff-viewer { padding: 14px; }
+  .diff-file { overflow: auto; }
+  .diff-file-head { position: sticky; left: 0; z-index: 1; background: rgba(255,255,255,.86); flex-wrap: wrap; }
+  .diff-file-head span { flex-basis: 100%; }
+  .diff-row { min-width: 720px; grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr); }
+  .commit-detail { max-height: none; }
+
+  .sync-grid { align-items: stretch; }
+  .sync-card-grid, .health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .command-overlay { padding: 16px; place-items: start center; }
+  .command-panel { width: 100%; margin-top: 7vh; border-radius: 22px; }
+  .toast { left: 16px; right: 16px; bottom: 90px; }
+}
+
+@media (max-width: 560px) {
+  .topbar { padding: 16px 12px 12px; }
+  .page-title h2 { font-size: 22px; }
+  .command-button { display: none; }
+  .memory-layout,
+  .git-workbench,
+  .sync-grid,
+  .dashboard-grid { padding-left: 10px; padding-right: 10px; }
+  .explorer-panel, .document-panel, .panel-card, .git-rail, .git-main, .git-history-panel, .sync-status-card, .sync-actions-card { border-radius: 20px; }
+  .panel-head { min-height: 62px; padding: 14px; }
+  .panel-head h3 { font-size: 17px; }
+  .panel-head .badge { display: none; }
+  .panel-search { padding: 12px; gap: 10px; }
+  .button-row { flex-wrap: nowrap; overflow-x: auto; }
+  .tree-scroll { padding: 8px; }
+  .tree-row { grid-template-columns: 16px 20px minmax(0, 1fr) 26px 26px; min-height: 38px; }
+  .tree-meta { display: none; }
+  .tree-action { opacity: 1; }
+  .doc-toolbar { padding: 14px; }
+  .toolbar-actions button { padding: 7px 10px; }
+  .markdown-body { padding: 24px 16px 48px; font-size: 14px; }
+  .markdown-body h1 { font-size: 28px; }
+  .markdown-body h2 { font-size: 21px; }
+  .markdown-body pre, .plain-view { border-radius: 14px; }
+  .dashboard-hero h2 { font-size: 26px; }
+  .hero-actions { width: 100%; justify-content: stretch; }
+  .hero-actions button { flex: 1; }
+  .sync-card-grid, .health-grid { grid-template-columns: minmax(0, 1fr); }
+  .git-toolbar { flex-direction: column; align-items: stretch; }
+  .git-toolbar .button-row { justify-content: flex-start; }
+  .diff-row { min-width: 640px; grid-template-columns: 38px minmax(0, 1fr) 38px minmax(0, 1fr); font-size: 11px; }
+  .diff-row .ln { padding: 3px 5px; }
+  .diff-row code { padding: 3px 7px; }
+  .history-list, .changed-file-list { padding: 10px; }
+  .sidebar { left: 8px; right: 8px; bottom: 8px; height: 62px; }
+  .brand-mark { width: 38px; height: 38px; }
+  .nav button, .icon-button { width: 40px; height: 40px; min-height: 40px; }
 }

@@ -404,6 +404,8 @@ function App() {
   const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [draggingPath, setDraggingPath] = useState('');
+  const [renamingPath, setRenamingPath] = useState('');
+  const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
@@ -538,17 +540,33 @@ function App() {
     await loadMemory(data.memory.path);
   }
 
-  async function renameNode(node: TreeNode) {
+  function renameNode(node: TreeNode) {
+    setRenamingPath(node.path);
+    setRenamingValue(node.name);
+  }
+
+  function cancelRename() {
+    setRenamingPath('');
+    setRenamingValue('');
+  }
+
+  async function commitRename(node: TreeNode, nextName: string) {
     const oldPath = normalizePath(node.path);
-    const oldName = fileName(oldPath);
-    const newName = prompt(node.type === 'directory' ? '新的文件夹名称' : '新的文件名称', oldName);
-    if (newName === null) return;
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.startsWith('.')) return show('名称不能为空，且不能包含 /、\\ 或以 . 开头', true);
+    const trimmed = nextName.trim();
+    if (trimmed === node.name) return cancelRename();
+    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.startsWith('.')) {
+      setRenamingValue(node.name);
+      show('名称不能为空，且不能包含 /、\\ 或以 . 开头', true);
+      return;
+    }
     const newPath = joinPath(parentPath(oldPath), trimmed);
-    if (node.type === 'file' && !TEXT_EXTENSIONS.test(newPath)) return show('文件名需要以 .md、.markdown 或 .txt 结尾', true);
-    if (!confirm(`确认重命名？\n\n${oldPath}\n→ ${newPath}`)) return;
+    if (node.type === 'file' && !TEXT_EXTENSIONS.test(newPath)) {
+      setRenamingValue(node.name);
+      show('文件名需要以 .md、.markdown 或 .txt 结尾', true);
+      return;
+    }
     await api('/v1/memories/move', { method: 'POST', body: JSON.stringify({ from_path: oldPath, to_path: newPath, confirmed: true, overwrite: false }) });
+    cancelRename();
     show(`已重命名为 ${newPath}`);
     const nextCurrent = current?.path && isPathInside(current.path, oldPath) ? current.path.replace(oldPath, newPath) : current?.path;
     await loadList();
@@ -645,7 +663,12 @@ function App() {
               onSearch={() => void doSearch().catch((e) => show(e.message, true))}
               onRefresh={() => void loadList().catch((e) => show(e.message, true))}
               onOpen={(path) => void loadMemory(path).catch((e) => show(e.message, true))}
-              onRename={(node) => void renameNode(node).catch((e) => show(e.message, true))}
+              onRename={renameNode}
+              onRenameCommit={(node, value) => void commitRename(node, value).catch((e) => show(e.message, true))}
+              onRenameCancel={cancelRename}
+              renamingPath={renamingPath}
+              renamingValue={renamingValue}
+              setRenamingValue={setRenamingValue}
               onDelete={(node) => void deleteNode(node).catch((e) => show(e.message, true))}
               draggingPath={draggingPath}
               setDraggingPath={setDraggingPath}
@@ -887,6 +910,11 @@ function Explorer(props: {
   onRefresh: () => void;
   onOpen: (path: string) => void;
   onRename: (node: TreeNode) => void;
+  onRenameCommit: (node: TreeNode, value: string) => void;
+  onRenameCancel: () => void;
+  renamingPath: string;
+  renamingValue: string;
+  setRenamingValue: (value: string) => void;
   onDelete: (node: TreeNode) => void;
   draggingPath: string;
   setDraggingPath: (path: string) => void;
@@ -921,6 +949,11 @@ function Explorer(props: {
                 currentPath={props.currentPath}
                 onOpen={props.onOpen}
                 onRename={props.onRename}
+                onRenameCommit={props.onRenameCommit}
+                onRenameCancel={props.onRenameCancel}
+                renamingPath={props.renamingPath}
+                renamingValue={props.renamingValue}
+                setRenamingValue={props.setRenamingValue}
                 onDelete={props.onDelete}
                 draggingPath={props.draggingPath}
                 setDraggingPath={props.setDraggingPath}
@@ -934,7 +967,7 @@ function Explorer(props: {
   );
 }
 
-function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onRename, onDelete, draggingPath, setDraggingPath, onMove }: {
+function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onRename, onRenameCommit, onRenameCancel, renamingPath, renamingValue, setRenamingValue, onDelete, draggingPath, setDraggingPath, onMove }: {
   node: TreeNode;
   depth: number;
   expanded: Set<string>;
@@ -942,6 +975,11 @@ function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onR
   currentPath: string;
   onOpen: (path: string) => void;
   onRename: (node: TreeNode) => void;
+  onRenameCommit: (node: TreeNode, value: string) => void;
+  onRenameCancel: () => void;
+  renamingPath: string;
+  renamingValue: string;
+  setRenamingValue: (value: string) => void;
   onDelete: (node: TreeNode) => void;
   draggingPath: string;
   setDraggingPath: (path: string) => void;
@@ -950,6 +988,7 @@ function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onR
   const open = expanded.has(node.path);
   const active = node.type === 'file' && node.path === currentPath;
   const isDir = node.type === 'directory';
+  const renaming = renamingPath === node.path;
   const toggle = () => setExpanded((prev) => {
     const next = new Set(prev);
     open ? next.delete(node.path) : next.add(node.path);
@@ -958,23 +997,43 @@ function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onR
   return (
     <>
       <div
-        className={`tree-row ${isDir ? 'dir' : 'file'} ${active ? 'active' : ''}`}
+        className={`tree-row ${isDir ? 'dir' : 'file'} ${active ? 'active' : ''} ${renaming ? 'renaming' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!isDir}
+        draggable={!isDir && !renaming}
         onDragStart={(e) => { if (!isDir) { setDraggingPath(node.path); e.dataTransfer.setData('text/plain', node.path); } }}
         onDragEnd={() => setDraggingPath('')}
         onDragOver={(e) => { if (isDir && draggingPath) e.preventDefault(); }}
         onDrop={(e) => { if (isDir) { e.preventDefault(); onMove(e.dataTransfer.getData('text/plain') || draggingPath, node.path); } }}
-        onClick={() => isDir ? toggle() : onOpen(node.path)}
+        onClick={() => renaming ? undefined : isDir ? toggle() : onOpen(node.path)}
       >
         <span className="tree-toggle">{isDir ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}</span>
         <span className="tree-icon">{isDir ? (open ? <FolderOpen size={15} /> : <Folder size={15} />) : <FileText size={15} />}</span>
-        <span className="tree-name" title={node.path}>{node.name}</span>
+        {renaming ? (
+          <input
+            className="tree-rename-input"
+            autoFocus
+            value={renamingValue}
+            onChange={(e) => setRenamingValue(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onBlur={(e) => { if (e.currentTarget.dataset.cancel !== '1') onRenameCommit(node, renamingValue); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onRenameCommit(node, renamingValue);
+              }
+              if (e.key === 'Escape') {
+                e.currentTarget.dataset.cancel = '1';
+                onRenameCancel();
+              }
+            }}
+          />
+        ) : <span className="tree-name" title={node.path}>{node.name}</span>}
         <span className="tree-meta">{isDir ? `${countFiles(node)} 文件` : formatBytes(node.entry?.size_bytes)}</span>
         <button className="tree-action" onClick={(e) => { e.stopPropagation(); onRename(node); }} title="重命名"><PenLine size={13} /></button>
         <button className="tree-action danger" onClick={(e) => { e.stopPropagation(); onDelete(node); }} title="删除"><Trash2 size={13} /></button>
       </div>
-      {isDir && open && sortedChildren(node).map((child) => <TreeItem key={child.path} node={child} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} currentPath={currentPath} onOpen={onOpen} onRename={onRename} onDelete={onDelete} draggingPath={draggingPath} setDraggingPath={setDraggingPath} onMove={onMove} />)}
+      {isDir && open && sortedChildren(node).map((child) => <TreeItem key={child.path} node={child} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} currentPath={currentPath} onOpen={onOpen} onRename={onRename} onRenameCommit={onRenameCommit} onRenameCancel={onRenameCancel} renamingPath={renamingPath} renamingValue={renamingValue} setRenamingValue={setRenamingValue} onDelete={onDelete} draggingPath={draggingPath} setDraggingPath={setDraggingPath} onMove={onMove} />)}
     </>
   );
 }
@@ -1052,7 +1111,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   const changedFiles = sections.flatMap((section) => section.files.map((file) => file.name));
 
   return (
-    <section className="git-workbench">
+    <section className={`git-workbench ${selectedCommit ? 'history-open' : ''}`}>
       <aside className="git-rail">
         <div className="rail-head"><strong>本地变更</strong><button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button></div>
         <div className="changed-file-list">
