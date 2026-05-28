@@ -1204,53 +1204,93 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   ]), [selectedCommit]);
   const diffFiles = sections.flatMap((section) => section.files.map((file) => ({ status: 'M', path: file.name })));
   const changedFiles = (diff?.files?.length ? diff.files : diffFiles).filter((file) => Boolean(file.path));
+  const statusLines = (diff?.status || '').split('\n').filter(Boolean).length;
+  const statLines = (diff?.stat || '').split('\n').filter(Boolean);
+  const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
 
   return (
-    <section className={`git-workbench ${selectedCommit ? 'history-open' : ''}`}>
-      <aside className="git-rail">
-        <div className="rail-head"><strong>本地变更</strong><button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button></div>
-        <div className="changed-file-list">
-          {changedFiles.length ? changedFiles.map((file) => (
-            <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>
-          )) : <p className="muted rail-empty">没有本地变更</p>}
+    <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>
+      <aside className="review-side review-changes">
+        <div className="review-side-head">
+          <div>
+            <span className="eyebrow">Local</span>
+            <h3>变更队列</h3>
+            <p>{changedFiles.length ? `${changedFiles.length} 个文件待处理` : '工作区干净'}</p>
+          </div>
+          <button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button>
         </div>
-        <div className="rail-actions">
+        <div className="review-change-list">
+          {changedFiles.length ? changedFiles.map((file) => (
+            <button className="review-change-card" key={file.status + file.path} onClick={() => onOpenFile(file.path)}>
+              <span className="file-status">{file.status}</span>
+              <span className="review-change-text"><strong>{file.path}</strong><small>{file.status === '??' ? '新文件 · 可打开编辑' : '本地修改 · 可打开编辑'}</small></span>
+            </button>
+          )) : <div className="review-empty-card"><GitBranch size={18} /><strong>没有本地变更</strong><span>当前工作区没有需要审阅的修改。</span></div>}
+        </div>
+        <div className="review-side-foot">
           <button className="danger" disabled={!changedFiles.length} onClick={() => void onDiscard('')}><Undo2 size={14} />放弃全部</button>
         </div>
       </aside>
 
-      <main className="git-main">
-        <div className="git-toolbar">
-          <div><h3>变更审阅</h3><p>{diff?.dirty ? '像 VS Code 一样审阅；需要修改时直接打开文件编辑。' : '没有需要审阅的本地更改'}</p></div>
-          <div className="button-row"><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
+      <main className="review-canvas">
+        <div className="review-hero">
+          <div>
+            <span className="eyebrow">Review Studio</span>
+            <h3>{selectedCommit ? selectedTitle : '变更审阅'}</h3>
+            <p>{selectedCommit ? `${selectedCommit.commit.short_hash} · ${[selectedCommit.commit.author, selectedCommit.commit.date].filter(Boolean).join(' · ')}` : diff?.dirty ? '聚焦 diff 内容，左侧处理本地变更，右侧查看历史版本。' : '没有需要审阅的本地更改。'}</p>
+          </div>
+          <div className="review-hero-actions">
+            {selectedCommit && <span className="pill">{selectedCommit.files.length} files changed</span>}
+            <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
+          </div>
         </div>
-        <div className="git-summary compact"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
-        <div className="diff-viewer vscode-like" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
-          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />) : changedFiles.length ? <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} /> : <div className="empty-state">没有 diff</div>}
+
+        {!selectedCommit && (
+          <div className="review-stats">
+            <div><span>状态</span><strong>{diff?.dirty ? '有本地更改' : '已同步'}</strong></div>
+            <div><span>文件</span><strong>{changedFiles.length}</strong></div>
+            <div><span>状态行</span><strong>{statusLines}</strong></div>
+            <div><span>统计</span><strong>{statLines.length ? statLines[statLines.length - 1] : '无'}</strong></div>
+          </div>
+        )}
+
+        {selectedCommit && (
+          <div className="commit-focus-strip">
+            {selectedCommit.files.map((file) => (
+              <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>
+            ))}
+          </div>
+        )}
+
+        <div className="diff-viewer review-diff-canvas" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
+          {selectedCommit ? (
+            commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
+          ) : sections.length ? (
+            sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />)
+          ) : changedFiles.length ? (
+            <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} />
+          ) : <div className="empty-state">没有 diff</div>}
         </div>
       </main>
 
-      <aside className="git-history-panel">
-        <div className="rail-head"><strong>版本历史</strong><Clock3 size={15} /></div>
-        <div className="commit-list history-list">
+      <aside className="review-side review-history">
+        <div className="review-side-head">
+          <div>
+            <span className="eyebrow">History</span>
+            <h3>版本时间线</h3>
+            <p>{commits.length} 个最近提交</p>
+          </div>
+          <Clock3 size={16} />
+        </div>
+        <div className="review-history-list">
           {commits.map((commit) => (
-            <button className={`commit history-item ${selectedCommit?.commit?.hash === commit.hash ? 'active' : ''}`} key={commit.hash} onClick={() => void onSelectCommit(commit.hash)}>
-              <div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div>
-              <p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p>
+            <button className={`review-history-card ${selectedCommit?.commit?.hash === commit.hash ? 'active' : ''}`} key={commit.hash} onClick={() => void onSelectCommit(commit.hash)}>
+              <span className="review-history-dot" />
+              <strong>{commit.subject || '(no subject)'}</strong>
+              <small>{commit.short_hash} · {[commit.author, commit.date].filter(Boolean).join(' · ')}</small>
             </button>
           ))}
         </div>
-        {selectedCommit && (
-          <div className="commit-detail">
-            <div className="commit-detail-head"><strong>{selectedCommit.commit.subject}</strong><span>{selectedCommit.files.length} 文件</span></div>
-            <div className="commit-files">
-              {selectedCommit.files.map((file) => <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>)}
-            </div>
-            <div className="commit-detail-diff" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
-              {commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>}
-            </div>
-          </div>
-        )}
       </aside>
     </section>
   );

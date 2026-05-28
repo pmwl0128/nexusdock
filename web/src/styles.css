@@ -2446,3 +2446,219 @@ button.primary::after,
 ::view-transition-new(root) {
   animation: sceneEnter 300ms var(--ease-smooth) both;
 }
+
+/* Git Review Studio: cleaner columns, calmer panels, content-first diff review */
+.git-workbench.review-studio {
+  height: calc(100vh - 112px);
+  min-height: 720px;
+  padding: 0 30px 28px 22px;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr) minmax(280px, 340px);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.review-side,
+.review-canvas {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(255,255,255,.78);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255,255,255,.86), transparent 32%),
+    linear-gradient(145deg, rgba(255,255,255,.78), rgba(242,246,255,.62));
+  backdrop-filter: blur(28px) saturate(1.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  box-shadow: 0 24px 70px rgba(52, 65, 116, .14), inset 0 1px 0 rgba(255,255,255,.88);
+  border-radius: 30px;
+  overflow: hidden;
+}
+
+.review-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-canvas {
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at 94% 0%, rgba(99,91,255,.10), transparent 34%),
+    linear-gradient(145deg, rgba(255,255,255,.84), rgba(246,248,255,.68));
+}
+
+.review-side-head,
+.review-hero {
+  padding: 20px;
+  border-bottom: 1px solid rgba(126,141,178,.14);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.review-side-head h3,
+.review-hero h3 {
+  margin: 4px 0 5px;
+  color: var(--heading);
+  letter-spacing: -.04em;
+}
+
+.review-side-head h3 { font-size: 20px; }
+.review-hero h3 { font-size: 26px; }
+.review-side-head p,
+.review-hero p { margin: 0; color: var(--muted); }
+.review-hero-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+.review-change-list,
+.review-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.review-change-card,
+.review-history-card {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  text-align: left;
+  border-radius: 20px;
+  padding: 13px;
+  background: rgba(255,255,255,.58);
+  border-color: rgba(126,141,178,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.70), 0 10px 22px rgba(52,65,116,.06);
+}
+
+.review-change-card:hover,
+.review-history-card:hover,
+.review-history-card.active {
+  background: linear-gradient(135deg, rgba(99,91,255,.12), rgba(58,123,255,.09));
+  border-color: rgba(99,91,255,.20);
+}
+
+.review-change-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.review-change-text strong,
+.review-history-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #24304f;
+  font-size: 13px;
+}
+.review-change-text small,
+.review-history-card small { color: #8994ad; font-size: 12px; }
+.review-side-foot { padding: 14px; border-top: 1px solid rgba(126,141,178,.14); }
+.review-side-foot button { width: 100%; justify-content: center; }
+.review-empty-card {
+  min-height: 170px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  border: 1px dashed rgba(126,141,178,.24);
+  border-radius: 22px;
+  background: rgba(255,255,255,.40);
+}
+.review-empty-card strong { color: #263154; }
+
+.review-stats {
+  padding: 14px 18px 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.review-stats div {
+  min-height: 76px;
+  border-radius: 20px;
+  padding: 14px;
+  border: 1px solid rgba(126,141,178,.14);
+  background: rgba(255,255,255,.56);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
+}
+.review-stats span { display: block; color: var(--muted); font-size: 12px; }
+.review-stats strong { display: block; margin-top: 6px; color: var(--heading); font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.review-diff-canvas {
+  flex: 1;
+  min-height: 0;
+  margin: 18px;
+  padding: 18px;
+  border: 1px solid rgba(126,141,178,.14);
+  border-radius: 24px;
+  background: rgba(255,255,255,.58);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+}
+
+.review-history-list { position: relative; }
+.review-history-card {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 9px;
+  row-gap: 3px;
+}
+.review-history-dot {
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f7cff, #8b5cf6);
+  box-shadow: 0 0 0 4px rgba(99,91,255,.10);
+}
+.review-history-card small { grid-column: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-history-card.active .review-history-dot { box-shadow: 0 0 0 5px rgba(99,91,255,.16), 0 0 24px rgba(99,91,255,.32); }
+
+.commit-focus-strip {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  padding: 14px 18px 0;
+}
+.commit-focus-strip button {
+  flex: 0 0 auto;
+  min-width: 190px;
+  max-width: 320px;
+  justify-content: flex-start;
+  border-radius: 16px;
+  background: rgba(255,255,255,.58);
+}
+.commit-focus-strip button span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.git-workbench.review-studio .git-summary,
+.git-workbench.review-studio .git-rail,
+.git-workbench.review-studio .git-main,
+.git-workbench.review-studio .git-history-panel,
+.git-workbench.review-studio .commit-detail {
+  all: unset;
+}
+
+@media (max-width: 1300px) {
+  .git-workbench.review-studio {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  }
+  .review-history { grid-column: 1 / -1; max-height: 320px; }
+}
+
+@media (max-width: 900px) {
+  .git-workbench.review-studio {
+    height: auto;
+    min-height: 0;
+    padding: 0 14px calc(170px + env(safe-area-inset-bottom));
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-side, .review-canvas { border-radius: 24px; }
+  .review-diff-canvas { margin: 14px; }
+}
