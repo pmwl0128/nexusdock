@@ -2407,3 +2407,42 @@ button.primary::after,
     margin-left: auto;
   }
 }
+
+/* Motion cleanup: page switches should fade/slide, not grow from small to large. */
+@keyframes sceneEnter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+    filter: blur(8px) saturate(.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0) saturate(1);
+  }
+}
+
+@keyframes panelLiftIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+    box-shadow: 0 8px 22px rgba(52, 65, 116, .08);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes listItemIn {
+  0% { opacity: 0; transform: translate3d(8px, 6px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+::view-transition-old(root) {
+  animation: contentSoftReveal 220ms var(--ease-smooth) reverse both;
+}
+
+::view-transition-new(root) {
+  animation: sceneEnter 300ms var(--ease-smooth) both;
+}
