@@ -2662,3 +2662,11 @@ button.primary::after,
   .review-side, .review-canvas { border-radius: 24px; }
   .review-diff-canvas { margin: 14px; }
 }
+
+/* Git review page must stay stable: no auto shrink/scale/focus mode on hover. */
+.app.desktop-review-focus .git-workbench.review-studio,
+.git-workbench.review-studio,
+.review-canvas,
+.review-side {
+  transform: none !important;
+}

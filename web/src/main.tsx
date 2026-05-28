@@ -683,7 +683,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''} ${desktopReviewFocus ? 'desktop-review-focus' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
       <FloatingExplorerOrb
         visible={explorerFocusCollapsed}
@@ -754,7 +754,7 @@ function App() {
             />
           </section>
         )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFocusDiff={setReviewFocus} />}
+        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} />}
         {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
       </section>
       {commandOpen && (
@@ -1185,7 +1185,7 @@ function MemoryEditor(props: {
   );
 }
 
-function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit, onFocusDiff }: {
+function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit }: {
   diff: GitDiff | null;
   commits: GitCommit[];
   selectedCommit: CommitDetail | null;
@@ -1193,7 +1193,6 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   onDiscard: (path?: string) => Promise<void>;
   onOpenFile: (path: string) => void;
   onSelectCommit: (hash: string) => Promise<void>;
-  onFocusDiff: (focus: boolean) => void;
 }) {
   const sections = useMemo(() => parseSideBySideDiff([
     { title: '已暂存更改', diff: diff?.cached_diff || '' },
@@ -1262,7 +1261,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
           </div>
         )}
 
-        <div className="diff-viewer review-diff-canvas" onMouseEnter={() => onFocusDiff(true)} onMouseLeave={() => onFocusDiff(false)}>
+        <div className="diff-viewer review-diff-canvas">
           {selectedCommit ? (
             commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
           ) : sections.length ? (
