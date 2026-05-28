@@ -27,13 +27,19 @@ func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, l
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", s.uiIndex)
+	mux.HandleFunc("GET /ui/", s.uiIndex)
+	mux.HandleFunc("GET /ui/app.js", s.uiApp)
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/sync/status", s.withAuth(s.syncStatus))
+	mux.HandleFunc("GET /v1/git/diff", s.withAuth(s.gitDiff))
+	mux.HandleFunc("GET /v1/git/log", s.withAuth(s.gitLog))
 	mux.HandleFunc("POST /v1/sync/pull", s.withAuth(s.syncPull))
 	mux.HandleFunc("POST /v1/sync/push", s.withAuth(s.syncPush))
 	mux.HandleFunc("POST /v1/sync/now", s.withAuth(s.syncNow))
 	mux.HandleFunc("GET /v1/memories", s.withAuth(s.listMemories))
 	mux.HandleFunc("POST /v1/memories", s.withAuth(s.writeMemory))
+	mux.HandleFunc("POST /v1/memories/move", s.withAuth(s.moveMemory))
 	mux.HandleFunc("POST /v1/memories/search", s.withAuth(s.searchMemories))
 	mux.HandleFunc("POST /v1/memories/pack", s.withAuth(s.packMemories))
 	mux.HandleFunc("POST /v1/notes/append", s.withAuth(s.appendNote))
@@ -49,6 +55,24 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) syncStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.syncer.Status(r.Context()))
+}
+
+func (s *Server) gitDiff(w http.ResponseWriter, r *http.Request) {
+	diff, err := s.syncer.Diff(r.Context())
+	if err != nil {
+		writeError(w, http.StatusConflict, "GIT_DIFF_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, diff)
+}
+
+func (s *Server) gitLog(w http.ResponseWriter, r *http.Request) {
+	log, err := s.syncer.Log(r.Context(), queryInt(r, "limit", 50))
+	if err != nil {
+		writeError(w, http.StatusConflict, "GIT_LOG_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, log)
 }
 
 func (s *Server) syncPull(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +155,29 @@ func (s *Server) patchMemory(w http.ResponseWriter, r *http.Request) {
 	mem, err := s.store.Write(req)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "PATCH_FAILED", err.Error())
+		return
+	}
+	s.syncer.MarkChanged(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+}
+
+func (s *Server) moveMemory(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		FromPath  string `json:"from_path"`
+		ToPath    string `json:"to_path"`
+		Confirmed bool   `json:"confirmed"`
+		Overwrite bool   `json:"overwrite"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	mem, err := s.store.Move(req.FromPath, req.ToPath, req.Confirmed, req.Overwrite)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, memory.ErrFileExists) {
+			status = http.StatusConflict
+		}
+		writeError(w, status, "MOVE_FAILED", err.Error())
 		return
 	}
 	s.syncer.MarkChanged(r.Context())

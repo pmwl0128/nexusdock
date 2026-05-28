@@ -441,20 +441,134 @@ func (s *Store) AppendNote(req NoteRequest) (Memory, error) {
 	return s.Read(path)
 }
 
+func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Memory, error) {
+	if !confirmed {
+		return Memory{}, ErrConfirmationNeeded
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	fromPath = filepath.ToSlash(strings.TrimSpace(fromPath))
+	toPath = filepath.ToSlash(strings.TrimSpace(toPath))
+	if fromPath == "" || toPath == "" {
+		return Memory{}, errors.New("from_path and to_path are required")
+	}
+	if hasHiddenSegment(fromPath) || hasHiddenSegment(toPath) {
+		return Memory{}, ErrInvalidPath
+	}
+	fromAbs, err := s.resolve(fromPath)
+	if err != nil {
+		return Memory{}, err
+	}
+	toAbs, err := s.resolve(toPath)
+	if err != nil {
+		return Memory{}, err
+	}
+	if fromAbs == toAbs {
+		rel, _ := filepath.Rel(s.root, toAbs)
+		return Memory{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
+	}
+	info, err := os.Stat(fromAbs)
+	if err != nil {
+		return Memory{}, err
+	}
+	if info.IsDir() {
+		if strings.HasPrefix(toAbs, fromAbs+string(filepath.Separator)) {
+			return Memory{}, errors.New("cannot move a directory inside itself")
+		}
+		if _, err := os.Stat(toAbs); err == nil {
+			return Memory{}, ErrFileExists
+		}
+		if err := os.MkdirAll(filepath.Dir(toAbs), 0o755); err != nil {
+			return Memory{}, err
+		}
+		if err := os.Rename(fromAbs, toAbs); err != nil {
+			return Memory{}, err
+		}
+		removeEmptyParents(filepath.Dir(fromAbs), s.root)
+		rel, _ := filepath.Rel(s.root, toAbs)
+		return Memory{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
+	}
+	if !IsTextFile(fromPath) || !IsTextFile(toPath) {
+		return Memory{}, ErrUnsupportedFile
+	}
+	if _, err := os.Stat(toAbs); err == nil && !overwrite {
+		return Memory{}, ErrFileExists
+	}
+	if err := os.MkdirAll(filepath.Dir(toAbs), 0o755); err != nil {
+		return Memory{}, err
+	}
+	if err := os.Rename(fromAbs, toAbs); err != nil {
+		return Memory{}, err
+	}
+	removeEmptyParents(filepath.Dir(fromAbs), s.root)
+	return s.Read(toPath)
+}
+
 func (s *Store) Delete(path string, confirmed bool) error {
 	if !confirmed {
 		return ErrConfirmationNeeded
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	if path == "" || hasHiddenSegment(path) {
+		return ErrInvalidPath
+	}
 	abs, err := s.resolve(path)
 	if err != nil {
 		return err
 	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		if abs == s.root || strings.HasSuffix(abs, string(filepath.Separator)+".git") {
+			return ErrInvalidPath
+		}
+		if err := os.RemoveAll(abs); err != nil {
+			return err
+		}
+		removeEmptyParents(filepath.Dir(abs), s.root)
+		return nil
+	}
 	if !IsTextFile(abs) {
 		return ErrUnsupportedFile
 	}
-	return os.Remove(abs)
+	if err := os.Remove(abs); err != nil {
+		return err
+	}
+	removeEmptyParents(filepath.Dir(abs), s.root)
+	return nil
+}
+
+func hasHiddenSegment(rel string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(rel), "/") {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		if strings.HasPrefix(segment, ".") {
+			return true
+		}
+	}
+	return false
+}
+
+func removeEmptyParents(dir, root string) {
+	dir = filepath.Clean(dir)
+	root = filepath.Clean(root)
+	for dir != root && strings.HasPrefix(dir, root+string(filepath.Separator)) {
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 0 {
+			return
+		}
+		if err := os.Remove(dir); err != nil {
+			return
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 func (s *Store) resolve(rel string) (string, error) {

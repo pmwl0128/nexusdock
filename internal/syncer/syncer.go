@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,31 @@ type Status struct {
 	Ahead           string `json:"ahead,omitempty"`
 	Behind          string `json:"behind,omitempty"`
 	Dirty           bool   `json:"dirty"`
+}
+
+type Diff struct {
+	OK         bool   `json:"ok"`
+	GitRepo    bool   `json:"git_repo"`
+	Dirty      bool   `json:"dirty"`
+	Status     string `json:"status"`
+	Stat       string `json:"stat"`
+	Diff       string `json:"diff"`
+	CachedDiff string `json:"cached_diff"`
+}
+
+type Commit struct {
+	Hash      string `json:"hash"`
+	ShortHash string `json:"short_hash"`
+	Date      string `json:"date"`
+	Author    string `json:"author"`
+	Subject   string `json:"subject"`
+}
+
+type Log struct {
+	OK      bool     `json:"ok"`
+	GitRepo bool     `json:"git_repo"`
+	Commits []Commit `json:"commits"`
+	Count   int      `json:"count"`
 }
 
 type Manager struct {
@@ -128,6 +154,63 @@ func (m *Manager) Status(ctx context.Context) Status {
 		}
 	}
 	return status
+}
+
+func (m *Manager) Diff(ctx context.Context) (Diff, error) {
+	resp := Diff{OK: true, GitRepo: m.IsGitRepo()}
+	if !resp.GitRepo {
+		return resp, nil
+	}
+	status, err := m.git(ctx, "status", "--short")
+	if err != nil {
+		return resp, err
+	}
+	resp.Status = status
+	resp.Dirty = strings.TrimSpace(status) != ""
+	if stat, err := m.git(ctx, "diff", "--stat"); err == nil {
+		resp.Stat = stat
+	}
+	if cachedDiff, err := m.git(ctx, "diff", "--cached", "--no-ext-diff", "--"); err == nil {
+		resp.CachedDiff = cachedDiff
+	}
+	if diff, err := m.git(ctx, "diff", "--no-ext-diff", "--"); err == nil {
+		resp.Diff = diff
+	}
+	return resp, nil
+}
+
+func (m *Manager) Log(ctx context.Context, limit int) (Log, error) {
+	resp := Log{OK: true, GitRepo: m.IsGitRepo()}
+	if !resp.GitRepo {
+		return resp, nil
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	format := "%H%x1f%h%x1f%ad%x1f%an%x1f%s%x1e"
+	out, err := m.git(ctx, "log", "--date=iso-strict", "-n", strconv.Itoa(limit), "--pretty=format:"+format)
+	if err != nil {
+		return resp, err
+	}
+	for _, record := range strings.Split(out, "\x1e") {
+		record = strings.TrimSpace(record)
+		if record == "" {
+			continue
+		}
+		fields := strings.Split(record, "\x1f")
+		if len(fields) < 5 {
+			continue
+		}
+		resp.Commits = append(resp.Commits, Commit{
+			Hash:      fields[0],
+			ShortHash: fields[1],
+			Date:      fields[2],
+			Author:    fields[3],
+			Subject:   fields[4],
+		})
+	}
+	resp.Count = len(resp.Commits)
+	return resp, nil
 }
 
 func (m *Manager) Pull(ctx context.Context) error {
