@@ -413,6 +413,8 @@ function App() {
   const [renamingPath, setRenamingPath] = useState('');
   const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
+  const [mobileNavCompact, setMobileNavCompact] = useState(false);
+  const [desktopContentHover, setDesktopContentHover] = useState(false);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
@@ -450,6 +452,64 @@ function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const compactAt = 170;
+    const isMobile = () => window.matchMedia('(max-width: 900px)').matches;
+    const update = () => {
+      const y = window.scrollY;
+      if (!isMobile()) {
+        setMobileNavCompact(false);
+        lastY = y;
+        ticking = false;
+        return;
+      }
+      const movingDown = y > lastY + 6;
+      const movingUp = y < lastY - 14;
+      if (y > compactAt && movingDown) setMobileNavCompact(true);
+      if (y < 90 || movingUp) setMobileNavCompact(false);
+      lastY = y;
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(update);
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    onScroll();
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
+  function viewChange(update: () => void) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const doc = document as Document & { startViewTransition?: (callback: () => void) => void };
+    if (reduceMotion || typeof doc.startViewTransition !== 'function') {
+      update();
+      return;
+    }
+    doc.startViewTransition(() => update());
+  }
+
+  function selectTab(next: Tab) {
+    viewChange(() => {
+      setMobileNavCompact(false);
+      setDesktopContentHover(false);
+      setTab(next);
+    });
+  }
+
+  function setContentHover(next: boolean) {
+    const desktopPointer = window.matchMedia('(min-width: 901px) and (pointer: fine)').matches;
+    setDesktopContentHover(desktopPointer && next);
+  }
 
   function expandPath(path: string) {
     const parts = normalizePath(path).split('/').filter(Boolean);
@@ -492,11 +552,13 @@ function App() {
 
   async function loadMemory(path: string) {
     const data = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
-    setCurrent(data.memory);
-    setDraftPath(data.memory.path);
-    setDraftContent(data.memory.content);
-    setEditing(false);
-    expandPath(data.memory.path);
+    viewChange(() => {
+      setCurrent(data.memory);
+      setDraftPath(data.memory.path);
+      setDraftContent(data.memory.content);
+      setEditing(false);
+      expandPath(data.memory.path);
+    });
   }
 
   function newMemory() {
@@ -609,7 +671,7 @@ function App() {
   }
 
   function openGitFile(path: string) {
-    setTab('memories');
+    selectTab('memories');
     void loadMemory(path)
       .then(() => setEditing(true))
       .catch((e) => show(e.message, true));
@@ -636,8 +698,8 @@ function App() {
   }
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={setTab} onToggle={() => setSidebarCollapsed((v) => !v)} />
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''}`}>
+      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
         {tab === 'dashboard' && (
@@ -647,10 +709,10 @@ function App() {
             diff={gitDiff}
             commits={commits}
             syncStatus={syncStatus}
-            onNew={() => { setTab('memories'); newMemory(); }}
-            onOpen={(path) => { setTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-            onReview={() => setTab('git')}
-            onSync={() => setTab('sync')}
+            onNew={() => { selectTab('memories'); newMemory(); }}
+            onOpen={(path) => { selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
+            onReview={() => selectTab('git')}
+            onSync={() => selectTab('sync')}
           />
         )}
         {tab === 'memories' && (
@@ -690,14 +752,15 @@ function App() {
               setDraftPath={setDraftPath}
               setDraftContent={setDraftContent}
               onNew={newMemory}
-              onEdit={() => setEditing(true)}
-              onCancel={() => {
+              onEdit={() => viewChange(() => setEditing(true))}
+              onCancel={() => viewChange(() => {
                 setEditing(false);
                 setDraftPath(current?.path || '');
                 setDraftContent(current?.content || '');
-              }}
+              })}
               onSave={() => void saveMemory().catch((e) => show(e.message, true))}
               onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
+              onContentHover={setContentHover}
             />
           </section>
         )}
@@ -709,10 +772,10 @@ function App() {
           entries={entries}
           current={current}
           onClose={() => setCommandOpen(false)}
-          onNew={() => { setCommandOpen(false); setTab('memories'); newMemory(); }}
-          onOpen={(path) => { setCommandOpen(false); setTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-          onTab={(next) => { setCommandOpen(false); setTab(next); }}
-          onSync={() => { setCommandOpen(false); setTab('sync'); void syncAction('now').catch((e) => show(e.message, true)); }}
+          onNew={() => { setCommandOpen(false); selectTab('memories'); newMemory(); }}
+          onOpen={(path) => { setCommandOpen(false); selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
+          onTab={(next) => { setCommandOpen(false); selectTab(next); }}
+          onSync={() => { setCommandOpen(false); selectTab('sync'); void syncAction('now').catch((e) => show(e.message, true)); }}
         />
       )}
       {toast && <div className={`toast ${toast.danger ? 'danger' : ''}`}>{toast.message}</div>}
@@ -843,9 +906,9 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
   );
 }
 
-function AppSidebar({ collapsed, tab, setTab, onToggle }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void }) {
+function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void }) {
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${mobileCompact ? 'compact-orb' : ''}`} onClick={() => { if (mobileCompact) onCompactOpen?.(); }}>
       <div className="brand">
         <div className="brand-mark">M</div>
         {!collapsed && (
@@ -1056,6 +1119,7 @@ function MemoryEditor(props: {
   onCancel: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onContentHover: (hovering: boolean) => void;
 }) {
   const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
   return (
@@ -1074,7 +1138,7 @@ function MemoryEditor(props: {
         </div>
       </div>
       {props.editing ? (
-        <div className="editor-body split-editor">
+        <div className="editor-body split-editor" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)}>
           <div className="editor-pane">
             <div className="pane-title"><span>编辑</span><small>{props.draftPath || '未命名'}</small></div>
             <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
@@ -1086,7 +1150,7 @@ function MemoryEditor(props: {
           </div>
         </div>
       ) : props.current ? (
-        isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
+        isMarkdown ? <article className="markdown-body" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)} dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)}>{props.current.content}</pre>
       ) : (
         <div className="hero-empty">
           <FileText size={42} />
