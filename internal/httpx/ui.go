@@ -76,8 +76,8 @@ const uiHTML = `<!doctype html>
     }
     button, input, textarea { font:inherit; }
     button {
-      min-height:34px; border:1px solid var(--border); background:var(--surface); color:var(--text);
-      border-radius:10px; padding:7px 11px; cursor:pointer; transition:background .14s, border-color .14s, color .14s, transform .14s;
+      min-height:32px; border:1px solid var(--border); background:var(--surface); color:var(--text);
+      border-radius:9px; padding:6px 10px; cursor:pointer; transition:background .14s, border-color .14s, color .14s, transform .14s;
       display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap;
     }
     button:hover { border-color:var(--border-strong); background:var(--surface-3); }
@@ -87,7 +87,7 @@ const uiHTML = `<!doctype html>
     button.danger { color:var(--danger); border-color:color-mix(in srgb, var(--danger) 35%, var(--border)); background:var(--danger-soft); }
     button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
     input, textarea {
-      width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 11px; outline:none;
+      width:100%; border:1px solid var(--border); border-radius:9px; padding:8px 10px; outline:none;
       background:var(--surface-2); color:var(--text); transition:border-color .14s, box-shadow .14s, background .14s;
     }
     input:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); background:var(--surface); }
@@ -146,10 +146,10 @@ const uiHTML = `<!doctype html>
     }
     aside { padding:0; overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 110px); position:sticky; top:18px; }
     main { padding:0; overflow:hidden; }
-    .panel-head { padding:13px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .panel-head { padding:11px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .panel-head h3 { margin:0; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-    .panel-body { padding:14px; min-width:0; }
-    .explorer-body { overflow:auto; padding:10px; }
+    .panel-body { padding:12px; min-width:0; }
+    .explorer-body { overflow:auto; padding:8px; }
     .stack { display:flex; flex-direction:column; gap:12px; }
     .row { display:flex; gap:9px; align-items:center; }
     .search-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
@@ -157,10 +157,11 @@ const uiHTML = `<!doctype html>
     .path { font-family:var(--mono); font-size:12px; word-break:break-all; color:color-mix(in srgb, var(--text) 88%, var(--accent)); }
     .badge { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:999px; padding:4px 8px; background:var(--surface-2); color:var(--muted); font-size:12px; }
 
-    .tree { display:flex; flex-direction:column; gap:2px; }
+    .tree { display:flex; flex-direction:column; gap:1px; }
     .tree-row {
-      width:100%; min-height:34px; display:grid; grid-template-columns:auto 18px minmax(0,1fr) auto auto auto; align-items:center; gap:6px;
-      text-align:left; border:1px solid transparent; border-radius:10px; padding:6px 7px; background:transparent; color:var(--text); box-shadow:none; cursor:pointer;
+      width:100%; min-height:30px; display:grid; grid-template-columns:auto 14px minmax(0,1fr) 54px 24px 24px; align-items:center; gap:5px;
+      text-align:left; border:1px solid transparent; border-radius:8px; padding:4px 6px; background:transparent; color:var(--text); box-shadow:none; cursor:pointer;
+      font-size:13px; line-height:1.35;
     }
     .tree-row:hover { background:var(--surface-2); border-color:transparent; transform:none; }
     .tree-row.active { border-color:var(--accent); background:var(--accent-soft); }
@@ -168,14 +169,20 @@ const uiHTML = `<!doctype html>
     .tree-row.drop-target { border-color:var(--ok); background:var(--ok-soft); }
     .tree-row.file { cursor:grab; font-weight:420; }
     .tree-row.file:active { cursor:grabbing; }
-    .tree-row.dir { font-weight:680; }
+    .tree-row.dir { font-weight:650; }
     .tree-indent { display:inline-block; width:0; height:1px; }
-    .tree-toggle { width:18px; color:var(--muted); text-align:center; }
-    .tree-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .tree-meta { color:var(--muted); font-size:11px; white-space:nowrap; }
-    .tree-path { color:var(--muted); font-family:var(--mono); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .tree-action { min-height:24px; width:26px; padding:0; border-radius:8px; border-color:transparent; color:var(--muted); background:transparent; opacity:.55; }
-    .tree-row:hover .tree-action, .tree-row.active .tree-action { opacity:1; }
+    .tree-toggle { width:14px; color:var(--muted); text-align:center; font-size:11px; }
+    .tree-label { min-width:0; display:flex; align-items:center; gap:7px; overflow:hidden; }
+    .tree-icon { flex:0 0 14px; width:14px; height:14px; position:relative; color:var(--muted); }
+    .tree-icon.file::before { content:""; position:absolute; inset:1px 2px; border:1px solid var(--border-strong); border-radius:3px; background:var(--surface); }
+    .tree-icon.file::after { content:""; position:absolute; right:2px; top:1px; width:5px; height:5px; border-left:1px solid var(--border-strong); border-bottom:1px solid var(--border-strong); background:var(--surface-2); }
+    .tree-icon.folder::before { content:""; position:absolute; left:1px; right:1px; bottom:2px; height:10px; border:1px solid var(--border-strong); border-radius:3px; background:color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+    .tree-icon.folder::after { content:""; position:absolute; left:3px; top:1px; width:7px; height:4px; border:1px solid var(--border-strong); border-bottom:0; border-radius:3px 3px 0 0; background:color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
+    .tree-name { min-width:0; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tree-meta { min-width:54px; color:var(--muted); font-size:11px; white-space:nowrap; text-align:right; overflow:hidden; text-overflow:ellipsis; }
+    .tree-path { min-width:0; color:var(--muted); font-family:var(--mono); font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tree-action { min-height:22px; width:22px; padding:0; border-radius:7px; border-color:transparent; color:var(--muted); background:transparent; opacity:0; font-size:13px; }
+    .tree-row:hover .tree-action, .tree-row.active .tree-action, .tree-row:focus-within .tree-action { opacity:1; }
     .tree-action:hover { color:var(--accent); border-color:var(--border); background:var(--accent-soft); transform:none; }
     .tree-action.delete:hover { color:var(--danger); background:var(--danger-soft); }
 
@@ -185,6 +192,28 @@ const uiHTML = `<!doctype html>
     .card { background:var(--surface); padding:16px; }
     #viewer { min-height:calc(100vh - 182px); overflow:auto; }
     #contentView { font-size:13px; line-height:1.7; }
+    .markdown-body { max-width:880px; margin:0 auto; color:var(--text); }
+    .markdown-body.empty-doc { max-width:none; margin:0; color:var(--muted); }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin:1.1em 0 .45em; line-height:1.25; letter-spacing:-.02em; }
+    .markdown-body h1 { font-size:26px; border-bottom:1px solid var(--border); padding-bottom:.35em; }
+    .markdown-body h2 { font-size:20px; border-bottom:1px solid var(--border); padding-bottom:.3em; }
+    .markdown-body h3 { font-size:16px; }
+    .markdown-body p { margin:.7em 0; }
+    .markdown-body ul, .markdown-body ol { margin:.7em 0; padding-left:1.45em; }
+    .markdown-body li { margin:.22em 0; }
+    .markdown-body blockquote { margin:1em 0; padding:.2em 1em; color:var(--muted); border-left:3px solid var(--border-strong); background:var(--surface-2); border-radius:0 8px 8px 0; }
+    .markdown-body code { font-family:var(--mono); font-size:.92em; padding:.15em .35em; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); }
+    .markdown-body pre { margin:1em 0; padding:12px 14px; overflow:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); }
+    .markdown-body pre code { padding:0; border:0; background:transparent; }
+    .markdown-body a { color:var(--accent); text-decoration:none; }
+    .markdown-body a:hover { text-decoration:underline; }
+    .markdown-body hr { border:0; border-top:1px solid var(--border); margin:1.4em 0; }
+    .markdown-body table { width:100%; border-collapse:collapse; margin:1em 0; display:block; overflow:auto; }
+    .markdown-body th, .markdown-body td { border:1px solid var(--border); padding:6px 9px; }
+    .markdown-body th { background:var(--surface-2); }
+    .markdown-meta { margin:0 0 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2); color:var(--muted); }
+    .markdown-meta summary { cursor:pointer; padding:9px 12px; font-weight:650; color:var(--text); }
+    .markdown-meta pre { margin:0; border:0; border-top:1px solid var(--border); border-radius:0 0 12px 12px; background:transparent; }
     #editor { padding:14px; background:var(--surface); }
 
     .page { display:block; }
@@ -200,39 +229,39 @@ const uiHTML = `<!doctype html>
     #gitStat { color:var(--muted); }
 
     .diff-box { max-height:72vh; overflow:auto; border:1px solid var(--border); border-radius:12px; background:#1e1e1e; color:#d4d4d4; }
-    .diff-view { min-width:760px; font:12px/1.48 var(--mono); }
+    .diff-view { min-width:980px; font:12px/1.48 var(--mono); }
     .diff-empty { padding:24px; color:#8b949e; text-align:center; }
-    .diff-stage { position:sticky; top:0; z-index:2; padding:8px 12px; background:#252526; border-bottom:1px solid #3c3c3c; color:#c5c5c5; font-weight:700; }
+    .diff-stage { position:sticky; top:0; z-index:3; padding:8px 12px; background:#252526; border-bottom:1px solid #3c3c3c; color:#c5c5c5; font-weight:700; }
     .diff-file { border-bottom:1px solid #3c3c3c; }
     .diff-file:last-child { border-bottom:0; }
-    .diff-file-header { position:sticky; top:33px; z-index:1; display:flex; align-items:center; gap:8px; padding:7px 12px; background:#2d2d30; border-bottom:1px solid #3c3c3c; color:#e6edf3; }
+    .diff-file-header { position:sticky; top:33px; z-index:2; display:flex; align-items:center; gap:8px; padding:7px 12px; background:#2d2d30; border-bottom:1px solid #3c3c3c; color:#e6edf3; }
     .diff-file-dot { width:8px; height:8px; border-radius:999px; background:#58a6ff; }
     .diff-file-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .diff-meta-line, .diff-hunk { display:grid; grid-template-columns:56px 56px minmax(0,1fr); min-height:20px; }
+    .diff-meta-line, .diff-hunk { display:grid; grid-template-columns:54px minmax(320px,1fr) 54px minmax(320px,1fr); min-height:22px; }
     .diff-meta-line { color:#8b949e; background:#252526; }
     .diff-hunk { color:#58a6ff; background:#26364a; }
-    .diff-row { display:grid; grid-template-columns:56px 56px minmax(0,1fr); min-height:20px; }
-    .diff-ln { user-select:none; text-align:right; padding:0 10px; color:#858585; border-right:1px solid rgba(255,255,255,.06); }
-    .diff-code { white-space:pre; overflow:visible; padding:0 12px; }
-    .diff-row.add { background:rgba(46,160,67,.22); }
-    .diff-row.add .diff-code { color:#b7f7c4; }
-    .diff-row.del { background:rgba(248,81,73,.20); }
-    .diff-row.del .diff-code { color:#ffd1d1; }
+    .diff-row { display:grid; grid-template-columns:54px minmax(320px,1fr) 54px minmax(320px,1fr); min-height:22px; }
+    .diff-ln { user-select:none; text-align:right; padding:1px 10px; color:#858585; border-right:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02); }
+    .diff-code { white-space:pre; overflow:hidden; text-overflow:ellipsis; padding:1px 12px; border-right:1px solid rgba(255,255,255,.08); }
+    .diff-right-code { border-right:0; }
     .diff-row.ctx { background:#1e1e1e; }
+    .diff-row.add .diff-right-code, .diff-row.change .diff-right-code { background:rgba(46,160,67,.24); color:#b7f7c4; }
+    .diff-row.del .diff-left-code, .diff-row.change .diff-left-code { background:rgba(248,81,73,.22); color:#ffd1d1; }
     .diff-row.note { color:#8b949e; background:#252526; font-style:italic; }
+    .diff-spacer { background:#1b1b1b; color:#6e7681; }
     @media (prefers-color-scheme: light) {
       .diff-box { background:#fff; color:#24292f; }
       .diff-stage { background:#f6f8fa; border-bottom-color:#d0d7de; color:#57606a; }
       .diff-file-header { background:#f6f8fa; border-bottom-color:#d0d7de; color:#24292f; }
       .diff-meta-line { background:#f6f8fa; color:#57606a; }
       .diff-hunk { background:#ddf4ff; color:#0969da; }
-      .diff-ln { color:#6e7781; border-right-color:rgba(27,31,36,.08); }
+      .diff-ln { color:#6e7781; border-right-color:rgba(27,31,36,.08); background:#f6f8fa; }
+      .diff-code { border-right-color:rgba(27,31,36,.08); }
       .diff-row.ctx { background:#fff; }
-      .diff-row.add { background:#dafbe1; }
-      .diff-row.add .diff-code { color:#116329; }
-      .diff-row.del { background:#ffebe9; }
-      .diff-row.del .diff-code { color:#82071e; }
+      .diff-row.add .diff-right-code, .diff-row.change .diff-right-code { background:#dafbe1; color:#116329; }
+      .diff-row.del .diff-left-code, .diff-row.change .diff-left-code { background:#ffebe9; color:#82071e; }
       .diff-row.note { background:#f6f8fa; color:#6e7781; }
+      .diff-spacer { background:#f6f8fa; color:#8c959f; }
     }
 
     .commit-list { display:flex; flex-direction:column; gap:10px; max-height:68vh; overflow:auto; padding:14px 16px; }
@@ -272,7 +301,7 @@ const uiHTML = `<!doctype html>
       #viewer { min-height:44vh; }
       textarea { min-height:46vh; }
       .diff-box { max-height:56vh; }
-      .diff-view { min-width:680px; }
+      .diff-view { min-width:860px; }
       .commit-title { align-items:flex-start; }
       .commit-title strong { white-space:normal; }
     }
@@ -281,7 +310,7 @@ const uiHTML = `<!doctype html>
       .sidebar { padding:9px; }
       .brand h1 { font-size:15px; }
       .tabs button { min-width:max-content; padding:8px 9px; }
-      .tree-row { grid-template-columns:auto 16px minmax(0,1fr) auto auto; }
+      .tree-row { grid-template-columns:auto 14px minmax(0,1fr) 22px 22px; }
       .tree-row .tree-meta { display:none; }
       .tree-indent { max-width:40px; }
       #gitLogLimit { width:100% !important; }
@@ -359,7 +388,7 @@ const uiHTML = `<!doctype html>
               <button id="deleteBtn" class="danger" disabled>删除</button>
             </div>
           </div>
-          <div id="viewer" class="card"><pre id="contentView">从左侧选择一个记忆文件。</pre></div>
+          <div id="viewer" class="card"><div id="contentView" class="markdown-body empty-doc">从左侧选择一个记忆文件。</div></div>
           <div id="editor" class="hidden stack">
             <input id="pathInput" placeholder="memory-relative path，例如 inbox/note.md" />
             <textarea id="contentEdit" spellcheck="false"></textarea>
@@ -457,6 +486,125 @@ async function api(path, options={}) {
   return data;
 }
 
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function markdownLinkify(text) {
+  let html = escapeHTML(text);
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  html = html.replace(new RegExp(String.fromCharCode(96) + '([^' + String.fromCharCode(96) + ']+)' + String.fromCharCode(96), 'g'), '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  return html;
+}
+
+function splitFrontmatter(content) {
+  if (!content.startsWith('---\n')) return { meta: '', body: content };
+  const end = content.indexOf('\n---\n', 4);
+  if (end < 0) return { meta: '', body: content };
+  return { meta: content.slice(4, end), body: content.slice(end + 5) };
+}
+
+function renderMarkdown(content) {
+  const parts = splitFrontmatter(content);
+  const lines = parts.body.replace(/\r\n/g, '\n').split('\n');
+  const out = [];
+  let paragraph = [];
+  let list = null;
+  let code = null;
+  let quote = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    out.push('<p>' + markdownLinkify(paragraph.join(' ')) + '</p>');
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!list) return;
+    out.push('<' + list.type + '>' + list.items.map(item => '<li>' + markdownLinkify(item) + '</li>').join('') + '</' + list.type + '>');
+    list = null;
+  };
+  const flushQuote = () => {
+    if (!quote.length) return;
+    out.push('<blockquote>' + quote.map(line => '<p>' + markdownLinkify(line) + '</p>').join('') + '</blockquote>');
+    quote = [];
+  };
+  const closeBlocks = () => { flushParagraph(); flushList(); flushQuote(); };
+
+  for (const line of lines) {
+    if (line.startsWith(String.fromCharCode(96,96,96))) {
+      if (code) {
+        out.push('<pre><code>' + escapeHTML(code.lines.join('\n')) + '</code></pre>');
+        code = null;
+      } else {
+        closeBlocks();
+        code = { lines: [] };
+      }
+      continue;
+    }
+    if (code) {
+      code.lines.push(line);
+      continue;
+    }
+    if (!line.trim()) {
+      closeBlocks();
+      continue;
+    }
+    if (/^---+$/.test(line.trim())) {
+      closeBlocks();
+      out.push('<hr />');
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (heading) {
+      closeBlocks();
+      const level = Math.min(6, heading[1].length);
+      out.push('<h' + level + '>' + markdownLinkify(heading[2].trim()) + '</h' + level + '>');
+      continue;
+    }
+    if (line.startsWith('>')) {
+      flushParagraph();
+      flushList();
+      quote.push(line.replace(/^>\s?/, ''));
+      continue;
+    }
+    const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
+    const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
+    if (unordered || ordered) {
+      flushParagraph();
+      flushQuote();
+      const type = unordered ? 'ul' : 'ol';
+      if (!list || list.type !== type) flushList();
+      if (!list) list = { type, items: [] };
+      list.items.push((unordered || ordered)[1]);
+      continue;
+    }
+    paragraph.push(line.trim());
+  }
+  if (code) out.push('<pre><code>' + escapeHTML(code.lines.join('\n')) + '</code></pre>');
+  closeBlocks();
+  const meta = parts.meta.trim()
+    ? '<details class="markdown-meta"><summary>Frontmatter</summary><pre><code>' + escapeHTML(parts.meta.trim()) + '</code></pre></details>'
+    : '';
+  return meta + (out.join('\n') || '<p class="meta">空 Markdown 文件</p>');
+}
+
+function renderMemoryContent(path, content) {
+  const viewer = $('contentView');
+  viewer.className = '';
+  if (/\.(md|markdown)$/i.test(path)) {
+    viewer.className = 'markdown-body';
+    viewer.innerHTML = renderMarkdown(content);
+  } else {
+    viewer.className = '';
+    const pre = document.createElement('pre');
+    pre.textContent = content;
+    viewer.innerHTML = '';
+    viewer.appendChild(pre);
+  }
+}
+
 function setTab(tab) {
   const isMem = tab === 'memories';
   const isGit = tab === 'git';
@@ -541,6 +689,7 @@ function clearCurrentMemory() {
   state.currentPath = '';
   state.currentContent = '';
   $('currentPath').textContent = '未选择文件';
+  $('contentView').className = 'markdown-body empty-doc';
   $('contentView').textContent = '从左侧选择一个记忆文件。';
   $('editBtn').disabled = true;
   $('deleteBtn').disabled = true;
@@ -646,9 +795,13 @@ function renderTreeNode(node, depth, options={}) {
   row.appendChild(toggle);
 
   const nameWrap = document.createElement('span');
+  nameWrap.className = 'tree-label';
+  const icon = document.createElement('span');
+  icon.className = 'tree-icon ' + (isDir ? 'folder' : 'file');
+  nameWrap.appendChild(icon);
   const name = document.createElement('span');
   name.className = 'tree-name';
-  name.textContent = (isDir ? '📁 ' : '📄 ') + node.name;
+  name.textContent = node.name;
   nameWrap.appendChild(name);
   if (options.showPath && !isDir) {
     const path = document.createElement('div');
@@ -779,7 +932,7 @@ async function loadMemory(path) {
   state.currentPath = data.memory.path;
   state.currentContent = data.memory.content;
   $('currentPath').textContent = state.currentPath;
-  $('contentView').textContent = state.currentContent;
+  renderMemoryContent(state.currentPath, state.currentContent);
   $('editBtn').disabled = false;
   $('deleteBtn').disabled = false;
   expandPath(state.currentPath);
@@ -892,8 +1045,11 @@ async function loadGitPanel() {
 }
 
 function parseHunkHeader(line) {
-  const match = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
-  return { oldLine: match ? Number(match[1]) : 0, newLine: match ? Number(match[2]) : 0 };
+  const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+  return {
+    oldLine: match ? Number(match[1]) : 0,
+    newLine: match ? Number(match[3]) : 0
+  };
 }
 
 function diffFileName(line) {
@@ -903,37 +1059,45 @@ function diffFileName(line) {
   return (b || a || parts[parts.length - 1] || 'diff').replace(/^[ab]\//, '');
 }
 
-function appendDiffLine(parent, className, oldNo, newNo, text) {
+function appendSideBySideLine(parent, className, leftNo, leftText, rightNo, rightText) {
   const row = document.createElement('div');
   row.className = 'diff-row ' + className;
   const oldCell = document.createElement('span');
   oldCell.className = 'diff-ln';
-  oldCell.textContent = oldNo ? String(oldNo) : '';
+  oldCell.textContent = leftNo ? String(leftNo) : '';
+  const leftCode = document.createElement('span');
+  leftCode.className = 'diff-code diff-left-code' + (!leftText ? ' diff-spacer' : '');
+  leftCode.textContent = leftText || ' ';
   const newCell = document.createElement('span');
   newCell.className = 'diff-ln';
-  newCell.textContent = newNo ? String(newNo) : '';
-  const code = document.createElement('span');
-  code.className = 'diff-code';
-  code.textContent = text || ' ';
+  newCell.textContent = rightNo ? String(rightNo) : '';
+  const rightCode = document.createElement('span');
+  rightCode.className = 'diff-code diff-right-code' + (!rightText ? ' diff-spacer' : '');
+  rightCode.textContent = rightText || ' ';
   row.appendChild(oldCell);
+  row.appendChild(leftCode);
   row.appendChild(newCell);
-  row.appendChild(code);
+  row.appendChild(rightCode);
   parent.appendChild(row);
 }
 
-function appendDiffMeta(parent, className, text) {
+function appendSideBySideMeta(parent, className, text) {
   const row = document.createElement('div');
   row.className = className;
+  const oldCell = document.createElement('span');
+  oldCell.className = 'diff-ln';
   const left = document.createElement('span');
-  left.className = 'diff-ln';
+  left.className = 'diff-code';
+  left.textContent = text;
+  const newCell = document.createElement('span');
+  newCell.className = 'diff-ln';
   const right = document.createElement('span');
-  right.className = 'diff-ln';
-  const code = document.createElement('span');
-  code.className = 'diff-code';
-  code.textContent = text;
+  right.className = 'diff-code diff-right-code';
+  right.textContent = text;
+  row.appendChild(oldCell);
   row.appendChild(left);
+  row.appendChild(newCell);
   row.appendChild(right);
-  row.appendChild(code);
   parent.appendChild(row);
 }
 
@@ -947,6 +1111,7 @@ function renderUnifiedDiff(container, sections) {
     container.appendChild(empty);
     return;
   }
+
   for (const section of nonEmpty) {
     const stage = document.createElement('div');
     stage.className = 'diff-stage';
@@ -957,6 +1122,12 @@ function renderUnifiedDiff(container, sections) {
     let bodyEl = null;
     let oldLine = 0;
     let newLine = 0;
+    let pendingDeletes = [];
+
+    const flushDeletes = () => {
+      for (const item of pendingDeletes) appendSideBySideLine(bodyEl, 'del', item.no, item.text, '', '');
+      pendingDeletes = [];
+    };
     const ensureFile = (name='diff') => {
       if (fileEl) return;
       fileEl = document.createElement('div');
@@ -978,6 +1149,7 @@ function renderUnifiedDiff(container, sections) {
 
     for (const line of section.diff.split('\n')) {
       if (line.startsWith('diff --git ')) {
+        if (bodyEl) flushDeletes();
         fileEl = null;
         bodyEl = null;
         ensureFile(diffFileName(line));
@@ -985,34 +1157,37 @@ function renderUnifiedDiff(container, sections) {
       }
       ensureFile();
       if (line.startsWith('@@ ')) {
+        flushDeletes();
         const parsed = parseHunkHeader(line);
         oldLine = parsed.oldLine;
         newLine = parsed.newLine;
-        appendDiffMeta(bodyEl, 'diff-hunk', line);
+        appendSideBySideMeta(bodyEl, 'diff-hunk', line);
         continue;
       }
-      if (line.startsWith('index ') || line.startsWith('new file mode') || line.startsWith('deleted file mode') || line.startsWith('similarity index') || line.startsWith('rename from') || line.startsWith('rename to')) {
-        appendDiffMeta(bodyEl, 'diff-meta-line', line);
-        continue;
-      }
-      if (line.startsWith('--- ') || line.startsWith('+++ ')) {
-        appendDiffMeta(bodyEl, 'diff-meta-line', line);
+      if (line.startsWith('index ') || line.startsWith('new file mode') || line.startsWith('deleted file mode') || line.startsWith('similarity index') || line.startsWith('rename from') || line.startsWith('rename to') || line.startsWith('--- ') || line.startsWith('+++ ')) {
+        flushDeletes();
+        appendSideBySideMeta(bodyEl, 'diff-meta-line', line);
         continue;
       }
       if (line.startsWith('\\ No newline')) {
-        appendDiffLine(bodyEl, 'note', '', '', line);
-        continue;
-      }
-      if (line.startsWith('+')) {
-        appendDiffLine(bodyEl, 'add', '', newLine++, line);
+        flushDeletes();
+        appendSideBySideLine(bodyEl, 'note', '', line, '', line);
         continue;
       }
       if (line.startsWith('-')) {
-        appendDiffLine(bodyEl, 'del', oldLine++, '', line);
+        pendingDeletes.push({ no: oldLine++, text: line });
         continue;
       }
-      appendDiffLine(bodyEl, 'ctx', oldLine ? oldLine++ : '', newLine ? newLine++ : '', line || ' ');
+      if (line.startsWith('+')) {
+        const deleted = pendingDeletes.shift();
+        if (deleted) appendSideBySideLine(bodyEl, 'change', deleted.no, deleted.text, newLine++, line);
+        else appendSideBySideLine(bodyEl, 'add', '', '', newLine++, line);
+        continue;
+      }
+      flushDeletes();
+      appendSideBySideLine(bodyEl, 'ctx', oldLine ? oldLine++ : '', line || ' ', newLine ? newLine++ : '', line || ' ');
     }
+    if (bodyEl) flushDeletes();
   }
 }
 
