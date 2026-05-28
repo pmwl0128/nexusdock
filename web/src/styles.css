@@ -727,3 +727,154 @@ button.primary:hover svg {
   .tree-icon svg,
   .file-status { transition: none !important; }
 }
+
+/* Stronger Liquid Glass material: visible at rest, animated on hover/active */
+@keyframes liquidGlassShift {
+  0% { background-position: 0% 0%, 100% 100%, 50% 0%; }
+  50% { background-position: 100% 18%, 0% 82%, 50% 100%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 0%; }
+}
+
+@keyframes liquidLensBreath {
+  0%, 100% { filter: saturate(1.18) brightness(1); box-shadow: inset 0 1px 1px rgba(255,255,255,.82), inset 0 -12px 24px rgba(255,255,255,.18), 0 10px 24px rgba(68, 84, 150, .10); }
+  50% { filter: saturate(1.38) brightness(1.04); box-shadow: inset 0 1px 1px rgba(255,255,255,.95), inset 0 -16px 28px rgba(255,255,255,.24), 0 16px 34px rgba(99, 91, 255, .18); }
+}
+
+@keyframes liquidRimTravel {
+  0% { transform: translate3d(-35%, -35%, 0) rotate(0deg) scale(.9); opacity: .18; }
+  45% { opacity: .44; }
+  100% { transform: translate3d(34%, 28%, 0) rotate(24deg) scale(1.22); opacity: .12; }
+}
+
+.nav button,
+.icon-button,
+.tree-action,
+.file-status {
+  background:
+    radial-gradient(circle at 26% 18%, rgba(255,255,255,.95), rgba(255,255,255,.25) 24%, transparent 48%),
+    radial-gradient(circle at 78% 88%, rgba(116, 96, 255, .20), transparent 42%),
+    linear-gradient(145deg, rgba(255,255,255,.72), rgba(235,240,255,.38) 48%, rgba(255,255,255,.62));
+  background-size: 160% 160%, 170% 170%, 100% 100%;
+  border: 1px solid rgba(255,255,255,.68);
+  backdrop-filter: blur(22px) saturate(1.75);
+  -webkit-backdrop-filter: blur(22px) saturate(1.75);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.88),
+    inset 0 -13px 26px rgba(255,255,255,.16),
+    0 10px 24px rgba(68, 84, 150, .10);
+  will-change: transform, filter, box-shadow, background-position;
+}
+
+.nav button::before,
+.icon-button::before,
+.tree-action::before,
+.file-status::before,
+button.primary::before,
+.brand-mark::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.88), transparent 36%, rgba(255,255,255,.22) 62%, transparent 82%),
+    radial-gradient(circle at 28% 18%, rgba(255,255,255,.82), transparent 30%);
+  opacity: .54;
+  z-index: 0;
+}
+
+.nav button::after,
+.icon-button::after,
+.tree-action::after,
+.file-status::after,
+button.primary::after,
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: -44%;
+  width: auto;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    conic-gradient(from 210deg at 50% 50%, transparent 0deg, rgba(255,255,255,.56) 44deg, transparent 92deg, rgba(132, 118, 255, .24) 160deg, transparent 238deg, rgba(255,255,255,.42) 300deg, transparent 360deg);
+  filter: blur(10px);
+  opacity: .18;
+  transform: translate3d(0,0,0) rotate(0deg);
+}
+
+.nav button > svg,
+.icon-button > svg,
+.tree-action > svg,
+button.primary > svg,
+.brand-mark,
+.file-status,
+.tree-icon > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.nav button:hover,
+.icon-button:hover,
+.tree-action:hover,
+.file-status:hover {
+  background-position: 100% 16%, 0% 82%, 50% 50%;
+  transform: translateY(-3px) scale(1.065);
+  border-color: rgba(255,255,255,.92);
+  animation: liquidLensBreath 1.45s ease-in-out infinite;
+}
+
+.nav button:hover::after,
+.icon-button:hover::after,
+.tree-action:hover::after,
+.file-status:hover::after,
+button.primary:hover::after,
+.brand-mark:hover::after {
+  animation: liquidRimTravel 1.05s cubic-bezier(.2,.8,.2,1) infinite alternate;
+  opacity: .46;
+}
+
+.nav button.active,
+.icon-button:focus-visible {
+  background:
+    radial-gradient(circle at 26% 18%, rgba(255,255,255,.96), rgba(255,255,255,.32) 24%, transparent 48%),
+    radial-gradient(circle at 76% 84%, rgba(97, 83, 255, .36), transparent 46%),
+    linear-gradient(145deg, rgba(255,255,255,.80), rgba(232,236,255,.50) 48%, rgba(255,255,255,.76));
+  border-color: rgba(255,255,255,.86);
+  animation: liquidGlassShift 5s ease-in-out infinite, liquidLensBreath 3.2s ease-in-out infinite;
+  color: #4e48df;
+}
+
+button.primary {
+  background:
+    radial-gradient(circle at 24% 20%, rgba(255,255,255,.58), transparent 30%),
+    radial-gradient(circle at 82% 92%, rgba(255,255,255,.25), transparent 36%),
+    linear-gradient(135deg, rgba(63,107,255,.96) 0%, rgba(118,87,255,.94) 56%, rgba(157,97,255,.96) 100%);
+  border: 1px solid rgba(255,255,255,.46);
+  backdrop-filter: blur(20px) saturate(1.7);
+  -webkit-backdrop-filter: blur(20px) saturate(1.7);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.55), inset 0 -18px 34px rgba(36,30,142,.18), 0 18px 42px rgba(90, 84, 245, .32);
+}
+
+button.primary:hover {
+  transform: translateY(-3px) scale(1.028);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.66), inset 0 -18px 34px rgba(36,30,142,.12), 0 24px 54px rgba(90, 84, 245, .42);
+}
+
+.brand-mark {
+  background:
+    radial-gradient(circle at 24% 18%, rgba(255,255,255,.62), transparent 34%),
+    radial-gradient(circle at 82% 90%, rgba(255,255,255,.20), transparent 34%),
+    linear-gradient(145deg, rgba(57,115,255,.95) 0%, rgba(114,93,255,.93) 52%, rgba(157,103,255,.95) 100%);
+  border: 1px solid rgba(255,255,255,.42);
+  backdrop-filter: blur(18px) saturate(1.55);
+  -webkit-backdrop-filter: blur(18px) saturate(1.55);
+  animation: liquidLensBreath 4.8s ease-in-out infinite;
+}
+
+.tree-row:hover .tree-icon {
+  border-radius: 10px;
+  background: radial-gradient(circle at 24% 20%, rgba(255,255,255,.90), rgba(255,255,255,.22) 42%, transparent 70%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.72), 0 10px 18px rgba(99,91,255,.14);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+}
