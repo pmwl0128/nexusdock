@@ -2073,3 +2073,44 @@ button.primary::after,
     height: 52px;
   }
 }
+
+/* Collapsed Explorer: keep it to exactly two controls: expand orb + current path orb */
+.path-orb-stack.two-orbs {
+  justify-content: center;
+  padding: 84px 0 34px;
+  gap: 28px;
+  overflow: visible;
+  mask-image: none;
+}
+.path-orb-stack.two-orbs .path-orb {
+  width: 62px;
+  height: 62px;
+  min-height: 62px;
+}
+.path-orb-stack.two-orbs .path-orb::before {
+  content: "";
+  position: absolute;
+  top: -29px;
+  left: 50%;
+  width: 2px;
+  height: 28px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(to bottom, rgba(99,91,255,.05), rgba(99,91,255,.34));
+}
+.path-orb-stack.two-orbs .path-orb.empty::before { display: none; }
+
+@media (max-width: 900px) {
+  .path-orb-stack.two-orbs {
+    justify-content: flex-start;
+    padding: 0 4px;
+    gap: 10px;
+    overflow-x: visible;
+  }
+  .path-orb-stack.two-orbs .path-orb {
+    width: 52px;
+    height: 52px;
+    min-height: 52px;
+  }
+  .path-orb-stack.two-orbs .path-orb::before { display: none; }
+}
