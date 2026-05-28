@@ -14,6 +14,8 @@ type Config struct {
 	Port          int
 	StoreDir      string
 	AuthToken     string
+	Username      string
+	Password      string
 	AutoSync      bool
 	PullInterval  time.Duration
 	PushDebounce  time.Duration
@@ -27,6 +29,8 @@ func FromEnv() Config {
 		Port:          getenvInt("MEMORYDOCK_PORT", 18777),
 		StoreDir:      getenv("MEMORYDOCK_STORE_DIR", "memory"),
 		AuthToken:     os.Getenv("MEMORYDOCK_AUTH_TOKEN"),
+		Username:      strings.TrimSpace(os.Getenv("MEMORYDOCK_USERNAME")),
+		Password:      os.Getenv("MEMORYDOCK_PASSWORD"),
 		AutoSync:      getenvBool("MEMORYDOCK_AUTO_SYNC", false),
 		PullInterval:  time.Duration(getenvInt("MEMORYDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
 		PushDebounce:  time.Duration(getenvInt("MEMORYDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,

@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -27,26 +28,28 @@ func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, l
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", s.uiIndex)
-	mux.HandleFunc("GET /ui/", s.uiIndex)
+	protected := func(next http.HandlerFunc) http.HandlerFunc { return s.withBasicAuth(s.withAuth(next)) }
+	uiProtected := func(next http.HandlerFunc) http.HandlerFunc { return s.withBasicAuth(next) }
+	mux.HandleFunc("GET /", uiProtected(s.uiIndex))
+	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
-	mux.HandleFunc("GET /v1/sync/status", s.withAuth(s.syncStatus))
-	mux.HandleFunc("GET /v1/git/diff", s.withAuth(s.gitDiff))
-	mux.HandleFunc("POST /v1/git/discard", s.withAuth(s.gitDiscard))
-	mux.HandleFunc("GET /v1/git/log", s.withAuth(s.gitLog))
-	mux.HandleFunc("GET /v1/git/commit", s.withAuth(s.gitCommit))
-	mux.HandleFunc("POST /v1/sync/pull", s.withAuth(s.syncPull))
-	mux.HandleFunc("POST /v1/sync/push", s.withAuth(s.syncPush))
-	mux.HandleFunc("POST /v1/sync/now", s.withAuth(s.syncNow))
-	mux.HandleFunc("GET /v1/memories", s.withAuth(s.listMemories))
-	mux.HandleFunc("POST /v1/memories", s.withAuth(s.writeMemory))
-	mux.HandleFunc("POST /v1/memories/move", s.withAuth(s.moveMemory))
-	mux.HandleFunc("POST /v1/memories/search", s.withAuth(s.searchMemories))
-	mux.HandleFunc("POST /v1/memories/pack", s.withAuth(s.packMemories))
-	mux.HandleFunc("POST /v1/notes/append", s.withAuth(s.appendNote))
-	mux.HandleFunc("GET /v1/memories/", s.withAuth(s.readMemory))
-	mux.HandleFunc("PATCH /v1/memories/", s.withAuth(s.patchMemory))
-	mux.HandleFunc("DELETE /v1/memories/", s.withAuth(s.deleteMemory))
+	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))
+	mux.HandleFunc("GET /v1/git/diff", protected(s.gitDiff))
+	mux.HandleFunc("POST /v1/git/discard", protected(s.gitDiscard))
+	mux.HandleFunc("GET /v1/git/log", protected(s.gitLog))
+	mux.HandleFunc("GET /v1/git/commit", protected(s.gitCommit))
+	mux.HandleFunc("POST /v1/sync/pull", protected(s.syncPull))
+	mux.HandleFunc("POST /v1/sync/push", protected(s.syncPush))
+	mux.HandleFunc("POST /v1/sync/now", protected(s.syncNow))
+	mux.HandleFunc("GET /v1/memories", protected(s.listMemories))
+	mux.HandleFunc("POST /v1/memories", protected(s.writeMemory))
+	mux.HandleFunc("POST /v1/memories/move", protected(s.moveMemory))
+	mux.HandleFunc("POST /v1/memories/search", protected(s.searchMemories))
+	mux.HandleFunc("POST /v1/memories/pack", protected(s.packMemories))
+	mux.HandleFunc("POST /v1/notes/append", protected(s.appendNote))
+	mux.HandleFunc("GET /v1/memories/", protected(s.readMemory))
+	mux.HandleFunc("PATCH /v1/memories/", protected(s.patchMemory))
+	mux.HandleFunc("DELETE /v1/memories/", protected(s.deleteMemory))
 	return logRequests(mux, s.logger)
 }
 
@@ -341,4 +344,23 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 		logger.Debug("http request", "method", r.Method, "path", r.URL.Path)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) withBasicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.cfg.Username == "" || s.cfg.Password == "" {
+			next(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		userOK := subtle.ConstantTimeCompare([]byte(user), []byte(s.cfg.Username)) == 1
+		passOK := subtle.ConstantTimeCompare([]byte(pass), []byte(s.cfg.Password)) == 1
+		if !ok || !userOK || !passOK {
+			w.Header().Set("WWW-Authenticate", `Basic realm="MemoryDock"`)
+			w.Header().Set("Cache-Control", "no-store")
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
