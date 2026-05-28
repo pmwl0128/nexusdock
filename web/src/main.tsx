@@ -421,6 +421,7 @@ function App() {
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
   const dirCount = entries.filter((entry) => entry.type === 'directory').length;
+  const explorerFocusCollapsed = tab === 'memories' && (explorerCollapsed || desktopContentHover);
 
   useEffect(() => {
     void loadList();
@@ -685,9 +686,9 @@ function App() {
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''} ${desktopReviewFocus ? 'desktop-review-focus' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
       <FloatingExplorerOrb
-        visible={tab === 'memories' && explorerCollapsed}
+        visible={explorerFocusCollapsed}
         currentPath={current?.path || prefix}
-        onOpen={() => setExplorerCollapsed(false)}
+        onOpen={() => { setExplorerCollapsed(false); setDesktopContentHover(false); }}
       />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
@@ -705,7 +706,7 @@ function App() {
           />
         )}
         {tab === 'memories' && (
-          <section className={`memory-layout ${explorerCollapsed ? 'explorer-collapsed' : ''}`}>
+          <section className={`memory-layout ${explorerFocusCollapsed ? 'explorer-collapsed' : ''}`}>
             <Explorer
               tree={tree}
               expanded={expanded}
@@ -730,8 +731,8 @@ function App() {
               draggingPath={draggingPath}
               setDraggingPath={setDraggingPath}
               onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
-              collapsed={explorerCollapsed}
-              onToggle={() => setExplorerCollapsed((v) => !v)}
+              collapsed={explorerFocusCollapsed}
+              onToggle={() => { if (desktopContentHover && !explorerCollapsed) setDesktopContentHover(false); else setExplorerCollapsed((v) => !v); }}
             />
             <MemoryEditor
               current={current}

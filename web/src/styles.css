@@ -2386,3 +2386,24 @@ button.primary::after,
     left: auto !important;
   }
 }
+
+/* Auto focus collapse: when reading/editing content, Explorer also shrinks into the fixed right-top orb. */
+@media (min-width: 901px) and (pointer: fine) {
+  .app.desktop-content-orb .memory-layout.explorer-collapsed {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .app.desktop-content-orb .floating-explorer-orb,
+  .app.desktop-review-focus .floating-explorer-orb {
+    right: 24px !important;
+    left: auto !important;
+    top: 24px !important;
+    bottom: auto !important;
+  }
+  .app.desktop-content-orb .doc-toolbar .doc-path,
+  .app.desktop-content-orb .doc-toolbar .muted {
+    text-align: right;
+  }
+  .app.desktop-content-orb .doc-toolbar > div:first-child {
+    margin-left: auto;
+  }
+}
