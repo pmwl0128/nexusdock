@@ -1024,3 +1024,165 @@ button.primary::after,
   .sidebar { width: auto; }
   .sidebar::after { inset: -120% -20%; }
 }
+
+/* Mobile polish pass: safe areas, non-overlapping dock, compact panels */
+@media (max-width: 900px) {
+  html { scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  body { background-attachment: fixed; }
+  .workspace {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+  .topbar {
+    padding: calc(18px + env(safe-area-inset-top)) 18px 14px;
+    gap: 12px;
+  }
+  .page-title h2 {
+    font-size: clamp(28px, 7vw, 42px);
+    line-height: 1.08;
+    letter-spacing: -.055em;
+  }
+  .page-title p { font-size: 16px; opacity: .82; }
+  .status-strip { gap: 10px; padding-bottom: 4px; }
+  .pill { min-height: 44px; padding: 8px 16px; font-size: 16px; }
+
+  .memory-layout,
+  .git-workbench,
+  .sync-grid,
+  .dashboard-grid {
+    padding: 0 14px calc(170px + env(safe-area-inset-bottom));
+  }
+
+  .explorer-panel {
+    min-height: 0;
+    max-height: min(420px, 41vh);
+    overflow: hidden;
+  }
+  .explorer-panel .panel-head { min-height: 72px; }
+  .explorer-panel .tree-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .panel-search { gap: 10px; }
+  .panel-search .input-row input { min-height: 48px; font-size: 16px; }
+  .tree-row { min-height: 44px; }
+  .tree-action { opacity: 1; }
+
+  .document-panel {
+    min-height: auto;
+    margin-bottom: 0;
+    overflow: visible;
+  }
+  .doc-toolbar { gap: 14px; }
+  .toolbar-actions { gap: 10px; }
+  .toolbar-actions button { min-height: 44px; border-radius: 16px; font-size: 15px; }
+  .markdown-body {
+    overflow: visible;
+    padding: 28px 22px calc(185px + env(safe-area-inset-bottom));
+  }
+  .markdown-body h1 { font-size: clamp(34px, 9vw, 52px); line-height: 1.05; }
+
+  .sidebar {
+    left: 18px;
+    right: 18px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    height: 72px;
+    padding: 9px 14px;
+    border-radius: 28px;
+    z-index: 60;
+  }
+  .brand-mark { width: 52px; height: 52px; border-radius: 18px; }
+  .nav button,
+  .icon-button { width: 52px; height: 52px; min-height: 52px; border-radius: 19px; }
+  .nav { gap: 8px; }
+
+  .git-workbench { align-items: start; }
+  .git-main,
+  .git-rail,
+  .git-history-panel {
+    min-height: 0;
+    max-height: none;
+    height: auto;
+  }
+  .git-rail { order: 1; }
+  .git-main { order: 2; }
+  .git-history-panel { order: 3; }
+  .changed-file-list,
+  .history-list {
+    flex: none;
+    max-height: 340px;
+    overflow: auto;
+  }
+  .rail-empty { min-height: 56px; display: flex; align-items: center; margin: 0; padding: 0 6px; }
+  .rail-actions { padding: 12px 14px; }
+  .git-summary pre { min-height: 54px; }
+  .diff-viewer { min-height: 120px; flex: none; }
+  .commit {
+    min-height: 70px;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+  .commit div {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .commit strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+  }
+  .commit span {
+    flex: 0 0 auto;
+    font-size: 13px;
+  }
+  .commit p {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar { padding: calc(14px + env(safe-area-inset-top)) 14px 12px; }
+  .page-title h2 { font-size: 30px; }
+  .page-title p { font-size: 15px; }
+  .pill { min-height: 40px; padding: 7px 14px; font-size: 15px; }
+  .memory-layout,
+  .git-workbench,
+  .sync-grid,
+  .dashboard-grid { padding-left: 12px; padding-right: 12px; }
+  .explorer-panel { max-height: min(390px, 40vh); border-radius: 26px; }
+  .panel-head { padding: 14px 16px; }
+  .panel-search { padding: 12px 14px 14px; }
+  .tree-scroll { max-height: 180px; }
+  .document-panel { border-radius: 26px; }
+  .doc-toolbar { padding: 18px 16px 16px; }
+  .markdown-body { padding: 26px 18px calc(185px + env(safe-area-inset-bottom)); }
+  .markdown-body h1 { font-size: 36px; }
+  .sidebar {
+    left: 16px;
+    right: 16px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    height: 70px;
+    padding: 9px 12px;
+    border-radius: 26px;
+  }
+  .brand-mark { width: 50px; height: 50px; border-radius: 18px; }
+  .nav button,
+  .icon-button { width: 48px; height: 48px; min-height: 48px; border-radius: 18px; }
+  .nav button:hover,
+  .icon-button:hover { transform: translateY(-2px) scale(1.06); }
+  .git-history-panel .rail-head,
+  .git-rail .rail-head,
+  .git-main .git-toolbar { min-height: 64px; }
+  .history-list { max-height: 420px; }
+  .commit strong { font-size: 14px; }
+  .commit span,
+  .commit p { font-size: 12px; }
+}
