@@ -2114,3 +2114,124 @@ button.primary::after,
   }
   .path-orb-stack.two-orbs .path-orb::before { display: none; }
 }
+
+/* Final collapsed Explorer: no rail, only one M-like floating path orb under the M orb */
+.memory-layout.explorer-collapsed {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.memory-layout.explorer-collapsed .explorer-panel.explorer-orb-rail {
+  position: fixed;
+  z-index: 72;
+  left: 24px;
+  top: 92px;
+  width: 62px;
+  height: 62px;
+  min-width: 62px;
+  min-height: 62px;
+  max-width: 62px;
+  max-height: 62px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+
+.memory-layout.explorer-collapsed .explorer-orb-rail .panel-head {
+  display: none !important;
+}
+
+.path-orb-stack.single-orb {
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  mask-image: none;
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb {
+  width: 62px;
+  height: 62px;
+  min-height: 62px;
+  border-radius: 999px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 27% 18%, rgba(255,255,255,.72), transparent 34%),
+    radial-gradient(circle at 78% 88%, rgba(255,255,255,.22), transparent 38%),
+    linear-gradient(145deg, rgba(57,115,255,.96) 0%, rgba(114,93,255,.94) 52%, rgba(157,103,255,.96) 100%);
+  border: 1px solid rgba(255,255,255,.54);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.68),
+    inset 0 -18px 34px rgba(36,30,142,.15),
+    0 18px 40px rgba(99,91,255,.34),
+    0 0 0 3px rgba(255,255,255,.36);
+  backdrop-filter: blur(22px) saturate(1.75);
+  -webkit-backdrop-filter: blur(22px) saturate(1.75);
+  animation: desktopOrbMorph .48s var(--ease-spring), liquidLensBreath 3.4s ease-in-out .35s infinite;
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb::before,
+.path-orb-stack.single-orb .path-orb.current-orb + .path-orb::before {
+  display: none !important;
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb::after {
+  opacity: .52;
+  filter: blur(12px);
+  animation: liquidRimTravel 2.2s ease-in-out infinite alternate;
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb svg {
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 8px 14px rgba(30, 20, 120, .20));
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb span {
+  left: 72px;
+  max-width: 260px;
+}
+
+.path-orb-stack.single-orb .path-orb.current-orb:hover {
+  transform: translateY(-3px) scale(1.08);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.78),
+    inset 0 -18px 34px rgba(36,30,142,.10),
+    0 24px 52px rgba(99,91,255,.42),
+    0 0 0 4px rgba(255,255,255,.42);
+}
+
+.app.desktop-content-orb .memory-layout.explorer-collapsed .explorer-panel.explorer-orb-rail,
+.app.desktop-review-focus .memory-layout.explorer-collapsed .explorer-panel.explorer-orb-rail {
+  left: 22px;
+  top: 92px;
+}
+
+@media (max-width: 900px) {
+  .memory-layout.explorer-collapsed .explorer-panel.explorer-orb-rail {
+    position: fixed;
+    left: 16px;
+    top: auto;
+    bottom: calc(94px + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    max-width: 56px;
+    max-height: 56px;
+  }
+  .path-orb-stack.single-orb,
+  .path-orb-stack.single-orb .path-orb.current-orb {
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+  }
+  .path-orb-stack.single-orb .path-orb.current-orb span { display: none; }
+}

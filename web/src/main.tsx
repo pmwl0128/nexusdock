@@ -990,23 +990,15 @@ function Explorer(props: {
         {!props.collapsed && <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>}
       </div>
       {props.collapsed && (
-        <div className="path-orb-stack two-orbs" aria-label="当前路径快捷球">
-          {compactCurrent ? (
-            <button
-              className={`path-orb ${compactCurrent.isFile ? 'file' : 'folder'}`}
-              title={compactCurrent.path}
-              onClick={() => {
-                if (compactCurrent.isFile) props.onOpen(compactCurrent.path);
-                else {
-                  props.setPrefix(compactCurrent.path);
-                  props.onToggle();
-                }
-              }}
-            >
-              {compactCurrent.isFile ? <FileText size={18} /> : <Folder size={18} />}
-              <span>{compactCurrent.name.replace(/\.(md|markdown|txt)$/i, '')}</span>
-            </button>
-          ) : <button className="path-orb empty" title="当前没有选中文件" onClick={props.onToggle}><Archive size={18} /></button>}
+        <div className="path-orb-stack single-orb" aria-label="当前路径快捷球">
+          <button
+            className={`path-orb current-orb ${compactCurrent?.isFile ? 'file' : compactCurrent ? 'folder' : 'empty'}`}
+            title={compactCurrent?.path || '展开 Explorer'}
+            onClick={props.onToggle}
+          >
+            {compactCurrent ? (compactCurrent.isFile ? <FileText size={20} /> : <Folder size={20} />) : <Archive size={20} />}
+            <span>{compactCurrent ? compactCurrent.name.replace(/\.(md|markdown|txt)$/i, '') : 'Explorer'}</span>
+          </button>
         </div>
       )}
       {!props.collapsed && (
