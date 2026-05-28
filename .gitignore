@@ -1,4 +1,18 @@
+# build outputs
+memorydock
+*.log
+
+# frontend
+web/node_modules/
+web/.vite/
+web/dist/
+
+# local env
+.env
+.env.*
+!.env.example
+
+# OS/editor
 .DS_Store
-/memory/
-/*.log
-/memorydock
+.vscode/
+.idea/
