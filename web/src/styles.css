@@ -588,3 +588,142 @@ pre, code { font-family: var(--mono); }
   .brand-mark { width: 38px; height: 38px; }
   .nav button, .icon-button { width: 40px; height: 40px; min-height: 40px; }
 }
+
+/* iOS-like glass motion accents for icon-heavy controls */
+@keyframes glassFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -2px, 0) scale(1.025); }
+}
+
+@keyframes glassSheen {
+  0% { transform: translateX(-130%) rotate(18deg); opacity: 0; }
+  18% { opacity: .72; }
+  100% { transform: translateX(145%) rotate(18deg); opacity: 0; }
+}
+
+@keyframes activeGlow {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 12px 24px rgba(99, 91, 255, .14); }
+  50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.88), 0 18px 36px rgba(99, 91, 255, .24); }
+}
+
+.brand-mark,
+.nav button,
+.icon-button,
+.tree-action,
+.file-status,
+button.primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.brand-mark::after,
+.nav button::after,
+.icon-button::after,
+.tree-action::after,
+button.primary::after {
+  content: "";
+  position: absolute;
+  inset: -50% auto -50% -68%;
+  width: 46%;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.68), transparent);
+  filter: blur(.4px);
+  opacity: 0;
+}
+
+.brand-mark > *,
+.nav button > *,
+.icon-button > *,
+.tree-action > *,
+button.primary > * { position: relative; z-index: 1; }
+
+.brand-mark:hover,
+.nav button:hover,
+.icon-button:hover,
+.tree-action:hover,
+button.primary:hover {
+  transform: translateY(-2px) scale(1.035);
+}
+
+.brand-mark:hover::after,
+.nav button:hover::after,
+.icon-button:hover::after,
+.tree-action:hover::after,
+button.primary:hover::after {
+  animation: glassSheen .72s cubic-bezier(.2, .8, .2, 1);
+}
+
+.brand-mark:hover {
+  box-shadow: 0 20px 42px rgba(99, 91, 255, .42), inset 0 1px 0 rgba(255,255,255,.44);
+  animation: glassFloat 2.8s ease-in-out infinite;
+}
+
+.nav button svg,
+.icon-button svg,
+.tree-action svg,
+button.primary svg,
+.tree-icon svg,
+.file-status {
+  transition: transform .24s cubic-bezier(.2, .8, .2, 1), filter .24s ease, opacity .24s ease;
+}
+
+.nav button:hover svg,
+.icon-button:hover svg,
+.tree-action:hover svg,
+button.primary:hover svg {
+  transform: scale(1.12) rotate(-4deg);
+  filter: drop-shadow(0 8px 12px rgba(99, 91, 255, .28));
+}
+
+.nav button.active {
+  animation: activeGlow 3.2s ease-in-out infinite;
+}
+
+.nav button.active svg {
+  filter: drop-shadow(0 7px 11px rgba(99, 91, 255, .24));
+}
+
+.tree-row:hover .tree-icon svg {
+  transform: translateY(-1px) scale(1.12);
+  filter: drop-shadow(0 7px 10px rgba(99, 91, 255, .22));
+}
+
+.tree-row.active .tree-icon svg {
+  transform: scale(1.08);
+  filter: drop-shadow(0 6px 10px rgba(99, 91, 255, .20));
+}
+
+.file-status:hover,
+.changed-card:hover .file-status,
+.commit-files button:hover .file-status,
+.changed-file-list button:hover .file-status {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 12px 24px rgba(99, 91, 255, .16), inset 0 1px 0 rgba(255,255,255,.75);
+}
+
+.tree-action:hover {
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 12px 24px rgba(91, 108, 165, .16), inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+.tree-action.danger:hover {
+  box-shadow: 0 12px 24px rgba(229, 72, 104, .16), inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark,
+  .nav button.active { animation: none !important; }
+  .brand-mark::after,
+  .nav button::after,
+  .icon-button::after,
+  .tree-action::after,
+  button.primary::after { animation: none !important; }
+  .nav button svg,
+  .icon-button svg,
+  .tree-action svg,
+  button.primary svg,
+  .tree-icon svg,
+  .file-status { transition: none !important; }
+}
