@@ -35,14 +35,20 @@ type Status struct {
 	Dirty           bool   `json:"dirty"`
 }
 
+type ChangedFile struct {
+	Status string `json:"status"`
+	Path   string `json:"path"`
+}
+
 type Diff struct {
-	OK         bool   `json:"ok"`
-	GitRepo    bool   `json:"git_repo"`
-	Dirty      bool   `json:"dirty"`
-	Status     string `json:"status"`
-	Stat       string `json:"stat"`
-	Diff       string `json:"diff"`
-	CachedDiff string `json:"cached_diff"`
+	OK         bool          `json:"ok"`
+	GitRepo    bool          `json:"git_repo"`
+	Dirty      bool          `json:"dirty"`
+	Status     string        `json:"status"`
+	Stat       string        `json:"stat"`
+	Diff       string        `json:"diff"`
+	CachedDiff string        `json:"cached_diff"`
+	Files      []ChangedFile `json:"files"`
 }
 
 type Commit struct {
@@ -175,12 +181,13 @@ func (m *Manager) Diff(ctx context.Context) (Diff, error) {
 	if !resp.GitRepo {
 		return resp, nil
 	}
-	status, err := m.git(ctx, "status", "--short")
+	status, err := m.git(ctx, "status", "--short", "--untracked-files=all")
 	if err != nil {
 		return resp, err
 	}
 	resp.Status = status
 	resp.Dirty = strings.TrimSpace(status) != ""
+	resp.Files = parseChangedFiles(status)
 	if stat, err := m.git(ctx, "diff", "--stat"); err == nil {
 		resp.Stat = stat
 	}
@@ -191,6 +198,37 @@ func (m *Manager) Diff(ctx context.Context) (Diff, error) {
 		resp.Diff = diff
 	}
 	return resp, nil
+}
+
+func parseChangedFiles(status string) []ChangedFile {
+	seen := map[string]bool{}
+	files := []ChangedFile{}
+	for _, line := range strings.Split(status, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if len(line) < 4 {
+			continue
+		}
+		code := strings.TrimSpace(line[:2])
+		path := strings.TrimSpace(line[3:])
+		if path == "" {
+			continue
+		}
+		if strings.Contains(path, " -> ") {
+			parts := strings.Split(path, " -> ")
+			path = strings.TrimSpace(parts[len(parts)-1])
+		}
+		path = strings.Trim(path, `"`)
+		path = filepath.ToSlash(path)
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		if code == "" {
+			code = strings.TrimSpace(line[:2])
+		}
+		files = append(files, ChangedFile{Status: code, Path: path})
+	}
+	return files
 }
 
 func (m *Manager) Discard(ctx context.Context, path string, confirmed bool) (Status, error) {

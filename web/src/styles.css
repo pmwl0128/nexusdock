@@ -407,6 +407,10 @@ pre, code { font-family: var(--mono); }
 .git-summary pre { margin: 0; min-height: 72px; max-height: 180px; overflow: auto; border: 1px solid rgba(126,141,178,.16); border-radius: 18px; padding: 13px; background: rgba(248,250,255,.86); color: #56617d; }
 .diff-viewer { flex: 1; min-height: 0; overflow: auto; padding: 18px; }
 .diff-section { display: grid; gap: 16px; }
+.changed-card-grid { display: grid; gap: 14px; }
+.changed-card { border: 1px solid rgba(126,141,178,.16); border-radius: 20px; padding: 18px; background: rgba(255,255,255,.62); box-shadow: var(--shadow-soft); display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.changed-card strong { display: block; margin: 8px 0 5px; color: #24304f; overflow-wrap: anywhere; }
+.changed-card p { margin: 0; color: var(--muted); }
 .diff-stage { padding: 7px 12px; border-radius: 999px; width: fit-content; color: #5c55d6; background: var(--accent-soft); font-weight: 760; font-size: 12px; }
 .diff-file { border: 1px solid rgba(126,141,178,.16); border-radius: 20px; overflow: hidden; background: rgba(255,255,255,.62); box-shadow: var(--shadow-soft); }
 .diff-file-head { min-height: 44px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(126,141,178,.14); color: #283453; font-weight: 720; }
@@ -537,6 +541,7 @@ pre, code { font-family: var(--mono); }
   .diff-file-head span { flex-basis: 100%; }
   .diff-row { min-width: 720px; grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr); }
   .commit-detail { max-height: none; }
+  .changed-card { flex-direction: column; }
 
   .sync-grid { align-items: stretch; }
   .sync-card-grid, .health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

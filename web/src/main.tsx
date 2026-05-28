@@ -50,6 +50,11 @@ type TreeNode = {
   children: Map<string, TreeNode>;
 };
 
+type ChangedFile = {
+  status: string;
+  path: string;
+};
+
 type GitDiff = {
   ok: boolean;
   git_repo: boolean;
@@ -58,6 +63,7 @@ type GitDiff = {
   stat: string;
   diff: string;
   cached_diff: string;
+  files?: ChangedFile[];
 };
 
 type GitCommit = {
@@ -1108,15 +1114,16 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   const commitSections = useMemo(() => parseSideBySideDiff([
     { title: selectedCommit?.commit?.short_hash ? `提交 ${selectedCommit.commit.short_hash}` : '提交详情', diff: selectedCommit?.diff || '' },
   ]), [selectedCommit]);
-  const changedFiles = sections.flatMap((section) => section.files.map((file) => file.name));
+  const diffFiles = sections.flatMap((section) => section.files.map((file) => ({ status: 'M', path: file.name })));
+  const changedFiles = (diff?.files?.length ? diff.files : diffFiles).filter((file) => Boolean(file.path));
 
   return (
     <section className={`git-workbench ${selectedCommit ? 'history-open' : ''}`}>
       <aside className="git-rail">
         <div className="rail-head"><strong>本地变更</strong><button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button></div>
         <div className="changed-file-list">
-          {changedFiles.length ? changedFiles.map((name) => (
-            <button key={name} onClick={() => onOpenFile(name)}><FileText size={14} /><span>{name}</span></button>
+          {changedFiles.length ? changedFiles.map((file) => (
+            <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>
           )) : <p className="muted rail-empty">没有本地变更</p>}
         </div>
         <div className="rail-actions">
@@ -1131,7 +1138,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
         </div>
         <div className="git-summary compact"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
         <div className="diff-viewer vscode-like">
-          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />) : <div className="empty-state">没有 diff</div>}
+          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />) : changedFiles.length ? <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} /> : <div className="empty-state">没有 diff</div>}
         </div>
       </main>
 
@@ -1158,6 +1165,26 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
         )}
       </aside>
     </section>
+  );
+}
+
+function ChangedFileCards({ files, onOpenFile, onDiscard }: { files: ChangedFile[]; onOpenFile: (path: string) => void; onDiscard: (path?: string) => Promise<void> }) {
+  return (
+    <div className="changed-card-grid">
+      {files.map((file) => (
+        <div className="changed-card" key={file.status + file.path}>
+          <div>
+            <span className="file-status">{file.status}</span>
+            <strong>{file.path}</strong>
+            <p>{file.status === '??' ? '新文件还没有进入 Git diff，但可以直接打开编辑或丢弃。' : '这个文件有本地变更，可以直接打开编辑。'}</p>
+          </div>
+          <div className="button-row">
+            <button className="primary" onClick={() => onOpenFile(file.path)}><PenLine size={14} />打开编辑</button>
+            <button className="danger" onClick={() => void onDiscard(file.path)}>丢弃</button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
