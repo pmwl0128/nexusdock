@@ -8,7 +8,9 @@ import {
   ChevronRight,
   ChevronUp,
   Clock3,
+  Command,
   FileText,
+  Home,
   Folder,
   FolderOpen,
   GitBranch,
@@ -25,7 +27,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-type Tab = 'memories' | 'git' | 'sync';
+type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
 type EntryType = 'file' | 'directory';
 
 type MemoryEntry = {
@@ -371,7 +373,7 @@ function useToast() {
 
 function App() {
   const { toast, show } = useToast();
-  const [tab, setTab] = useState<Tab>('memories');
+  const [tab, setTab] = useState<Tab>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
   const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
@@ -387,6 +389,7 @@ function App() {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [draggingPath, setDraggingPath] = useState('');
+  const [commandOpen, setCommandOpen] = useState(false);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
@@ -405,9 +408,25 @@ function App() {
   }, [explorerCollapsed]);
 
   useEffect(() => {
+    if (tab === 'dashboard') {
+      void loadGitDiff().catch(() => undefined);
+      void loadGitLog().catch(() => undefined);
+      void loadSyncStatus().catch(() => undefined);
+    }
     if (tab === 'git') void loadGitPanel();
     if (tab === 'sync') void loadSyncStatus();
   }, [tab]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   function expandPath(path: string) {
     const parts = normalizePath(path).split('/').filter(Boolean);
@@ -569,7 +588,20 @@ function App() {
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={setTab} onToggle={() => setSidebarCollapsed((v) => !v)} />
       <section className="workspace">
-        <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} />
+        <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
+        {tab === 'dashboard' && (
+          <Dashboard
+            entries={entries}
+            current={current}
+            diff={gitDiff}
+            commits={commits}
+            syncStatus={syncStatus}
+            onNew={newMemory}
+            onOpen={(path) => { setTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
+            onReview={() => setTab('git')}
+            onSync={() => setTab('sync')}
+          />
+        )}
         {tab === 'memories' && (
           <section className={`memory-layout ${explorerCollapsed ? 'explorer-collapsed' : ''}`}>
             <Explorer
@@ -616,7 +648,141 @@ function App() {
         {tab === 'git' && <GitView diff={gitDiff} commits={commits} onRefresh={loadGitPanel} onDiscard={discardGitChanges} />}
         {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
       </section>
+      {commandOpen && (
+        <CommandPalette
+          entries={entries}
+          current={current}
+          onClose={() => setCommandOpen(false)}
+          onNew={() => { setCommandOpen(false); setTab('memories'); newMemory(); }}
+          onOpen={(path) => { setCommandOpen(false); setTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
+          onTab={(next) => { setCommandOpen(false); setTab(next); }}
+          onSync={() => { setCommandOpen(false); setTab('sync'); void syncAction('now').catch((e) => show(e.message, true)); }}
+        />
+      )}
       {toast && <div className={`toast ${toast.danger ? 'danger' : ''}`}>{toast.message}</div>}
+    </div>
+  );
+}
+
+
+function recentFiles(entries: MemoryEntry[], limit = 8): MemoryEntry[] {
+  return entries.filter((entry) => entry.type === 'file').slice(0, limit);
+}
+
+function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen, onReview, onSync }: {
+  entries: MemoryEntry[];
+  current: Memory | null;
+  diff: GitDiff | null;
+  commits: GitCommit[];
+  syncStatus: SyncStatus | null;
+  onNew: () => void;
+  onOpen: (path: string) => void;
+  onReview: () => void;
+  onSync: () => void;
+}) {
+  const files = entries.filter((entry) => entry.type === 'file');
+  const dirs = entries.filter((entry) => entry.type === 'directory');
+  const recent = recentFiles(entries);
+  return (
+    <section className="dashboard-grid">
+      <div className="dashboard-hero panel-card">
+        <div>
+          <span className="eyebrow">MemoryDock</span>
+          <h2>你的个人记忆工作台</h2>
+          <p>把 Markdown 记忆、版本审阅和同步状态集中到一个每天打开就能判断下一步的地方。</p>
+        </div>
+        <div className="hero-actions">
+          <button className="primary" onClick={onNew}><Plus size={16} />新建记忆</button>
+          <button onClick={onReview}><GitBranch size={16} />审阅变更</button>
+          <button onClick={onSync}><RefreshCw size={16} />同步中心</button>
+        </div>
+      </div>
+      <div className="metric-card panel-card"><span>记忆文件</span><strong>{files.length}</strong><p>Markdown / TXT</p></div>
+      <div className="metric-card panel-card"><span>目录</span><strong>{dirs.length}</strong><p>已组织空间</p></div>
+      <div className="metric-card panel-card"><span>本地变更</span><strong>{diff?.dirty ? '待审阅' : '干净'}</strong><p>{diff?.dirty ? '建议先查看变更' : '没有未保存更改'}</p></div>
+      <div className="panel-card dashboard-section">
+        <div className="card-head compact"><div><h3>最近记忆</h3><p>快速回到最近的文件</p></div><FileText size={18} /></div>
+        <div className="recent-list">
+          {recent.length ? recent.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={15} /><span>{entry.path}</span><small>{formatBytes(entry.size_bytes)}</small></button>) : <div className="empty-state">暂无文件</div>}
+        </div>
+      </div>
+      <div className="panel-card dashboard-section">
+        <div className="card-head compact"><div><h3>同步健康</h3><p>一眼判断是否安全</p></div><Settings size={18} /></div>
+        <SyncHealth status={syncStatus} diff={diff} />
+      </div>
+      <div className="panel-card dashboard-section wide">
+        <div className="card-head compact"><div><h3>版本历史</h3><p>最近保存到远程的记录</p></div><Clock3 size={18} /></div>
+        <div className="commit-list compact-list">
+          {commits.slice(0, 5).map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
+          {!commits.length && <div className="empty-state">暂无提交历史</div>}
+        </div>
+      </div>
+      {current && <div className="panel-card dashboard-section wide"><div className="card-head compact"><div><h3>当前打开</h3><p>{current.path}</p></div></div><article className="mini-preview" dangerouslySetInnerHTML={{ __html: MARKDOWN_EXTENSIONS.test(current.path) ? markdownToHtml(current.content) : escapeHtml(current.content) }} /></div>}
+    </section>
+  );
+}
+
+function SyncHealth({ status, diff }: { status: SyncStatus | null; diff: GitDiff | null }) {
+  const items = [
+    { label: '本地更改', value: diff?.dirty ? '有' : '无', tone: diff?.dirty ? 'warn' : 'ok' },
+    { label: '待保存', value: status?.pending_push ? '是' : '否', tone: status?.pending_push ? 'warn' : 'ok' },
+    { label: 'Ahead', value: String(status?.ahead ?? '0'), tone: String(status?.ahead ?? '0') !== '0' ? 'warn' : 'ok' },
+    { label: 'Behind', value: String(status?.behind ?? '0'), tone: String(status?.behind ?? '0') !== '0' ? 'warn' : 'ok' },
+  ];
+  return <div className="health-grid">{items.map((item) => <div className={`health-item ${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>;
+}
+
+
+function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSync }: {
+  entries: MemoryEntry[];
+  current: Memory | null;
+  onClose: () => void;
+  onNew: () => void;
+  onOpen: (path: string) => void;
+  onTab: (tab: Tab) => void;
+  onSync: () => void;
+}) {
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const normalized = query.trim().toLowerCase();
+  const files = entries
+    .filter((entry) => entry.type === 'file')
+    .filter((entry) => !normalized || entry.path.toLowerCase().includes(normalized))
+    .slice(0, 8);
+  const actions = [
+    { label: '打开工作台', hint: 'Dashboard', icon: <Home size={16} />, run: () => onTab('dashboard') },
+    { label: '新建记忆', hint: 'Create note', icon: <Plus size={16} />, run: onNew },
+    { label: '打开记忆库', hint: 'Explorer', icon: <Archive size={16} />, run: () => onTab('memories') },
+    { label: '打开变更审阅', hint: 'Review local changes', icon: <GitBranch size={16} />, run: () => onTab('git') },
+    { label: '打开同步中心', hint: 'Sync status', icon: <Settings size={16} />, run: () => onTab('sync') },
+    { label: '立即更新并保存', hint: 'Pull + push', icon: <RefreshCw size={16} />, run: onSync },
+  ].filter((item) => !normalized || item.label.toLowerCase().includes(normalized) || item.hint.toLowerCase().includes(normalized));
+
+  return (
+    <div className="command-overlay" onMouseDown={onClose}>
+      <div className="command-panel" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="command-search">
+          <Command size={17} />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索命令或文件…" />
+        </div>
+        <div className="command-group">
+          <span>命令</span>
+          {actions.map((item) => <button key={item.label} onClick={item.run}>{item.icon}<strong>{item.label}</strong><small>{item.hint}</small></button>)}
+        </div>
+        <div className="command-group">
+          <span>文件</span>
+          {files.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={16} /><strong>{entry.path}</strong><small>{formatBytes(entry.size_bytes)}</small></button>)}
+          {!files.length && <p className="muted command-empty">没有匹配文件{current ? ` · 当前：${current.path}` : ''}</p>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -637,11 +803,14 @@ function AppSidebar({ collapsed, tab, setTab, onToggle }: { collapsed: boolean; 
         </button>
       </div>
       <nav className="nav">
+        <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')} title="工作台">
+          <Home size={17} /> {!collapsed && <span>工作台</span>}
+        </button>
         <button className={tab === 'memories' ? 'active' : ''} onClick={() => setTab('memories')} title="记忆库">
           <Archive size={17} /> {!collapsed && <span>记忆库</span>}
         </button>
-        <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')} title="变更记录">
-          <GitBranch size={17} /> {!collapsed && <span>变更记录</span>}
+        <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')} title="变更审阅">
+          <GitBranch size={17} /> {!collapsed && <span>变更审阅</span>}
         </button>
         <button className={tab === 'sync' ? 'active' : ''} onClick={() => setTab('sync')} title="同步设置">
           <Settings size={17} /> {!collapsed && <span>同步设置</span>}
@@ -657,9 +826,9 @@ function AppSidebar({ collapsed, tab, setTab, onToggle }: { collapsed: boolean; 
   );
 }
 
-function Topbar({ tab, current, fileCount, dirCount }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number }) {
-  const title = tab === 'memories' ? 'Memory workspace' : tab === 'git' ? 'Git review' : 'Sync center';
-  const subtitle = tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '像代码评审一样查看和丢弃变更' : '查看同步状态并手动触发 Git 操作';
+function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number; onCommand: () => void }) {
+  const title = tab === 'dashboard' ? '记忆工作台' : tab === 'memories' ? 'Memory workspace' : tab === 'git' ? '变更审阅' : 'Sync center';
+  const subtitle = tab === 'dashboard' ? '今日状态、最近记忆、同步健康和快速入口' : tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '像代码评审一样查看和放弃本地更改' : '查看同步状态并手动触发保存到远程';
   return (
     <header className="topbar">
       <div className="page-title">
@@ -667,6 +836,7 @@ function Topbar({ tab, current, fileCount, dirCount }: { tab: Tab; current: Memo
         <p>{subtitle}</p>
       </div>
       <div className="status-strip">
+        <button className="command-button" onClick={onCommand}><Command size={14} />⌘K</button>
         <span className="pill ok">● Online</span>
         <span className="pill">{fileCount} files</span>
         <span className="pill">{dirCount} dirs</span>
@@ -812,9 +982,16 @@ function MemoryEditor(props: {
         </div>
       </div>
       {props.editing ? (
-        <div className="editor-body">
-          <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
-          <textarea value={props.draftContent} onChange={(e) => props.setDraftContent(e.target.value)} spellCheck={false} />
+        <div className="editor-body split-editor">
+          <div className="editor-pane">
+            <div className="pane-title"><span>编辑</span><small>{props.draftPath || '未命名'}</small></div>
+            <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
+            <textarea value={props.draftContent} onChange={(e) => props.setDraftContent(e.target.value)} spellCheck={false} />
+          </div>
+          <div className="preview-pane">
+            <div className="pane-title"><span>预览</span><small>{MARKDOWN_EXTENSIONS.test(props.draftPath) ? 'Markdown' : 'Plain text'}</small></div>
+            {MARKDOWN_EXTENSIONS.test(props.draftPath) ? <article className="markdown-body preview" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.draftContent) }} /> : <pre className="plain-view preview">{props.draftContent}</pre>}
+          </div>
         </div>
       ) : props.current ? (
         isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
@@ -831,15 +1008,15 @@ function MemoryEditor(props: {
 
 function GitView({ diff, commits, onRefresh, onDiscard }: { diff: GitDiff | null; commits: GitCommit[]; onRefresh: () => Promise<void>; onDiscard: (path?: string) => Promise<void> }) {
   const sections = useMemo(() => parseSideBySideDiff([
-    { title: 'Staged changes', diff: diff?.cached_diff || '' },
-    { title: 'Working tree changes', diff: diff?.diff || '' },
+    { title: '已暂存更改', diff: diff?.cached_diff || '' },
+    { title: '工作区更改', diff: diff?.diff || '' },
   ]), [diff]);
   return (
     <section className="git-grid">
       <div className="panel-card diff-card">
         <div className="card-head">
-          <div><h3>Git Diff</h3><p>{diff?.dirty ? '有未提交更改' : '工作区干净'}</p></div>
-          <div className="button-row"><button className="danger" onClick={() => void onDiscard('')}><Undo2 size={15} />丢弃全部变更</button><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
+          <div><h3>变更审阅</h3><p>{diff?.dirty ? '有未保存到远程的本地更改' : '本地工作区干净'}</p></div>
+          <div className="button-row"><button className="danger" onClick={() => void onDiscard('')}><Undo2 size={15} />放弃全部更改</button><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
         </div>
         <div className="git-summary"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
         <div className="diff-viewer">
@@ -864,8 +1041,42 @@ function DiffRowView({ row }: { row: DiffRow }) {
   return <div className={`diff-row ${row.kind}`}><span className="ln">{row.oldNo || ''}</span><code className="left">{row.left || ' '}</code><span className="ln">{row.newNo || ''}</span><code className="right">{row.right || ' '}</code></div>;
 }
 
+function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'danger' | 'neutral' }) {
+  return <div className={`sync-card ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+}
+
 function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void> }) {
-  return <section className="sync-grid"><div className="panel-card"><div className="card-head"><div><h3>同步状态</h3><p>Git 仓库状态和自动同步信息</p></div><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></div><div className="panel-card"><div className="card-head"><div><h3>手动同步</h3><p>调用 MemoryDock 同步 API</p></div></div><div className="sync-actions"><button onClick={() => void onAction('pull')}>Pull</button><button onClick={() => void onAction('push')}>Push</button><button className="primary" onClick={() => void onAction('now')}>Pull + Push</button></div></div></section>;
+  const dirty = Boolean(status?.dirty);
+  const pending = Boolean(status?.pending_push);
+  const ahead = String(status?.ahead ?? '0');
+  const behind = String(status?.behind ?? '0');
+  const healthy = !dirty && !pending && ahead === '0' && behind === '0';
+  return (
+    <section className="sync-grid">
+      <div className="panel-card sync-status-card">
+        <div className="card-head">
+          <div><h3>同步健康</h3><p>{healthy ? '已同步，当前状态安全' : '存在需要处理的同步状态'}</p></div>
+          <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
+        </div>
+        <div className="sync-card-grid">
+          <SyncCard label="整体状态" value={healthy ? '健康' : '需处理'} tone={healthy ? 'ok' : 'warn'} />
+          <SyncCard label="本地脏区" value={dirty ? '有更改' : '干净'} tone={dirty ? 'warn' : 'ok'} />
+          <SyncCard label="待保存远程" value={pending ? '是' : '否'} tone={pending ? 'warn' : 'ok'} />
+          <SyncCard label="领先远程" value={ahead} tone={ahead !== '0' ? 'warn' : 'ok'} />
+          <SyncCard label="落后远程" value={behind} tone={behind !== '0' ? 'warn' : 'ok'} />
+        </div>
+        <details className="raw-status"><summary>查看原始状态</summary><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></details>
+      </div>
+      <div className="panel-card sync-actions-card">
+        <div className="card-head"><div><h3>手动同步</h3><p>把 Git 术语隐藏在清晰动作后面</p></div></div>
+        <div className="sync-actions stacked">
+          <button onClick={() => void onAction('pull')}><RefreshCw size={15} />从远程更新</button>
+          <button onClick={() => void onAction('push')}><GitBranch size={15} />保存到远程</button>
+          <button className="primary" onClick={() => void onAction('now')}><Save size={15} />更新并保存</button>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
