@@ -68,6 +68,20 @@ type GitCommit = {
   subject: string;
 };
 
+type CommitFile = {
+  status: string;
+  path: string;
+};
+
+type CommitDetail = {
+  ok: boolean;
+  git_repo: boolean;
+  commit: GitCommit;
+  files: CommitFile[];
+  stat: string;
+  diff: string;
+};
+
 type SyncStatus = Record<string, unknown> & {
   dirty?: boolean;
   ahead?: string;
@@ -373,7 +387,7 @@ function useToast() {
 
 function App() {
   const { toast, show } = useToast();
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>('memories');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
   const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
@@ -387,6 +401,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
+  const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [draggingPath, setDraggingPath] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
@@ -564,6 +579,18 @@ function App() {
     setCommits(data.commits || []);
   }
 
+  async function loadCommitDetail(hash: string) {
+    const data = await api<CommitDetail>(`/v1/git/commit?hash=${encodeURIComponent(hash)}`);
+    setSelectedCommit(data);
+  }
+
+  function openGitFile(path: string) {
+    setTab('memories');
+    void loadMemory(path)
+      .then(() => setEditing(true))
+      .catch((e) => show(e.message, true));
+  }
+
   async function discardGitChanges(path = '') {
     const target = path ? `文件：${path}` : '全部未提交变更';
     if (!confirm(`确认丢弃 ${target}？\n\n这个操作不可撤销。`)) return;
@@ -596,7 +623,7 @@ function App() {
             diff={gitDiff}
             commits={commits}
             syncStatus={syncStatus}
-            onNew={newMemory}
+            onNew={() => { setTab('memories'); newMemory(); }}
             onOpen={(path) => { setTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
             onReview={() => setTab('git')}
             onSync={() => setTab('sync')}
@@ -645,7 +672,7 @@ function App() {
             />
           </section>
         )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} onRefresh={loadGitPanel} onDiscard={discardGitChanges} />}
+        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} />}
         {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
       </section>
       {commandOpen && (
@@ -688,8 +715,8 @@ function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen,
       <div className="dashboard-hero panel-card">
         <div>
           <span className="eyebrow">MemoryDock</span>
-          <h2>你的个人记忆工作台</h2>
-          <p>把 Markdown 记忆、版本审阅和同步状态集中到一个每天打开就能判断下一步的地方。</p>
+          <h2>记忆、变更和同步，一屏掌控</h2>
+          <p>先看状态，再决定是继续写、审阅本地变更，还是保存到远程。</p>
         </div>
         <div className="hero-actions">
           <button className="primary" onClick={onNew}><Plus size={16} />新建记忆</button>
@@ -697,9 +724,9 @@ function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen,
           <button onClick={onSync}><RefreshCw size={16} />同步中心</button>
         </div>
       </div>
-      <div className="metric-card panel-card"><span>记忆文件</span><strong>{files.length}</strong><p>Markdown / TXT</p></div>
-      <div className="metric-card panel-card"><span>目录</span><strong>{dirs.length}</strong><p>已组织空间</p></div>
-      <div className="metric-card panel-card"><span>本地变更</span><strong>{diff?.dirty ? '待审阅' : '干净'}</strong><p>{diff?.dirty ? '建议先查看变更' : '没有未保存更改'}</p></div>
+      <div className="metric-card panel-card"><span>记忆文件</span><strong>{files.length}</strong><p>可搜索的知识资产</p></div>
+      <div className="metric-card panel-card"><span>目录</span><strong>{dirs.length}</strong><p>按项目和主题整理</p></div>
+      <div className="metric-card panel-card"><span>本地变更</span><strong>{diff?.dirty ? '待审阅' : '干净'}</strong><p>{diff?.dirty ? '先检查再保存' : '没有未保存更改'}</p></div>
       <div className="panel-card dashboard-section">
         <div className="card-head compact"><div><h3>最近记忆</h3><p>快速回到最近的文件</p></div><FileText size={18} /></div>
         <div className="recent-list">
@@ -714,7 +741,7 @@ function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen,
         <div className="card-head compact"><div><h3>版本历史</h3><p>最近保存到远程的记录</p></div><Clock3 size={18} /></div>
         <div className="commit-list compact-list">
           {commits.slice(0, 5).map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
-          {!commits.length && <div className="empty-state">暂无提交历史</div>}
+          {!commits.length && <div className="empty-state">暂无版本历史</div>}
         </div>
       </div>
       {current && <div className="panel-card dashboard-section wide"><div className="card-head compact"><div><h3>当前打开</h3><p>{current.path}</p></div></div><article className="mini-preview" dangerouslySetInnerHTML={{ __html: MARKDOWN_EXTENSIONS.test(current.path) ? markdownToHtml(current.content) : escapeHtml(current.content) }} /></div>}
@@ -971,7 +998,7 @@ function MemoryEditor(props: {
       <div className="doc-toolbar">
         <div>
           <div className="doc-path">{props.current?.path || (props.editing ? '新建记忆' : '未选择文件')}</div>
-          <div className="muted">{props.editing ? '编辑模式 · 保存后会写入 Git 工作区' : '阅读模式 · Markdown 自动渲染'}</div>
+          <div className="muted">{props.editing ? '编辑草稿 · 左写右预览 · 保存后进入本地变更' : '阅读模式 · Markdown 自动渲染'}</div>
         </div>
         <div className="toolbar-actions">
           <button onClick={props.onNew}><Plus size={15} />新建</button>
@@ -1006,35 +1033,92 @@ function MemoryEditor(props: {
   );
 }
 
-function GitView({ diff, commits, onRefresh, onDiscard }: { diff: GitDiff | null; commits: GitCommit[]; onRefresh: () => Promise<void>; onDiscard: (path?: string) => Promise<void> }) {
+function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit }: {
+  diff: GitDiff | null;
+  commits: GitCommit[];
+  selectedCommit: CommitDetail | null;
+  onRefresh: () => Promise<void>;
+  onDiscard: (path?: string) => Promise<void>;
+  onOpenFile: (path: string) => void;
+  onSelectCommit: (hash: string) => Promise<void>;
+}) {
   const sections = useMemo(() => parseSideBySideDiff([
     { title: '已暂存更改', diff: diff?.cached_diff || '' },
     { title: '工作区更改', diff: diff?.diff || '' },
   ]), [diff]);
+  const commitSections = useMemo(() => parseSideBySideDiff([
+    { title: selectedCommit?.commit?.short_hash ? `提交 ${selectedCommit.commit.short_hash}` : '提交详情', diff: selectedCommit?.diff || '' },
+  ]), [selectedCommit]);
+  const changedFiles = sections.flatMap((section) => section.files.map((file) => file.name));
+
   return (
-    <section className="git-grid">
-      <div className="panel-card diff-card">
-        <div className="card-head">
-          <div><h3>变更审阅</h3><p>{diff?.dirty ? '有未保存到远程的本地更改' : '本地工作区干净'}</p></div>
-          <div className="button-row"><button className="danger" onClick={() => void onDiscard('')}><Undo2 size={15} />放弃全部更改</button><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
+    <section className="git-workbench">
+      <aside className="git-rail">
+        <div className="rail-head"><strong>本地变更</strong><button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button></div>
+        <div className="changed-file-list">
+          {changedFiles.length ? changedFiles.map((name) => (
+            <button key={name} onClick={() => onOpenFile(name)}><FileText size={14} /><span>{name}</span></button>
+          )) : <p className="muted rail-empty">没有本地变更</p>}
         </div>
-        <div className="git-summary"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
-        <div className="diff-viewer">
-          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} />) : <div className="empty-state">没有 diff</div>}
+        <div className="rail-actions">
+          <button className="danger" disabled={!changedFiles.length} onClick={() => void onDiscard('')}><Undo2 size={14} />放弃全部</button>
         </div>
-      </div>
-      <div className="panel-card history-card">
-        <div className="card-head"><div><h3>提交历史</h3><p>最近提交记录</p></div><Clock3 size={17} /></div>
-        <div className="commit-list">
-          {commits.map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
+      </aside>
+
+      <main className="git-main">
+        <div className="git-toolbar">
+          <div><h3>变更审阅</h3><p>{diff?.dirty ? '像 VS Code 一样审阅；需要修改时直接打开文件编辑。' : '没有需要审阅的本地更改'}</p></div>
+          <div className="button-row"><button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button></div>
         </div>
-      </div>
+        <div className="git-summary compact"><pre>{diff?.status || '工作区干净'}</pre><pre>{diff?.stat || ''}</pre></div>
+        <div className="diff-viewer vscode-like">
+          {sections.length ? sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />) : <div className="empty-state">没有 diff</div>}
+        </div>
+      </main>
+
+      <aside className="git-history-panel">
+        <div className="rail-head"><strong>版本历史</strong><Clock3 size={15} /></div>
+        <div className="commit-list history-list">
+          {commits.map((commit) => (
+            <button className={`commit history-item ${selectedCommit?.commit?.hash === commit.hash ? 'active' : ''}`} key={commit.hash} onClick={() => void onSelectCommit(commit.hash)}>
+              <div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div>
+              <p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p>
+            </button>
+          ))}
+        </div>
+        {selectedCommit && (
+          <div className="commit-detail">
+            <div className="commit-detail-head"><strong>{selectedCommit.commit.subject}</strong><span>{selectedCommit.files.length} 文件</span></div>
+            <div className="commit-files">
+              {selectedCommit.files.map((file) => <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>)}
+            </div>
+            <div className="commit-detail-diff">
+              {commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>}
+            </div>
+          </div>
+        )}
+      </aside>
     </section>
   );
 }
 
-function DiffSectionView({ section, onDiscard }: { section: DiffSection; onDiscard: (path?: string) => Promise<void> }) {
-  return <div className="diff-section"><div className="diff-stage">{section.title}</div>{section.files.map((file) => <div className="diff-file" key={section.title + file.name}><div className="diff-file-head"><Braces size={14} /><span>{file.name}</span><button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button></div>{file.rows.map((row, index) => <DiffRowView key={index} row={row} />)}</div>)}</div>;
+function DiffSectionView({ section, onDiscard, onOpenFile, readonly = false }: { section: DiffSection; onDiscard: (path?: string) => Promise<void>; onOpenFile: (path: string) => void; readonly?: boolean }) {
+  return (
+    <div className="diff-section">
+      <div className="diff-stage">{section.title}</div>
+      {section.files.map((file) => (
+        <div className="diff-file" key={section.title + file.name}>
+          <div className="diff-file-head">
+            <Braces size={14} />
+            <span>{file.name}</span>
+            <button className="ghost" onClick={() => onOpenFile(file.name)}><PenLine size={13} />打开编辑</button>
+            {!readonly && <button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button>}
+          </div>
+          {file.rows.map((row, index) => <DiffRowView key={index} row={row} />)}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function DiffRowView({ row }: { row: DiffRow }) {
@@ -1055,7 +1139,7 @@ function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; 
     <section className="sync-grid">
       <div className="panel-card sync-status-card">
         <div className="card-head">
-          <div><h3>同步健康</h3><p>{healthy ? '已同步，当前状态安全' : '存在需要处理的同步状态'}</p></div>
+          <div><h3>同步健康</h3><p>{healthy ? '本地和远程状态一致' : '有状态需要你确认'}</p></div>
           <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
         </div>
         <div className="sync-card-grid">
@@ -1068,7 +1152,7 @@ function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; 
         <details className="raw-status"><summary>查看原始状态</summary><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></details>
       </div>
       <div className="panel-card sync-actions-card">
-        <div className="card-head"><div><h3>手动同步</h3><p>把 Git 术语隐藏在清晰动作后面</p></div></div>
+        <div className="card-head"><div><h3>同步操作</h3><p>用清晰动作替代 Git 命令</p></div></div>
         <div className="sync-actions stacked">
           <button onClick={() => void onAction('pull')}><RefreshCw size={15} />从远程更新</button>
           <button onClick={() => void onAction('push')}><GitBranch size={15} />保存到远程</button>

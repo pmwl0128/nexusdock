@@ -60,6 +60,20 @@ type Log struct {
 	Count   int      `json:"count"`
 }
 
+type CommitFile struct {
+	Status string `json:"status"`
+	Path   string `json:"path"`
+}
+
+type CommitDetail struct {
+	OK      bool         `json:"ok"`
+	GitRepo bool         `json:"git_repo"`
+	Commit  Commit       `json:"commit"`
+	Files   []CommitFile `json:"files"`
+	Stat    string       `json:"stat"`
+	Diff    string       `json:"diff"`
+}
+
 type Manager struct {
 	cfg    Config
 	logger *slog.Logger
@@ -248,6 +262,60 @@ func (m *Manager) Log(ctx context.Context, limit int) (Log, error) {
 		})
 	}
 	resp.Count = len(resp.Commits)
+	return resp, nil
+}
+
+func validCommitRef(ref string) bool {
+	if len(ref) < 7 || len(ref) > 64 {
+		return false
+	}
+	for _, ch := range ref {
+		if (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func (m *Manager) CommitDetail(ctx context.Context, hash string) (CommitDetail, error) {
+	resp := CommitDetail{OK: true, GitRepo: m.IsGitRepo()}
+	if !resp.GitRepo {
+		return resp, nil
+	}
+	hash = strings.TrimSpace(hash)
+	if !validCommitRef(hash) {
+		return resp, errors.New("invalid commit hash")
+	}
+	format := "%H%x1f%h%x1f%ad%x1f%an%x1f%s"
+	meta, err := m.git(ctx, "show", "--no-patch", "--date=iso-strict", "--pretty=format:"+format, hash)
+	if err != nil {
+		return resp, err
+	}
+	fields := strings.Split(meta, "\x1f")
+	if len(fields) >= 5 {
+		resp.Commit = Commit{Hash: fields[0], ShortHash: fields[1], Date: fields[2], Author: fields[3], Subject: fields[4]}
+	}
+	if stat, err := m.git(ctx, "show", "--stat", "--format=", "--summary", hash, "--"); err == nil {
+		resp.Stat = stat
+	}
+	if diff, err := m.git(ctx, "show", "--no-ext-diff", "--format=", "--patch", hash, "--"); err == nil {
+		resp.Diff = diff
+	}
+	if files, err := m.git(ctx, "show", "--name-status", "--format=", hash, "--"); err == nil {
+		for _, line := range strings.Split(files, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, "\t")
+			if len(parts) < 2 {
+				continue
+			}
+			path := parts[len(parts)-1]
+			resp.Files = append(resp.Files, CommitFile{Status: parts[0], Path: filepath.ToSlash(path)})
+		}
+	}
 	return resp, nil
 }
 

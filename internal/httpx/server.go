@@ -34,6 +34,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/git/diff", s.withAuth(s.gitDiff))
 	mux.HandleFunc("POST /v1/git/discard", s.withAuth(s.gitDiscard))
 	mux.HandleFunc("GET /v1/git/log", s.withAuth(s.gitLog))
+	mux.HandleFunc("GET /v1/git/commit", s.withAuth(s.gitCommit))
 	mux.HandleFunc("POST /v1/sync/pull", s.withAuth(s.syncPull))
 	mux.HandleFunc("POST /v1/sync/push", s.withAuth(s.syncPush))
 	mux.HandleFunc("POST /v1/sync/now", s.withAuth(s.syncNow))
@@ -89,6 +90,15 @@ func (s *Server) gitLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, log)
+}
+
+func (s *Server) gitCommit(w http.ResponseWriter, r *http.Request) {
+	detail, err := s.syncer.CommitDetail(r.Context(), r.URL.Query().Get("hash"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "GIT_COMMIT_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 func (s *Server) syncPull(w http.ResponseWriter, r *http.Request) {
