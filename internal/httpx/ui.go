@@ -96,19 +96,28 @@ const uiHTML = `<!doctype html>
     h1, h2, h3, p { margin-top:0; }
 
     .app {
-      min-height:100vh; display:grid; grid-template-columns:252px minmax(0,1fr);
+      min-height:100vh; display:grid; grid-template-columns:252px minmax(0,1fr); transition:grid-template-columns .18s ease;
     }
+    .app.sidebar-collapsed { grid-template-columns:64px minmax(0,1fr); }
     .sidebar {
       position:sticky; top:0; height:100vh; padding:16px 14px; border-right:1px solid var(--border);
       background:var(--surface); display:flex; flex-direction:column; gap:16px;
     }
-    .brand { display:flex; align-items:center; gap:11px; padding:4px 4px 12px; border-bottom:1px solid var(--border); }
+    .brand { display:flex; align-items:center; gap:11px; padding:4px 4px 12px; border-bottom:1px solid var(--border); min-width:0; }
     .brand-mark {
       width:38px; height:38px; border-radius:12px; display:grid; place-items:center; color:#fff; font-weight:800; letter-spacing:.2px;
       background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 12px 28px rgba(88,166,255,.22);
     }
     .brand h1 { margin:0; font-size:17px; line-height:1.1; }
     .brand .subtitle { margin-top:3px; color:var(--muted); font-size:12px; }
+    .brand-text { min-width:0; flex:1; }
+    .sidebar-toggle { flex:0 0 30px; width:30px; min-height:30px; padding:0; border-radius:9px; }
+    .app.sidebar-collapsed .sidebar { padding-left:10px; padding-right:10px; align-items:center; }
+    .app.sidebar-collapsed .brand { padding-bottom:10px; justify-content:center; flex-direction:column; gap:8px; }
+    .app.sidebar-collapsed .brand-text, .app.sidebar-collapsed .sidebar-card { display:none; }
+    .app.sidebar-collapsed .tabs { width:100%; }
+    .app.sidebar-collapsed .tabs button { justify-content:center; padding:9px 0; font-size:0; }
+    .app.sidebar-collapsed .tabs button::before { font-size:14px; }
     .tabs { display:flex; flex-direction:column; gap:6px; }
     .tabs button {
       width:100%; justify-content:flex-start; border-color:transparent; background:transparent; color:var(--muted); padding:9px 10px; border-radius:12px;
@@ -140,13 +149,20 @@ const uiHTML = `<!doctype html>
     }
     .pill.ok { color:var(--ok); background:var(--ok-soft); border-color:color-mix(in srgb, var(--ok) 32%, var(--border)); }
 
-    .layout { display:grid; grid-template-columns:minmax(300px, 380px) minmax(0,1fr); gap:16px; min-height:calc(100vh - 110px); }
+    .layout { display:grid; grid-template-columns:minmax(300px, 380px) minmax(0,1fr); gap:16px; min-height:calc(100vh - 110px); transition:grid-template-columns .18s ease; }
+    .layout.explorer-collapsed { grid-template-columns:52px minmax(0,1fr); }
     .panel, aside, main, .page-card {
       border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow); min-width:0;
     }
     aside { padding:0; overflow:hidden; display:flex; flex-direction:column; max-height:calc(100vh - 110px); position:sticky; top:18px; }
+    .layout.explorer-collapsed aside { min-width:0; }
     main { padding:0; overflow:hidden; }
     .panel-head { padding:11px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .panel-title-row { display:flex; align-items:center; gap:8px; min-width:0; }
+    .panel-toggle { flex:0 0 28px; width:28px; min-height:28px; padding:0; border-radius:8px; }
+    .layout.explorer-collapsed .panel-head { flex-direction:column; padding:10px 8px; border-bottom:0; }
+    .layout.explorer-collapsed .panel-title-row h3, .layout.explorer-collapsed .badge, .layout.explorer-collapsed .panel-body, .layout.explorer-collapsed .explorer-body { display:none; }
+    .layout.explorer-collapsed .panel-toggle { transform:rotate(180deg); }
     .panel-head h3 { margin:0; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
     .panel-body { padding:12px; min-width:0; }
     .explorer-body { overflow:auto; padding:8px; }
@@ -236,7 +252,9 @@ const uiHTML = `<!doctype html>
     .diff-file:last-child { border-bottom:0; }
     .diff-file-header { position:sticky; top:33px; z-index:2; display:flex; align-items:center; gap:8px; padding:7px 12px; background:#2d2d30; border-bottom:1px solid #3c3c3c; color:#e6edf3; }
     .diff-file-dot { width:8px; height:8px; border-radius:999px; background:#58a6ff; }
-    .diff-file-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .diff-file-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .diff-discard { min-height:24px; padding:2px 8px; border-radius:7px; font-size:12px; color:#ff7b72; background:rgba(248,81,73,.10); border-color:rgba(248,81,73,.35); }
+    .diff-discard:hover { background:rgba(248,81,73,.18); border-color:rgba(248,81,73,.55); }
     .diff-meta-line, .diff-hunk { display:grid; grid-template-columns:54px minmax(320px,1fr) 54px minmax(320px,1fr); min-height:22px; }
     .diff-meta-line { color:#8b949e; background:#252526; }
     .diff-hunk { color:#58a6ff; background:#26364a; }
@@ -275,9 +293,11 @@ const uiHTML = `<!doctype html>
     .hidden { display:none !important; }
 
     @media (max-width: 1080px) {
-      .app { grid-template-columns:1fr; }
-      .sidebar { position:static; height:auto; padding:10px 12px; border-right:0; border-bottom:1px solid var(--border); flex-direction:row; align-items:center; gap:12px; }
-      .brand { border-bottom:0; padding:0; flex:0 0 auto; }
+      .app, .app.sidebar-collapsed { grid-template-columns:1fr; }
+      .sidebar, .app.sidebar-collapsed .sidebar { position:static; height:auto; padding:10px 12px; border-right:0; border-bottom:1px solid var(--border); flex-direction:row; align-items:center; gap:12px; }
+      .brand, .app.sidebar-collapsed .brand { border-bottom:0; padding:0; flex:0 0 auto; flex-direction:row; gap:10px; }
+      .app.sidebar-collapsed .brand-text { display:block; }
+      .sidebar-toggle { display:none; }
       .tabs { flex:1; flex-direction:row; overflow:auto; }
       .tabs button { width:auto; flex:1 0 auto; justify-content:center; }
       .sidebar-card { display:none; }
@@ -291,8 +311,12 @@ const uiHTML = `<!doctype html>
       .brand-mark { width:34px; height:34px; border-radius:10px; }
       .workspace { padding:10px; }
       .topbar { border-radius:14px; padding:12px; }
-      .layout { grid-template-columns:1fr; min-height:auto; gap:10px; }
-      aside { position:static; max-height:none; border-radius:14px; }
+      .layout, .layout.explorer-collapsed { grid-template-columns:1fr; min-height:auto; gap:10px; }
+      aside, .layout.explorer-collapsed aside { position:static; max-height:none; border-radius:14px; }
+      .layout.explorer-collapsed .panel-head { flex-direction:row; border-bottom:1px solid var(--border); padding:11px 12px; }
+      .layout.explorer-collapsed .panel-title-row h3, .layout.explorer-collapsed .badge, .layout.explorer-collapsed .panel-body, .layout.explorer-collapsed .explorer-body { display:flex; }
+      .layout.explorer-collapsed .explorer-body { display:block; }
+      .layout.explorer-collapsed .panel-toggle { transform:none; }
       main { border-radius:14px; }
       .search-grid { grid-template-columns:1fr; }
       .doc-toolbar, .card-title { flex-direction:column; align-items:stretch; }
@@ -322,14 +346,15 @@ const uiHTML = `<!doctype html>
   </style>
 </head>
 <body>
-  <div class="app">
+  <div id="appShell" class="app">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">M</div>
-        <div>
+        <div class="brand-text">
           <h1>MemoryDock</h1>
           <div class="subtitle">Knowledge workspace</div>
         </div>
+        <button id="sidebarToggle" class="sidebar-toggle" title="折叠侧边栏">‹</button>
       </div>
       <nav class="tabs" aria-label="MemoryDock navigation">
         <button id="tabMemories" class="primary">记忆库</button>
@@ -357,7 +382,10 @@ const uiHTML = `<!doctype html>
       <section id="memoriesView" class="layout">
         <aside>
           <div class="panel-head">
-            <h3>Explorer</h3>
+            <div class="panel-title-row">
+              <button id="explorerToggle" class="panel-toggle" title="折叠 Explorer">‹</button>
+              <h3>Explorer</h3>
+            </div>
             <span class="badge" id="listMeta">加载中…</span>
           </div>
           <div class="panel-body stack">
@@ -404,7 +432,7 @@ const uiHTML = `<!doctype html>
                 <h2>Git Diff</h2>
                 <div class="meta" id="gitDiffMeta">查看 memory 仓库当前未提交更改。</div>
               </div>
-              <button id="gitDiffBtn" class="primary">刷新 Diff</button>
+              <div class="row"><button id="gitDiscardAllBtn" class="danger">丢弃全部变更</button><button id="gitDiffBtn" class="primary">刷新 Diff</button></div>
             </div>
             <div class="card-content">
               <div class="diff-summary">
@@ -468,8 +496,29 @@ const uiHTML = `<!doctype html>
 </html>`
 
 const uiJS = `
-const state = { currentPath: '', currentContent: '', editing: false, entries: [], expanded: new Set(['']), draggingPath: '' };
+const state = { currentPath: '', currentContent: '', editing: false, entries: [], expanded: new Set(['']), draggingPath: '', sidebarCollapsed: localStorage.getItem('memorydock.sidebarCollapsed') === '1', explorerCollapsed: localStorage.getItem('memorydock.explorerCollapsed') === '1' };
 const $ = (id) => document.getElementById(id);
+
+function applyShellLayout() {
+  $('appShell').classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+  $('memoriesView').classList.toggle('explorer-collapsed', state.explorerCollapsed);
+  $('sidebarToggle').textContent = state.sidebarCollapsed ? '›' : '‹';
+  $('sidebarToggle').title = state.sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏';
+  $('explorerToggle').textContent = state.explorerCollapsed ? '›' : '‹';
+  $('explorerToggle').title = state.explorerCollapsed ? '展开 Explorer' : '折叠 Explorer';
+}
+
+function toggleSidebar() {
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  localStorage.setItem('memorydock.sidebarCollapsed', state.sidebarCollapsed ? '1' : '0');
+  applyShellLayout();
+}
+
+function toggleExplorer() {
+  state.explorerCollapsed = !state.explorerCollapsed;
+  localStorage.setItem('memorydock.explorerCollapsed', state.explorerCollapsed ? '1' : '0');
+  applyShellLayout();
+}
 
 function toast(message, danger=false) {
   const el = $('toast');
@@ -1139,8 +1188,15 @@ function renderUnifiedDiff(container, sections) {
       const label = document.createElement('span');
       label.className = 'diff-file-name';
       label.textContent = name;
+      const discard = document.createElement('button');
+      discard.type = 'button';
+      discard.className = 'diff-discard';
+      discard.textContent = '丢弃此文件';
+      discard.title = '丢弃 ' + name + ' 的未提交变更';
+      discard.onclick = () => discardGitChanges(name).catch(e => toast(e.message, true));
       header.appendChild(dot);
       header.appendChild(label);
+      header.appendChild(discard);
       bodyEl = document.createElement('div');
       fileEl.appendChild(header);
       fileEl.appendChild(bodyEl);
@@ -1188,6 +1244,24 @@ function renderUnifiedDiff(container, sections) {
       appendSideBySideLine(bodyEl, 'ctx', oldLine ? oldLine++ : '', line || ' ', newLine ? newLine++ : '', line || ' ');
     }
     if (bodyEl) flushDeletes();
+  }
+}
+
+async function discardGitChanges(path='') {
+  const target = path ? '文件：' + path : '全部未提交变更';
+  if (!confirm('确认丢弃 ' + target + '？\n\n这个操作不可撤销。')) return;
+  await api('/v1/git/discard', {
+    method: 'POST',
+    body: JSON.stringify({ path, confirmed: true })
+  });
+  toast(path ? '已丢弃 ' + path + ' 的变更' : '已丢弃全部未提交变更');
+  await Promise.all([
+    loadGitDiff(),
+    loadList().catch(() => {}),
+    loadSyncStatus().catch(() => {})
+  ]);
+  if (state.currentPath) {
+    await loadMemory(state.currentPath).catch(() => clearCurrentMemory());
   }
 }
 
@@ -1267,6 +1341,9 @@ async function syncAction(action) {
   await loadSyncStatus();
 }
 
+$('sidebarToggle').onclick = toggleSidebar;
+$('explorerToggle').onclick = toggleExplorer;
+applyShellLayout();
 $('tabMemories').onclick = () => setTab('memories');
 $('tabGit').onclick = () => setTab('git');
 $('tabConfig').onclick = () => setTab('config');
@@ -1280,6 +1357,7 @@ $('saveBtn').onclick = () => saveMemory().catch(e => toast(e.message, true));
 $('deleteBtn').onclick = () => deleteMemory().catch(e => toast(e.message, true));
 $('syncStatusBtn').onclick = () => loadSyncStatus().catch(e => toast(e.message, true));
 $('gitDiffBtn').onclick = () => loadGitDiff().catch(e => toast(e.message, true));
+$('gitDiscardAllBtn').onclick = () => discardGitChanges('').catch(e => toast(e.message, true));
 $('gitLogBtn').onclick = () => loadGitLog().catch(e => toast(e.message, true));
 $('pullBtn').onclick = () => syncAction('pull').catch(e => toast(e.message, true));
 $('pushBtn').onclick = () => syncAction('push').catch(e => toast(e.message, true));

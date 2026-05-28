@@ -33,6 +33,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/sync/status", s.withAuth(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", s.withAuth(s.gitDiff))
+	mux.HandleFunc("POST /v1/git/discard", s.withAuth(s.gitDiscard))
 	mux.HandleFunc("GET /v1/git/log", s.withAuth(s.gitLog))
 	mux.HandleFunc("POST /v1/sync/pull", s.withAuth(s.syncPull))
 	mux.HandleFunc("POST /v1/sync/push", s.withAuth(s.syncPush))
@@ -64,6 +65,22 @@ func (s *Server) gitDiff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, diff)
+}
+
+func (s *Server) gitDiscard(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path      string `json:"path"`
+		Confirmed bool   `json:"confirmed"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	status, err := s.syncer.Discard(r.Context(), req.Path, req.Confirmed)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "GIT_DISCARD_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) gitLog(w http.ResponseWriter, r *http.Request) {

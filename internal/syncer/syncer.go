@@ -179,6 +179,44 @@ func (m *Manager) Diff(ctx context.Context) (Diff, error) {
 	return resp, nil
 }
 
+func (m *Manager) Discard(ctx context.Context, path string, confirmed bool) (Status, error) {
+	if !confirmed {
+		return m.Status(ctx), errors.New("confirmation required")
+	}
+	if !m.IsGitRepo() {
+		return m.Status(ctx), nil
+	}
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	if path != "" {
+		if strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.HasPrefix(path, ".") || strings.Contains(path, "//") {
+			return m.Status(ctx), errors.New("invalid path")
+		}
+		if _, err := m.git(ctx, "restore", "--staged", "--worktree", "--", path); err != nil {
+			// Untracked files cannot be restored; git clean below handles them.
+			m.logger.Debug("git restore path failed before clean", "path", path, "error", err)
+		}
+		if _, err := m.git(ctx, "clean", "-fd", "--", path); err != nil {
+			return m.Status(ctx), err
+		}
+	} else {
+		if _, err := m.git(ctx, "restore", "--staged", "--worktree", "."); err != nil {
+			return m.Status(ctx), err
+		}
+		if _, err := m.git(ctx, "clean", "-fd", "--", "."); err != nil {
+			return m.Status(ctx), err
+		}
+	}
+
+	if dirty, err := m.isDirty(ctx); err == nil && !dirty {
+		m.mu.Lock()
+		m.pendingPush = false
+		m.lastError = ""
+		m.conflict = false
+		m.mu.Unlock()
+	}
+	return m.Status(ctx), nil
+}
+
 func (m *Manager) Log(ctx context.Context, limit int) (Log, error) {
 	resp := Log{OK: true, GitRepo: m.IsGitRepo()}
 	if !resp.GitRepo {
