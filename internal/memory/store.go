@@ -20,6 +20,7 @@ var (
 	ErrConfirmationNeeded = errors.New("writing outside inbox requires confirmed=true")
 	ErrFileExists         = errors.New("memory file exists; set overwrite=true to replace")
 	ErrUnsupportedFile    = errors.New("memory path must be markdown or text")
+	ErrDisallowedPath     = errors.New("memory path is outside allowed roots: profile.md, inbox/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
 )
 
 type Store struct {
@@ -296,6 +297,57 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 	return out, nil
 }
 
+func appendUniquePaths(paths []string, extras ...string) []string {
+	seen := map[string]bool{}
+	for _, path := range paths {
+		seen[path] = true
+	}
+	for _, path := range extras {
+		path = strings.TrimSpace(path)
+		if path == "" || seen[path] {
+			continue
+		}
+		seen[path] = true
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func (s *Store) firstExistingPath(paths ...string) string {
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		abs, err := s.resolve(path)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(abs); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+func (s *Store) listUnderAny(maxEntries int, bases ...string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, base := range bases {
+		for _, path := range s.listUnder(base, maxEntries) {
+			if seen[path] {
+				continue
+			}
+			seen[path] = true
+			out = append(out, path)
+			if len(out) >= maxEntries {
+				return out
+			}
+		}
+	}
+	return out
+}
+
 func (s *Store) RunbookIndex(project string, maxEntries int) ([]MemoryIndex, error) {
 	if maxEntries <= 0 || maxEntries > 200 {
 		maxEntries = 50
@@ -303,8 +355,11 @@ func (s *Store) RunbookIndex(project string, maxEntries int) ([]MemoryIndex, err
 	if strings.TrimSpace(project) == "" {
 		return []MemoryIndex{}, nil
 	}
-	base := "shared/projects/" + SafeSegment(project) + "/runbooks"
-	paths := s.listUnder(base, maxEntries)
+	projectSegment := SafeSegment(project)
+	paths := s.listUnderAny(maxEntries,
+		"projects/"+projectSegment+"/runbooks",
+		"shared/projects/"+projectSegment+"/runbooks",
+	)
 	indexes := make([]MemoryIndex, 0, len(paths))
 	for _, rel := range paths {
 		mem, err := s.Read(rel)
@@ -320,17 +375,20 @@ func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
 	if maxBytes <= 0 || maxBytes > 512000 {
 		maxBytes = 120000
 	}
-	paths := []string{"shared/profile.md"}
+	paths := []string{}
+	paths = appendUniquePaths(paths, s.firstExistingPath("profile.md", "shared/profile.md"))
 	if strings.TrimSpace(project) != "" {
-		base := "shared/projects/" + SafeSegment(project)
-		paths = append(paths,
-			base+"/overview.md",
-			base+"/conventions.md",
-			base+"/environment.md",
-			base+"/session-handoff.md",
+		projectSegment := SafeSegment(project)
+		newBase := "projects/" + projectSegment
+		oldBase := "shared/projects/" + projectSegment
+		paths = appendUniquePaths(paths,
+			s.firstExistingPath(newBase+"/project.md", oldBase+"/project.md", oldBase+"/overview.md"),
+			s.firstExistingPath(newBase+"/conventions.md", oldBase+"/conventions.md"),
+			s.firstExistingPath(newBase+"/environment.md", oldBase+"/environment.md"),
+			s.firstExistingPath(newBase+"/session-handoff.md", oldBase+"/session-handoff.md"),
 		)
-		paths = append(paths, s.listUnder(base+"/decisions", 10)...)
-		paths = append(paths, s.listUnder(base+"/runbooks", 10)...)
+		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/decisions", oldBase+"/decisions")...)
+		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/runbooks", oldBase+"/runbooks")...)
 	}
 	sections := []Memory{}
 	total := 0
@@ -362,6 +420,35 @@ func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
 	return sections, total, nil
 }
 
+func IsAllowedMemoryPath(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	if path == "profile.md" {
+		return true
+	}
+	if strings.HasPrefix(path, "inbox/") {
+		return IsTextFile(path)
+	}
+	if strings.HasPrefix(path, "devices/") {
+		parts := strings.Split(path, "/")
+		return len(parts) == 2 && IsTextFile(path)
+	}
+	if strings.HasPrefix(path, "ops/") {
+		parts := strings.Split(path, "/")
+		return len(parts) == 2 && IsTextFile(path)
+	}
+	if strings.HasPrefix(path, "projects/") {
+		parts := strings.Split(path, "/")
+		if len(parts) < 3 || parts[1] == "" {
+			return false
+		}
+		if len(parts) == 3 {
+			return (parts[2] == "project.md" || parts[2] == "environment.md") && IsTextFile(path)
+		}
+		return len(parts) == 4 && parts[2] == "runbooks" && IsTextFile(path)
+	}
+	return false
+}
+
 func (s *Store) Write(req WriteRequest) (Memory, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -379,6 +466,9 @@ func (s *Store) Write(req WriteRequest) (Memory, error) {
 	}
 	if !IsTextFile(path) {
 		return Memory{}, ErrUnsupportedFile
+	}
+	if !IsAllowedMemoryPath(path) {
+		return Memory{}, ErrDisallowedPath
 	}
 	abs, err := s.resolve(path)
 	if err != nil {
@@ -410,6 +500,9 @@ func (s *Store) AppendNote(req NoteRequest) (Memory, error) {
 	scope := SafeSegment(req.Scope)
 	if scope == "" {
 		scope = "inbox"
+	}
+	if scope != "inbox" {
+		return Memory{}, errors.New("append_note only writes to inbox; use memory_write with an explicit allowed path for long-term memory")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
@@ -455,6 +548,9 @@ func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Memory
 	}
 	if hasHiddenSegment(fromPath) || hasHiddenSegment(toPath) {
 		return Memory{}, ErrInvalidPath
+	}
+	if !IsAllowedMemoryPath(toPath) {
+		return Memory{}, ErrDisallowedPath
 	}
 	fromAbs, err := s.resolve(fromPath)
 	if err != nil {
@@ -790,19 +886,12 @@ func BuildFrontmatter(req WriteRequest) string {
 }
 
 func DefaultPath(req WriteRequest) string {
-	scope := SafeSegment(req.Scope)
-	if scope == "" {
-		scope = "inbox"
-	}
 	typeName := SafeSegment(req.Type)
 	if typeName == "" {
 		typeName = "memory"
 	}
 	stamp := time.Now().Format("20060102-150405")
-	if project := SafeSegment(req.Project); project != "" && scope == "shared" {
-		return filepath.ToSlash(filepath.Join("shared", "projects", project, typeName+"s", stamp+"-"+typeName+".md"))
-	}
-	return filepath.ToSlash(filepath.Join(scope, stamp+"-"+typeName+".md"))
+	return filepath.ToSlash(filepath.Join("inbox", stamp+"-"+typeName+".md"))
 }
 
 func SafeSegment(value string) string {
