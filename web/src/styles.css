@@ -2712,3 +2712,11 @@ button.primary:hover::after,
 .floating-explorer-orb:hover::after {
   animation: glassSheen .52s var(--ease-smooth) 1 !important;
 }
+
+.access-settings-card { grid-column: span 2; }
+.access-form { display: grid; gap: 14px; margin-top: 16px; }
+.access-form label { display: grid; gap: 7px; color: #5f6b86; font-weight: 720; }
+.access-form label span { font-size: 13px; }
+.access-actions { margin-top: 16px; justify-content: flex-end; }
+.access-note { margin: 12px 0 0; line-height: 1.7; }
+@media (max-width: 900px) { .access-settings-card { grid-column: auto; } }

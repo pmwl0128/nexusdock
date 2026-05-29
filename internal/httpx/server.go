@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/uvwt/memorydock/internal/config"
 	"github.com/uvwt/memorydock/internal/memory"
@@ -16,6 +17,7 @@ import (
 )
 
 type Server struct {
+	mu     sync.RWMutex
 	cfg    config.Config
 	store  *memory.Store
 	syncer *syncer.Manager
@@ -23,7 +25,8 @@ type Server struct {
 }
 
 func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, logger *slog.Logger) *Server {
-	return &Server{cfg: cfg, store: store, syncer: syncer, logger: logger}
+	server := &Server{cfg: cfg, store: store, syncer: syncer, logger: logger}
+	return server
 }
 
 func (s *Server) Handler() http.Handler {
@@ -33,6 +36,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("GET /v1/config/access", s.withBasicAuth(s.getAccessConfig))
+	mux.HandleFunc("POST /v1/config/access", s.withBasicAuth(s.updateAccessConfig))
 	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", protected(s.gitDiff))
 	mux.HandleFunc("POST /v1/git/discard", protected(s.gitDiscard))
@@ -363,4 +368,32 @@ func (s *Server) withBasicAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func (s *Server) getAccessConfig(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	name := s.cfg.Username
+	enabled := s.cfg.Username != "" && s.cfg.Password != ""
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": enabled, "username": name})
+}
+
+func (s *Server) updateAccessConfig(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Username string `json:"username"`
+		Secret   string `json:"secret"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	name := strings.TrimSpace(req.Username)
+	if name == "" || req.Secret == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_ACCESS", "username and secret are required")
+		return
+	}
+	s.mu.Lock()
+	s.cfg.Username = name
+	s.cfg.Password = req.Secret
+	s.mu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": true, "username": name})
 }
