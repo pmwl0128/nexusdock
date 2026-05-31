@@ -668,16 +668,36 @@ func removeEmptyParents(dir, root string) {
 }
 
 func (s *Store) resolve(rel string) (string, error) {
-	rel = filepath.Clean(strings.TrimPrefix(filepath.FromSlash(strings.TrimSpace(rel)), string(filepath.Separator)))
-	if rel == "." || rel == "" || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+	raw := strings.TrimSpace(rel)
+	if raw == "" {
 		return "", ErrInvalidPath
 	}
-	abs := filepath.Clean(filepath.Join(s.root, rel))
+	converted := filepath.FromSlash(raw)
+	if filepath.IsAbs(converted) || hasParentSegment(raw) {
+		return "", ErrInvalidPath
+	}
+	clean := filepath.Clean(converted)
+	if clean == "." || clean == "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", ErrInvalidPath
+	}
+	if hasHiddenSegment(clean) {
+		return "", ErrInvalidPath
+	}
+	abs := filepath.Clean(filepath.Join(s.root, clean))
 	rootWithSep := s.root + string(filepath.Separator)
 	if abs != s.root && !strings.HasPrefix(abs, rootWithSep) {
 		return "", ErrInvalidPath
 	}
 	return abs, nil
+}
+
+func hasParentSegment(rel string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(rel), "/") {
+		if strings.TrimSpace(segment) == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) listUnder(rel string, max int) []string {

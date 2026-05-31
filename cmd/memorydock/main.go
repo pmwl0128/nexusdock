@@ -20,6 +20,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel()}))
 	slog.SetDefault(logger)
 
+	if err := cfg.ValidateStartup(); err != nil {
+		logger.Error("invalid startup configuration", "error", err)
+		os.Exit(1)
+	}
+
 	store, err := memory.NewStore(cfg.StoreDir)
 	if err != nil {
 		logger.Error("failed to initialize store", "error", err)

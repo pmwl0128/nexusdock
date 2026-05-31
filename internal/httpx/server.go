@@ -31,7 +31,7 @@ func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, l
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	protected := func(next http.HandlerFunc) http.HandlerFunc { return s.withBasicAuth(s.withAuth(next)) }
+	protected := func(next http.HandlerFunc) http.HandlerFunc { return s.withAPIAccess(next) }
 	uiProtected := func(next http.HandlerFunc) http.HandlerFunc { return s.withBasicAuth(next) }
 	mux.HandleFunc("GET /", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
@@ -286,16 +286,45 @@ func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.AuthToken == "" {
+		s.mu.RLock()
+		cfg := s.cfg
+		s.mu.RUnlock()
+		if cfg.AuthToken == "" {
 			next(w, r)
 			return
 		}
-		want := "Bearer " + s.cfg.AuthToken
+		want := "Bearer " + cfg.AuthToken
 		if r.Header.Get("Authorization") != want {
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid bearer token")
 			return
 		}
 		next(w, r)
+	}
+}
+
+func (s *Server) withAPIAccess(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.mu.RLock()
+		cfg := s.cfg
+		s.mu.RUnlock()
+		if cfg.AuthToken != "" && r.Header.Get("Authorization") == "Bearer "+cfg.AuthToken {
+			next(w, r)
+			return
+		}
+		if cfg.AccessEnabled() {
+			user, pass, ok := r.BasicAuth()
+			userOK := subtle.ConstantTimeCompare([]byte(user), []byte(cfg.Username)) == 1
+			passOK := cfg.CheckPassword(pass)
+			if ok && userOK && passOK {
+				next(w, r)
+				return
+			}
+		}
+		if cfg.AuthToken == "" && !cfg.AccessEnabled() {
+			next(w, r)
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid API credentials")
 	}
 }
 
@@ -353,13 +382,16 @@ func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
 
 func (s *Server) withBasicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.Username == "" || s.cfg.Password == "" {
+		s.mu.RLock()
+		cfg := s.cfg
+		s.mu.RUnlock()
+		if !cfg.AccessEnabled() {
 			next(w, r)
 			return
 		}
 		user, pass, ok := r.BasicAuth()
-		userOK := subtle.ConstantTimeCompare([]byte(user), []byte(s.cfg.Username)) == 1
-		passOK := subtle.ConstantTimeCompare([]byte(pass), []byte(s.cfg.Password)) == 1
+		userOK := subtle.ConstantTimeCompare([]byte(user), []byte(cfg.Username)) == 1
+		passOK := cfg.CheckPassword(pass)
 		if !ok || !userOK || !passOK {
 			w.Header().Set("WWW-Authenticate", `Basic realm="MemoryDock"`)
 			w.Header().Set("Cache-Control", "no-store")
@@ -373,7 +405,7 @@ func (s *Server) withBasicAuth(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) getAccessConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	name := s.cfg.Username
-	enabled := s.cfg.Username != "" && s.cfg.Password != ""
+	enabled := s.cfg.AccessEnabled()
 	s.mu.RUnlock()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": enabled, "username": name})
 }
@@ -391,9 +423,20 @@ func (s *Server) updateAccessConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_ACCESS", "username and secret are required")
 		return
 	}
+	hash, err := config.HashPassword(req.Secret)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_ACCESS", err.Error())
+		return
+	}
 	s.mu.Lock()
 	s.cfg.Username = name
-	s.cfg.Password = req.Secret
+	s.cfg.Password = ""
+	s.cfg.PasswordHash = hash
+	saveCfg := s.cfg
 	s.mu.Unlock()
+	if err := saveCfg.SaveAccessFile(); err != nil {
+		writeError(w, http.StatusInternalServerError, "ACCESS_SAVE_FAILED", err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": true, "username": name})
 }
