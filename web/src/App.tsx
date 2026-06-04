@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Clock3,
   Command,
   FileText,
@@ -421,12 +420,13 @@ export default function App() {
   const [renamingPath, setRenamingPath] = useState('');
   const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
+  const [contentFullscreen, setContentFullscreen] = useState(false);
   const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
   const dirCount = entries.filter((entry) => entry.type === 'directory').length;
-  const explorerFocusCollapsed = tab === 'memories' && explorerCollapsed;
+  const explorerFocusCollapsed = false;
 
   useEffect(() => {
     void loadList();
@@ -482,6 +482,7 @@ export default function App() {
   function selectTab(next: Tab) {
     viewChange(() => {
       setMobileNavCompact(window.matchMedia('(max-width: 900px)').matches);
+      setContentFullscreen(false);
       setTab(next);
     });
   }
@@ -684,13 +685,8 @@ export default function App() {
   }
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${contentFullscreen ? 'content-fullscreen-active' : ''}`}>
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} />
-      <FloatingExplorerOrb
-        visible={explorerFocusCollapsed}
-        currentPath={current?.path || prefix}
-        onOpen={() => setExplorerCollapsed(false)}
-      />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
         {tab === 'dashboard' && (
@@ -751,10 +747,11 @@ export default function App() {
               })}
               onSave={() => void saveMemory().catch((e) => show(e.message, true))}
               onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
+              onFullscreenChange={setContentFullscreen}
             />
           </section>
         )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} />}
+        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFullscreenChange={setContentFullscreen} />}
         {tab === 'sync' && <SyncView status={syncStatus} access={accessConfig} onRefresh={loadSyncStatus} onAction={syncAction} onAccessRefresh={loadAccessConfig} onAccessSave={updateAccessConfig} />}
       </section>
       {commandOpen && (
@@ -897,20 +894,6 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
 }
 
 
-function FloatingExplorerOrb({ visible, currentPath, onOpen }: { visible: boolean; currentPath: string; onOpen: () => void }) {
-  const parts = normalizePath(currentPath).split('/').filter(Boolean);
-  const currentName = parts.length ? parts[parts.length - 1] : 'Explorer';
-  const isFile = /\.[^/]+$/.test(currentName);
-  if (!visible || typeof document === 'undefined') return null;
-  return createPortal(
-    <button className={`floating-explorer-orb ${isFile ? 'file' : 'folder'}`} title={parts.length ? currentPath : '展开 Explorer'} onClick={onOpen}>
-      {parts.length ? (isFile ? <FileText size={20} /> : <Folder size={20} />) : <Archive size={20} />}
-      <span>{currentName.replace(/\.(md|markdown|txt)$/i, '')}</span>
-    </button>,
-    document.body,
-  );
-}
-
 function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void }) {
   return (
     <aside className={`sidebar ${mobileCompact ? 'compact-orb' : ''}`} onClick={() => { if (mobileCompact) onCompactOpen?.(); }}>
@@ -996,35 +979,13 @@ function Explorer(props: {
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const compactPath = normalizePath(props.currentPath || props.prefix).split('/').filter(Boolean);
-  const compactCurrent = compactPath.length ? {
-    name: compactPath[compactPath.length - 1],
-    path: compactPath.join('/'),
-    isFile: /\.[^/]+$/.test(compactPath[compactPath.length - 1]),
-  } : null;
   return (
-    <aside className={`explorer-panel ${props.collapsed ? 'explorer-orb-rail' : ''}`}>
+    <aside className="explorer-panel">
       <div className="panel-head">
-        <button className="icon-button" onClick={props.onToggle} title={props.collapsed ? '展开 Explorer' : '折叠 Explorer'}>
-          {props.collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
-        {!props.collapsed && <h3>Explorer</h3>}
-        {!props.collapsed && <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>}
+        <h3>Explorer</h3>
+        <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>
       </div>
-      {props.collapsed && (
-        <div className="path-orb-stack single-orb" aria-label="当前路径快捷球">
-          <button
-            className={`path-orb current-orb ${compactCurrent?.isFile ? 'file' : compactCurrent ? 'folder' : 'empty'}`}
-            title={compactCurrent?.path || '展开 Explorer'}
-            onClick={props.onToggle}
-          >
-            {compactCurrent ? (compactCurrent.isFile ? <FileText size={20} /> : <Folder size={20} />) : <Archive size={20} />}
-            <span>{compactCurrent ? compactCurrent.name.replace(/\.(md|markdown|txt)$/i, '') : 'Explorer'}</span>
-          </button>
-        </div>
-      )}
-      {!props.collapsed && (
-        <>
+      <>
           <div className="panel-search">
             <div className="input-row"><Search size={15} /><input value={props.search} onChange={(e) => props.setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && props.onSearch()} placeholder="搜索关键词" /></div>
             <div className="input-row"><Folder size={15} /><input value={props.prefix} onChange={(e) => props.setPrefix(e.target.value)} placeholder="prefix，例如 shared/projects" /></div>
@@ -1053,8 +1014,7 @@ function Explorer(props: {
               />
             )) : <div className="empty-state">没有记忆文件</div>}
           </div>
-        </>
-      )}
+      </>
     </aside>
   );
 }
@@ -1142,9 +1102,14 @@ function MemoryEditor(props: {
   onCancel: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onFullscreenChange: (active: boolean) => void;
 }) {
   const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
   const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    props.onFullscreenChange(fullscreen);
+    return () => props.onFullscreenChange(false);
+  }, [fullscreen, props.onFullscreenChange]);
   return (
     <main className={`document-panel ${fullscreen ? 'fullscreen-panel' : ''}`}>
       <div className="doc-toolbar">
@@ -1186,7 +1151,7 @@ function MemoryEditor(props: {
   );
 }
 
-function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit }: {
+function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit, onFullscreenChange }: {
   diff: GitDiff | null;
   commits: GitCommit[];
   selectedCommit: CommitDetail | null;
@@ -1194,6 +1159,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   onDiscard: (path?: string) => Promise<void>;
   onOpenFile: (path: string) => void;
   onSelectCommit: (hash: string) => Promise<void>;
+  onFullscreenChange: (active: boolean) => void;
 }) {
   const sections = useMemo(() => parseSideBySideDiff([
     { title: '已暂存更改', diff: diff?.cached_diff || '' },
@@ -1208,6 +1174,10 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   const statLines = (diff?.stat || '').split('\n').filter(Boolean);
   const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
   const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    onFullscreenChange(fullscreen);
+    return () => onFullscreenChange(false);
+  }, [fullscreen, onFullscreenChange]);
 
   return (
     <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>

@@ -2982,3 +2982,32 @@ button.primary {
     border-radius: 18px !important;
   }
 }
+
+/* 2026-06 no explorer orb + hide main sidebar during content fullscreen. */
+.app.content-fullscreen-active .sidebar,
+.app.content-fullscreen-active .floating-explorer-orb {
+  display: none !important;
+}
+
+.app.content-fullscreen-active {
+  padding-left: 0 !important;
+}
+
+.memory-layout.explorer-collapsed {
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr) !important;
+  grid-template-rows: none !important;
+}
+
+.memory-layout.explorer-collapsed .explorer-panel,
+.memory-layout.explorer-collapsed .explorer-panel.explorer-orb-rail {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  border-radius: 28px !important;
+}
+
+.path-orb-stack,
+.path-orb,
+.floating-explorer-orb {
+  display: none !important;
+}
