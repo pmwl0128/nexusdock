@@ -15,6 +15,8 @@ import {
   FolderOpen,
   GitBranch,
   Loader2,
+  Maximize2,
+  Minimize2,
   PenLine,
   Plus,
   RefreshCw,
@@ -420,13 +422,11 @@ export default function App() {
   const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
-  const [desktopContentHover, setDesktopContentHover] = useState(false);
-  const [desktopReviewFocus, setDesktopReviewFocus] = useState(false);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
   const dirCount = entries.filter((entry) => entry.type === 'directory').length;
-  const explorerFocusCollapsed = tab === 'memories' && (explorerCollapsed || desktopContentHover);
+  const explorerFocusCollapsed = tab === 'memories' && explorerCollapsed;
 
   useEffect(() => {
     void loadList();
@@ -476,32 +476,14 @@ export default function App() {
   }, []);
 
   function viewChange(update: () => void) {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const doc = document as Document & { startViewTransition?: (callback: () => void) => void };
-    if (reduceMotion || typeof doc.startViewTransition !== 'function') {
-      update();
-      return;
-    }
-    doc.startViewTransition(() => update());
+    update();
   }
 
   function selectTab(next: Tab) {
     viewChange(() => {
       setMobileNavCompact(window.matchMedia('(max-width: 900px)').matches);
-      setDesktopContentHover(false);
-      setDesktopReviewFocus(false);
       setTab(next);
     });
-  }
-
-  function setContentHover(next: boolean) {
-    const desktopPointer = window.matchMedia('(min-width: 901px) and (pointer: fine)').matches;
-    setDesktopContentHover(desktopPointer && next);
-  }
-
-  function setReviewFocus(next: boolean) {
-    const desktopPointer = window.matchMedia('(min-width: 901px) and (pointer: fine)').matches;
-    setDesktopReviewFocus(desktopPointer && next);
   }
 
   function expandPath(path: string) {
@@ -702,12 +684,12 @@ export default function App() {
   }
 
   return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${desktopContentHover ? 'desktop-content-orb' : ''}`}>
-      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => { setMobileNavCompact(false); setDesktopContentHover(false); }} />
+    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''}`}>
+      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} />
       <FloatingExplorerOrb
         visible={explorerFocusCollapsed}
         currentPath={current?.path || prefix}
-        onOpen={() => { setExplorerCollapsed(false); setDesktopContentHover(false); }}
+        onOpen={() => setExplorerCollapsed(false)}
       />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
@@ -751,7 +733,7 @@ export default function App() {
               setDraggingPath={setDraggingPath}
               onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
               collapsed={explorerFocusCollapsed}
-              onToggle={() => { if (desktopContentHover && !explorerCollapsed) setDesktopContentHover(false); else setExplorerCollapsed((v) => !v); }}
+              onToggle={() => setExplorerCollapsed((v) => !v)}
             />
             <MemoryEditor
               current={current}
@@ -769,7 +751,6 @@ export default function App() {
               })}
               onSave={() => void saveMemory().catch((e) => show(e.message, true))}
               onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
-              onContentHover={setContentHover}
             />
           </section>
         )}
@@ -970,8 +951,8 @@ function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, o
 }
 
 function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number; onCommand: () => void }) {
-  const title = tab === 'dashboard' ? '记忆工作台' : tab === 'memories' ? 'Memory workspace' : tab === 'git' ? '变更审阅' : 'Sync center';
-  const subtitle = tab === 'dashboard' ? '今日状态、最近记忆、同步健康和快速入口' : tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '像代码评审一样查看和放弃本地更改' : '查看同步状态并手动触发保存到远程';
+  const title = tab === 'dashboard' ? '记忆工作台' : tab === 'memories' ? '记忆库' : tab === 'git' ? '变更审阅' : '同步中心';
+  const subtitle = tab === 'dashboard' ? '今日状态、最近记忆、同步健康和快速入口' : tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '查看和处理本地记忆变更' : '查看同步状态并手动保存到远程';
   return (
     <header className="topbar">
       <div className="page-title">
@@ -1161,17 +1142,18 @@ function MemoryEditor(props: {
   onCancel: () => void;
   onSave: () => void;
   onDelete: () => void;
-  onContentHover: (hovering: boolean) => void;
 }) {
   const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
+  const [fullscreen, setFullscreen] = useState(false);
   return (
-    <main className="document-panel">
+    <main className={`document-panel ${fullscreen ? 'fullscreen-panel' : ''}`}>
       <div className="doc-toolbar">
         <div>
           <div className="doc-path">{props.current?.path || (props.editing ? '新建记忆' : '未选择文件')}</div>
           <div className="muted">{props.editing ? '编辑草稿 · 左写右预览 · 保存后进入本地变更' : '阅读模式 · Markdown 自动渲染'}</div>
         </div>
         <div className="toolbar-actions">
+          <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏阅读'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
           <button onClick={props.onNew}><Plus size={15} />新建</button>
           {!props.editing && <button disabled={!props.current} onClick={props.onEdit}><PenLine size={15} />编辑</button>}
           {props.editing && <button className="primary" onClick={props.onSave}><Save size={15} />保存</button>}
@@ -1180,7 +1162,7 @@ function MemoryEditor(props: {
         </div>
       </div>
       {props.editing ? (
-        <div className="editor-body split-editor" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)}>
+        <div className="editor-body split-editor">
           <div className="editor-pane">
             <div className="pane-title"><span>编辑</span><small>{props.draftPath || '未命名'}</small></div>
             <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
@@ -1192,7 +1174,7 @@ function MemoryEditor(props: {
           </div>
         </div>
       ) : props.current ? (
-        isMarkdown ? <article className="markdown-body" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)} dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view" onMouseEnter={() => props.onContentHover(true)} onMouseLeave={() => props.onContentHover(false)}>{props.current.content}</pre>
+        isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
       ) : (
         <div className="hero-empty">
           <FileText size={42} />
@@ -1225,6 +1207,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   const statusLines = (diff?.status || '').split('\n').filter(Boolean).length;
   const statLines = (diff?.stat || '').split('\n').filter(Boolean);
   const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
+  const [fullscreen, setFullscreen] = useState(false);
 
   return (
     <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>
@@ -1250,7 +1233,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
         </div>
       </aside>
 
-      <main className="review-canvas">
+      <main className={`review-canvas ${fullscreen ? 'fullscreen-panel review-fullscreen' : ''}`}>
         <div className="review-hero">
           <div>
             <span className="eyebrow">Review Studio</span>
@@ -1259,6 +1242,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
           </div>
           <div className="review-hero-actions">
             {selectedCommit && <span className="pill">{selectedCommit.files.length} files changed</span>}
+            <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏审阅'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
             <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
           </div>
         </div>

@@ -2720,3 +2720,265 @@ button.primary:hover::after,
 .access-actions { margin-top: 16px; justify-content: flex-end; }
 .access-note { margin: 12px 0 0; line-height: 1.7; }
 @media (max-width: 900px) { .access-settings-card { grid-column: auto; } }
+
+/* 2026-06 UI calm/stability pass: remove page-switch shake and align headers. */
+:root {
+  --content-pad-x: 24px;
+  --content-pad-right: 32px;
+}
+
+body {
+  background: #f6f7fb !important;
+}
+
+.app::before {
+  display: none !important;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none !important;
+}
+
+.workspace,
+.topbar,
+.dashboard-grid,
+.memory-layout,
+.git-workbench,
+.sync-grid,
+.explorer-panel,
+.document-panel,
+.panel-card,
+.git-rail,
+.git-main,
+.git-history-panel,
+.sync-status-card,
+.sync-actions-card,
+.diff-file,
+.changed-card,
+.commit,
+.tree-row,
+.recent-list button,
+.changed-file-list button,
+.commit-files button,
+.command-group button,
+.sync-actions button,
+.editor-pane,
+.preview-pane,
+.markdown-body > * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.sidebar,
+.brand-mark,
+.nav button,
+.nav button.active,
+.icon-button,
+.path-orb,
+.floating-explorer-orb,
+.file-status,
+.tree-action,
+button.primary::after,
+.sidebar::after,
+.brand-mark::after,
+.nav button::after,
+.icon-button::after,
+.path-orb::after,
+.floating-explorer-orb::after {
+  animation: none !important;
+}
+
+button {
+  transition: border-color .12s ease, background .12s ease, color .12s ease, box-shadow .12s ease !important;
+}
+
+button:hover,
+button:active,
+.nav button:hover,
+.icon-button:hover,
+.tree-action:hover,
+.file-status:hover {
+  transform: none !important;
+}
+
+button.primary {
+  background: #4f5ef7 !important;
+  box-shadow: 0 10px 22px rgba(79, 94, 247, .18) !important;
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, .88) !important;
+  backdrop-filter: blur(14px) !important;
+  box-shadow: 0 14px 34px rgba(60, 70, 110, .10) !important;
+}
+
+.brand-mark {
+  background: #4f5ef7 !important;
+  box-shadow: 0 10px 24px rgba(79, 94, 247, .22) !important;
+}
+
+.explorer-panel,
+.document-panel,
+.panel-card,
+.git-rail,
+.git-main,
+.git-history-panel,
+.sync-status-card,
+.sync-actions-card {
+  background: rgba(255, 255, 255, .90) !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 12px 32px rgba(52, 65, 116, .08) !important;
+}
+
+.topbar {
+  height: 96px !important;
+  min-height: 96px !important;
+  padding: 22px var(--content-pad-right) 16px var(--content-pad-x) !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  gap: 16px !important;
+}
+
+.page-title {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.page-title h2 {
+  height: 31px !important;
+  margin: 0 !important;
+  font-size: 26px !important;
+  line-height: 31px !important;
+  letter-spacing: -.02em !important;
+  white-space: nowrap !important;
+}
+
+.page-title p {
+  height: 22px !important;
+  margin: 6px 0 0 !important;
+  line-height: 22px !important;
+  max-width: min(760px, 100%) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.status-strip {
+  min-height: 38px !important;
+  align-self: start !important;
+  flex-wrap: nowrap !important;
+}
+
+.dashboard-grid,
+.memory-layout,
+.git-workbench,
+.sync-grid {
+  padding-left: var(--content-pad-x) !important;
+  padding-right: var(--content-pad-right) !important;
+}
+
+.memory-layout {
+  transition: none !important;
+}
+
+.memory-layout.explorer-collapsed {
+  grid-template-rows: 72px minmax(0, 1fr) !important;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --content-pad-x: 14px;
+    --content-pad-right: 14px;
+  }
+
+  .topbar {
+    height: auto !important;
+    min-height: 104px !important;
+    padding: calc(14px + env(safe-area-inset-top)) var(--content-pad-right) 12px var(--content-pad-x) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .page-title h2 {
+    height: 30px !important;
+    font-size: 24px !important;
+    line-height: 30px !important;
+  }
+
+  .page-title p {
+    height: auto !important;
+    min-height: 22px !important;
+    white-space: normal !important;
+  }
+
+  .status-strip {
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+/* 2026-06 reading/review simplification: no hover morph, only explicit fullscreen. */
+.app.desktop-content-orb .workspace,
+.app.desktop-review-focus .workspace,
+.app.desktop-review-focus .topbar,
+.app.desktop-review-focus .git-workbench,
+.app.desktop-content-orb .memory-layout,
+.app.desktop-content-orb .memory-layout.explorer-collapsed,
+.app.desktop-review-focus .memory-layout.explorer-collapsed {
+  transform: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.document-panel.fullscreen-panel,
+.review-canvas.fullscreen-panel {
+  position: fixed !important;
+  z-index: 200 !important;
+  inset: 16px !important;
+  width: auto !important;
+  height: calc(100vh - 32px) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  box-shadow: 0 18px 60px rgba(20, 28, 54, .18) !important;
+}
+
+.document-panel.fullscreen-panel .doc-toolbar,
+.review-canvas.fullscreen-panel .review-hero {
+  flex: 0 0 auto !important;
+  background: #ffffff !important;
+}
+
+.document-panel.fullscreen-panel .markdown-body,
+.document-panel.fullscreen-panel .plain-view,
+.document-panel.fullscreen-panel .editor-body,
+.review-canvas.fullscreen-panel .review-diff-canvas {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.review-canvas.fullscreen-panel .review-stats,
+.review-canvas.fullscreen-panel .commit-focus-strip {
+  flex: 0 0 auto !important;
+}
+
+.review-canvas.fullscreen-panel .review-diff-canvas {
+  margin: 16px !important;
+}
+
+@media (max-width: 900px) {
+  .document-panel.fullscreen-panel,
+  .review-canvas.fullscreen-panel {
+    inset: 8px !important;
+    height: calc(100vh - 16px) !important;
+    border-radius: 18px !important;
+  }
+}
