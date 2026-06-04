@@ -3011,3 +3011,55 @@ button.primary {
 .floating-explorer-orb {
   display: none !important;
 }
+
+/* 2026-06 diff scrolling fix: scroll the whole diff block, not each code cell. */
+.diff-file {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.diff-file-head,
+.diff-row {
+  min-width: 100% !important;
+  width: max-content !important;
+}
+
+.diff-row {
+  grid-template-columns: 54px max-content 54px max-content !important;
+}
+
+.diff-row code {
+  min-width: 420px !important;
+  overflow: visible !important;
+  white-space: pre !important;
+}
+
+.diff-row .left,
+.diff-row .right {
+  display: block !important;
+}
+
+.review-diff-canvas,
+.diff-viewer {
+  overflow: auto !important;
+}
+
+@media (max-width: 900px) {
+  .diff-row {
+    grid-template-columns: 44px max-content 44px max-content !important;
+  }
+
+  .diff-row code {
+    min-width: 360px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .diff-row {
+    grid-template-columns: 38px max-content 38px max-content !important;
+  }
+
+  .diff-row code {
+    min-width: 300px !important;
+  }
+}
