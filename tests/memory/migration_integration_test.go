@@ -1,0 +1,122 @@
+package memory_test
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	memory "github.com/uvwt/memorydock/internal/memory"
+	memorysync "github.com/uvwt/memorydock/internal/sync/memory"
+)
+
+func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "legacy")
+	target := filepath.Join(t.TempDir(), "nexus")
+	if err := os.MkdirAll(filepath.Join(source, "projects", "agentdock", "runbooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fixtures := map[string]string{
+		"profile.md":                            "# Profile\nlegacy profile\n",
+		"projects/agentdock/project.md":         "---\nscope: shared\nproject: agentdock\n---\n\n# AgentDock\nlegacy project\n",
+		"projects/agentdock/runbooks/deploy.md": "# Deploy\nlegacy steps\n",
+	}
+	for path, content := range fixtures {
+		abs := filepath.Join(source, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dry, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: source, TargetRoot: target, DryRun: true})
+	if err != nil || dry.FileCount != len(fixtures) || dry.Verified {
+		t.Fatalf("dry=%#v err=%v", dry, err)
+	}
+	report, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: source, TargetRoot: target})
+	if err != nil || !report.Verified {
+		t.Fatalf("report=%#v err=%v", report, err)
+	}
+	before, _ := memory.SnapshotFiles(source)
+	after, _ := memory.SnapshotFiles(target)
+	if len(before) != len(after) {
+		t.Fatalf("snapshot length changed: %d %d", len(before), len(after))
+	}
+	for path, digest := range before {
+		if after[path] != digest {
+			t.Fatalf("digest mismatch: %s", path)
+		}
+	}
+
+	store, err := memory.NewStore(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := memory.NewService(store)
+	pack, err := svc.Bootstrap(context.Background(), memory.BootstrapRequest{Project: "agentdock", MaxBytes: 4096})
+	if err != nil || len(pack.Sections) < 2 {
+		t.Fatalf("bootstrap regressed: %#v err=%v", pack, err)
+	}
+
+	runGit(t, target, "init", "-b", "main")
+	runGit(t, target, "config", "user.email", "nexus@example.invalid")
+	runGit(t, target, "config", "user.name", "Nexus Test")
+	runGit(t, target, "add", ".")
+	runGit(t, target, "commit", "-m", "legacy import")
+	proposal, err := svc.ProposeUpdate(context.Background(), memory.ProposeUpdateRequest{Path: "projects/agentdock/project.md", Content: "# AgentDock\nupdated", Scope: memory.ScopeProject, Status: memory.StatusActive, Project: "agentdock", Source: "user_edit", Confidence: memory.ConfidenceHigh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyUpdate(context.Background(), memory.ApplyUpdateRequest{Proposal: proposal, Approved: true}); err != nil {
+		t.Fatal(err)
+	}
+	manager := memorysync.NewManager(memorysync.Config{RepoDir: target}, slog.Default())
+	diff, err := manager.Diff(context.Background())
+	if err != nil || !diff.Dirty || !strings.Contains(diff.Diff, "updated") {
+		t.Fatalf("git diff missing: %#v err=%v", diff, err)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+	}
+}
+
+func TestLiveLegacyRepositoryValidation(t *testing.T) {
+	root := strings.TrimSpace(os.Getenv("MEMORYDOCK_LIVE_STORE"))
+	if root == "" {
+		t.Skip("MEMORYDOCK_LIVE_STORE is not set")
+	}
+	before, err := memory.SnapshotFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: root, TargetRoot: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.InPlace || !report.Verified {
+		t.Fatalf("live repository not verified: %#v", report)
+	}
+	after, err := memory.SnapshotFiles(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before) != len(after) {
+		t.Fatalf("live validation changed file count: %d != %d", len(before), len(after))
+	}
+	for path, digest := range before {
+		if after[path] != digest {
+			t.Fatalf("live validation changed %s", path)
+		}
+	}
+}
