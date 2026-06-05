@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Archive,
@@ -120,6 +120,39 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 function normalizePath(path: string): string {
   return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+}
+
+function routeBase(): string {
+  const marker = '/ui';
+  const path = window.location.pathname || '/ui/';
+  const index = path.indexOf(marker);
+  return index >= 0 ? `${path.slice(0, index + marker.length)}/` : '/ui/';
+}
+
+function routeFromLocation(): { tab: Tab; path: string; prefix: string; search: string } {
+  const params = new URLSearchParams(window.location.search);
+  const rawTab = params.get('tab') || '';
+  const tab: Tab = rawTab === 'dashboard' || rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : 'memories';
+  return {
+    tab,
+    path: normalizePath(params.get('path') || ''),
+    prefix: normalizePath(params.get('prefix') || ''),
+    search: params.get('q') || '',
+  };
+}
+
+function routeHref(tab: Tab, path = '', prefix = '', search = ''): string {
+  const params = new URLSearchParams({ tab });
+  if (tab === 'memories' && path) params.set('path', normalizePath(path));
+  if (tab === 'memories' && prefix) params.set('prefix', normalizePath(prefix));
+  if (tab === 'memories' && search) params.set('q', search);
+  return `${routeBase()}?${params.toString()}`;
+}
+
+function replaceRoute(tab: Tab, path = '', prefix = '', search = '') {
+  const next = routeHref(tab, path, prefix, search);
+  const current = `${window.location.pathname}${window.location.search}`;
+  if (next !== current) window.history.replaceState(null, '', next);
 }
 
 function fileName(path: string): string {
@@ -319,6 +352,61 @@ type DiffRow = {
 type DiffFile = { name: string; rows: DiffRow[] };
 type DiffSection = { title: string; files: DiffFile[] };
 
+type InlineDiffPart = { text: string; changed: boolean };
+
+type InlineDiffPair = { left: InlineDiffPart[]; right: InlineDiffPart[] };
+
+function stripDiffPrefix(value: string): string {
+  return value.replace(/^[-+ ]/, '');
+}
+
+function commonPrefixLength(left: string, right: string): number {
+  const max = Math.min(left.length, right.length);
+  let index = 0;
+  while (index < max && left[index] === right[index]) index++;
+  return index;
+}
+
+function commonSuffixLength(left: string, right: string, prefixLength: number): number {
+  const leftRemaining = left.length - prefixLength;
+  const rightRemaining = right.length - prefixLength;
+  const max = Math.min(leftRemaining, rightRemaining);
+  let count = 0;
+  while (count < max && left[left.length - 1 - count] === right[right.length - 1 - count]) count++;
+  return count;
+}
+
+function inlineDiffParts(leftRaw: string, rightRaw: string): InlineDiffPair {
+  const left = stripDiffPrefix(leftRaw || '');
+  const right = stripDiffPrefix(rightRaw || '');
+  const prefix = commonPrefixLength(left, right);
+  const suffix = commonSuffixLength(left, right, prefix);
+  const leftMidEnd = suffix ? left.length - suffix : left.length;
+  const rightMidEnd = suffix ? right.length - suffix : right.length;
+
+  const leftParts: InlineDiffPart[] = [];
+  const rightParts: InlineDiffPart[] = [];
+  const push = (parts: InlineDiffPart[], text: string, changed: boolean) => {
+    if (!text) return;
+    const prev = parts[parts.length - 1];
+    if (prev?.changed === changed) prev.text += text;
+    else parts.push({ text, changed });
+  };
+
+  push(leftParts, left.slice(0, prefix), false);
+  push(rightParts, right.slice(0, prefix), false);
+  push(leftParts, left.slice(prefix, leftMidEnd), true);
+  push(rightParts, right.slice(prefix, rightMidEnd), true);
+  push(leftParts, suffix ? left.slice(left.length - suffix) : '', false);
+  push(rightParts, suffix ? right.slice(right.length - suffix) : '', false);
+
+  return { left: leftParts.length ? leftParts : [{ text: left || ' ', changed: false }], right: rightParts.length ? rightParts : [{ text: right || ' ', changed: false }] };
+}
+
+function InlineDiffCode({ parts, side }: { parts: InlineDiffPart[]; side: 'left' | 'right' }) {
+  return <>{parts.map((part, index) => <span key={index} className={part.changed ? `inline-diff ${side}` : undefined}>{part.text}</span>)}</>;
+}
+
 function parseSideBySideDiff(sections: { title: string; diff: string }[]): DiffSection[] {
   const parsed: DiffSection[] = [];
   for (const section of sections.filter((s) => s.diff?.trim())) {
@@ -399,7 +487,8 @@ function useToast() {
 
 export default function App() {
   const { toast, show } = useToast();
-  const [tab, setTab] = useState<Tab>('memories');
+  const initialRoute = useMemo(() => routeFromLocation(), []);
+  const [tab, setTab] = useState<Tab>(initialRoute.tab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
   const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
@@ -408,8 +497,8 @@ export default function App() {
   const [editing, setEditing] = useState(false);
   const [draftPath, setDraftPath] = useState('');
   const [draftContent, setDraftContent] = useState('');
-  const [search, setSearch] = useState('');
-  const [prefix, setPrefix] = useState('');
+  const [search, setSearch] = useState(initialRoute.search);
+  const [prefix, setPrefix] = useState(initialRoute.prefix);
   const [loading, setLoading] = useState(false);
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
@@ -421,6 +510,7 @@ export default function App() {
   const [renamingValue, setRenamingValue] = useState('');
   const [commandOpen, setCommandOpen] = useState(false);
   const [contentFullscreen, setContentFullscreen] = useState(false);
+  const [routePath, setRoutePath] = useState(initialRoute.path);
   const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
 
   const tree = useMemo(() => buildTree(entries), [entries]);
@@ -430,7 +520,14 @@ export default function App() {
 
   useEffect(() => {
     void loadList();
+    if (initialRoute.tab === 'memories' && initialRoute.path) {
+      void loadMemory(initialRoute.path).catch((e) => show(e.message, true));
+    }
   }, []);
+
+  useEffect(() => {
+    replaceRoute(tab, tab === 'memories' ? (current?.path || routePath) : '', prefix, search);
+  }, [tab, current?.path, routePath, prefix, search]);
 
   useEffect(() => {
     localStorage.setItem('memorydock.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
@@ -530,6 +627,7 @@ export default function App() {
     const data = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
     viewChange(() => {
       setCurrent(data.memory);
+      setRoutePath(data.memory.path);
       setDraftPath(data.memory.path);
       setDraftContent(data.memory.content);
       setEditing(false);
@@ -540,6 +638,7 @@ export default function App() {
   function newMemory() {
     const template = '---\ntype: note\nscope: inbox\nsource: user-confirmed\nconfidence: medium\n---\n\n# 新记忆\n\n';
     setCurrent(null);
+    setRoutePath('');
     setDraftPath('inbox/new-memory.md');
     setDraftContent(template);
     setEditing(true);
@@ -563,6 +662,7 @@ export default function App() {
     if (!confirm(`确认删除：${current.path} ?`)) return;
     await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
     setCurrent(null);
+    setRoutePath('');
     setEditing(false);
     setDraftPath('');
     setDraftContent('');
@@ -622,7 +722,7 @@ export default function App() {
     const message = node.type === 'directory' ? `确认递归删除整个文件夹？\n\n${path}\n\n其中的所有文件都会被删除。` : `确认删除文件？\n\n${path}`;
     if (!confirm(message)) return;
     await api(`/v1/memories/${encodeURIComponent(path)}?confirmed=true`, { method: 'DELETE' });
-    if (current?.path && (node.type === 'directory' ? isPathInside(current.path, path) : current.path === path)) setCurrent(null);
+    if (current?.path && (node.type === 'directory' ? isPathInside(current.path, path) : current.path === path)) { setCurrent(null); setRoutePath(''); }
     show(node.type === 'directory' ? `已删除文件夹 ${path}` : `已删除文件 ${path}`);
     await loadList();
   }
@@ -686,7 +786,7 @@ export default function App() {
 
   return (
     <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${contentFullscreen ? 'content-fullscreen-active' : ''}`}>
-      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} />
+      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} currentPath={current?.path || routePath} prefix={prefix} search={search} />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
         {tab === 'dashboard' && (
@@ -894,9 +994,83 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
 }
 
 
-function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void }) {
+function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen, currentPath = '', prefix = '', search = '' }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void; currentPath?: string; prefix?: string; search?: string }) {
+  const [orbPosition, setOrbPosition] = useState(() => {
+    const saved = localStorage.getItem('memorydock.mobileOrbPosition');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as { side?: 'left' | 'right'; y?: number };
+        return { side: parsed.side === 'right' ? 'right' as const : 'left' as const, y: Number.isFinite(parsed.y) ? Number(parsed.y) : 0 };
+      } catch {
+        return { side: 'left' as const, y: 0 };
+      }
+    }
+    return { side: 'left' as const, y: 0 };
+  });
+  const dragRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number; dragging: boolean; raf: number; nextX: number; nextY: number } | null>(null);
+
+  function clampOrbY(y: number) {
+    const min = 12 + (window.visualViewport?.offsetTop || 0);
+    const max = Math.max(min, window.innerHeight - 92 - 12);
+    return Math.min(max, Math.max(min, y));
+  }
+
+  function beginOrbDrag(event: React.PointerEvent<HTMLElement>) {
+    if (!mobileCompact) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = { startX: event.clientX, startY: event.clientY, currentX: rect.left, currentY: rect.top, dragging: false, raf: 0, nextX: rect.left, nextY: rect.top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveOrb(event: React.PointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    if (!mobileCompact || !drag) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 6) drag.dragging = true;
+    if (!drag.dragging) return;
+    drag.nextX = Math.min(window.innerWidth - 76 - 8, Math.max(8, drag.currentX + dx));
+    drag.nextY = clampOrbY(drag.currentY + dy);
+    const target = event.currentTarget;
+    if (!drag.raf) {
+      drag.raf = window.requestAnimationFrame(() => {
+        target.style.setProperty('--mobile-orb-left', `${drag.nextX}px`);
+        target.style.setProperty('--mobile-orb-top', `${drag.nextY}px`);
+        drag.raf = 0;
+      });
+    }
+  }
+
+  function endOrbDrag(event: React.PointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    if (!mobileCompact || !drag) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const side: 'left' | 'right' = rect.left + rect.width / 2 > window.innerWidth / 2 ? 'right' : 'left';
+    if (drag.raf) window.cancelAnimationFrame(drag.raf);
+    const y = clampOrbY(rect.top);
+    const next = { side, y };
+    setOrbPosition(next);
+    localStorage.setItem('memorydock.mobileOrbPosition', JSON.stringify(next));
+    event.currentTarget.style.removeProperty('--mobile-orb-left');
+    event.currentTarget.style.removeProperty('--mobile-orb-top');
+    window.setTimeout(() => { dragRef.current = null; }, 0);
+  }
+
+  const orbStyle = mobileCompact ? ({
+    '--mobile-orb-top': orbPosition.y ? `${orbPosition.y}px` : undefined,
+    '--mobile-orb-left': orbPosition.side === 'right' ? 'calc(100vw - 86px)' : '14px',
+  } as React.CSSProperties) : undefined;
+
   return (
-    <aside className={`sidebar ${mobileCompact ? 'compact-orb' : ''}`} onClick={() => { if (mobileCompact) onCompactOpen?.(); }}>
+    <aside
+      className={`sidebar ${mobileCompact ? 'compact-orb' : ''} ${mobileCompact ? `orb-${orbPosition.side}` : ''}`}
+      style={orbStyle}
+      onPointerDown={beginOrbDrag}
+      onPointerMove={moveOrb}
+      onPointerUp={endOrbDrag}
+      onPointerCancel={endOrbDrag}
+      onClick={() => { if (mobileCompact && !dragRef.current?.dragging) onCompactOpen?.(); }}
+    >
       <div className="brand">
         <div className="brand-mark">M</div>
         {!collapsed && (
@@ -910,18 +1084,18 @@ function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, o
         </button>
       </div>
       <nav className="nav">
-        <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')} title="工作台">
+        <a className={tab === 'dashboard' ? 'active' : ''} href={routeHref('dashboard')} onClick={(event) => { event.preventDefault(); setTab('dashboard'); }} title="工作台">
           <Home size={17} /> {!collapsed && <span>工作台</span>}
-        </button>
-        <button className={tab === 'memories' ? 'active' : ''} onClick={() => setTab('memories')} title="记忆库">
+        </a>
+        <a className={tab === 'memories' ? 'active' : ''} href={routeHref('memories', currentPath, prefix, search)} onClick={(event) => { event.preventDefault(); setTab('memories'); }} title="记忆库">
           <Archive size={17} /> {!collapsed && <span>记忆库</span>}
-        </button>
-        <button className={tab === 'git' ? 'active' : ''} onClick={() => setTab('git')} title="变更审阅">
+        </a>
+        <a className={tab === 'git' ? 'active' : ''} href={routeHref('git')} onClick={(event) => { event.preventDefault(); setTab('git'); }} title="变更审阅">
           <GitBranch size={17} /> {!collapsed && <span>变更审阅</span>}
-        </button>
-        <button className={tab === 'sync' ? 'active' : ''} onClick={() => setTab('sync')} title="同步设置">
+        </a>
+        <a className={tab === 'sync' ? 'active' : ''} href={routeHref('sync')} onClick={(event) => { event.preventDefault(); setTab('sync'); }} title="同步设置">
           <Settings size={17} /> {!collapsed && <span>同步设置</span>}
-        </button>
+        </a>
       </nav>
       {!collapsed && (
         <div className="sidebar-card">
@@ -1174,10 +1348,19 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
   const statLines = (diff?.stat || '').split('\n').filter(Boolean);
   const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
   const [fullscreen, setFullscreen] = useState(false);
+  const [diffMode, setDiffMode] = useState<'split' | 'unified'>(() => {
+    const saved = localStorage.getItem('memorydock.diffMode');
+    if (saved === 'split' || saved === 'unified') return saved;
+    return window.matchMedia('(max-width: 900px)').matches ? 'unified' : 'split';
+  });
   useEffect(() => {
     onFullscreenChange(fullscreen);
     return () => onFullscreenChange(false);
   }, [fullscreen, onFullscreenChange]);
+
+  useEffect(() => {
+    localStorage.setItem('memorydock.diffMode', diffMode);
+  }, [diffMode]);
 
   return (
     <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>
@@ -1212,6 +1395,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
           </div>
           <div className="review-hero-actions">
             {selectedCommit && <span className="pill">{selectedCommit.files.length} files changed</span>}
+            <button onClick={() => setDiffMode((mode) => mode === 'split' ? 'unified' : 'split')} title={diffMode === 'split' ? '切换到单栏' : '切换到左右'}>{diffMode === 'split' ? '单栏' : '左右'}</button>
             <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏审阅'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
             <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
           </div>
@@ -1236,9 +1420,9 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
 
         <div className="diff-viewer review-diff-canvas">
           {selectedCommit ? (
-            commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
+            commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
           ) : sections.length ? (
-            sections.map((section) => <DiffSectionView key={section.title} section={section} onDiscard={onDiscard} onOpenFile={onOpenFile} />)
+            sections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} />)
           ) : changedFiles.length ? (
             <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} />
           ) : <div className="empty-state">没有 diff</div>}
@@ -1288,7 +1472,7 @@ function ChangedFileCards({ files, onOpenFile, onDiscard }: { files: ChangedFile
   );
 }
 
-function DiffSectionView({ section, onDiscard, onOpenFile, readonly = false }: { section: DiffSection; onDiscard: (path?: string) => Promise<void>; onOpenFile: (path: string) => void; readonly?: boolean }) {
+function DiffSectionView({ section, mode, onDiscard, onOpenFile, readonly = false }: { section: DiffSection; mode: 'split' | 'unified'; onDiscard: (path?: string) => Promise<void>; onOpenFile: (path: string) => void; readonly?: boolean }) {
   return (
     <div className="diff-section">
       <div className="diff-stage">{section.title}</div>
@@ -1300,15 +1484,48 @@ function DiffSectionView({ section, onDiscard, onOpenFile, readonly = false }: {
             <button className="ghost" onClick={() => onOpenFile(file.name)}><PenLine size={13} />打开编辑</button>
             {!readonly && <button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button>}
           </div>
-          {file.rows.map((row, index) => <DiffRowView key={index} row={row} />)}
+          {mode === 'split' ? (
+            <div className="diff-file-body split-diff-body">
+              <div className="diff-pane diff-pane-before" aria-label="变更前">
+                {file.rows.map((row, index) => <DiffPaneRow key={`left-${index}`} row={row} side="left" />)}
+              </div>
+              <div className="diff-pane diff-pane-after" aria-label="变更后">
+                {file.rows.map((row, index) => <DiffPaneRow key={`right-${index}`} row={row} side="right" />)}
+              </div>
+            </div>
+          ) : (
+            <div className="diff-file-body unified-diff-body">
+              {file.rows.map((row, index) => <UnifiedDiffRow key={index} row={row} />)}
+            </div>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-function DiffRowView({ row }: { row: DiffRow }) {
-  return <div className={`diff-row ${row.kind}`}><span className="ln">{row.oldNo || ''}</span><code className="left">{row.left || ' '}</code><span className="ln">{row.newNo || ''}</span><code className="right">{row.right || ' '}</code></div>;
+function DiffPaneRow({ row, side }: { row: DiffRow; side: 'left' | 'right' }) {
+  const lineNo = side === 'left' ? row.oldNo : row.newNo;
+  const value = side === 'left' ? row.left : row.right;
+  let content: React.ReactNode = value || ' ';
+  if (row.kind === 'change') {
+    const parts = inlineDiffParts(row.left || '', row.right || '');
+    content = <InlineDiffCode parts={side === 'left' ? parts.left : parts.right} side={side} />;
+  }
+  return <div className={`diff-pane-row ${row.kind}`}><span className="ln">{lineNo || ''}</span><code className={side}>{content}</code></div>;
+}
+
+function UnifiedDiffRow({ row }: { row: DiffRow }) {
+  if (row.kind === 'change') {
+    const parts = inlineDiffParts(row.left || '', row.right || '');
+    return <>
+      <div className="unified-diff-row del change"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code><InlineDiffCode parts={parts.left} side="left" /></code></div>
+      <div className="unified-diff-row add change"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code><InlineDiffCode parts={parts.right} side="right" /></code></div>
+    </>;
+  }
+  if (row.kind === 'add') return <div className="unified-diff-row add"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code>{row.right || ' '}</code></div>;
+  if (row.kind === 'del') return <div className="unified-diff-row del"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code>{row.left || ' '}</code></div>;
+  return <div className={`unified-diff-row ${row.kind}`}><span className="ln">{row.newNo || row.oldNo || ''}</span><span className="sign"> </span><code>{row.right || row.left || ' '}</code></div>;
 }
 
 function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'danger' | 'neutral' }) {
