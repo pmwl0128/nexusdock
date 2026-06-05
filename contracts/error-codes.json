@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "codes": [
+    {
+      "code": "AUTH_REQUIRED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "FORBIDDEN",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "INVALID_TOKEN",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "TOKEN_REVOKED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "VERSION_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DB_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "VALIDATION_ERROR",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "NOT_FOUND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "ALREADY_EXISTS",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "RATE_LIMITED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_EXPIRED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LEASE_EXPIRED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "UNSUPPORTED_COMMAND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "SKILL_BLOCKED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "SCHEMA_MISMATCH",
+      "description": "稳定公共错误码。"
+    }
+  ]
+}
