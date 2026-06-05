@@ -1,0 +1,2110 @@
+{
+  "version": 1,
+  "schemas": {
+    "Actor": {
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "user",
+            "agent",
+            "device",
+            "system"
+          ]
+        }
+      }
+    },
+    "AuditReference": {
+      "required": [
+        "audit_id",
+        "request_id"
+      ],
+      "properties": {
+        "audit_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "request_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "CommandLease": {
+      "required": [
+        "command",
+        "expires_at",
+        "lease_id",
+        "leased_at",
+        "renew_after_seconds"
+      ],
+      "properties": {
+        "command": {
+          "type": null,
+          "ref": "#/components/schemas/DeviceCommand",
+          "enum": null
+        },
+        "expires_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "lease_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "leased_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "renew_after_seconds": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "CommandProgress": {
+      "required": [
+        "command_id",
+        "lease_id",
+        "reported_at",
+        "status"
+      ],
+      "properties": {
+        "command_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "lease_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "message": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "percent": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "reported_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "leased",
+            "running"
+          ]
+        }
+      }
+    },
+    "CommandResult": {
+      "required": [
+        "command_id",
+        "completed_at",
+        "lease_id",
+        "output",
+        "started_at",
+        "status"
+      ],
+      "properties": {
+        "command_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "completed_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "error": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "lease_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "output": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "started_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "succeeded",
+            "failed",
+            "expired",
+            "cancelled"
+          ]
+        }
+      }
+    },
+    "DeviceCapability": {
+      "required": [
+        "enabled",
+        "name",
+        "version"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "ref": null,
+          "enum": null
+        },
+        "metadata": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "DeviceCommand": {
+      "required": [
+        "attempt",
+        "created_at",
+        "device_id",
+        "expires_at",
+        "id",
+        "idempotency_key",
+        "max_attempts",
+        "payload",
+        "risk",
+        "status",
+        "type"
+      ],
+      "properties": {
+        "attempt": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "created_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "expires_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "idempotency_key": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "max_attempts": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "payload": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "risk": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "queued",
+            "leased",
+            "running",
+            "succeeded",
+            "failed",
+            "expired",
+            "cancelled"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "health.check",
+            "skill.install",
+            "skill.run",
+            "skill.rollback",
+            "memory.sync",
+            "service.inspect",
+            "service.restart",
+            "diagnostics.collect",
+            "agentdock.reload"
+          ]
+        }
+      }
+    },
+    "DeviceEnrollmentRequest": {
+      "required": [
+        "agentdock_version",
+        "arch",
+        "enrollment_token",
+        "name",
+        "platform",
+        "public_key"
+      ],
+      "properties": {
+        "agentdock_version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "arch": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "arm64",
+            "amd64"
+          ]
+        },
+        "enrollment_token": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "labels": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "platform": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "darwin",
+            "linux"
+          ]
+        },
+        "public_key": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "DeviceEnrollmentResponse": {
+      "required": [
+        "device_id",
+        "device_token",
+        "heartbeat_interval_seconds",
+        "server_time",
+        "token_expires_at"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "device_token": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "heartbeat_interval_seconds": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "server_time": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "token_expires_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "DeviceHeartbeat": {
+      "required": [
+        "agentdock_version",
+        "capabilities",
+        "device_id",
+        "metrics",
+        "sent_at",
+        "uptime_seconds"
+      ],
+      "properties": {
+        "agentdock_version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "capabilities": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "memory_sync_summary": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "metrics": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "sent_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_summary": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "uptime_seconds": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "DeviceStatus": {
+      "required": [
+        "agentdock_version",
+        "capabilities",
+        "device_id",
+        "labels",
+        "last_seen_at",
+        "status",
+        "version"
+      ],
+      "properties": {
+        "agentdock_version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "capabilities": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "labels": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "last_seen_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "pending",
+            "online",
+            "degraded",
+            "offline",
+            "revoked"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "ErrorDetail": {
+      "required": [
+        "message",
+        "reason"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "message": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "reason": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "ErrorResponse": {
+      "required": [
+        "code",
+        "message",
+        "request_id"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "AUTH_REQUIRED",
+            "FORBIDDEN",
+            "INVALID_TOKEN",
+            "TOKEN_REVOKED",
+            "VERSION_CONFLICT",
+            "DB_CONFLICT",
+            "INTERNAL_ERROR",
+            "VALIDATION_ERROR",
+            "NOT_FOUND",
+            "ALREADY_EXISTS",
+            "RATE_LIMITED",
+            "IDEMPOTENCY_CONFLICT",
+            "COMMAND_EXPIRED",
+            "LEASE_EXPIRED",
+            "UNSUPPORTED_COMMAND",
+            "SKILL_BLOCKED",
+            "SCHEMA_MISMATCH"
+          ]
+        },
+        "details": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "message": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "request_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "EvolutionCandidate": {
+      "required": [
+        "confidence",
+        "created_at",
+        "id",
+        "observation_ids",
+        "reasoning",
+        "score",
+        "signature",
+        "skill_id",
+        "status",
+        "trigger",
+        "updated_at"
+      ],
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "ref": null,
+          "enum": null
+        },
+        "created_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "observation_ids": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "reasoning": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "score": {
+          "type": "number",
+          "ref": null,
+          "enum": null
+        },
+        "signature": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "observed",
+            "watching",
+            "candidate",
+            "proposal_draft",
+            "review_ready",
+            "approved",
+            "testing",
+            "canary",
+            "released",
+            "rejected",
+            "deferred",
+            "rolled_back"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "user_correction",
+            "agent_recovery_success",
+            "false_success",
+            "false_failure",
+            "repeated_failure",
+            "repeated_manual_step",
+            "missing_validation",
+            "environment_drift",
+            "performance_regression",
+            "security_violation",
+            "upstream_update"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "EvolutionProposal": {
+      "required": [
+        "candidate_id",
+        "created_at",
+        "evidence",
+        "expected_benefit",
+        "id",
+        "problem",
+        "risk",
+        "scope",
+        "skill_id",
+        "status",
+        "suggested_files",
+        "tests",
+        "updated_at"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "created_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "evidence": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "expected_benefit": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "problem": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "risk": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "global",
+            "project",
+            "device"
+          ]
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "observed",
+            "watching",
+            "candidate",
+            "proposal_draft",
+            "review_ready",
+            "approved",
+            "testing",
+            "canary",
+            "released",
+            "rejected",
+            "deferred",
+            "rolled_back"
+          ]
+        },
+        "suggested_files": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "tests": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "updated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "IdempotencyKey": {
+      "required": [
+        "key",
+        "scope"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "scope": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "MemoryConflict": {
+      "required": [
+        "detected_at",
+        "id",
+        "memory_id",
+        "memory_value",
+        "observed_value",
+        "source_type",
+        "status",
+        "summary"
+      ],
+      "properties": {
+        "detected_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "memory_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "memory_value": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "observed_value": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "resolution_run_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "resolved_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "source_type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "device_snapshot",
+            "skill_run",
+            "user_edit",
+            "git_merge",
+            "agent_repair"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "open",
+            "resolved",
+            "dismissed"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "MemoryContextPack": {
+      "required": [
+        "conflicts",
+        "entries",
+        "generated_at",
+        "total_bytes",
+        "truncated"
+      ],
+      "properties": {
+        "conflicts": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "entries": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "generated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "total_bytes": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "truncated": {
+          "type": "boolean",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "MemoryEntry": {
+      "required": [
+        "confidence",
+        "content",
+        "id",
+        "path",
+        "scope",
+        "status",
+        "title",
+        "updated_at",
+        "version"
+      ],
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "ref": null,
+          "enum": null
+        },
+        "content": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "path": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "scope": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "profile",
+            "global",
+            "project",
+            "device",
+            "agent",
+            "ops",
+            "inbox"
+          ]
+        },
+        "source_agent": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "source_device": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "active",
+            "stale",
+            "conflicted",
+            "unverified",
+            "deprecated"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "updated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "verification_run_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "verified_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "ObjectReference": {
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "label": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "device",
+            "memory",
+            "skill",
+            "run",
+            "proposal",
+            "project",
+            "task",
+            "command"
+          ]
+        }
+      }
+    },
+    "Observation": {
+      "required": [
+        "evidence_ids",
+        "id",
+        "observed_at",
+        "private_scope",
+        "run_id",
+        "signature",
+        "skill_id",
+        "summary",
+        "trigger"
+      ],
+      "properties": {
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "evidence_ids": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "observed_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "private_scope": {
+          "type": "boolean",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "signature": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "trigger": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "user_correction",
+            "agent_recovery_success",
+            "false_success",
+            "false_failure",
+            "repeated_failure",
+            "repeated_manual_step",
+            "missing_validation",
+            "environment_drift",
+            "performance_regression",
+            "security_violation",
+            "upstream_update"
+          ]
+        }
+      }
+    },
+    "Pagination": {
+      "required": [
+        "limit"
+      ],
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "Run": {
+      "required": [
+        "actor",
+        "evidence",
+        "id",
+        "status",
+        "steps",
+        "summary",
+        "type",
+        "version"
+      ],
+      "properties": {
+        "actor": {
+          "type": null,
+          "ref": "#/components/schemas/Actor",
+          "enum": null
+        },
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "device_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "evidence": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "pending",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "timed_out"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "task_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "skill",
+            "command",
+            "memory",
+            "task",
+            "evolution",
+            "migration",
+            "system"
+          ]
+        },
+        "verification": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "RunEvidence": {
+      "required": [
+        "created_at",
+        "id",
+        "run_id",
+        "summary",
+        "type"
+      ],
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "digest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "log",
+            "command",
+            "http",
+            "screenshot",
+            "artifact",
+            "diff",
+            "metric",
+            "user_confirmation"
+          ]
+        },
+        "uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "RunStep": {
+      "required": [
+        "id",
+        "name",
+        "run_id",
+        "sequence",
+        "status",
+        "summary"
+      ],
+      "properties": {
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "error": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "sequence": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "pending",
+            "running",
+            "succeeded",
+            "failed",
+            "skipped"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillDetail": {
+      "required": [
+        "compatibility",
+        "installed_devices",
+        "operations",
+        "provenance",
+        "releases",
+        "summary"
+      ],
+      "properties": {
+        "compatibility": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "installed_devices": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "operations": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "provenance": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "releases": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "summary": {
+          "type": null,
+          "ref": "#/components/schemas/SkillSummary",
+          "enum": null
+        }
+      }
+    },
+    "SkillInstallation": {
+      "required": [
+        "channel",
+        "device_id",
+        "id",
+        "installed_at",
+        "release_id",
+        "skill_id",
+        "status",
+        "version"
+      ],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "development",
+            "canary",
+            "stable",
+            "pinned"
+          ]
+        },
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "installed_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "last_error": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "release_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "pending",
+            "installing",
+            "active",
+            "failed",
+            "rolling_back",
+            "rolled_back",
+            "removed"
+          ]
+        },
+        "verified_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillOperation": {
+      "required": [
+        "description",
+        "input_schema",
+        "name",
+        "output_schema",
+        "permissions",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "input_schema": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "output_schema": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "permissions": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillRelease": {
+      "required": [
+        "channel",
+        "digest",
+        "id",
+        "manifest_url",
+        "package_url",
+        "published_at",
+        "published_by",
+        "skill_id",
+        "version"
+      ],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "development",
+            "canary",
+            "stable",
+            "pinned"
+          ]
+        },
+        "digest": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "manifest_url": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "package_url": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "published_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "published_by": {
+          "type": null,
+          "ref": "#/components/schemas/Actor",
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillRunRequest": {
+      "required": [
+        "device_id",
+        "idempotency_key",
+        "input",
+        "operation",
+        "skill_id"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "idempotency_key": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "input": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "operation": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "release_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillRunResult": {
+      "required": [
+        "completed_at",
+        "operation",
+        "output",
+        "run_id",
+        "skill_id",
+        "started_at",
+        "status"
+      ],
+      "properties": {
+        "completed_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "error": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "operation": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "output": {
+          "type": "object",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "skill_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "started_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "succeeded",
+            "failed",
+            "cancelled",
+            "timed_out"
+          ]
+        },
+        "verification": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "SkillSummary": {
+      "required": [
+        "description",
+        "display_name",
+        "id",
+        "latest_version",
+        "maturity",
+        "name",
+        "trust",
+        "updated_at"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "display_name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "latest_version": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "maturity": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "experimental",
+            "development",
+            "canary",
+            "stable",
+            "deprecated"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "trust": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "unknown",
+            "reviewed",
+            "trusted",
+            "blocked"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "Task": {
+      "required": [
+        "category",
+        "completion_criteria",
+        "created_at",
+        "description",
+        "id",
+        "links",
+        "object_id",
+        "priority",
+        "risk_constraints",
+        "source_id",
+        "source_type",
+        "status",
+        "title",
+        "type",
+        "updated_at",
+        "version"
+      ],
+      "properties": {
+        "assigned_actor": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "category": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "completion": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "completion_criteria": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "created_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "description": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "links": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "object_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "priority": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "critical"
+          ]
+        },
+        "risk_constraints": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "source_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "source_type": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "inbox",
+            "ready",
+            "in_progress",
+            "blocked",
+            "awaiting_user",
+            "awaiting_agent",
+            "completed",
+            "cancelled",
+            "failed"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "needs_agent",
+            "needs_user",
+            "automatic",
+            "scheduled",
+            "review"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "version": {
+          "type": "integer",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "TaskCompletion": {
+      "required": [
+        "completed_at",
+        "evidence_ids",
+        "summary",
+        "verification_summary"
+      ],
+      "properties": {
+        "completed_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "evidence_ids": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "enum": null
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "verification_summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "TaskContextPack": {
+      "required": [
+        "evidence",
+        "generated_at",
+        "memory",
+        "recent_runs",
+        "task",
+        "truncated"
+      ],
+      "properties": {
+        "device": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "evidence": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "generated_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "memory": {
+          "type": null,
+          "ref": "#/components/schemas/MemoryContextPack",
+          "enum": null
+        },
+        "recent_runs": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "skill": {
+          "type": null,
+          "ref": null,
+          "enum": null
+        },
+        "task": {
+          "type": null,
+          "ref": "#/components/schemas/Task",
+          "enum": null
+        },
+        "truncated": {
+          "type": "boolean",
+          "ref": null,
+          "enum": null
+        }
+      }
+    },
+    "TaskLink": {
+      "required": [
+        "object_id",
+        "relation",
+        "type"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "relation": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "type": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "device",
+            "memory",
+            "skill",
+            "run",
+            "proposal",
+            "project"
+          ]
+        }
+      }
+    },
+    "VerificationResult": {
+      "required": [
+        "checks",
+        "status",
+        "summary",
+        "verified_at"
+      ],
+      "properties": {
+        "checks": {
+          "type": "array",
+          "ref": null,
+          "enum": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        },
+        "verified_at": {
+          "type": "string",
+          "ref": null,
+          "enum": null
+        }
+      }
+    }
+  }
+}
