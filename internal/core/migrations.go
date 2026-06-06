@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	migrationfiles "github.com/uvwt/memorydock/migrations"
+	migrationfiles "github.com/uvwt/agentdock-nexus/migrations"
 )
 
 type Migration struct {

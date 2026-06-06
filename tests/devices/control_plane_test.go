@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/commands"
-	"github.com/uvwt/memorydock/internal/devices"
+	"github.com/uvwt/agentdock-nexus/internal/commands"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
 )
 
 type fakeClock struct {

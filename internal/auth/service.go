@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 type Principal struct {

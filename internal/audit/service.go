@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 type Event struct {

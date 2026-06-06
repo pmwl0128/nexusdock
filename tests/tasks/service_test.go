@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/tasks"
+	"github.com/uvwt/agentdock-nexus/internal/tasks"
 )
 
 type ids struct {

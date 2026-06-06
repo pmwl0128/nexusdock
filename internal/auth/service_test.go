@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 func TestIssueAuthenticateScopeAndRevoke(t *testing.T) {

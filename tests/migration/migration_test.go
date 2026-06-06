@@ -10,7 +10,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/memory"
 )
 
 func TestLegacyMemoryDockDataIsOpenedInPlaceWithoutMutation(t *testing.T) {

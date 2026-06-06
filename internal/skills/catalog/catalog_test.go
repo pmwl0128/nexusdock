@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
-	"github.com/uvwt/memorydock/internal/skills/importer"
-	"github.com/uvwt/memorydock/internal/skills/provenance"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/importer"
+	"github.com/uvwt/agentdock-nexus/internal/skills/provenance"
 )
 
 type installationStub struct {

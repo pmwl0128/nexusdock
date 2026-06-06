@@ -1,4 +1,4 @@
-module github.com/uvwt/memorydock
+module github.com/uvwt/agentdock-nexus
 
 go 1.26.3
 

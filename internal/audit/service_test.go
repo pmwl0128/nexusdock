@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 func TestAuditEventsAreAppendOnly(t *testing.T) {

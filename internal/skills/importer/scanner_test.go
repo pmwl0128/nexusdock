@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
 )
 
 func TestScanBlocksDangerousPackage(t *testing.T) {

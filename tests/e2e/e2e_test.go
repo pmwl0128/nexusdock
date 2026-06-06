@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/config"
-	"github.com/uvwt/memorydock/internal/httpx"
-	"github.com/uvwt/memorydock/internal/memory"
-	"github.com/uvwt/memorydock/internal/syncer"
+	"github.com/uvwt/agentdock-nexus/internal/config"
+	"github.com/uvwt/agentdock-nexus/internal/httpx"
+	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 func newHandler(t *testing.T) http.Handler {

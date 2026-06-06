@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/evolution"
+	"github.com/uvwt/agentdock-nexus/internal/evolution"
 )
 
 type fixedClock struct{ now time.Time }

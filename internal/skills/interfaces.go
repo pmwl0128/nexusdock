@@ -3,9 +3,9 @@ package skills
 import (
 	"context"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
-	"github.com/uvwt/memorydock/internal/skills/exporter"
-	"github.com/uvwt/memorydock/internal/skills/importer"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/exporter"
+	"github.com/uvwt/agentdock-nexus/internal/skills/importer"
 )
 
 type SkillCatalog interface {

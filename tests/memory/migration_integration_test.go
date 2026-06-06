@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	memory "github.com/uvwt/memorydock/internal/memory"
-	memorysync "github.com/uvwt/memorydock/internal/sync/memory"
+	memory "github.com/uvwt/agentdock-nexus/internal/memory"
+	memorysync "github.com/uvwt/agentdock-nexus/internal/sync/memory"
 )
 
 func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {

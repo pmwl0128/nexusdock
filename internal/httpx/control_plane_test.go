@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	contracts "github.com/uvwt/memorydock/generated/nexuscontracts"
-	"github.com/uvwt/memorydock/internal/commands"
-	"github.com/uvwt/memorydock/internal/config"
-	"github.com/uvwt/memorydock/internal/devices"
-	"github.com/uvwt/memorydock/internal/memory"
-	"github.com/uvwt/memorydock/internal/syncer"
+	contracts "github.com/uvwt/agentdock-nexus/generated/nexuscontracts"
+	"github.com/uvwt/agentdock-nexus/internal/commands"
+	"github.com/uvwt/agentdock-nexus/internal/config"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
+	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 func newControlPlaneTestHandler(t *testing.T) (http.Handler, *commands.Service) {

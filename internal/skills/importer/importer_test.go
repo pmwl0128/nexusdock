@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/skills/provenance"
+	"github.com/uvwt/agentdock-nexus/internal/skills/provenance"
 )
 
 func TestImportGenericDirectoryPreservesFilesAndAddsManifest(t *testing.T) {

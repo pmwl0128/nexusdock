@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/api/middleware"
-	"github.com/uvwt/memorydock/internal/audit"
-	"github.com/uvwt/memorydock/internal/auth"
-	"github.com/uvwt/memorydock/internal/core"
-	"github.com/uvwt/memorydock/internal/runs"
+	"github.com/uvwt/agentdock-nexus/internal/api/middleware"
+	"github.com/uvwt/agentdock-nexus/internal/audit"
+	"github.com/uvwt/agentdock-nexus/internal/auth"
+	"github.com/uvwt/agentdock-nexus/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/runs"
 )
 
 type app struct {

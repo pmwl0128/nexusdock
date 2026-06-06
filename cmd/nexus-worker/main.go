@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/auth"
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/auth"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 func main() {

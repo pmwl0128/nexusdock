@@ -6,7 +6,7 @@ package memorysync
 import (
 	"log/slog"
 
-	"github.com/uvwt/memorydock/internal/syncer"
+	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 type Config = syncer.Config

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/devices"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
 )
 
 type Type string

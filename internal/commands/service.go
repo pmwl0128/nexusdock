@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/devices"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
 )
 
 const defaultLeaseDuration = 30 * time.Second

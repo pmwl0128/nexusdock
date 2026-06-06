@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	contracts "github.com/uvwt/memorydock/generated/nexuscontracts"
-	"github.com/uvwt/memorydock/internal/commands"
-	"github.com/uvwt/memorydock/internal/devices"
+	contracts "github.com/uvwt/agentdock-nexus/generated/nexuscontracts"
+	"github.com/uvwt/agentdock-nexus/internal/commands"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
 )
 
 func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {

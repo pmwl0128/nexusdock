@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/uvwt/memorydock/internal/api/middleware"
-	"github.com/uvwt/memorydock/internal/runs"
+	"github.com/uvwt/agentdock-nexus/internal/api/middleware"
+	"github.com/uvwt/agentdock-nexus/internal/runs"
 )
 
 func (a *app) createRun(w http.ResponseWriter, r *http.Request) {

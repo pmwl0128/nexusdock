@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 func TestRunLifecycleEvidenceVerificationAndVersionConflict(t *testing.T) {

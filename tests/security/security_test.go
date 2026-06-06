@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/memory"
 )
 
 func TestMemoryStoreRejectsTraversalAndHiddenPaths(t *testing.T) {

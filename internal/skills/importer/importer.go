@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
-	"github.com/uvwt/memorydock/internal/skills/provenance"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/provenance"
 )
 
 const (

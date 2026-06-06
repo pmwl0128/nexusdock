@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
 )
 
 type adapterStub struct{}

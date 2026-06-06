@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/memorydock/internal/contextpack"
-	"github.com/uvwt/memorydock/internal/tasks"
+	"github.com/uvwt/agentdock-nexus/internal/contextpack"
+	"github.com/uvwt/agentdock-nexus/internal/tasks"
 )
 
 type memProvider struct{ payload json.RawMessage }

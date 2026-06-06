@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/uvwt/memorydock/internal/skills/provenance"
+	"github.com/uvwt/agentdock-nexus/internal/skills/provenance"
 )
 
 type Trust string

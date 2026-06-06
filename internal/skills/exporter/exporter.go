@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/uvwt/memorydock/internal/skills/catalog"
-	"github.com/uvwt/memorydock/internal/skills/importer"
+	"github.com/uvwt/agentdock-nexus/internal/skills/catalog"
+	"github.com/uvwt/agentdock-nexus/internal/skills/importer"
 )
 
 type Format string

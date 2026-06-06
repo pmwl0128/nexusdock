@@ -11,11 +11,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/uvwt/memorydock/internal/commands"
-	"github.com/uvwt/memorydock/internal/config"
-	"github.com/uvwt/memorydock/internal/devices"
-	"github.com/uvwt/memorydock/internal/memory"
-	"github.com/uvwt/memorydock/internal/syncer"
+	"github.com/uvwt/agentdock-nexus/internal/commands"
+	"github.com/uvwt/agentdock-nexus/internal/config"
+	"github.com/uvwt/agentdock-nexus/internal/devices"
+	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 type Server struct {

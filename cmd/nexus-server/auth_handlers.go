@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/uvwt/memorydock/internal/api/middleware"
-	"github.com/uvwt/memorydock/internal/core"
+	"github.com/uvwt/agentdock-nexus/internal/api/middleware"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
 func (a *app) issueToken(w http.ResponseWriter, r *http.Request) {
