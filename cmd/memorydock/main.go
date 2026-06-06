@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/uvwt/memorydock/internal/commands"
 	"github.com/uvwt/memorydock/internal/config"
+	"github.com/uvwt/memorydock/internal/devices"
 	"github.com/uvwt/memorydock/internal/httpx"
 	"github.com/uvwt/memorydock/internal/memory"
 	"github.com/uvwt/memorydock/internal/syncer"
@@ -43,7 +45,18 @@ func main() {
 	defer cancel()
 	syncManager.Start(ctx)
 
-	server := httpx.NewServer(cfg, store, syncManager, logger)
+	deviceService, err := devices.NewService(devices.NewMemoryRepository())
+	if err != nil {
+		logger.Error("failed to initialize device control plane", "error", err)
+		os.Exit(1)
+	}
+	commandService, err := commands.NewService(commands.NewMemoryRepository(), deviceService)
+	if err != nil {
+		logger.Error("failed to initialize command control plane", "error", err)
+		os.Exit(1)
+	}
+
+	server := httpx.NewServer(cfg, store, syncManager, logger, httpx.WithControlPlane(deviceService, commandService))
 	httpServer := &http.Server{
 		Addr:              cfg.Addr(),
 		Handler:           server.Handler(),

@@ -45,12 +45,12 @@ func TestEnrollDevice(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 	response, err := client.EnrollDevice(context.Background(), DeviceEnrollmentRequest{
-		EnrollmentToken: "enrollment-token-long-enough",
-		Name:            "DockMini",
-		Platform:        "darwin",
-		Arch:            "arm64",
+		EnrollmentToken:  "enrollment-token-long-enough",
+		Name:             "DockMini",
+		Platform:         "darwin",
+		Arch:             "arm64",
 		AgentdockVersion: "0.3.0-go",
-		PublicKey:       "test-public-key",
+		PublicKey:        "test-public-key",
 	})
 	if err != nil {
 		t.Fatalf("EnrollDevice: %v", err)
