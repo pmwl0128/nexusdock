@@ -370,6 +370,13 @@ func (s *Service) RefreshStatuses(ctx context.Context) ([]Device, error) {
 	return changed, nil
 }
 
+func (s *Service) List(ctx context.Context) ([]Device, error) {
+	if _, err := s.RefreshStatuses(ctx); err != nil {
+		return nil, err
+	}
+	return s.repository.ListDevices(ctx)
+}
+
 func (s *Service) Snapshot(ctx context.Context, deviceID string) (Snapshot, error) {
 	device, err := s.repository.GetDevice(ctx, deviceID)
 	if err != nil {

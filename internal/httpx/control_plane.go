@@ -14,6 +14,8 @@ import (
 
 func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {
 	admin := func(next http.HandlerFunc) http.HandlerFunc { return s.withAPIAccess(next) }
+	mux.HandleFunc("GET /v1/devices", admin(s.listDevices))
+	mux.HandleFunc("GET /v1/devices/{deviceId}", admin(s.getDevice))
 	mux.HandleFunc("POST /v1/devices/enrollment-tokens", admin(s.createEnrollmentToken))
 	mux.HandleFunc("POST /v1/devices/enroll", s.enrollDevice)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/approve", admin(s.approveDevice))
@@ -21,7 +23,9 @@ func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/devices/{deviceId}/heartbeat", s.reportDeviceHeartbeat)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/token/rotate", s.rotateDeviceToken)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/commands", admin(s.createDeviceCommand))
+	mux.HandleFunc("GET /v1/devices/{deviceId}/commands", admin(s.listDeviceCommands))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/commands/lease", s.leaseDeviceCommand)
+	mux.HandleFunc("GET /v1/commands/{commandId}", admin(s.getCommand))
 	mux.HandleFunc("POST /v1/commands/{commandId}/start", s.startCommand)
 	mux.HandleFunc("POST /v1/commands/{commandId}/renew", s.renewCommandLease)
 	mux.HandleFunc("POST /v1/commands/{commandId}/progress", s.reportCommandProgress)
@@ -45,6 +49,42 @@ func (s *Server) createEnrollmentToken(w http.ResponseWriter, r *http.Request) {
 		Token:     result.PlainToken,
 		ExpiresAt: result.Token.ExpiresAt.Format(time.RFC3339Nano),
 	})
+}
+
+func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
+	items, err := s.devices.List(r.Context())
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) getDevice(w http.ResponseWriter, r *http.Request) {
+	snapshot, err := s.devices.Snapshot(r.Context(), r.PathValue("deviceId"))
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snapshot)
+}
+
+func (s *Server) listDeviceCommands(w http.ResponseWriter, r *http.Request) {
+	items, err := s.commands.ListByDevice(r.Context(), r.PathValue("deviceId"))
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) getCommand(w http.ResponseWriter, r *http.Request) {
+	command, err := s.commands.Get(r.Context(), r.PathValue("commandId"))
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, command)
 }
 
 func (s *Server) enrollDevice(w http.ResponseWriter, r *http.Request) {

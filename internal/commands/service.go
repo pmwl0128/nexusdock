@@ -68,6 +68,10 @@ func (s *Service) Get(ctx context.Context, commandID string) (Command, error) {
 	return s.repository.Get(ctx, strings.TrimSpace(commandID))
 }
 
+func (s *Service) ListByDevice(ctx context.Context, deviceID string) ([]Command, error) {
+	return s.repository.ListByDevice(ctx, strings.TrimSpace(deviceID))
+}
+
 func NewService(repository Repository, authorizer Authorizer, options ...Option) (*Service, error) {
 	if repository == nil || authorizer == nil {
 		return nil, commandError(ErrValidation, "repository and authorizer are required")

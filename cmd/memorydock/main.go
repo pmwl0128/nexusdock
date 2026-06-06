@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
+	"github.com/uvwt/agentdock-nexus/internal/core"
 	"github.com/uvwt/agentdock-nexus/internal/devices"
 	"github.com/uvwt/agentdock-nexus/internal/httpx"
 	"github.com/uvwt/agentdock-nexus/internal/memory"
@@ -45,12 +47,30 @@ func main() {
 	defer cancel()
 	syncManager.Start(ctx)
 
-	deviceService, err := devices.NewService(devices.NewMemoryRepository())
+	controlDir := filepath.Join(cfg.StoreDir, ".nexus")
+	if err := os.MkdirAll(controlDir, 0o700); err != nil {
+		logger.Error("failed to create control plane directory", "error", err)
+		os.Exit(1)
+	}
+	controlDBPath := filepath.Join(controlDir, "control-plane.db")
+	controlDB, err := core.OpenSQLite(ctx, controlDBPath, 4)
+	if err != nil {
+		logger.Error("failed to open control plane database", "error", err)
+		os.Exit(1)
+	}
+	defer controlDB.Close()
+	migrations := core.NewMigrationRunner(controlDB, core.SQLiteBackupHook{SourcePath: controlDBPath, Directory: filepath.Join(controlDir, "backups")})
+	if err := migrations.Run(ctx); err != nil {
+		logger.Error("failed to migrate control plane database", "error", err)
+		os.Exit(1)
+	}
+
+	deviceService, err := devices.NewService(devices.NewSQLiteRepository(controlDB))
 	if err != nil {
 		logger.Error("failed to initialize device control plane", "error", err)
 		os.Exit(1)
 	}
-	commandService, err := commands.NewService(commands.NewMemoryRepository(), deviceService)
+	commandService, err := commands.NewService(commands.NewSQLiteRepository(controlDB), deviceService)
 	if err != nil {
 		logger.Error("failed to initialize command control plane", "error", err)
 		os.Exit(1)
