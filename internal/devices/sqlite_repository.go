@@ -15,7 +15,31 @@ type SQLiteRepository struct {
 	mu sync.Mutex
 }
 
+type persistedDevice struct {
+	Device               Device    `json:"device"`
+	DeviceTokenDigest    string    `json:"device_token_digest"`
+	DeviceTokenExpiresAt time.Time `json:"device_token_expires_at"`
+}
+
 func NewSQLiteRepository(db *sql.DB) *SQLiteRepository { return &SQLiteRepository{db: db} }
+
+func encodeDevice(device Device) ([]byte, error) {
+	return json.Marshal(persistedDevice{
+		Device:               device,
+		DeviceTokenDigest:    device.DeviceTokenDigest,
+		DeviceTokenExpiresAt: device.DeviceTokenExpiresAt,
+	})
+}
+
+func decodeDevice(payload string) (Device, error) {
+	var stored persistedDevice
+	if err := json.Unmarshal([]byte(payload), &stored); err != nil {
+		return Device{}, err
+	}
+	stored.Device.DeviceTokenDigest = stored.DeviceTokenDigest
+	stored.Device.DeviceTokenExpiresAt = stored.DeviceTokenExpiresAt
+	return stored.Device, nil
+}
 
 func (r *SQLiteRepository) CreateEnrollmentToken(ctx context.Context, token EnrollmentToken) error {
 	payload, err := json.Marshal(token)
@@ -59,7 +83,7 @@ func (r *SQLiteRepository) CommitEnrollment(ctx context.Context, digest string, 
 	}
 	token.UsedAt = ptrTime(now)
 	tokenJSON, _ := json.Marshal(token)
-	deviceJSON, _ := json.Marshal(device)
+	deviceJSON, _ := encodeDevice(device)
 	if _, err = tx.ExecContext(ctx, `UPDATE device_enrollment_tokens SET payload_json=?,used_at=? WHERE digest=?`, string(tokenJSON), now.UTC().Format(time.RFC3339Nano), digest); err != nil {
 		return Device{}, err
 	}
@@ -98,7 +122,7 @@ func (r *SQLiteRepository) ConsumeEnrollmentToken(ctx context.Context, digest st
 }
 
 func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) error {
-	payload, _ := json.Marshal(device)
+	payload, _ := encodeDevice(device)
 	_, err := r.db.ExecContext(ctx, `INSERT INTO device_records(id,version,status,payload_json,updated_at) VALUES(?,?,?,?,?)`, device.ID, device.Version, device.Status, string(payload), device.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return domainError(ErrDeviceAlreadyExists, "device %q already exists", device.ID)
@@ -113,8 +137,8 @@ func (r *SQLiteRepository) GetDevice(ctx context.Context, id string) (Device, er
 	} else if err != nil {
 		return Device{}, err
 	}
-	var device Device
-	if err := json.Unmarshal([]byte(payload), &device); err != nil {
+	device, err := decodeDevice(payload)
+	if err != nil {
 		return Device{}, err
 	}
 	return device, nil
@@ -132,8 +156,8 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context) ([]Device, error) {
 		if err := rows.Scan(&payload); err != nil {
 			return nil, err
 		}
-		var d Device
-		if err := json.Unmarshal([]byte(payload), &d); err != nil {
+		d, err := decodeDevice(payload)
+		if err != nil {
 			return nil, err
 		}
 		result = append(result, d)
@@ -143,7 +167,7 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context) ([]Device, error) {
 
 func (r *SQLiteRepository) UpdateDevice(ctx context.Context, device Device, expectedVersion int64) (Device, error) {
 	device.Version = expectedVersion + 1
-	payload, _ := json.Marshal(device)
+	payload, _ := encodeDevice(device)
 	res, err := r.db.ExecContext(ctx, `UPDATE device_records SET version=?,status=?,payload_json=?,updated_at=? WHERE id=? AND version=?`, device.Version, device.Status, string(payload), device.UpdatedAt.UTC().Format(time.RFC3339Nano), device.ID, expectedVersion)
 	if err != nil {
 		return Device{}, err
@@ -174,7 +198,7 @@ func (r *SQLiteRepository) RecordHeartbeat(ctx context.Context, id string, expec
 	device.Status = StatusOnline
 	device.UpdatedAt = heartbeat.ReceivedAt
 	device.Version++
-	dj, _ := json.Marshal(device)
+	dj, _ := encodeDevice(device)
 	hj, _ := json.Marshal(heartbeat)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
