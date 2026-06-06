@@ -1,1622 +1,317 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Archive,
-  Braces,
-  ChevronDown,
-  ChevronLeft,
+  Activity,
+  BellRing,
+  Bot,
+  Boxes,
   ChevronRight,
-  Clock3,
-  Command,
-  FileText,
+  CircleAlert,
+  CircleCheck,
+  Database,
   Home,
-  Folder,
-  FolderOpen,
-  GitBranch,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  PenLine,
-  Plus,
+  Menu,
+  PlayCircle,
   RefreshCw,
-  Save,
   Search,
+  Server,
   Settings,
-  Trash2,
-  Undo2,
+  ShieldCheck,
+  Sparkles,
   X,
 } from 'lucide-react';
+import MemoryWorkspace from './MemoryWorkspace';
+import './nexus.css';
 
-type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
-type EntryType = 'file' | 'directory';
+type Section = 'home' | 'inbox' | 'devices' | 'memory' | 'skills' | 'runs' | 'settings';
+type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
-type MemoryEntry = {
-  path: string;
+type Overview = {
+  agent_tasks: number;
+  user_tasks: number;
+  device_alerts: number;
+  skill_candidates: number;
+  memory_conflicts: number;
+  recent_failures: number;
+};
+
+type Device = {
+  id: string;
   name: string;
-  type: EntryType;
-  size_bytes?: number;
+  status: string;
+  platform?: string;
+  version?: string;
+  last_seen?: string;
+  skills?: number;
 };
 
-type Memory = {
-  path: string;
-  content: string;
+type Task = {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  source?: string;
+  updated_at?: string;
 };
 
-type TreeNode = {
+type Skill = {
+  id: string;
   name: string;
-  path: string;
-  type: EntryType;
-  entry?: MemoryEntry;
-  children: Map<string, TreeNode>;
+  version?: string;
+  trust?: string;
+  maturity?: string;
+  installations?: number;
 };
 
-type ChangedFile = {
+type Run = {
+  id: string;
+  title?: string;
   status: string;
-  path: string;
+  device?: string;
+  skill?: string;
+  started_at?: string;
 };
 
-type GitDiff = {
-  ok: boolean;
-  git_repo: boolean;
-  dirty: boolean;
-  status: string;
-  stat: string;
-  diff: string;
-  cached_diff: string;
-  files?: ChangedFile[];
+type Resource<T> = { data: T; live: boolean; loading: boolean };
+
+const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'inbox', label: 'Inbox', icon: BellRing },
+  { id: 'devices', label: 'Devices', icon: Server },
+  { id: 'memory', label: 'Memory', icon: Database },
+  { id: 'skills', label: 'Skills', icon: Boxes },
+  { id: 'runs', label: 'Runs', icon: PlayCircle },
+  { id: 'settings', label: 'Settings', icon: Settings },
+];
+
+const EMPTY_OVERVIEW: Overview = {
+  agent_tasks: 0,
+  user_tasks: 0,
+  device_alerts: 0,
+  skill_candidates: 0,
+  memory_conflicts: 0,
+  recent_failures: 0,
 };
 
-type GitCommit = {
-  hash: string;
-  short_hash: string;
-  date: string;
-  author: string;
-  subject: string;
-};
-
-type CommitFile = {
-  status: string;
-  path: string;
-};
-
-type CommitDetail = {
-  ok: boolean;
-  git_repo: boolean;
-  commit: GitCommit;
-  files: CommitFile[];
-  stat: string;
-  diff: string;
-};
-
-type SyncStatus = Record<string, unknown> & {
-  dirty?: boolean;
-  ahead?: string;
-  behind?: string;
-  pending_push?: boolean;
-};
-
-type AccessConfig = {
-  ok: boolean;
-  enabled: boolean;
-  username: string;
-};
-
-type Toast = { message: string; danger?: boolean } | null;
-
-const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
-const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
-
-async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false) {
-    throw new Error(data?.error?.message || res.statusText);
-  }
-  return data as T;
-}
-
-function normalizePath(path: string): string {
-  return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-}
-
-function routeBase(): string {
-  const marker = '/ui';
-  const path = window.location.pathname || '/ui/';
-  const index = path.indexOf(marker);
-  return index >= 0 ? `${path.slice(0, index + marker.length)}/` : '/ui/';
-}
-
-function routeFromLocation(): { tab: Tab; path: string; prefix: string; search: string } {
+function sectionFromHash(): Section {
+  const value = window.location.hash.replace(/^#\/?/, '').split('/')[0] as Section;
+  if (NAV.some((item) => item.id === value)) return value;
   const params = new URLSearchParams(window.location.search);
-  const rawTab = params.get('tab') || '';
-  const tab: Tab = rawTab === 'dashboard' || rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : 'memories';
-  return {
-    tab,
-    path: normalizePath(params.get('path') || ''),
-    prefix: normalizePath(params.get('prefix') || ''),
-    search: params.get('q') || '',
-  };
+  if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'memory';
+  return 'home';
 }
 
-function routeHref(tab: Tab, path = '', prefix = '', search = ''): string {
-  const params = new URLSearchParams({ tab });
-  if (tab === 'memories' && path) params.set('path', normalizePath(path));
-  if (tab === 'memories' && prefix) params.set('prefix', normalizePath(prefix));
-  if (tab === 'memories' && search) params.set('q', search);
-  return `${routeBase()}?${params.toString()}`;
-}
+function useResource<T>(paths: string[], fallback: T, refreshToken: number): Resource<T> {
+  const [state, setState] = useState<Resource<T>>({ data: fallback, live: false, loading: true });
+  const key = paths.join('|');
 
-function replaceRoute(tab: Tab, path = '', prefix = '', search = '') {
-  const next = routeHref(tab, path, prefix, search);
-  const current = `${window.location.pathname}${window.location.search}`;
-  if (next !== current) window.history.replaceState(null, '', next);
-}
-
-function fileName(path: string): string {
-  const parts = normalizePath(path).split('/').filter(Boolean);
-  return parts[parts.length - 1] || '';
-}
-
-function parentPath(path: string): string {
-  const parts = normalizePath(path).split('/').filter(Boolean);
-  parts.pop();
-  return parts.join('/');
-}
-
-function joinPath(dir: string, name: string): string {
-  dir = normalizePath(dir);
-  name = fileName(name);
-  return dir ? `${dir}/${name}` : name;
-}
-
-function formatBytes(bytes?: number): string {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function buildTree(entries: MemoryEntry[]): TreeNode {
-  const root: TreeNode = { name: '', path: '', type: 'directory', children: new Map() };
-  for (const entry of entries) {
-    const parts = normalizePath(entry.path).split('/').filter(Boolean);
-    let node = root;
-    let cursor = '';
-    parts.forEach((part, index) => {
-      cursor = cursor ? `${cursor}/${part}` : part;
-      const leaf = index === parts.length - 1;
-      let child = node.children.get(part);
-      if (!child) {
-        child = { name: part, path: cursor, type: 'directory', children: new Map() };
-        node.children.set(part, child);
+  useEffect(() => {
+    let cancelled = false;
+    setState((current) => ({ ...current, loading: true }));
+    void (async () => {
+      for (const path of paths) {
+        try {
+          const response = await fetch(path, { headers: { Accept: 'application/json' } });
+          if (!response.ok) continue;
+          const body = await response.json();
+          if (!cancelled) setState({ data: (body.data ?? body.items ?? body) as T, live: true, loading: false });
+          return;
+        } catch {
+          // Compatibility mode while backend branches are merged.
+        }
       }
-      if (leaf) {
-        child.type = entry.type;
-        child.entry = entry;
-      }
-      node = child;
-    });
-  }
-  return root;
+      if (!cancelled) setState({ data: fallback, live: false, loading: false });
+    })();
+    return () => { cancelled = true; };
+  }, [key, refreshToken]);
+
+  return state;
 }
 
-function sortedChildren(node: TreeNode): TreeNode[] {
-  return [...node.children.values()].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-    return a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
-  });
+function formatTime(value?: string): string {
+  if (!value) return '暂无时间';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
-function countFiles(node: TreeNode): number {
-  if (node.type === 'file') return 1;
-  return [...node.children.values()].reduce((sum, child) => sum + countFiles(child), 0);
-}
-
-function isPathInside(path: string, dir: string): boolean {
-  path = normalizePath(path);
-  dir = normalizePath(dir);
-  return Boolean(path && dir && (path === dir || path.startsWith(`${dir}/`)));
-}
-
-function renderInlineMarkdown(input: string): string {
-  let html = escapeHtml(input);
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  return html;
-}
-
-function escapeHtml(input: string): string {
-  return String(input).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
-}
-
-function splitFrontmatter(content: string): { meta: string; body: string } {
-  if (!content.startsWith('---\n')) return { meta: '', body: content };
-  const end = content.indexOf('\n---\n', 4);
-  if (end < 0) return { meta: '', body: content };
-  return { meta: content.slice(4, end), body: content.slice(end + 5) };
-}
-
-function markdownToHtml(content: string): string {
-  const { meta, body } = splitFrontmatter(content);
-  const lines = body.replace(/\r\n/g, '\n').split('\n');
-  const out: string[] = [];
-  let paragraph: string[] = [];
-  let list: null | { type: 'ul' | 'ol'; items: string[] } = null;
-  let code: string[] | null = null;
-  let quote: string[] = [];
-
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    out.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    out.push(`<${list.type}>${list.items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${list.type}>`);
-    list = null;
-  };
-  const flushQuote = () => {
-    if (!quote.length) return;
-    out.push(`<blockquote>${quote.map((line) => `<p>${renderInlineMarkdown(line)}</p>`).join('')}</blockquote>`);
-    quote = [];
-  };
-  const close = () => {
-    flushParagraph();
-    flushList();
-    flushQuote();
-  };
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      if (code) {
-        out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
-        code = null;
-      } else {
-        close();
-        code = [];
-      }
-      continue;
-    }
-    if (code) {
-      code.push(line);
-      continue;
-    }
-    if (!line.trim()) {
-      close();
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
-    if (heading) {
-      close();
-      const level = Math.min(6, heading[1].length);
-      out.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
-      continue;
-    }
-    if (/^---+$/.test(line.trim())) {
-      close();
-      out.push('<hr />');
-      continue;
-    }
-    if (line.startsWith('>')) {
-      flushParagraph();
-      flushList();
-      quote.push(line.replace(/^>\s?/, ''));
-      continue;
-    }
-    const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
-    const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
-    if (unordered || ordered) {
-      flushParagraph();
-      flushQuote();
-      const type = unordered ? 'ul' : 'ol';
-      if (!list || list.type !== type) flushList();
-      if (!list) list = { type, items: [] };
-      list.items.push((unordered || ordered)![1]);
-      continue;
-    }
-    paragraph.push(line.trim());
-  }
-  if (code) out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
-  close();
-  const metaHtml = meta.trim()
-    ? `<details class="frontmatter"><summary>Frontmatter</summary><pre><code>${escapeHtml(meta.trim())}</code></pre></details>`
-    : '';
-  return metaHtml + (out.join('\n') || '<p class="muted">空 Markdown 文件</p>');
-}
-
-function diffFileName(line: string): string {
-  const parts = line.trim().split(/\s+/);
-  const b = parts.find((part) => part.startsWith('b/'));
-  const a = parts.find((part) => part.startsWith('a/'));
-  return (b || a || parts[parts.length - 1] || 'diff').replace(/^[ab]\//, '');
-}
-
-function parseHunkHeader(line: string): { oldLine: number; newLine: number } {
-  const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
-  return { oldLine: match ? Number(match[1]) : 0, newLine: match ? Number(match[3]) : 0 };
-}
-
-type DiffRow = {
-  kind: 'ctx' | 'add' | 'del' | 'change' | 'meta' | 'hunk' | 'note';
-  oldNo?: number;
-  newNo?: number;
-  left?: string;
-  right?: string;
-};
-
-type DiffFile = { name: string; rows: DiffRow[] };
-type DiffSection = { title: string; files: DiffFile[] };
-
-type InlineDiffPart = { text: string; changed: boolean };
-
-type InlineDiffPair = { left: InlineDiffPart[]; right: InlineDiffPart[] };
-
-function stripDiffPrefix(value: string): string {
-  return value.replace(/^[-+ ]/, '');
-}
-
-function commonPrefixLength(left: string, right: string): number {
-  const max = Math.min(left.length, right.length);
-  let index = 0;
-  while (index < max && left[index] === right[index]) index++;
-  return index;
-}
-
-function commonSuffixLength(left: string, right: string, prefixLength: number): number {
-  const leftRemaining = left.length - prefixLength;
-  const rightRemaining = right.length - prefixLength;
-  const max = Math.min(leftRemaining, rightRemaining);
-  let count = 0;
-  while (count < max && left[left.length - 1 - count] === right[right.length - 1 - count]) count++;
-  return count;
-}
-
-function inlineDiffParts(leftRaw: string, rightRaw: string): InlineDiffPair {
-  const left = stripDiffPrefix(leftRaw || '');
-  const right = stripDiffPrefix(rightRaw || '');
-  const prefix = commonPrefixLength(left, right);
-  const suffix = commonSuffixLength(left, right, prefix);
-  const leftMidEnd = suffix ? left.length - suffix : left.length;
-  const rightMidEnd = suffix ? right.length - suffix : right.length;
-
-  const leftParts: InlineDiffPart[] = [];
-  const rightParts: InlineDiffPart[] = [];
-  const push = (parts: InlineDiffPart[], text: string, changed: boolean) => {
-    if (!text) return;
-    const prev = parts[parts.length - 1];
-    if (prev?.changed === changed) prev.text += text;
-    else parts.push({ text, changed });
-  };
-
-  push(leftParts, left.slice(0, prefix), false);
-  push(rightParts, right.slice(0, prefix), false);
-  push(leftParts, left.slice(prefix, leftMidEnd), true);
-  push(rightParts, right.slice(prefix, rightMidEnd), true);
-  push(leftParts, suffix ? left.slice(left.length - suffix) : '', false);
-  push(rightParts, suffix ? right.slice(right.length - suffix) : '', false);
-
-  return { left: leftParts.length ? leftParts : [{ text: left || ' ', changed: false }], right: rightParts.length ? rightParts : [{ text: right || ' ', changed: false }] };
-}
-
-function InlineDiffCode({ parts, side }: { parts: InlineDiffPart[]; side: 'left' | 'right' }) {
-  return <>{parts.map((part, index) => <span key={index} className={part.changed ? `inline-diff ${side}` : undefined}>{part.text}</span>)}</>;
-}
-
-function parseSideBySideDiff(sections: { title: string; diff: string }[]): DiffSection[] {
-  const parsed: DiffSection[] = [];
-  for (const section of sections.filter((s) => s.diff?.trim())) {
-    const result: DiffSection = { title: section.title, files: [] };
-    let file: DiffFile | null = null;
-    let oldLine = 0;
-    let newLine = 0;
-    let pendingDeletes: { no: number; text: string }[] = [];
-
-    const ensureFile = (name = 'diff') => {
-      if (!file) {
-        file = { name, rows: [] };
-        result.files.push(file);
-      }
-      return file;
-    };
-    const flushDeletes = () => {
-      const current = ensureFile();
-      for (const item of pendingDeletes) current.rows.push({ kind: 'del', oldNo: item.no, left: item.text, right: '' });
-      pendingDeletes = [];
-    };
-
-    for (const line of section.diff.split('\n')) {
-      if (line.startsWith('diff --git ')) {
-        if (file) flushDeletes();
-        file = { name: diffFileName(line), rows: [] };
-        result.files.push(file);
-        continue;
-      }
-      const current = ensureFile();
-      if (line.startsWith('@@ ')) {
-        flushDeletes();
-        const parsedHeader = parseHunkHeader(line);
-        oldLine = parsedHeader.oldLine;
-        newLine = parsedHeader.newLine;
-        current.rows.push({ kind: 'hunk', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('index ') || line.startsWith('new file mode') || line.startsWith('deleted file mode') || line.startsWith('similarity index') || line.startsWith('rename from') || line.startsWith('rename to') || line.startsWith('--- ') || line.startsWith('+++ ')) {
-        flushDeletes();
-        current.rows.push({ kind: 'meta', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('\\ No newline')) {
-        flushDeletes();
-        current.rows.push({ kind: 'note', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('-')) {
-        pendingDeletes.push({ no: oldLine++, text: line });
-        continue;
-      }
-      if (line.startsWith('+')) {
-        const deleted = pendingDeletes.shift();
-        if (deleted) current.rows.push({ kind: 'change', oldNo: deleted.no, newNo: newLine++, left: deleted.text, right: line });
-        else current.rows.push({ kind: 'add', newNo: newLine++, left: '', right: line });
-        continue;
-      }
-      flushDeletes();
-      current.rows.push({ kind: 'ctx', oldNo: oldLine || undefined, newNo: newLine || undefined, left: line || ' ', right: line || ' ' });
-      if (oldLine) oldLine++;
-      if (newLine) newLine++;
-    }
-    if (file) flushDeletes();
-    if (result.files.length) parsed.push(result);
-  }
-  return parsed;
-}
-
-function useToast() {
-  const [toast, setToast] = useState<Toast>(null);
-  const show = (message: string, danger = false) => {
-    setToast({ message, danger });
-    window.setTimeout(() => setToast(null), 3200);
-  };
-  return { toast, show };
+function toneForStatus(status?: string): Tone {
+  if (!status) return 'muted';
+  if (['online', 'healthy', 'succeeded', 'completed', 'stable', 'active', 'ready'].includes(status)) return 'ok';
+  if (['failed', 'offline', 'blocked', 'revoked', 'conflicted'].includes(status)) return 'danger';
+  if (['degraded', 'pending', 'running', 'queued', 'candidate', 'canary'].includes(status)) return 'warn';
+  return 'muted';
 }
 
 export default function App() {
-  const { toast, show } = useToast();
-  const initialRoute = useMemo(() => routeFromLocation(), []);
-  const [tab, setTab] = useState<Tab>(initialRoute.tab);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
-  const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
-  const [entries, setEntries] = useState<MemoryEntry[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['']));
-  const [current, setCurrent] = useState<Memory | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [draftPath, setDraftPath] = useState('');
-  const [draftContent, setDraftContent] = useState('');
-  const [search, setSearch] = useState(initialRoute.search);
-  const [prefix, setPrefix] = useState(initialRoute.prefix);
-  const [loading, setLoading] = useState(false);
-  const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
-  const [commits, setCommits] = useState<GitCommit[]>([]);
-  const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null);
-  const [draggingPath, setDraggingPath] = useState('');
-  const [renamingPath, setRenamingPath] = useState('');
-  const [renamingValue, setRenamingValue] = useState('');
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [contentFullscreen, setContentFullscreen] = useState(false);
-  const [routePath, setRoutePath] = useState(initialRoute.path);
-  const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
-
-  const tree = useMemo(() => buildTree(entries), [entries]);
-  const fileCount = entries.filter((entry) => entry.type === 'file').length;
-  const dirCount = entries.filter((entry) => entry.type === 'directory').length;
-  const explorerFocusCollapsed = false;
+  const [section, setSection] = useState<Section>(sectionFromHash);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    void loadList();
-    if (initialRoute.tab === 'memories' && initialRoute.path) {
-      void loadMemory(initialRoute.path).catch((e) => show(e.message, true));
-    }
+    const onHash = () => setSection(sectionFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  useEffect(() => {
-    replaceRoute(tab, tab === 'memories' ? (current?.path || routePath) : '', prefix, search);
-  }, [tab, current?.path, routePath, prefix, search]);
-
-  useEffect(() => {
-    localStorage.setItem('memorydock.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    localStorage.setItem('memorydock.explorerCollapsed', explorerCollapsed ? '1' : '0');
-  }, [explorerCollapsed]);
-
-  useEffect(() => {
-    if (tab === 'dashboard') {
-      void loadGitDiff().catch(() => undefined);
-      void loadGitLog().catch(() => undefined);
-      void loadSyncStatus().catch(() => undefined);
-    }
-    if (tab === 'git') void loadGitPanel();
-    if (tab === 'sync') {
-      void loadSyncStatus();
-      void loadAccessConfig().catch(() => undefined);
-    }
-  }, [tab]);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandOpen((open) => !open);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  useEffect(() => {
-    const syncMobileDock = () => {
-      const mobile = window.matchMedia('(max-width: 900px)').matches;
-      if (mobile) setMobileNavCompact(true);
-      else setMobileNavCompact(false);
-    };
-    syncMobileDock();
-    window.addEventListener('resize', syncMobileDock);
-    return () => window.removeEventListener('resize', syncMobileDock);
-  }, []);
-
-  function viewChange(update: () => void) {
-    update();
+  function navigate(next: Section) {
+    window.location.hash = next;
+    setSection(next);
+    setMenuOpen(false);
   }
 
-  function selectTab(next: Tab) {
-    viewChange(() => {
-      setMobileNavCompact(window.matchMedia('(max-width: 900px)').matches);
-      setContentFullscreen(false);
-      setTab(next);
-    });
-  }
-
-  function expandPath(path: string) {
-    const parts = normalizePath(path).split('/').filter(Boolean);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      let cursor = '';
-      for (let i = 0; i < parts.length - 1; i++) {
-        cursor = cursor ? `${cursor}/${parts[i]}` : parts[i];
-        next.add(cursor);
-      }
-      return next;
-    });
-  }
-
-  async function loadList() {
-    const qs = new URLSearchParams({ max_entries: '500' });
-    if (prefix.trim()) qs.set('prefix', prefix.trim());
-    const data = await api<{ entries: MemoryEntry[] }>(`/v1/memories?${qs}`);
-    setEntries(data.entries || []);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      const root = buildTree(data.entries || []);
-      const walk = (node: TreeNode) => {
-        if (node.type === 'directory') next.add(node.path);
-        sortedChildren(node).forEach(walk);
-      };
-      sortedChildren(root).forEach(walk);
-      return next;
-    });
-  }
-
-  async function doSearch() {
-    if (!search.trim()) return loadList();
-    const data = await api<{ results: Array<{ path: string; size_bytes?: number }>; count: number }>('/v1/memories/search', {
-      method: 'POST',
-      body: JSON.stringify({ query: search.trim(), prefix: prefix.trim(), max_results: 100 }),
-    });
-    setEntries((data.results || []).map((result) => ({ path: result.path, name: fileName(result.path), type: 'file', size_bytes: result.size_bytes || 0 })));
-  }
-
-  async function loadMemory(path: string) {
-    const data = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
-    viewChange(() => {
-      setCurrent(data.memory);
-      setRoutePath(data.memory.path);
-      setDraftPath(data.memory.path);
-      setDraftContent(data.memory.content);
-      setEditing(false);
-      expandPath(data.memory.path);
-    });
-  }
-
-  function newMemory() {
-    const template = '---\ntype: note\nscope: inbox\nsource: user-confirmed\nconfidence: medium\n---\n\n# 新记忆\n\n';
-    setCurrent(null);
-    setRoutePath('');
-    setDraftPath('inbox/new-memory.md');
-    setDraftContent(template);
-    setEditing(true);
-  }
-
-  async function saveMemory() {
-    if (!draftPath.trim() || !draftContent.trim()) return show('path 和 content 不能为空', true);
-    const existing = Boolean(current?.path);
-    const target = existing ? `/v1/memories/${encodeURIComponent(current!.path)}` : '/v1/memories';
-    const data = await api<{ memory: Memory }>(target, {
-      method: existing ? 'PATCH' : 'POST',
-      body: JSON.stringify({ path: existing ? current!.path : draftPath.trim(), content: draftContent, confirmed: true, overwrite: true }),
-    });
-    show('已保存');
-    await loadList();
-    await loadMemory(data.memory.path);
-  }
-
-  async function deleteCurrent() {
-    if (!current?.path) return;
-    if (!confirm(`确认删除：${current.path} ?`)) return;
-    await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
-    setCurrent(null);
-    setRoutePath('');
-    setEditing(false);
-    setDraftPath('');
-    setDraftContent('');
-    show('已删除');
-    await loadList();
-  }
-
-  async function moveToDirectory(fromPath: string, dirPath: string) {
-    fromPath = normalizePath(fromPath);
-    const toPath = joinPath(dirPath, fromPath);
-    if (!fromPath || toPath === fromPath) return;
-    if (!confirm(`移动文件？\n\n${fromPath}\n→ ${toPath}`)) return;
-    const data = await api<{ memory: Memory }>('/v1/memories/move', {
-      method: 'POST',
-      body: JSON.stringify({ from_path: fromPath, to_path: toPath, confirmed: true, overwrite: false }),
-    });
-    show(`已移动到 ${toPath}`);
-    await loadList();
-    await loadMemory(data.memory.path);
-  }
-
-  function renameNode(node: TreeNode) {
-    setRenamingPath(node.path);
-    setRenamingValue(node.name);
-  }
-
-  function cancelRename() {
-    setRenamingPath('');
-    setRenamingValue('');
-  }
-
-  async function commitRename(node: TreeNode, nextName: string) {
-    const oldPath = normalizePath(node.path);
-    const trimmed = nextName.trim();
-    if (trimmed === node.name) return cancelRename();
-    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.startsWith('.')) {
-      setRenamingValue(node.name);
-      show('名称不能为空，且不能包含 /、\\ 或以 . 开头', true);
-      return;
-    }
-    const newPath = joinPath(parentPath(oldPath), trimmed);
-    if (node.type === 'file' && !TEXT_EXTENSIONS.test(newPath)) {
-      setRenamingValue(node.name);
-      show('文件名需要以 .md、.markdown 或 .txt 结尾', true);
-      return;
-    }
-    await api('/v1/memories/move', { method: 'POST', body: JSON.stringify({ from_path: oldPath, to_path: newPath, confirmed: true, overwrite: false }) });
-    cancelRename();
-    show(`已重命名为 ${newPath}`);
-    const nextCurrent = current?.path && isPathInside(current.path, oldPath) ? current.path.replace(oldPath, newPath) : current?.path;
-    await loadList();
-    if (nextCurrent) await loadMemory(nextCurrent).catch(() => setCurrent(null));
-  }
-
-  async function deleteNode(node: TreeNode) {
-    const path = normalizePath(node.path);
-    const message = node.type === 'directory' ? `确认递归删除整个文件夹？\n\n${path}\n\n其中的所有文件都会被删除。` : `确认删除文件？\n\n${path}`;
-    if (!confirm(message)) return;
-    await api(`/v1/memories/${encodeURIComponent(path)}?confirmed=true`, { method: 'DELETE' });
-    if (current?.path && (node.type === 'directory' ? isPathInside(current.path, path) : current.path === path)) { setCurrent(null); setRoutePath(''); }
-    show(node.type === 'directory' ? `已删除文件夹 ${path}` : `已删除文件 ${path}`);
-    await loadList();
-  }
-
-  async function loadGitPanel() {
-    await Promise.all([loadGitDiff(), loadGitLog()]);
-  }
-
-  async function loadGitDiff() {
-    const data = await api<GitDiff>('/v1/git/diff');
-    setGitDiff(data);
-  }
-
-  async function loadGitLog() {
-    const data = await api<{ commits: GitCommit[] }>('/v1/git/log?limit=50');
-    setCommits(data.commits || []);
-  }
-
-  async function loadCommitDetail(hash: string) {
-    const data = await api<CommitDetail>(`/v1/git/commit?hash=${encodeURIComponent(hash)}`);
-    setSelectedCommit(data);
-  }
-
-  function openGitFile(path: string) {
-    selectTab('memories');
-    void loadMemory(path)
-      .then(() => setEditing(true))
-      .catch((e) => show(e.message, true));
-  }
-
-  async function discardGitChanges(path = '') {
-    const target = path ? `文件：${path}` : '全部未提交变更';
-    if (!confirm(`确认丢弃 ${target}？\n\n这个操作不可撤销。`)) return;
-    await api('/v1/git/discard', { method: 'POST', body: JSON.stringify({ path, confirmed: true }) });
-    show(path ? `已丢弃 ${path} 的变更` : '已丢弃全部未提交变更');
-    await Promise.all([loadGitDiff(), loadList().catch(() => undefined), loadSyncStatus().catch(() => undefined)]);
-    if (current?.path) await loadMemory(current.path).catch(() => setCurrent(null));
-  }
-
-  async function loadSyncStatus() {
-    const data = await api<SyncStatus>('/v1/sync/status');
-    setSyncStatus(data);
-  }
-
-  async function loadAccessConfig() {
-    const data = await api<AccessConfig>('/v1/config/access');
-    setAccessConfig(data);
-  }
-
-  async function updateAccessConfig(username: string, secret: string) {
-    const data = await api<AccessConfig>('/v1/config/access', { method: 'POST', body: JSON.stringify({ username, secret }) });
-    setAccessConfig(data);
-    show('账号密码已更新，后续请求请使用新凭据。');
-  }
-
-  async function syncAction(action: 'pull' | 'push' | 'now') {
-    const data = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST' });
-    setSyncStatus(data);
-    show('同步操作完成');
-  }
-
-  return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${contentFullscreen ? 'content-fullscreen-active' : ''}`}>
-      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} currentPath={current?.path || routePath} prefix={prefix} search={search} />
-      <section className="workspace">
-        <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
-        {tab === 'dashboard' && (
-          <Dashboard
-            entries={entries}
-            current={current}
-            diff={gitDiff}
-            commits={commits}
-            syncStatus={syncStatus}
-            onNew={() => { selectTab('memories'); newMemory(); }}
-            onOpen={(path) => { selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-            onReview={() => selectTab('git')}
-            onSync={() => selectTab('sync')}
-          />
-        )}
-        {tab === 'memories' && (
-          <section className={`memory-layout ${explorerFocusCollapsed ? 'explorer-collapsed' : ''}`}>
-            <Explorer
-              tree={tree}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              currentPath={current?.path || ''}
-              fileCount={fileCount}
-              dirCount={dirCount}
-              search={search}
-              prefix={prefix}
-              setSearch={setSearch}
-              setPrefix={setPrefix}
-              onSearch={() => void doSearch().catch((e) => show(e.message, true))}
-              onRefresh={() => void loadList().catch((e) => show(e.message, true))}
-              onOpen={(path) => void loadMemory(path).catch((e) => show(e.message, true))}
-              onRename={renameNode}
-              onRenameCommit={(node, value) => void commitRename(node, value).catch((e) => show(e.message, true))}
-              onRenameCancel={cancelRename}
-              renamingPath={renamingPath}
-              renamingValue={renamingValue}
-              setRenamingValue={setRenamingValue}
-              onDelete={(node) => void deleteNode(node).catch((e) => show(e.message, true))}
-              draggingPath={draggingPath}
-              setDraggingPath={setDraggingPath}
-              onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
-              collapsed={explorerFocusCollapsed}
-              onToggle={() => setExplorerCollapsed((v) => !v)}
-            />
-            <MemoryEditor
-              current={current}
-              editing={editing}
-              draftPath={draftPath}
-              draftContent={draftContent}
-              setDraftPath={setDraftPath}
-              setDraftContent={setDraftContent}
-              onNew={newMemory}
-              onEdit={() => viewChange(() => setEditing(true))}
-              onCancel={() => viewChange(() => {
-                setEditing(false);
-                setDraftPath(current?.path || '');
-                setDraftContent(current?.content || '');
-              })}
-              onSave={() => void saveMemory().catch((e) => show(e.message, true))}
-              onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
-              onFullscreenChange={setContentFullscreen}
-            />
-          </section>
-        )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFullscreenChange={setContentFullscreen} />}
-        {tab === 'sync' && <SyncView status={syncStatus} access={accessConfig} onRefresh={loadSyncStatus} onAction={syncAction} onAccessRefresh={loadAccessConfig} onAccessSave={updateAccessConfig} />}
-      </section>
-      {commandOpen && (
-        <CommandPalette
-          entries={entries}
-          current={current}
-          onClose={() => setCommandOpen(false)}
-          onNew={() => { setCommandOpen(false); selectTab('memories'); newMemory(); }}
-          onOpen={(path) => { setCommandOpen(false); selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-          onTab={(next) => { setCommandOpen(false); selectTab(next); }}
-          onSync={() => { setCommandOpen(false); selectTab('sync'); void syncAction('now').catch((e) => show(e.message, true)); }}
-        />
-      )}
-      {toast && <div className={`toast ${toast.danger ? 'danger' : ''}`}>{toast.message}</div>}
-    </div>
-  );
-}
-
-
-function recentFiles(entries: MemoryEntry[], limit = 8): MemoryEntry[] {
-  return entries.filter((entry) => entry.type === 'file').slice(0, limit);
-}
-
-function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen, onReview, onSync }: {
-  entries: MemoryEntry[];
-  current: Memory | null;
-  diff: GitDiff | null;
-  commits: GitCommit[];
-  syncStatus: SyncStatus | null;
-  onNew: () => void;
-  onOpen: (path: string) => void;
-  onReview: () => void;
-  onSync: () => void;
-}) {
-  const files = entries.filter((entry) => entry.type === 'file');
-  const dirs = entries.filter((entry) => entry.type === 'directory');
-  const recent = recentFiles(entries);
-  return (
-    <section className="dashboard-grid">
-      <div className="dashboard-hero panel-card">
-        <div>
-          <span className="eyebrow">MemoryDock</span>
-          <h2>记忆、变更和同步，一屏掌控</h2>
-          <p>先看状态，再决定是继续写、审阅本地变更，还是保存到远程。</p>
-        </div>
-        <div className="hero-actions">
-          <button className="primary" onClick={onNew}><Plus size={16} />新建记忆</button>
-          <button onClick={onReview}><GitBranch size={16} />审阅变更</button>
-          <button onClick={onSync}><RefreshCw size={16} />同步中心</button>
-        </div>
-      </div>
-      <div className="metric-card panel-card"><span>记忆文件</span><strong>{files.length}</strong><p>可搜索的知识资产</p></div>
-      <div className="metric-card panel-card"><span>目录</span><strong>{dirs.length}</strong><p>按项目和主题整理</p></div>
-      <div className="metric-card panel-card"><span>本地变更</span><strong>{diff?.dirty ? '待审阅' : '干净'}</strong><p>{diff?.dirty ? '先检查再保存' : '没有未保存更改'}</p></div>
-      <div className="panel-card dashboard-section">
-        <div className="card-head compact"><div><h3>最近记忆</h3><p>快速回到最近的文件</p></div><FileText size={18} /></div>
-        <div className="recent-list">
-          {recent.length ? recent.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={15} /><span>{entry.path}</span><small>{formatBytes(entry.size_bytes)}</small></button>) : <div className="empty-state">暂无文件</div>}
-        </div>
-      </div>
-      <div className="panel-card dashboard-section">
-        <div className="card-head compact"><div><h3>同步健康</h3><p>一眼判断是否安全</p></div><Settings size={18} /></div>
-        <SyncHealth status={syncStatus} diff={diff} />
-      </div>
-      <div className="panel-card dashboard-section wide">
-        <div className="card-head compact"><div><h3>版本历史</h3><p>最近保存到远程的记录</p></div><Clock3 size={18} /></div>
-        <div className="commit-list compact-list">
-          {commits.slice(0, 5).map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
-          {!commits.length && <div className="empty-state">暂无版本历史</div>}
-        </div>
-      </div>
-      {current && <div className="panel-card dashboard-section wide"><div className="card-head compact"><div><h3>当前打开</h3><p>{current.path}</p></div></div><article className="mini-preview" dangerouslySetInnerHTML={{ __html: MARKDOWN_EXTENSIONS.test(current.path) ? markdownToHtml(current.content) : escapeHtml(current.content) }} /></div>}
-    </section>
-  );
-}
-
-function SyncHealth({ status, diff }: { status: SyncStatus | null; diff: GitDiff | null }) {
-  const items = [
-    { label: '本地更改', value: diff?.dirty ? '有' : '无', tone: diff?.dirty ? 'warn' : 'ok' },
-    { label: '待保存', value: status?.pending_push ? '是' : '否', tone: status?.pending_push ? 'warn' : 'ok' },
-    { label: 'Ahead', value: String(status?.ahead ?? '0'), tone: String(status?.ahead ?? '0') !== '0' ? 'warn' : 'ok' },
-    { label: 'Behind', value: String(status?.behind ?? '0'), tone: String(status?.behind ?? '0') !== '0' ? 'warn' : 'ok' },
-  ];
-  return <div className="health-grid">{items.map((item) => <div className={`health-item ${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>;
-}
-
-
-function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSync }: {
-  entries: MemoryEntry[];
-  current: Memory | null;
-  onClose: () => void;
-  onNew: () => void;
-  onOpen: (path: string) => void;
-  onTab: (tab: Tab) => void;
-  onSync: () => void;
-}) {
-  const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  const normalized = query.trim().toLowerCase();
-  const files = entries
-    .filter((entry) => entry.type === 'file')
-    .filter((entry) => !normalized || entry.path.toLowerCase().includes(normalized))
-    .slice(0, 8);
-  const actions = [
-    { label: '打开工作台', hint: 'Dashboard', icon: <Home size={16} />, run: () => onTab('dashboard') },
-    { label: '新建记忆', hint: 'Create note', icon: <Plus size={16} />, run: onNew },
-    { label: '打开记忆库', hint: 'Explorer', icon: <Archive size={16} />, run: () => onTab('memories') },
-    { label: '打开变更审阅', hint: 'Review local changes', icon: <GitBranch size={16} />, run: () => onTab('git') },
-    { label: '打开同步中心', hint: 'Sync status', icon: <Settings size={16} />, run: () => onTab('sync') },
-    { label: '立即更新并保存', hint: 'Pull + push', icon: <RefreshCw size={16} />, run: onSync },
-  ].filter((item) => !normalized || item.label.toLowerCase().includes(normalized) || item.hint.toLowerCase().includes(normalized));
-
-  return (
-    <div className="command-overlay" onMouseDown={onClose}>
-      <div className="command-panel" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="command-search">
-          <Command size={17} />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索命令或文件…" />
-        </div>
-        <div className="command-group">
-          <span>命令</span>
-          {actions.map((item) => <button key={item.label} onClick={item.run}>{item.icon}<strong>{item.label}</strong><small>{item.hint}</small></button>)}
-        </div>
-        <div className="command-group">
-          <span>文件</span>
-          {files.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={16} /><strong>{entry.path}</strong><small>{formatBytes(entry.size_bytes)}</small></button>)}
-          {!files.length && <p className="muted command-empty">没有匹配文件{current ? ` · 当前：${current.path}` : ''}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen, currentPath = '', prefix = '', search = '' }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void; currentPath?: string; prefix?: string; search?: string }) {
-  const [orbPosition, setOrbPosition] = useState(() => {
-    const saved = localStorage.getItem('memorydock.mobileOrbPosition');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as { side?: 'left' | 'right'; y?: number };
-        return { side: parsed.side === 'right' ? 'right' as const : 'left' as const, y: Number.isFinite(parsed.y) ? Number(parsed.y) : 0 };
-      } catch {
-        return { side: 'left' as const, y: 0 };
-      }
-    }
-    return { side: 'left' as const, y: 0 };
-  });
-  const dragRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number; dragging: boolean; raf: number; nextX: number; nextY: number } | null>(null);
-
-  function clampOrbY(y: number) {
-    const min = 12 + (window.visualViewport?.offsetTop || 0);
-    const max = Math.max(min, window.innerHeight - 92 - 12);
-    return Math.min(max, Math.max(min, y));
-  }
-
-  function beginOrbDrag(event: React.PointerEvent<HTMLElement>) {
-    if (!mobileCompact) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    dragRef.current = { startX: event.clientX, startY: event.clientY, currentX: rect.left, currentY: rect.top, dragging: false, raf: 0, nextX: rect.left, nextY: rect.top };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function moveOrb(event: React.PointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!mobileCompact || !drag) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    if (Math.abs(dx) + Math.abs(dy) > 6) drag.dragging = true;
-    if (!drag.dragging) return;
-    drag.nextX = Math.min(window.innerWidth - 76 - 8, Math.max(8, drag.currentX + dx));
-    drag.nextY = clampOrbY(drag.currentY + dy);
-    const target = event.currentTarget;
-    if (!drag.raf) {
-      drag.raf = window.requestAnimationFrame(() => {
-        target.style.setProperty('--mobile-orb-left', `${drag.nextX}px`);
-        target.style.setProperty('--mobile-orb-top', `${drag.nextY}px`);
-        drag.raf = 0;
-      });
-    }
-  }
-
-  function endOrbDrag(event: React.PointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!mobileCompact || !drag) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const side: 'left' | 'right' = rect.left + rect.width / 2 > window.innerWidth / 2 ? 'right' : 'left';
-    if (drag.raf) window.cancelAnimationFrame(drag.raf);
-    const y = clampOrbY(rect.top);
-    const next = { side, y };
-    setOrbPosition(next);
-    localStorage.setItem('memorydock.mobileOrbPosition', JSON.stringify(next));
-    event.currentTarget.style.removeProperty('--mobile-orb-left');
-    event.currentTarget.style.removeProperty('--mobile-orb-top');
-    window.setTimeout(() => { dragRef.current = null; }, 0);
-  }
-
-  const orbStyle = mobileCompact ? ({
-    '--mobile-orb-top': orbPosition.y ? `${orbPosition.y}px` : undefined,
-    '--mobile-orb-left': orbPosition.side === 'right' ? 'calc(100vw - 86px)' : '14px',
-  } as React.CSSProperties) : undefined;
-
-  return (
-    <aside
-      className={`sidebar ${mobileCompact ? 'compact-orb' : ''} ${mobileCompact ? `orb-${orbPosition.side}` : ''}`}
-      style={orbStyle}
-      onPointerDown={beginOrbDrag}
-      onPointerMove={moveOrb}
-      onPointerUp={endOrbDrag}
-      onPointerCancel={endOrbDrag}
-      onClick={() => { if (mobileCompact && !dragRef.current?.dragging) onCompactOpen?.(); }}
-    >
-      <div className="brand">
-        <div className="brand-mark">M</div>
-        {!collapsed && (
-          <div className="brand-text">
-            <h1>MemoryDock</h1>
-            <p>Knowledge workspace</p>
-          </div>
-        )}
-        <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? '展开侧栏' : '折叠侧栏'}>
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+  if (section === 'memory') {
+    return (
+      <div className="nexus-memory-mode">
+        <button className="nexus-memory-return" onClick={() => navigate('home')}>
+          <ChevronRight size={15} /> 返回 Nexus
         </button>
+        <MemoryWorkspace />
       </div>
-      <nav className="nav">
-        <a className={tab === 'dashboard' ? 'active' : ''} href={routeHref('dashboard')} onClick={(event) => { event.preventDefault(); setTab('dashboard'); }} title="工作台">
-          <Home size={17} /> {!collapsed && <span>工作台</span>}
-        </a>
-        <a className={tab === 'memories' ? 'active' : ''} href={routeHref('memories', currentPath, prefix, search)} onClick={(event) => { event.preventDefault(); setTab('memories'); }} title="记忆库">
-          <Archive size={17} /> {!collapsed && <span>记忆库</span>}
-        </a>
-        <a className={tab === 'git' ? 'active' : ''} href={routeHref('git')} onClick={(event) => { event.preventDefault(); setTab('git'); }} title="变更审阅">
-          <GitBranch size={17} /> {!collapsed && <span>变更审阅</span>}
-        </a>
-        <a className={tab === 'sync' ? 'active' : ''} href={routeHref('sync')} onClick={(event) => { event.preventDefault(); setTab('sync'); }} title="同步设置">
-          <Settings size={17} /> {!collapsed && <span>同步设置</span>}
-        </a>
-      </nav>
-      {!collapsed && (
-        <div className="sidebar-card">
-          <strong>Git backed memory</strong>
-          <span>Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布</span>
+    );
+  }
+
+  const active = NAV.find((item) => item.id === section) ?? NAV[0];
+  return (
+    <div className="nexus-app">
+      <aside className={`nexus-sidebar ${menuOpen ? 'is-open' : ''}`}>
+        <div className="nexus-brand">
+          <span className="nexus-brand-mark"><Sparkles size={19} /></span>
+          <span><strong>AgentDock</strong><small>Nexus</small></span>
         </div>
-      )}
-    </aside>
-  );
-}
-
-function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number; onCommand: () => void }) {
-  const title = tab === 'dashboard' ? '记忆工作台' : tab === 'memories' ? '记忆库' : tab === 'git' ? '变更审阅' : '同步中心';
-  const subtitle = tab === 'dashboard' ? '今日状态、最近记忆、同步健康和快速入口' : tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '查看和处理本地记忆变更' : '查看同步状态并手动保存到远程';
-  return (
-    <header className="topbar">
-      <div className="page-title">
-        <h2>{title}</h2>
-        <p>{subtitle}</p>
-      </div>
-      <div className="status-strip">
-        <button className="command-button" onClick={onCommand}><Command size={14} />⌘K</button>
-        <span className="pill ok">● Online</span>
-        <span className="pill">{fileCount} files</span>
-        <span className="pill">{dirCount} dirs</span>
-      </div>
-    </header>
-  );
-}
-
-function Explorer(props: {
-  tree: TreeNode;
-  expanded: Set<string>;
-  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
-  currentPath: string;
-  fileCount: number;
-  dirCount: number;
-  search: string;
-  prefix: string;
-  setSearch: (value: string) => void;
-  setPrefix: (value: string) => void;
-  onSearch: () => void;
-  onRefresh: () => void;
-  onOpen: (path: string) => void;
-  onRename: (node: TreeNode) => void;
-  onRenameCommit: (node: TreeNode, value: string) => void;
-  onRenameCancel: () => void;
-  renamingPath: string;
-  renamingValue: string;
-  setRenamingValue: (value: string) => void;
-  onDelete: (node: TreeNode) => void;
-  draggingPath: string;
-  setDraggingPath: (path: string) => void;
-  onMove: (from: string, to: string) => void;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <aside className="explorer-panel">
-      <div className="panel-head">
-        <h3>Explorer</h3>
-        <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>
-      </div>
-      <>
-          <div className="panel-search">
-            <div className="input-row"><Search size={15} /><input value={props.search} onChange={(e) => props.setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && props.onSearch()} placeholder="搜索关键词" /></div>
-            <div className="input-row"><Folder size={15} /><input value={props.prefix} onChange={(e) => props.setPrefix(e.target.value)} placeholder="prefix，例如 shared/projects" /></div>
-            <div className="button-row"><button className="primary" onClick={props.onSearch}>搜索</button><button onClick={props.onRefresh}><RefreshCw size={14} />刷新</button></div>
+        <nav aria-label="主导航">
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}>
+                <Icon size={18} /><span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>Control Plane</span></div>
+      </aside>
+      {menuOpen && <button className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
+      <main className="nexus-main">
+        <header className="nexus-topbar">
+          <button className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
+          <div><span className="nexus-eyebrow">AgentDock Nexus</span><h1>{active.label}</h1></div>
+          <div className="nexus-top-actions">
+            <label className="nexus-search"><Search size={16} /><input placeholder="搜索设备、Skill、Run" aria-label="全局搜索" /></label>
+            <button className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
           </div>
-          <div className="tree-scroll">
-            {sortedChildren(props.tree).length ? sortedChildren(props.tree).map((node) => (
-              <TreeItem
-                key={node.path}
-                node={node}
-                depth={0}
-                expanded={props.expanded}
-                setExpanded={props.setExpanded}
-                currentPath={props.currentPath}
-                onOpen={props.onOpen}
-                onRename={props.onRename}
-                onRenameCommit={props.onRenameCommit}
-                onRenameCancel={props.onRenameCancel}
-                renamingPath={props.renamingPath}
-                renamingValue={props.renamingValue}
-                setRenamingValue={props.setRenamingValue}
-                onDelete={props.onDelete}
-                draggingPath={props.draggingPath}
-                setDraggingPath={props.setDraggingPath}
-                onMove={props.onMove}
-              />
-            )) : <div className="empty-state">没有记忆文件</div>}
-          </div>
-      </>
-    </aside>
+        </header>
+        <div className="nexus-content">
+          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
+          {section === 'inbox' && <InboxPage refreshToken={refreshToken} />}
+          {section === 'devices' && <DevicesPage refreshToken={refreshToken} />}
+          {section === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+          {section === 'runs' && <RunsPage refreshToken={refreshToken} />}
+          {section === 'settings' && <SettingsPage />}
+        </div>
+      </main>
+    </div>
   );
 }
 
-function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onRename, onRenameCommit, onRenameCancel, renamingPath, renamingValue, setRenamingValue, onDelete, draggingPath, setDraggingPath, onMove }: {
-  node: TreeNode;
-  depth: number;
-  expanded: Set<string>;
-  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
-  currentPath: string;
-  onOpen: (path: string) => void;
-  onRename: (node: TreeNode) => void;
-  onRenameCommit: (node: TreeNode, value: string) => void;
-  onRenameCancel: () => void;
-  renamingPath: string;
-  renamingValue: string;
-  setRenamingValue: (value: string) => void;
-  onDelete: (node: TreeNode) => void;
-  draggingPath: string;
-  setDraggingPath: (path: string) => void;
-  onMove: (from: string, to: string) => void;
-}) {
-  const open = expanded.has(node.path);
-  const active = node.type === 'file' && node.path === currentPath;
-  const isDir = node.type === 'directory';
-  const renaming = renamingPath === node.path;
-  const toggle = () => setExpanded((prev) => {
-    const next = new Set(prev);
-    open ? next.delete(node.path) : next.add(node.path);
-    return next;
-  });
+function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
+  const resource = useResource<Overview>(['/api/v1/nexus/overview', '/api/nexus/overview'], EMPTY_OVERVIEW, refreshToken);
+  const overview = { ...EMPTY_OVERVIEW, ...resource.data };
+  const cards = useMemo(() => [
+    ['Agent 待办', overview.agent_tasks, Bot, 'inbox' as Section, 'warn' as Tone],
+    ['用户待办', overview.user_tasks, BellRing, 'inbox' as Section, 'warn' as Tone],
+    ['设备异常', overview.device_alerts, Server, 'devices' as Section, 'danger' as Tone],
+    ['Skill 候选', overview.skill_candidates, Sparkles, 'skills' as Section, 'ok' as Tone],
+    ['Memory 冲突', overview.memory_conflicts, Database, 'memory' as Section, 'danger' as Tone],
+    ['最近失败', overview.recent_failures, CircleAlert, 'runs' as Section, 'danger' as Tone],
+  ] as const, [overview.agent_tasks, overview.user_tasks, overview.device_alerts, overview.skill_candidates, overview.memory_conflicts, overview.recent_failures]);
+
   return (
     <>
-      <div
-        className={`tree-row ${isDir ? 'dir' : 'file'} ${active ? 'active' : ''} ${renaming ? 'renaming' : ''}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!isDir && !renaming}
-        onDragStart={(e) => { if (!isDir) { setDraggingPath(node.path); e.dataTransfer.setData('text/plain', node.path); } }}
-        onDragEnd={() => setDraggingPath('')}
-        onDragOver={(e) => { if (isDir && draggingPath) e.preventDefault(); }}
-        onDrop={(e) => { if (isDir) { e.preventDefault(); onMove(e.dataTransfer.getData('text/plain') || draggingPath, node.path); } }}
-        onClick={() => renaming ? undefined : isDir ? toggle() : onOpen(node.path)}
-      >
-        <span className="tree-toggle">{isDir ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}</span>
-        <span className="tree-icon">{isDir ? (open ? <FolderOpen size={15} /> : <Folder size={15} />) : <FileText size={15} />}</span>
-        {renaming ? (
-          <input
-            className="tree-rename-input"
-            autoFocus
-            value={renamingValue}
-            onChange={(e) => setRenamingValue(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onBlur={(e) => { if (e.currentTarget.dataset.cancel !== '1') onRenameCommit(node, renamingValue); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                onRenameCommit(node, renamingValue);
-              }
-              if (e.key === 'Escape') {
-                e.currentTarget.dataset.cancel = '1';
-                onRenameCancel();
-              }
-            }}
-          />
-        ) : <span className="tree-name" title={node.path}>{node.name}</span>}
-        <span className="tree-meta">{isDir ? `${countFiles(node)} 文件` : formatBytes(node.entry?.size_bytes)}</span>
-        <button className="tree-action" onClick={(e) => { e.stopPropagation(); onRename(node); }} title="重命名"><PenLine size={13} /></button>
-        <button className="tree-action danger" onClick={(e) => { e.stopPropagation(); onDelete(node); }} title="删除"><Trash2 size={13} /></button>
-      </div>
-      {isDir && open && sortedChildren(node).map((child) => <TreeItem key={child.path} node={child} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} currentPath={currentPath} onOpen={onOpen} onRename={onRename} onRenameCommit={onRenameCommit} onRenameCancel={onRenameCancel} renamingPath={renamingPath} renamingValue={renamingValue} setRenamingValue={setRenamingValue} onDelete={onDelete} draggingPath={draggingPath} setDraggingPath={setDraggingPath} onMove={onMove} />)}
+      <section className="nexus-hero">
+        <div><span className="nexus-kicker">统一控制面</span><h2>设备、记忆、Skill 与任务，一处掌控</h2><p>从 Agent Inbox 到多设备运行证据，形成可审计、可回退的完整闭环。</p></div>
+        <StatusBadge tone={resource.live ? 'ok' : 'warn'}>{resource.live ? '实时数据已连接' : '等待 Nexus API 合并'}</StatusBadge>
+      </section>
+      <section className="metric-grid">
+        {cards.map(([label, value, Icon, target, tone]) => (
+          <button className="metric-card" key={label} onClick={() => navigate(target)}>
+            <span className={`metric-icon tone-${tone}`}><Icon size={20} /></span>
+            <span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" />
+          </button>
+        ))}
+      </section>
+      <section className="two-column">
+        <Panel title="系统态势" subtitle="当前 Nexus 集成状态">
+          <TimelineItem icon={<CircleCheck size={16} />} title="Memory 工作区已接入" detail="保留目录、Diff、时间线和移动端体验" tone="ok" />
+          <TimelineItem icon={<Activity size={16} />} title="控制面数据自动探测" detail="后端分支合并后自动显示实时状态" tone="warn" />
+          <TimelineItem icon={<ShieldCheck size={16} />} title="安全与迁移测试入口已建立" detail="覆盖恶意包、路径逃逸、Secret 泄露和回退" tone="ok" />
+        </Panel>
+        <Panel title="闭环进度" subtitle="M0 → M6 产品里程碑">
+          {['契约冻结', 'Nexus Core', 'Memory + Task', '多设备', 'Skill MVP', 'Evolution', '产品完成'].map((name, index) => <ProgressRow key={name} name={name} value={index < 2 ? 100 : index < 6 ? 55 : 30} />)}
+        </Panel>
+      </section>
     </>
   );
 }
 
-function MemoryEditor(props: {
-  current: Memory | null;
-  editing: boolean;
-  draftPath: string;
-  draftContent: string;
-  setDraftPath: (value: string) => void;
-  setDraftContent: (value: string) => void;
-  onNew: () => void;
-  onEdit: () => void;
-  onCancel: () => void;
-  onSave: () => void;
-  onDelete: () => void;
-  onFullscreenChange: (active: boolean) => void;
-}) {
-  const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
-  const [fullscreen, setFullscreen] = useState(false);
-  useEffect(() => {
-    props.onFullscreenChange(fullscreen);
-    return () => props.onFullscreenChange(false);
-  }, [fullscreen, props.onFullscreenChange]);
+function InboxPage({ refreshToken }: { refreshToken: number }) {
+  const resource = useResource<Task[]>(['/api/v1/tasks', '/api/tasks'], [], refreshToken);
+  const tasks = Array.isArray(resource.data) ? resource.data : [];
   return (
-    <main className={`document-panel ${fullscreen ? 'fullscreen-panel' : ''}`}>
-      <div className="doc-toolbar">
-        <div>
-          <div className="doc-path">{props.current?.path || (props.editing ? '新建记忆' : '未选择文件')}</div>
-          <div className="muted">{props.editing ? '编辑草稿 · 左写右预览 · 保存后进入本地变更' : '阅读模式 · Markdown 自动渲染'}</div>
-        </div>
-        <div className="toolbar-actions">
-          <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏阅读'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
-          <button onClick={props.onNew}><Plus size={15} />新建</button>
-          {!props.editing && <button disabled={!props.current} onClick={props.onEdit}><PenLine size={15} />编辑</button>}
-          {props.editing && <button className="primary" onClick={props.onSave}><Save size={15} />保存</button>}
-          {props.editing && <button onClick={props.onCancel}><X size={15} />取消</button>}
-          <button className="danger" disabled={!props.current} onClick={props.onDelete}><Trash2 size={15} />删除</button>
-        </div>
-      </div>
-      {props.editing ? (
-        <div className="editor-body split-editor">
-          <div className="editor-pane">
-            <div className="pane-title"><span>编辑</span><small>{props.draftPath || '未命名'}</small></div>
-            <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
-            <textarea value={props.draftContent} onChange={(e) => props.setDraftContent(e.target.value)} spellCheck={false} />
-          </div>
-          <div className="preview-pane">
-            <div className="pane-title"><span>预览</span><small>{MARKDOWN_EXTENSIONS.test(props.draftPath) ? 'Markdown' : 'Plain text'}</small></div>
-            {MARKDOWN_EXTENSIONS.test(props.draftPath) ? <article className="markdown-body preview" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.draftContent) }} /> : <pre className="plain-view preview">{props.draftContent}</pre>}
-          </div>
-        </div>
-      ) : props.current ? (
-        isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
-      ) : (
-        <div className="hero-empty">
-          <FileText size={42} />
-          <h3>选择一个记忆文件</h3>
-          <p>从左侧 Explorer 选择 Markdown 文件，或新建一条记忆。</p>
-        </div>
-      )}
-    </main>
+    <CollectionPage title="Agent Inbox" description="统一处理 needs_agent、needs_user、review 与 automatic 任务。" live={resource.live} loading={resource.loading} count={tasks.length} empty="暂无任务。设备告警、Skill 失败、Memory 冲突和 Evolution Proposal 会自动进入这里。">
+      {tasks.map((task) => <ListCard key={task.id} title={task.title} meta={`${task.type} · ${task.source || 'unknown source'}`} trailing={<><StatusBadge tone={toneForStatus(task.status)}>{task.status}</StatusBadge><small>{formatTime(task.updated_at)}</small></>} />)}
+    </CollectionPage>
   );
 }
 
-function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit, onFullscreenChange }: {
-  diff: GitDiff | null;
-  commits: GitCommit[];
-  selectedCommit: CommitDetail | null;
-  onRefresh: () => Promise<void>;
-  onDiscard: (path?: string) => Promise<void>;
-  onOpenFile: (path: string) => void;
-  onSelectCommit: (hash: string) => Promise<void>;
-  onFullscreenChange: (active: boolean) => void;
-}) {
-  const sections = useMemo(() => parseSideBySideDiff([
-    { title: '已暂存更改', diff: diff?.cached_diff || '' },
-    { title: '工作区更改', diff: diff?.diff || '' },
-  ]), [diff]);
-  const commitSections = useMemo(() => parseSideBySideDiff([
-    { title: selectedCommit?.commit?.short_hash ? `提交 ${selectedCommit.commit.short_hash}` : '提交详情', diff: selectedCommit?.diff || '' },
-  ]), [selectedCommit]);
-  const diffFiles = sections.flatMap((section) => section.files.map((file) => ({ status: 'M', path: file.name })));
-  const changedFiles = (diff?.files?.length ? diff.files : diffFiles).filter((file) => Boolean(file.path));
-  const statusLines = (diff?.status || '').split('\n').filter(Boolean).length;
-  const statLines = (diff?.stat || '').split('\n').filter(Boolean);
-  const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
-  const [fullscreen, setFullscreen] = useState(false);
-  const [diffMode, setDiffMode] = useState<'split' | 'unified'>(() => {
-    const saved = localStorage.getItem('memorydock.diffMode');
-    if (saved === 'split' || saved === 'unified') return saved;
-    return window.matchMedia('(max-width: 900px)').matches ? 'unified' : 'split';
-  });
-  useEffect(() => {
-    onFullscreenChange(fullscreen);
-    return () => onFullscreenChange(false);
-  }, [fullscreen, onFullscreenChange]);
-
-  useEffect(() => {
-    localStorage.setItem('memorydock.diffMode', diffMode);
-  }, [diffMode]);
-
+function DevicesPage({ refreshToken }: { refreshToken: number }) {
+  const resource = useResource<Device[]>(['/api/v1/devices', '/api/devices'], [], refreshToken);
+  const devices = Array.isArray(resource.data) ? resource.data : [];
   return (
-    <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>
-      <aside className="review-side review-changes">
-        <div className="review-side-head">
-          <div>
-            <span className="eyebrow">Local</span>
-            <h3>变更队列</h3>
-            <p>{changedFiles.length ? `${changedFiles.length} 个文件待处理` : '工作区干净'}</p>
-          </div>
-          <button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button>
-        </div>
-        <div className="review-change-list">
-          {changedFiles.length ? changedFiles.map((file) => (
-            <button className="review-change-card" key={file.status + file.path} onClick={() => onOpenFile(file.path)}>
-              <span className="file-status">{file.status}</span>
-              <span className="review-change-text"><strong>{file.path}</strong><small>{file.status === '??' ? '新文件 · 可打开编辑' : '本地修改 · 可打开编辑'}</small></span>
-            </button>
-          )) : <div className="review-empty-card"><GitBranch size={18} /><strong>没有本地变更</strong><span>当前工作区没有需要审阅的修改。</span></div>}
-        </div>
-        <div className="review-side-foot">
-          <button className="danger" disabled={!changedFiles.length} onClick={() => void onDiscard('')}><Undo2 size={14} />放弃全部</button>
-        </div>
-      </aside>
+    <CollectionPage title="Devices Control Plane" description="注册、心跳、能力、服务、Skill 与命令生命周期。" live={resource.live} loading={resource.loading} count={devices.length} empty="尚未发现设备。设备完成 enrollment 并上报 heartbeat 后会显示在这里。">
+      <div className="card-grid">{devices.map((device) => <EntityCard key={device.id} icon={<Server size={20} />} title={device.name} status={device.status} detail={`${device.platform || '平台未知'} · AgentDock ${device.version || '未知版本'}`} leftLabel="Skills" leftValue={String(device.skills ?? 0)} rightLabel="最后心跳" rightValue={formatTime(device.last_seen)} />)}</div>
+    </CollectionPage>
+  );
+}
 
-      <main className={`review-canvas ${fullscreen ? 'fullscreen-panel review-fullscreen' : ''}`}>
-        <div className="review-hero">
-          <div>
-            <span className="eyebrow">Review Studio</span>
-            <h3>{selectedCommit ? selectedTitle : '变更审阅'}</h3>
-            <p>{selectedCommit ? `${selectedCommit.commit.short_hash} · ${[selectedCommit.commit.author, selectedCommit.commit.date].filter(Boolean).join(' · ')}` : diff?.dirty ? '聚焦 diff 内容，左侧处理本地变更，右侧查看历史版本。' : '没有需要审阅的本地更改。'}</p>
-          </div>
-          <div className="review-hero-actions">
-            {selectedCommit && <span className="pill">{selectedCommit.files.length} files changed</span>}
-            <button onClick={() => setDiffMode((mode) => mode === 'split' ? 'unified' : 'split')} title={diffMode === 'split' ? '切换到单栏' : '切换到左右'}>{diffMode === 'split' ? '单栏' : '左右'}</button>
-            <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏审阅'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
-            <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
-          </div>
-        </div>
+function SkillsPage({ refreshToken }: { refreshToken: number }) {
+  const resource = useResource<Skill[]>(['/api/v1/skills', '/api/skills'], [], refreshToken);
+  const skills = Array.isArray(resource.data) ? resource.data : [];
+  return (
+    <CollectionPage title="Skill Catalog" description="查看规范、Operations、安装设备、Runs、Evolution 与版本。" live={resource.live} loading={resource.loading} count={skills.length} empty="Catalog 为空。导入外部 Skill 后将显示 provenance、trust、maturity 和 release。">
+      <div className="card-grid">{skills.map((skill) => <EntityCard key={skill.id} icon={<Boxes size={20} />} title={skill.name} status={skill.maturity || 'draft'} detail={`v${skill.version || '0.0.0'} · trust: ${skill.trust || 'unverified'}`} leftLabel="安装设备" leftValue={String(skill.installations ?? 0)} rightLabel="Release" rightValue={skill.version || '无'} />)}</div>
+    </CollectionPage>
+  );
+}
 
-        {!selectedCommit && (
-          <div className="review-stats">
-            <div><span>状态</span><strong>{diff?.dirty ? '有本地更改' : '已同步'}</strong></div>
-            <div><span>文件</span><strong>{changedFiles.length}</strong></div>
-            <div><span>状态行</span><strong>{statusLines}</strong></div>
-            <div><span>统计</span><strong>{statLines.length ? statLines[statLines.length - 1] : '无'}</strong></div>
-          </div>
-        )}
+function RunsPage({ refreshToken }: { refreshToken: number }) {
+  const resource = useResource<Run[]>(['/api/v1/runs', '/api/runs'], [], refreshToken);
+  const runs = Array.isArray(resource.data) ? resource.data : [];
+  return (
+    <CollectionPage title="Runs & Evidence" description="统一查看步骤、证据、验证结果和失败层级。" live={resource.live} loading={resource.loading} count={runs.length} empty="暂无 Run。Skill 执行或设备命令完成后会记录到统一 Run Registry。">
+      {runs.map((run) => <ListCard key={run.id} title={run.title || run.skill || run.id} meta={`${run.device || '未知设备'} · ${formatTime(run.started_at)}`} trailing={<StatusBadge tone={toneForStatus(run.status)}>{run.status}</StatusBadge>} />)}
+    </CollectionPage>
+  );
+}
 
-        {selectedCommit && (
-          <div className="commit-focus-strip">
-            {selectedCommit.files.map((file) => (
-              <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>
-            ))}
-          </div>
-        )}
-
-        <div className="diff-viewer review-diff-canvas">
-          {selectedCommit ? (
-            commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
-          ) : sections.length ? (
-            sections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} />)
-          ) : changedFiles.length ? (
-            <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} />
-          ) : <div className="empty-state">没有 diff</div>}
-        </div>
-      </main>
-
-      <aside className="review-side review-history">
-        <div className="review-side-head">
-          <div>
-            <span className="eyebrow">History</span>
-            <h3>版本时间线</h3>
-            <p>{commits.length} 个最近提交</p>
-          </div>
-          <Clock3 size={16} />
-        </div>
-        <div className="review-history-list">
-          {commits.map((commit) => (
-            <button className={`review-history-card ${selectedCommit?.commit?.hash === commit.hash ? 'active' : ''}`} key={commit.hash} onClick={() => void onSelectCommit(commit.hash)}>
-              <span className="review-history-dot" />
-              <strong>{commit.subject || '(no subject)'}</strong>
-              <small>{commit.short_hash} · {[commit.author, commit.date].filter(Boolean).join(' · ')}</small>
-            </button>
-          ))}
-        </div>
-      </aside>
+function SettingsPage() {
+  return (
+    <section className="settings-grid">
+      <Panel title="认证与访问" subtitle="用户、Agent 与设备身份"><SettingRow label="User Session" detail="浏览器登录与会话管理" /><SettingRow label="Agent Token" detail="Scope 限制与撤销" /><SettingRow label="Device Token" detail="Enrollment 后独立轮换" /></Panel>
+      <Panel title="发布策略" subtitle="Skill 与设备控制"><SettingRow label="默认 Channel" detail="stable" /><SettingRow label="Canary 验证" detail="发布前必须有 Verification Result" /><SettingRow label="自动回退" detail="验证失败时保持旧版本" /></Panel>
+      <Panel title="审计与保留" subtitle="所有写操作均可追踪"><SettingRow label="Audit Event" detail="actor / action / object / result / risk" /><SettingRow label="Evidence" detail="保留脱敏后的运行证据" /><SettingRow label="Export" detail="禁止携带私有路径和 Secret" /></Panel>
     </section>
   );
 }
 
-function ChangedFileCards({ files, onOpenFile, onDiscard }: { files: ChangedFile[]; onOpenFile: (path: string) => void; onDiscard: (path?: string) => Promise<void> }) {
-  return (
-    <div className="changed-card-grid">
-      {files.map((file) => (
-        <div className="changed-card" key={file.status + file.path}>
-          <div>
-            <span className="file-status">{file.status}</span>
-            <strong>{file.path}</strong>
-            <p>{file.status === '??' ? '新文件还没有进入 Git diff，但可以直接打开编辑或丢弃。' : '这个文件有本地变更，可以直接打开编辑。'}</p>
-          </div>
-          <div className="button-row">
-            <button className="primary" onClick={() => onOpenFile(file.path)}><PenLine size={14} />打开编辑</button>
-            <button className="danger" onClick={() => void onDiscard(file.path)}>丢弃</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function CollectionPage({ title, description, live, loading, count, empty, children }: { title: string; description: string; live: boolean; loading: boolean; count: number; empty: string; children: ReactNode }) {
+  return <section><div className="section-heading"><div><h2>{title}</h2><p>{description}</p></div><StatusBadge tone={live ? 'ok' : 'warn'}>{live ? 'Live API' : 'Compatibility mode'}</StatusBadge></div>{loading ? <EmptyState text="正在读取 Nexus 数据…" /> : count > 0 && children ? <div className="collection-stack">{children}</div> : <EmptyState text={empty} />}</section>;
 }
 
-function DiffSectionView({ section, mode, onDiscard, onOpenFile, readonly = false }: { section: DiffSection; mode: 'split' | 'unified'; onDiscard: (path?: string) => Promise<void>; onOpenFile: (path: string) => void; readonly?: boolean }) {
-  return (
-    <div className="diff-section">
-      <div className="diff-stage">{section.title}</div>
-      {section.files.map((file) => (
-        <div className="diff-file" key={section.title + file.name}>
-          <div className="diff-file-head">
-            <Braces size={14} />
-            <span>{file.name}</span>
-            <button className="ghost" onClick={() => onOpenFile(file.name)}><PenLine size={13} />打开编辑</button>
-            {!readonly && <button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button>}
-          </div>
-          {mode === 'split' ? (
-            <div className="diff-file-body split-diff-body">
-              <div className="diff-pane diff-pane-before" aria-label="变更前">
-                {file.rows.map((row, index) => <DiffPaneRow key={`left-${index}`} row={row} side="left" />)}
-              </div>
-              <div className="diff-pane diff-pane-after" aria-label="变更后">
-                {file.rows.map((row, index) => <DiffPaneRow key={`right-${index}`} row={row} side="right" />)}
-              </div>
-            </div>
-          ) : (
-            <div className="diff-file-body unified-diff-body">
-              {file.rows.map((row, index) => <UnifiedDiffRow key={index} row={row} />)}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiffPaneRow({ row, side }: { row: DiffRow; side: 'left' | 'right' }) {
-  const lineNo = side === 'left' ? row.oldNo : row.newNo;
-  const value = side === 'left' ? row.left : row.right;
-  let content: React.ReactNode = value || ' ';
-  if (row.kind === 'change') {
-    const parts = inlineDiffParts(row.left || '', row.right || '');
-    content = <InlineDiffCode parts={side === 'left' ? parts.left : parts.right} side={side} />;
-  }
-  return <div className={`diff-pane-row ${row.kind}`}><span className="ln">{lineNo || ''}</span><code className={side}>{content}</code></div>;
-}
-
-function UnifiedDiffRow({ row }: { row: DiffRow }) {
-  if (row.kind === 'change') {
-    const parts = inlineDiffParts(row.left || '', row.right || '');
-    return <>
-      <div className="unified-diff-row del change"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code><InlineDiffCode parts={parts.left} side="left" /></code></div>
-      <div className="unified-diff-row add change"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code><InlineDiffCode parts={parts.right} side="right" /></code></div>
-    </>;
-  }
-  if (row.kind === 'add') return <div className="unified-diff-row add"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code>{row.right || ' '}</code></div>;
-  if (row.kind === 'del') return <div className="unified-diff-row del"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code>{row.left || ' '}</code></div>;
-  return <div className={`unified-diff-row ${row.kind}`}><span className="ln">{row.newNo || row.oldNo || ''}</span><span className="sign"> </span><code>{row.right || row.left || ' '}</code></div>;
-}
-
-function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'danger' | 'neutral' }) {
-  return <div className={`sync-card ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
-}
-
-function SyncView({ status, access, onRefresh, onAction, onAccessRefresh, onAccessSave }: { status: SyncStatus | null; access: AccessConfig | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void>; onAccessRefresh: () => Promise<void>; onAccessSave: (username: string, secret: string) => Promise<void> }) {
-  const dirty = Boolean(status?.dirty);
-  const pending = Boolean(status?.pending_push);
-  const ahead = String(status?.ahead ?? '0');
-  const behind = String(status?.behind ?? '0');
-  const healthy = !dirty && !pending && ahead === '0' && behind === '0';
-  return (
-    <section className="sync-grid">
-      <div className="panel-card sync-status-card">
-        <div className="card-head">
-          <div><h3>同步健康</h3><p>{healthy ? '本地和远程状态一致' : '有状态需要你确认'}</p></div>
-          <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
-        </div>
-        <div className="sync-card-grid">
-          <SyncCard label="整体状态" value={healthy ? '健康' : '需处理'} tone={healthy ? 'ok' : 'warn'} />
-          <SyncCard label="本地脏区" value={dirty ? '有更改' : '干净'} tone={dirty ? 'warn' : 'ok'} />
-          <SyncCard label="待保存远程" value={pending ? '是' : '否'} tone={pending ? 'warn' : 'ok'} />
-          <SyncCard label="领先远程" value={ahead} tone={ahead !== '0' ? 'warn' : 'ok'} />
-          <SyncCard label="落后远程" value={behind} tone={behind !== '0' ? 'warn' : 'ok'} />
-        </div>
-        <details className="raw-status"><summary>查看原始状态</summary><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></details>
-      </div>
-      <div className="panel-card sync-actions-card">
-        <div className="card-head"><div><h3>同步操作</h3><p>用清晰动作替代 Git 命令</p></div></div>
-        <div className="sync-actions stacked">
-          <button onClick={() => void onAction('pull')}><RefreshCw size={15} />从远程更新</button>
-          <button onClick={() => void onAction('push')}><GitBranch size={15} />保存到远程</button>
-          <button className="primary" onClick={() => void onAction('now')}><Save size={15} />更新并保存</button>
-        </div>
-      </div>
-      <AccessSettings access={access} onRefresh={onAccessRefresh} onSave={onAccessSave} />
-    </section>
-  );
-}
-
-function AccessSettings({ access, onRefresh, onSave }: { access: AccessConfig | null; onRefresh: () => Promise<void>; onSave: (username: string, secret: string) => Promise<void> }) {
-  const [username, setUsername] = useState(access?.username || '');
-  const [secret, setSecret] = useState('');
-  const [confirmSecret, setConfirmSecret] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setUsername(access?.username || '');
-  }, [access?.username]);
-
-  async function submit() {
-    const nextUser = username.trim();
-    if (!nextUser) {
-      alert('用户名不能为空');
-      return;
-    }
-    if (!secret) {
-      alert('请输入新密码');
-      return;
-    }
-    if (secret !== confirmSecret) {
-      alert('两次输入的密码不一致');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(nextUser, secret);
-      setSecret('');
-      setConfirmSecret('');
-      await onRefresh().catch(() => undefined);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="panel-card access-settings-card">
-      <div className="card-head"><div><h3>账号密码</h3><p>{access?.enabled ? '已启用访问保护，可在这里更新登录凭据。' : '设置后访问 UI 和 API 都需要认证。'}</p></div><Settings size={18} /></div>
-      <div className="access-form">
-        <label><span>用户名</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="admin" autoComplete="username" /></label>
-        <label><span>新密码</span><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="输入新密码" autoComplete="new-password" /></label>
-        <label><span>确认密码</span><input type="password" value={confirmSecret} onChange={(event) => setConfirmSecret(event.target.value)} placeholder="再次输入新密码" autoComplete="new-password" /></label>
-      </div>
-      <div className="button-row access-actions">
-        <button onClick={() => void onRefresh()}><RefreshCw size={14} />刷新</button>
-        <button className="primary" disabled={saving} onClick={() => void submit()}>{saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}保存账号密码</button>
-      </div>
-      <p className="muted access-note">保存后浏览器可能仍缓存旧认证；若提示未授权，请关闭页面后重新打开并输入新账号密码。</p>
-    </div>
-  );
-}
-
-
+function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
+function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
+function TimelineItem({ icon, title, detail, tone }: { icon: ReactNode; title: string; detail: string; tone: Tone }) { return <div className="timeline-item"><span className={`timeline-icon tone-${tone}`}>{icon}</span><div><strong>{title}</strong><p>{detail}</p></div></div>; }
+function ProgressRow({ name, value }: { name: string; value: number }) { return <div className="progress-row"><div><span>{name}</span><strong>{value}%</strong></div><div className="progress-track"><span style={{ width: `${value}%` }} /></div></div>; }
+function ListCard({ title, meta, trailing }: { title: string; meta: string; trailing: ReactNode }) { return <article className="list-card"><div><h3>{title}</h3><p>{meta}</p></div><div className="list-trailing">{trailing}</div></article>; }
+function EmptyState({ text }: { text: string }) { return <div className="empty-state"><span><Activity size={24} /></span><h3>等待数据</h3><p>{text}</p></div>; }
+function SettingRow({ label, detail }: { label: string; detail: string }) { return <div className="setting-row"><div><strong>{label}</strong><p>{detail}</p></div><ChevronRight size={17} /></div>; }
+function EntityCard({ icon, title, status, detail, leftLabel, leftValue, rightLabel, rightValue }: { icon: ReactNode; title: string; status: string; detail: string; leftLabel: string; leftValue: string; rightLabel: string; rightValue: string }) { return <article className="entity-card"><div className="entity-head"><span className="entity-avatar">{icon}</span><StatusBadge tone={toneForStatus(status)}>{status}</StatusBadge></div><h3>{title}</h3><p>{detail}</p><dl><div><dt>{leftLabel}</dt><dd>{leftValue}</dd></div><div><dt>{rightLabel}</dt><dd>{rightValue}</dd></div></dl></article>; }
