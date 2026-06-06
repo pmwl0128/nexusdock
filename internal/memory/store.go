@@ -63,16 +63,24 @@ type MemoryIndex struct {
 }
 
 type WriteRequest struct {
-	Path       string   `json:"path"`
-	Content    string   `json:"content"`
-	Type       string   `json:"type"`
-	Scope      string   `json:"scope"`
-	Project    string   `json:"project"`
-	Source     string   `json:"source"`
-	Confidence string   `json:"confidence"`
-	Tags       []string `json:"tags"`
-	Confirmed  bool     `json:"confirmed"`
-	Overwrite  bool     `json:"overwrite"`
+	Path              string   `json:"path"`
+	Content           string   `json:"content"`
+	Type              string   `json:"type"`
+	Scope             string   `json:"scope"`
+	Status            string   `json:"status"`
+	Project           string   `json:"project"`
+	Device            string   `json:"device"`
+	Agent             string   `json:"agent"`
+	Skill             string   `json:"skill"`
+	Source            string   `json:"source"`
+	Confidence        string   `json:"confidence"`
+	VerifiedAt        string   `json:"verified_at"`
+	VerificationRunID string   `json:"verification_run_id"`
+	SourceDevice      string   `json:"source_device"`
+	SourceAgent       string   `json:"source_agent"`
+	Tags              []string `json:"tags"`
+	Confirmed         bool     `json:"confirmed"`
+	Overwrite         bool     `json:"overwrite"`
 }
 
 type NoteRequest struct {
@@ -470,6 +478,15 @@ func (s *Store) Write(req WriteRequest) (Memory, error) {
 	if !IsAllowedMemoryPath(path) {
 		return Memory{}, ErrDisallowedPath
 	}
+	if raw := strings.TrimSpace(req.Scope); raw != "" && !Scope(strings.ToLower(raw)).Valid() {
+		return Memory{}, fmt.Errorf("invalid memory scope %q", raw)
+	}
+	if raw := strings.TrimSpace(req.Status); raw != "" && !Status(strings.ToLower(raw)).Valid() {
+		return Memory{}, fmt.Errorf("invalid memory status %q", raw)
+	}
+	if raw := strings.TrimSpace(req.Confidence); raw != "" && !Confidence(strings.ToLower(raw)).Valid() {
+		return Memory{}, fmt.Errorf("invalid memory confidence %q", raw)
+	}
 	abs, err := s.resolve(path)
 	if err != nil {
 		return Memory{}, err
@@ -483,7 +500,7 @@ func (s *Store) Write(req WriteRequest) (Memory, error) {
 	if !strings.HasPrefix(content, "---\n") {
 		content = BuildFrontmatter(req) + "\n" + content + "\n"
 	}
-	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+	if err := atomicWriteFile(abs, []byte(content), 0o644); err != nil {
 		return Memory{}, err
 	}
 	return s.Read(path)
@@ -873,11 +890,11 @@ func BuildFrontmatter(req WriteRequest) string {
 	}
 	scope := SafeSegment(req.Scope)
 	if scope == "" {
-		if strings.HasPrefix(req.Path, "shared/") {
-			scope = "shared"
-		} else {
-			scope = "inbox"
-		}
+		scope = string(inferScope(req.Path))
+	}
+	status := strings.ToLower(strings.TrimSpace(req.Status))
+	if status == "" {
+		status = string(StatusActive)
 	}
 	source := strings.TrimSpace(req.Source)
 	if source == "" {
@@ -891,11 +908,33 @@ func BuildFrontmatter(req WriteRequest) string {
 	b.WriteString("---\n")
 	b.WriteString("type: " + typeName + "\n")
 	b.WriteString("scope: " + scope + "\n")
+	b.WriteString("status: " + status + "\n")
 	if project := SafeSegment(req.Project); project != "" {
 		b.WriteString("project: " + project + "\n")
 	}
+	if device := strings.TrimSpace(req.Device); device != "" {
+		b.WriteString("device: " + device + "\n")
+	}
+	if agent := strings.TrimSpace(req.Agent); agent != "" {
+		b.WriteString("agent: " + agent + "\n")
+	}
+	if skill := strings.TrimSpace(req.Skill); skill != "" {
+		b.WriteString("skill: " + skill + "\n")
+	}
 	b.WriteString("source: " + source + "\n")
 	b.WriteString("confidence: " + confidence + "\n")
+	if verifiedAt := strings.TrimSpace(req.VerifiedAt); verifiedAt != "" {
+		b.WriteString("verified_at: " + verifiedAt + "\n")
+	}
+	if runID := strings.TrimSpace(req.VerificationRunID); runID != "" {
+		b.WriteString("verification_run_id: " + runID + "\n")
+	}
+	if device := strings.TrimSpace(req.SourceDevice); device != "" {
+		b.WriteString("source_device: " + device + "\n")
+	}
+	if agent := strings.TrimSpace(req.SourceAgent); agent != "" {
+		b.WriteString("source_agent: " + agent + "\n")
+	}
 	b.WriteString("created_at: " + now() + "\n")
 	b.WriteString("updated_at: " + now() + "\n")
 	if len(req.Tags) > 0 {
@@ -939,3 +978,30 @@ func SafeFilename(value string) string {
 }
 
 func now() string { return time.Now().Format(time.RFC3339) }
+
+func atomicWriteFile(path string, data []byte, mode fs.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".memorydock-write-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
+	}
+	defer cleanup()
+	if err := tmp.Chmod(mode); err != nil {
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}
