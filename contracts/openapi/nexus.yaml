@@ -143,6 +143,64 @@
         }
       }
     },
+    "/v1/devices/enrollment-tokens": {
+      "post": {
+        "operationId": "createEnrollmentToken",
+        "summary": "创建一次性注册 token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentTokenCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentTokenCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/{deviceId}/heartbeat": {
       "post": {
         "operationId": "reportDeviceHeartbeat",
@@ -189,6 +247,254 @@
         }
       }
     },
+    "/v1/devices/{deviceId}/approve": {
+      "post": {
+        "operationId": "approveDevice",
+        "summary": "批准设备",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "已批准。"
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}/revoke": {
+      "post": {
+        "operationId": "revokeDevice",
+        "summary": "撤销设备",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRevokeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "已撤销。"
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}/token/rotate": {
+      "post": {
+        "operationId": "rotateDeviceToken",
+        "summary": "轮换设备 token",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenRotationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/{deviceId}/commands": {
+      "post": {
+        "operationId": "createDeviceCommand",
+        "summary": "创建设备命令",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCommandCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCommand"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "幂等命中。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCommand"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/{deviceId}/commands/lease": {
       "post": {
         "operationId": "leaseDeviceCommand",
@@ -211,6 +517,105 @@
           },
           "204": {
             "description": "当前无命令。"
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/commands/{commandId}/start": {
+      "post": {
+        "operationId": "startCommand",
+        "summary": "标记命令开始执行",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CommandId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandLeaseAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "已开始。"
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/commands/{commandId}/renew": {
+      "post": {
+        "operationId": "renewCommandLease",
+        "summary": "续租命令",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CommandId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandLeaseAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandLease"
+                }
+              }
+            }
           },
           "401": {
             "description": "错误。",
@@ -885,7 +1290,24 @@
               "LEASE_EXPIRED",
               "UNSUPPORTED_COMMAND",
               "SKILL_BLOCKED",
-              "SCHEMA_MISMATCH"
+              "SCHEMA_MISMATCH",
+              "DEVICE_NOT_FOUND",
+              "DEVICE_ALREADY_EXISTS",
+              "DEVICE_NOT_APPROVED",
+              "DEVICE_REVOKED",
+              "DEVICE_TOKEN_INVALID",
+              "ENROLLMENT_TOKEN_INVALID",
+              "ENROLLMENT_TOKEN_EXPIRED",
+              "ENROLLMENT_TOKEN_USED",
+              "DEVICE_POLICY_DENIED",
+              "COMMAND_NOT_FOUND",
+              "COMMAND_TYPE_DENIED",
+              "COMMAND_CANCELLED",
+              "COMMAND_TERMINAL",
+              "COMMAND_NOT_LEASEABLE",
+              "LEASE_NOT_FOUND",
+              "LEASE_MISMATCH",
+              "INVALID_COMMAND_TRANSITION"
             ]
           },
           "message": {
@@ -1178,6 +1600,203 @@
           "token_expires_at",
           "heartbeat_interval_seconds",
           "server_time"
+        ]
+      },
+      "EnrollmentTokenCreateRequest": {
+        "type": "object",
+        "description": "创建一次性设备注册 token。",
+        "additionalProperties": false,
+        "properties": {
+          "created_by": {
+            "type": "string",
+            "description": "创建主体标识。"
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "description": "有效期秒数。",
+            "minimum": 60,
+            "maximum": 604800
+          },
+          "allowed_command_types": {
+            "type": "array",
+            "description": "允许的命令类型。",
+            "items": {
+              "type": "string",
+              "description": "命令类型。",
+              "enum": [
+                "health.check",
+                "skill.install",
+                "skill.run",
+                "skill.rollback",
+                "memory.sync",
+                "service.inspect",
+                "service.restart",
+                "diagnostics.collect",
+                "agentdock.reload"
+              ]
+            }
+          },
+          "max_risk": {
+            "type": "string",
+            "description": "最大允许风险。",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "created_by",
+          "ttl_seconds",
+          "allowed_command_types",
+          "max_risk"
+        ]
+      },
+      "EnrollmentTokenCreateResponse": {
+        "type": "object",
+        "description": "一次性设备注册 token。",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "仅返回一次的明文注册 token。"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ]
+      },
+      "CommandLeaseAction": {
+        "type": "object",
+        "description": "命令租约动作请求。",
+        "additionalProperties": false,
+        "properties": {
+          "lease_id": {
+            "type": "string",
+            "description": "全局唯一标识符。",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "lease_id"
+        ]
+      },
+      "DeviceTokenRotationResponse": {
+        "type": "object",
+        "description": "设备 token 轮换结果。",
+        "additionalProperties": false,
+        "properties": {
+          "device_token": {
+            "type": "string",
+            "description": "新设备 token；仅返回一次。"
+          },
+          "token_expires_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "device_token",
+          "token_expires_at"
+        ]
+      },
+      "DeviceRevokeRequest": {
+        "type": "object",
+        "description": "撤销设备请求。",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "撤销原因。",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "DeviceCommandCreateRequest": {
+        "type": "object",
+        "description": "创建受控设备命令。",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "命令类型。",
+            "enum": [
+              "health.check",
+              "skill.install",
+              "skill.run",
+              "skill.rollback",
+              "memory.sync",
+              "service.inspect",
+              "service.restart",
+              "diagnostics.collect",
+              "agentdock.reload"
+            ]
+          },
+          "payload": {
+            "type": "object",
+            "description": "命令结构化参数；不得包含明文 Secret。",
+            "additionalProperties": true,
+            "properties": {}
+          },
+          "risk": {
+            "type": "string",
+            "description": "风险等级。",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "副作用幂等键。",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "priority": {
+            "type": "integer",
+            "description": "调度优先级。",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "max_attempts": {
+            "type": "integer",
+            "description": "最大尝试次数。",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "not_before": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "type",
+          "payload",
+          "risk",
+          "idempotency_key",
+          "priority",
+          "max_attempts",
+          "not_before",
+          "expires_at"
         ]
       },
       "DeviceHeartbeat": {

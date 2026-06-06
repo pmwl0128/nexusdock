@@ -32,21 +32,26 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path, idempotencyKey string, requestBody, responseBody any) error {
+	_, err := c.doJSONStatus(ctx, method, path, idempotencyKey, requestBody, responseBody)
+	return err
+}
+
+func (c *Client) doJSONStatus(ctx context.Context, method, path, idempotencyKey string, requestBody, responseBody any) (int, error) {
 	var body io.Reader
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
 		if err != nil {
-			return fmt.Errorf("encode request: %w", err)
+			return 0, fmt.Errorf("encode request: %w", err)
 		}
 		body = bytes.NewReader(encoded)
 	}
 	endpoint, err := c.BaseURL.Parse(strings.TrimLeft(path, "/"))
 	if err != nil {
-		return fmt.Errorf("resolve endpoint: %w", err)
+		return 0, fmt.Errorf("resolve endpoint: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return 0, fmt.Errorf("create request: %w", err)
 	}
 	if requestBody != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -59,23 +64,23 @@ func (c *Client) doJSON(ctx context.Context, method, path, idempotencyKey string
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("perform request: %w", err)
+		return 0, fmt.Errorf("perform request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiError ErrorResponse
 		if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&apiError); err != nil {
-			return fmt.Errorf("Nexus returned HTTP %d", resp.StatusCode)
+			return resp.StatusCode, fmt.Errorf("Nexus returned HTTP %d", resp.StatusCode)
 		}
-		return fmt.Errorf("Nexus %s: %s", apiError.Code, apiError.Message)
+		return resp.StatusCode, fmt.Errorf("Nexus %s: %s", apiError.Code, apiError.Message)
 	}
 	if responseBody == nil || resp.StatusCode == http.StatusNoContent {
-		return nil
+		return resp.StatusCode, nil
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(responseBody); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+		return resp.StatusCode, fmt.Errorf("decode response: %w", err)
 	}
-	return nil
+	return resp.StatusCode, nil
 }
 
 func (c *Client) EnrollDevice(ctx context.Context, request DeviceEnrollmentRequest) (DeviceEnrollmentResponse, error) {
@@ -84,13 +89,55 @@ func (c *Client) EnrollDevice(ctx context.Context, request DeviceEnrollmentReque
 	return response, err
 }
 
+func (c *Client) CreateEnrollmentToken(ctx context.Context, request EnrollmentTokenCreateRequest) (EnrollmentTokenCreateResponse, error) {
+	var response EnrollmentTokenCreateResponse
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/enrollment-tokens", "", request, &response)
+	return response, err
+}
+
+func (c *Client) ApproveDevice(ctx context.Context, deviceID string) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/approve", "", nil, nil)
+}
+
+func (c *Client) RevokeDevice(ctx context.Context, deviceID string, request DeviceRevokeRequest) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/revoke", "", request, nil)
+}
+
+func (c *Client) CreateDeviceCommand(ctx context.Context, deviceID string, request DeviceCommandCreateRequest) (DeviceCommand, error) {
+	var response DeviceCommand
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands", request.IdempotencyKey, request, &response)
+	return response, err
+}
+
 func (c *Client) ReportDeviceHeartbeat(ctx context.Context, deviceID string, request DeviceHeartbeat) error {
 	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/heartbeat", "", request, nil)
 }
 
-func (c *Client) LeaseDeviceCommand(ctx context.Context, deviceID string) (CommandLease, error) {
+func (c *Client) RotateDeviceToken(ctx context.Context, deviceID string) (DeviceTokenRotationResponse, error) {
+	var response DeviceTokenRotationResponse
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/token/rotate", "", nil, &response)
+	return response, err
+}
+
+func (c *Client) LeaseDeviceCommand(ctx context.Context, deviceID string) (*CommandLease, error) {
 	var response CommandLease
-	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands/lease", "", nil, &response)
+	status, err := c.doJSONStatus(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands/lease", "", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusNoContent {
+		return nil, nil
+	}
+	return &response, nil
+}
+
+func (c *Client) StartCommand(ctx context.Context, commandID string, request CommandLeaseAction) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/start", "", request, nil)
+}
+
+func (c *Client) RenewCommandLease(ctx context.Context, commandID string, request CommandLeaseAction) (CommandLease, error) {
+	var response CommandLease
+	err := c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/renew", "", request, &response)
 	return response, err
 }
 

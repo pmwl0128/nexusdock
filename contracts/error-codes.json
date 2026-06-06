@@ -68,6 +68,74 @@
     {
       "code": "SCHEMA_MISMATCH",
       "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_NOT_FOUND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_ALREADY_EXISTS",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_NOT_APPROVED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_REVOKED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_TOKEN_INVALID",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "ENROLLMENT_TOKEN_INVALID",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "ENROLLMENT_TOKEN_EXPIRED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "ENROLLMENT_TOKEN_USED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "DEVICE_POLICY_DENIED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_NOT_FOUND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_TYPE_DENIED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_CANCELLED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_TERMINAL",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "COMMAND_NOT_LEASEABLE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LEASE_NOT_FOUND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LEASE_MISMATCH",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "INVALID_COMMAND_TRANSITION",
+      "description": "稳定公共错误码。"
     }
   ]
 }

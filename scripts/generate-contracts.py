@@ -75,6 +75,23 @@ ERROR_CODES = [
     "UNSUPPORTED_COMMAND",
     "SKILL_BLOCKED",
     "SCHEMA_MISMATCH",
+    "DEVICE_NOT_FOUND",
+    "DEVICE_ALREADY_EXISTS",
+    "DEVICE_NOT_APPROVED",
+    "DEVICE_REVOKED",
+    "DEVICE_TOKEN_INVALID",
+    "ENROLLMENT_TOKEN_INVALID",
+    "ENROLLMENT_TOKEN_EXPIRED",
+    "ENROLLMENT_TOKEN_USED",
+    "DEVICE_POLICY_DENIED",
+    "COMMAND_NOT_FOUND",
+    "COMMAND_TYPE_DENIED",
+    "COMMAND_CANCELLED",
+    "COMMAND_TERMINAL",
+    "COMMAND_NOT_LEASEABLE",
+    "LEASE_NOT_FOUND",
+    "LEASE_MISMATCH",
+    "INVALID_COMMAND_TRANSITION",
 ]
 
 COMMAND_TYPES = [
@@ -221,6 +238,56 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "server_time": TIMESTAMP,
         },
         ("device_id", "device_token", "token_expires_at", "heartbeat_interval_seconds", "server_time"),
+    )
+    schemas["EnrollmentTokenCreateRequest"] = obj(
+        "创建一次性设备注册 token。",
+        {
+            "created_by": scalar("string", "创建主体标识。"),
+            "ttl_seconds": scalar("integer", "有效期秒数。", minimum=60, maximum=604800),
+            "allowed_command_types": array("允许的命令类型。", enum("命令类型。", COMMAND_TYPES)),
+            "max_risk": enum("最大允许风险。", ["low", "medium", "high"]),
+        },
+        ("created_by", "ttl_seconds", "allowed_command_types", "max_risk"),
+    )
+    schemas["EnrollmentTokenCreateResponse"] = obj(
+        "一次性设备注册 token。",
+        {
+            "token": scalar("string", "仅返回一次的明文注册 token。"),
+            "expires_at": TIMESTAMP,
+        },
+        ("token", "expires_at"),
+    )
+    schemas["CommandLeaseAction"] = obj(
+        "命令租约动作请求。",
+        {"lease_id": ID},
+        ("lease_id",),
+    )
+    schemas["DeviceTokenRotationResponse"] = obj(
+        "设备 token 轮换结果。",
+        {
+            "device_token": scalar("string", "新设备 token；仅返回一次。"),
+            "token_expires_at": TIMESTAMP,
+        },
+        ("device_token", "token_expires_at"),
+    )
+    schemas["DeviceRevokeRequest"] = obj(
+        "撤销设备请求。",
+        {"reason": scalar("string", "撤销原因。", minLength=1, maxLength=1000)},
+        ("reason",),
+    )
+    schemas["DeviceCommandCreateRequest"] = obj(
+        "创建受控设备命令。",
+        {
+            "type": enum("命令类型。", COMMAND_TYPES),
+            "payload": obj("命令结构化参数；不得包含明文 Secret。", {}, additional=True),
+            "risk": enum("风险等级。", ["low", "medium", "high"]),
+            "idempotency_key": scalar("string", "副作用幂等键。", minLength=8, maxLength=128),
+            "priority": scalar("integer", "调度优先级。", minimum=-100, maximum=100),
+            "max_attempts": scalar("integer", "最大尝试次数。", minimum=1, maximum=20),
+            "not_before": TIMESTAMP,
+            "expires_at": TIMESTAMP,
+        },
+        ("type", "payload", "risk", "idempotency_key", "priority", "max_attempts", "not_before", "expires_at"),
     )
     schemas["DeviceHeartbeat"] = obj(
         "设备心跳快照。",
@@ -674,8 +741,15 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/health": {"get": {"operationId": "getHealth", "summary": "存活检查", "responses": {"200": response(obj("健康状态。", {"ok": scalar("boolean", "是否健康。"), "service": scalar("string", "服务名。")}, ("ok", "service")))}}},
         "/ready": {"get": {"operationId": "getReadiness", "summary": "就绪检查", "responses": {"200": response(obj("就绪状态。", {"ready": scalar("boolean", "是否就绪。")}, ("ready",))), "503": error}}},
         "/v1/devices/enroll": {"post": {"operationId": "enrollDevice", "summary": "注册设备", "requestBody": body(ref("DeviceEnrollmentRequest")), "responses": {"201": response(ref("DeviceEnrollmentResponse")), "400": error, "401": error, "409": error}}},
+        "/v1/devices/enrollment-tokens": {"post": {"operationId": "createEnrollmentToken", "summary": "创建一次性注册 token", "requestBody": body(ref("EnrollmentTokenCreateRequest")), "responses": {"201": response(ref("EnrollmentTokenCreateResponse")), "400": error, "401": error, "403": error}}},
         "/v1/devices/{deviceId}/heartbeat": {"post": {"operationId": "reportDeviceHeartbeat", "summary": "上报设备心跳", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceHeartbeat")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
+        "/v1/devices/{deviceId}/approve": {"post": {"operationId": "approveDevice", "summary": "批准设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"204": {"description": "已批准。"}, "401": error, "403": error, "404": error, "409": error}}},
+        "/v1/devices/{deviceId}/revoke": {"post": {"operationId": "revokeDevice", "summary": "撤销设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceRevokeRequest")), "responses": {"204": {"description": "已撤销。"}, "401": error, "403": error, "404": error, "409": error}}},
+        "/v1/devices/{deviceId}/token/rotate": {"post": {"operationId": "rotateDeviceToken", "summary": "轮换设备 token", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("DeviceTokenRotationResponse")), "401": error, "409": error}}},
+        "/v1/devices/{deviceId}/commands": {"post": {"operationId": "createDeviceCommand", "summary": "创建设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceCommandCreateRequest")), "responses": {"201": response(ref("DeviceCommand")), "200": response(ref("DeviceCommand"), "幂等命中。"), "400": error, "401": error, "403": error, "409": error}}},
         "/v1/devices/{deviceId}/commands/lease": {"post": {"operationId": "leaseDeviceCommand", "summary": "租用下一条设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("CommandLease")), "204": {"description": "当前无命令。"}, "401": error, "409": error}}},
+        "/v1/commands/{commandId}/start": {"post": {"operationId": "startCommand", "summary": "标记命令开始执行", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandLeaseAction")), "responses": {"204": {"description": "已开始。"}, "401": error, "409": error}}},
+        "/v1/commands/{commandId}/renew": {"post": {"operationId": "renewCommandLease", "summary": "续租命令", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandLeaseAction")), "responses": {"200": response(ref("CommandLease")), "401": error, "409": error}}},
         "/v1/commands/{commandId}/progress": {"post": {"operationId": "reportCommandProgress", "summary": "上报命令进度", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandProgress")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
         "/v1/commands/{commandId}/result": {"post": {"operationId": "completeCommand", "summary": "上报命令结果", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandResult")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
         "/v1/skills": {"get": {"operationId": "listSkills", "summary": "列出 Skills", "responses": {"200": response(obj("Skill 分页列表。", {"items": array("Skills。", ref("SkillSummary")), "pagination": ref("Pagination")}, ("items", "pagination"))), "401": error}}},
@@ -918,21 +992,26 @@ func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path, idempotencyKey string, requestBody, responseBody any) error {
+	_, err := c.doJSONStatus(ctx, method, path, idempotencyKey, requestBody, responseBody)
+	return err
+}
+
+func (c *Client) doJSONStatus(ctx context.Context, method, path, idempotencyKey string, requestBody, responseBody any) (int, error) {
 	var body io.Reader
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
 		if err != nil {
-			return fmt.Errorf("encode request: %w", err)
+			return 0, fmt.Errorf("encode request: %w", err)
 		}
 		body = bytes.NewReader(encoded)
 	}
 	endpoint, err := c.BaseURL.Parse(strings.TrimLeft(path, "/"))
 	if err != nil {
-		return fmt.Errorf("resolve endpoint: %w", err)
+		return 0, fmt.Errorf("resolve endpoint: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return 0, fmt.Errorf("create request: %w", err)
 	}
 	if requestBody != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -945,23 +1024,23 @@ func (c *Client) doJSON(ctx context.Context, method, path, idempotencyKey string
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("perform request: %w", err)
+		return 0, fmt.Errorf("perform request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		var apiError ErrorResponse
 		if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&apiError); err != nil {
-			return fmt.Errorf("Nexus returned HTTP %d", resp.StatusCode)
+			return resp.StatusCode, fmt.Errorf("Nexus returned HTTP %d", resp.StatusCode)
 		}
-		return fmt.Errorf("Nexus %s: %s", apiError.Code, apiError.Message)
+		return resp.StatusCode, fmt.Errorf("Nexus %s: %s", apiError.Code, apiError.Message)
 	}
 	if responseBody == nil || resp.StatusCode == http.StatusNoContent {
-		return nil
+		return resp.StatusCode, nil
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(responseBody); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+		return resp.StatusCode, fmt.Errorf("decode response: %w", err)
 	}
-	return nil
+	return resp.StatusCode, nil
 }
 
 func (c *Client) EnrollDevice(ctx context.Context, request DeviceEnrollmentRequest) (DeviceEnrollmentResponse, error) {
@@ -970,13 +1049,55 @@ func (c *Client) EnrollDevice(ctx context.Context, request DeviceEnrollmentReque
 	return response, err
 }
 
+func (c *Client) CreateEnrollmentToken(ctx context.Context, request EnrollmentTokenCreateRequest) (EnrollmentTokenCreateResponse, error) {
+	var response EnrollmentTokenCreateResponse
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/enrollment-tokens", "", request, &response)
+	return response, err
+}
+
+func (c *Client) ApproveDevice(ctx context.Context, deviceID string) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/approve", "", nil, nil)
+}
+
+func (c *Client) RevokeDevice(ctx context.Context, deviceID string, request DeviceRevokeRequest) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/revoke", "", request, nil)
+}
+
+func (c *Client) CreateDeviceCommand(ctx context.Context, deviceID string, request DeviceCommandCreateRequest) (DeviceCommand, error) {
+	var response DeviceCommand
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands", request.IdempotencyKey, request, &response)
+	return response, err
+}
+
 func (c *Client) ReportDeviceHeartbeat(ctx context.Context, deviceID string, request DeviceHeartbeat) error {
 	return c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/heartbeat", "", request, nil)
 }
 
-func (c *Client) LeaseDeviceCommand(ctx context.Context, deviceID string) (CommandLease, error) {
+func (c *Client) RotateDeviceToken(ctx context.Context, deviceID string) (DeviceTokenRotationResponse, error) {
+	var response DeviceTokenRotationResponse
+	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/token/rotate", "", nil, &response)
+	return response, err
+}
+
+func (c *Client) LeaseDeviceCommand(ctx context.Context, deviceID string) (*CommandLease, error) {
 	var response CommandLease
-	err := c.doJSON(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands/lease", "", nil, &response)
+	status, err := c.doJSONStatus(ctx, http.MethodPost, "/v1/devices/"+url.PathEscape(deviceID)+"/commands/lease", "", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusNoContent {
+		return nil, nil
+	}
+	return &response, nil
+}
+
+func (c *Client) StartCommand(ctx context.Context, commandID string, request CommandLeaseAction) error {
+	return c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/start", "", request, nil)
+}
+
+func (c *Client) RenewCommandLease(ctx context.Context, commandID string, request CommandLeaseAction) (CommandLease, error) {
+	var response CommandLease
+	err := c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/renew", "", request, &response)
 	return response, err
 }
 
