@@ -264,7 +264,7 @@ function InboxPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function DevicesPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Device[]>(['/api/v1/devices', '/api/devices'], [], refreshToken);
+  const resource = useResource<Device[]>(['/v1/devices', '/api/v1/devices', '/api/devices'], [], refreshToken);
   const devices = Array.isArray(resource.data) ? resource.data : [];
   return (
     <CollectionPage title="Devices Control Plane" description="注册、心跳、能力、服务、Skill 与命令生命周期。" live={resource.live} loading={resource.loading} count={devices.length} empty="尚未发现设备。设备完成 enrollment 并上报 heartbeat 后会显示在这里。">
