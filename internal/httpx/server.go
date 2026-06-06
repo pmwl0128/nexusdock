@@ -11,21 +11,37 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/uvwt/memorydock/internal/commands"
 	"github.com/uvwt/memorydock/internal/config"
+	"github.com/uvwt/memorydock/internal/devices"
 	"github.com/uvwt/memorydock/internal/memory"
 	"github.com/uvwt/memorydock/internal/syncer"
 )
 
 type Server struct {
-	mu     sync.RWMutex
-	cfg    config.Config
-	store  *memory.Store
-	syncer *syncer.Manager
-	logger *slog.Logger
+	mu       sync.RWMutex
+	cfg      config.Config
+	store    *memory.Store
+	syncer   *syncer.Manager
+	logger   *slog.Logger
+	devices  *devices.Service
+	commands *commands.Service
 }
 
-func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, logger *slog.Logger) *Server {
+type ServerOption func(*Server)
+
+func WithControlPlane(deviceService *devices.Service, commandService *commands.Service) ServerOption {
+	return func(server *Server) {
+		server.devices = deviceService
+		server.commands = commandService
+	}
+}
+
+func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
 	server := &Server{cfg: cfg, store: store, syncer: syncer, logger: logger}
+	for _, option := range options {
+		option(server)
+	}
 	return server
 }
 
@@ -55,6 +71,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/memories/", protected(s.readMemory))
 	mux.HandleFunc("PATCH /v1/memories/", protected(s.patchMemory))
 	mux.HandleFunc("DELETE /v1/memories/", protected(s.deleteMemory))
+	if s.devices != nil && s.commands != nil {
+		s.registerControlPlaneRoutes(mux)
+	}
 	return logRequests(mux, s.logger)
 }
 
