@@ -1,6 +1,6 @@
-# AgentDock Nexus T9 集成与迁移
+# AgentDock Nexus 部署、迁移与回退
 
-本目录属于 T9，负责产品级 Web、E2E、安全、迁移和部署验收，不修改后端业务实现或 migration。
+本目录记录 AgentDock Nexus 的构建、验收、Memory 迁移与回退流程。
 
 ## 前端构建
 
@@ -64,9 +64,9 @@ python3 deploy/memory_migration.py restore \
 
 目标目录非空时默认拒绝。只有在再次确认服务已停止、目标数据已另行备份后才使用 `--replace`。
 
-## 合并后完整闭环
+## 生产完整闭环
 
-T0-T8 合并后，T9 必须用真实 DockAir、DockMini、DockVPS 演示：
+正式发布前必须使用真实 DockAir、DockMini、DockVPS 演示：
 
 1. 导入 Skill。
 2. 安装到 DockAir 并触发失败。
@@ -76,4 +76,4 @@ T0-T8 合并后，T9 必须用真实 DockAir、DockMini、DockVPS 演示：
 6. 发布 Stable，同步到 DockVPS。
 7. 验证 Secret 脱敏、离线 Outbox、Nexus 重启恢复和回退。
 
-未合并的后端接口由前端 Compatibility mode 明确显示，不伪造实时数据。
+前端无法连接对应 API 时必须明确显示 Compatibility mode，不伪造实时数据。

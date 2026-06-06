@@ -1,10 +1,10 @@
 # Skill Evolution Engine
 
-T7 只消费 Run、Run Step、Evidence、Observation、User Correction 和 Upstream Update，生成 Candidate、Proposal 与事件；不会修改 Skill Stable、执行测试、发布 Release、创建 Task 或直接调用模型。
+Skill Evolution Engine 消费 Run、Run Step、Evidence、Observation、User Correction 和 Upstream Update，生成 Candidate、Proposal 与事件；它不直接修改 Stable Skill、不执行发布、不创建 Task，也不直接调用模型。
 
 ## 处理链路
 
-1. `TriggerEngine` 将运行结果识别为冻结契约中的 11 类 Trigger。
+1. `TriggerEngine` 将运行结果识别为冻结契约中的 Trigger。
 2. `ErrorNormalizer` 清除时间、UUID、动态数字和设备私有路径，生成稳定 signature。
 3. `Aggregator` 按 `skill_id + signature` 聚合 Observation。
 4. `Scorer` 使用固定权重、运行次数、设备数和证据数计算可解释分数。
@@ -21,12 +21,11 @@ T7 只消费 Run、Run Step、Evidence、Observation、User Correction 和 Upstr
 
 ## 集成边界
 
-- T1 实现 `Repository` 与 `EventPublisher`，并负责 migration、事务、Audit 和 EventBus。
-- T6 将运行 DTO 映射为 `RunInput`，T7 不依赖 Runtime 内部实现。
-- T8 订阅 `evolution.proposal.review_ready` 创建 Review Task。
-- T5 在 Proposal 审批后生成或更新 Skill Package。
-
-本线程不修改 `contracts/**`，对外结构与冻结的 Observation、EvolutionCandidate、EvolutionProposal 保持一致。本线程不新增 migration。
+- Core 层提供 `Repository`、`EventPublisher`、migration、事务、Audit 和 EventBus。
+- AgentDock Skill Runtime 将运行 DTO 映射为 `RunInput`，Evolution 不依赖 Runtime 内部实现。
+- Task 模块订阅 `evolution.proposal.review_ready` 创建 Review Task。
+- Skill 模块在 Proposal 审批后生成或更新 Skill Package。
+- 对外结构必须与公共契约中的 Observation、EvolutionCandidate、EvolutionProposal 保持一致。
 
 ## 错误码与审计点
 
@@ -35,7 +34,7 @@ T7 只消费 Run、Run Step、Evidence、Observation、User Correction 和 Upstr
 - `EVOLUTION_NOT_ELIGIBLE`
 - `EVOLUTION_REPOSITORY_ERROR`
 
-需要由 T1 审计的写操作：Observation 入库、Candidate 创建/更新、Proposal 创建、状态迁移和事件发布。
+必须审计的写操作包括：Observation 入库、Candidate 创建或更新、Proposal 创建、状态迁移和事件发布。
 
 ## 验收
 
@@ -49,4 +48,4 @@ go test -race ./internal/evolution ./tests/evolution
 
 ## 回退
 
-T7 无 migration，也不修改 Stable Skill。回退只需撤销本目录代码和事件消费者接线；已生成的 Candidate/Proposal 可保留为审计记录，或由 T1 按状态标记为 `deferred`，禁止物理静默删除。
+Evolution 模块本身不直接修改 Stable Skill。回退时停止相关事件消费者和服务接线；已生成的 Candidate/Proposal 应保留为审计记录，或按状态标记为 `deferred`，禁止物理静默删除。
