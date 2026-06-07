@@ -185,6 +185,10 @@ AgentDock 消费端的生成类型必须与本仓库保持一致：
 agentdock/generated/nexuscontracts/types.gen.go
 ```
 
+## 开发文档
+
+- [设备管理前端闭环开发文档](docs/agentdock-nexus-devices-frontend-closure.md)
+
 ## 部署验收
 
 每次部署或升级至少执行：

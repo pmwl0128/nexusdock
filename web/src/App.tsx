@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import MemoryWorkspace from './MemoryWorkspace';
+import DevicesManagementPage from './components/devices/DevicesPage';
 import './nexus.css';
 
 type Section = 'home' | 'inbox' | 'devices' | 'memory' | 'skills' | 'runs' | 'settings';
@@ -32,16 +33,6 @@ type Overview = {
   skill_candidates: number;
   memory_conflicts: number;
   recent_failures: number;
-};
-
-type Device = {
-  id: string;
-  name: string;
-  status: string;
-  platform?: string;
-  version?: string;
-  last_seen?: string;
-  skills?: number;
 };
 
 type Task = {
@@ -264,13 +255,7 @@ function InboxPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function DevicesPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Device[]>(['/v1/devices', '/api/v1/devices', '/api/devices'], [], refreshToken);
-  const devices = Array.isArray(resource.data) ? resource.data : [];
-  return (
-    <CollectionPage title="Devices Control Plane" description="注册、心跳、能力、服务、Skill 与命令生命周期。" live={resource.live} loading={resource.loading} count={devices.length} empty="尚未发现设备。设备完成 enrollment 并上报 heartbeat 后会显示在这里。">
-      <div className="card-grid">{devices.map((device) => <EntityCard key={device.id} icon={<Server size={20} />} title={device.name} status={device.status} detail={`${device.platform || '平台未知'} · AgentDock ${device.version || '未知版本'}`} leftLabel="Skills" leftValue={String(device.skills ?? 0)} rightLabel="最后心跳" rightValue={formatTime(device.last_seen)} />)}</div>
-    </CollectionPage>
-  );
+  return <DevicesManagementPage refreshToken={refreshToken} />;
 }
 
 function SkillsPage({ refreshToken }: { refreshToken: number }) {
