@@ -34,11 +34,12 @@ type EnvOutput = {
   result?: unknown;
 };
 
-const DEFAULT_SKILLS = ['weread-skills', 'openlist', 'dida365-open-api'];
+const DEFAULT_SKILLS = ['weread-skills', 'openlist', 'dida365-open-api', 'spotify-web-api'];
 const DEFAULT_NAMES: Record<string, string[]> = {
   'weread-skills': ['WEREAD_API_KEY'],
   openlist: ['OPENLIST_URL', 'OPENLIST_TOKEN', 'OPENLIST_SESSION_FILE', 'OPENLIST_INSECURE_TLS'],
   'dida365-open-api': ['DIDA365_ACCESS_TOKEN', 'DIDA365_CLIENT_ID', 'DIDA365_CLIENT_SECRET', 'DIDA365_REDIRECT_URI', 'DIDA365_REGION'],
+  'spotify-web-api': ['SPOTIFY_ACCESS_TOKEN', 'SPOTIFY_CLIENT_ID', 'SPOTIFY_EXPIRES_AT', 'SPOTIFY_REDIRECT_URI', 'SPOTIFY_REFRESH_TOKEN', 'SPOTIFY_SCOPES'],
 };
 
 export default function EnvManagerPage() {
