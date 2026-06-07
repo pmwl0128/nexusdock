@@ -56,7 +56,7 @@ export function formatTime(value?: string): string {
 export function buildCommandPayload(type: CommandType, fields: Record<string, string | boolean>): Record<string, unknown> {
   switch (type) {
     case 'health.check': return {};
-    case 'skill.install': return compact({ skill: fields.skill, version: fields.version, channel: fields.channel });
+    case 'skill.install': return compact({ source: fields.source, digest_sha256: fields.digest_sha256, channel: fields.channel, confirmed_no_env: fields.confirmed_no_env });
     case 'skill.run': {
       let input: unknown = {};
       if (typeof fields.input === 'string' && fields.input.trim()) input = JSON.parse(fields.input);
