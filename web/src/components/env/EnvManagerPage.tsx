@@ -34,12 +34,14 @@ type EnvOutput = {
   result?: unknown;
 };
 
-const DEFAULT_SKILLS = ['weread-skills', 'openlist', 'dida365-open-api', 'spotify-web-api'];
+const DEFAULT_SKILLS = ['weread-skills', 'openlist', 'dida365-open-api', 'spotify-web-api', 'baidu-netdisk', 'xiaohongshu-mcp'];
 const DEFAULT_NAMES: Record<string, string[]> = {
+  'baidu-netdisk': ['BDPAN_BIN', 'BDPAN_CONFIG_FILE', 'BDPAN_HOME'],
   'weread-skills': ['WEREAD_API_KEY'],
   openlist: ['OPENLIST_URL', 'OPENLIST_TOKEN', 'OPENLIST_SESSION_FILE', 'OPENLIST_INSECURE_TLS'],
   'dida365-open-api': ['DIDA365_ACCESS_TOKEN', 'DIDA365_CLIENT_ID', 'DIDA365_CLIENT_SECRET', 'DIDA365_REDIRECT_URI', 'DIDA365_REGION'],
   'spotify-web-api': ['SPOTIFY_CLIENT_ID', 'SPOTIFY_REDIRECT_URI', 'SPOTIFY_SCOPES'],
+  'xiaohongshu-mcp': ['XIAOHONGSHU_CHROME_BIN', 'XIAOHONGSHU_COOKIE_FILE', 'XIAOHONGSHU_LAUNCH_AGENT', 'XIAOHONGSHU_MCP_URL'],
 };
 
 export default function EnvManagerPage() {
