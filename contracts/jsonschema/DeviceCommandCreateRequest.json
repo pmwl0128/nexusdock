@@ -396,7 +396,8 @@
               "service.inspect",
               "service.restart",
               "diagnostics.collect",
-              "agentdock.reload"
+              "agentdock.reload",
+              "env.manage"
             ]
           }
         },
@@ -505,7 +506,8 @@
             "service.inspect",
             "service.restart",
             "diagnostics.collect",
-            "agentdock.reload"
+            "agentdock.reload",
+            "env.manage"
           ]
         },
         "payload": {
@@ -561,6 +563,71 @@
         "max_attempts",
         "not_before",
         "expires_at"
+      ]
+    },
+    "DeviceEnvActionRequest": {
+      "type": "object",
+      "description": "创建设备 Env 管理动作；响应必须脱敏 value。",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "Env 管理动作。",
+          "enum": [
+            "list",
+            "inspect",
+            "set",
+            "delete",
+            "verify",
+            "migrate-from-agentdock-env"
+          ]
+        },
+        "skill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Skill 名称。"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "环境变量名。"
+        },
+        "kind": {
+          "type": "string",
+          "description": "变量类型。",
+          "enum": [
+            "plain",
+            "secret"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "写入值；API 响应不得回显明文。"
+        },
+        "operation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "verify 使用的 operation。"
+        },
+        "env_file": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "迁移来源 env 文件路径。"
+        }
+      },
+      "required": [
+        "action"
       ]
     },
     "DeviceHeartbeat": {
@@ -734,7 +801,8 @@
             "service.inspect",
             "service.restart",
             "diagnostics.collect",
-            "agentdock.reload"
+            "agentdock.reload",
+            "env.manage"
           ]
         },
         "status": {
@@ -2791,7 +2859,8 @@
         "service.inspect",
         "service.restart",
         "diagnostics.collect",
-        "agentdock.reload"
+        "agentdock.reload",
+        "env.manage"
       ]
     },
     "payload": {

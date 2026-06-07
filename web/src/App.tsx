@@ -23,6 +23,7 @@ import {
 import MemoryWorkspace from './MemoryWorkspace';
 import { ApiError, api } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
+import EnvManagerPage from './components/env/EnvManagerPage';
 import './nexus.css';
 
 type Section = 'home' | 'inbox' | 'devices' | 'memory' | 'skills' | 'runs' | 'schedules' | 'settings';
@@ -569,11 +570,14 @@ function SchedulesPage({ refreshToken }: { refreshToken: number }) {
 
 function SettingsPage() {
   return (
-    <section className="settings-grid">
-      <Panel title="认证与访问" subtitle="用户、Agent 与设备身份"><SettingRow label="User Session" detail="浏览器登录与会话管理" /><SettingRow label="Agent Token" detail="Scope 限制与撤销" /><SettingRow label="Device Token" detail="Enrollment 后独立轮换" /></Panel>
-      <Panel title="发布策略" subtitle="Skill 与设备控制"><SettingRow label="默认 Channel" detail="stable" /><SettingRow label="Canary 验证" detail="发布前必须有 Verification Result" /><SettingRow label="自动回退" detail="验证失败时保持旧版本" /></Panel>
-      <Panel title="审计与保留" subtitle="所有写操作均可追踪"><SettingRow label="Audit Event" detail="actor / action / object / result / risk" /><SettingRow label="Evidence" detail="保留脱敏后的运行证据" /><SettingRow label="Export" detail="禁止携带私有路径和 Secret" /></Panel>
-    </section>
+    <>
+      <EnvManagerPage />
+      <section className="settings-grid">
+        <Panel title="认证与访问" subtitle="用户、Agent 与设备身份"><SettingRow label="User Session" detail="浏览器登录与会话管理" /><SettingRow label="Agent Token" detail="Scope 限制与撤销" /><SettingRow label="Device Token" detail="Enrollment 后独立轮换" /></Panel>
+        <Panel title="发布策略" subtitle="Skill 与设备控制"><SettingRow label="默认 Channel" detail="stable" /><SettingRow label="Canary 验证" detail="发布前必须有 Verification Result" /><SettingRow label="自动回退" detail="验证失败时保持旧版本" /></Panel>
+        <Panel title="审计与保留" subtitle="所有写操作均可追踪"><SettingRow label="Audit Event" detail="actor / action / object / result / risk" /><SettingRow label="Evidence" detail="保留脱敏后的运行证据" /><SettingRow label="Export" detail="禁止携带私有路径和 Secret" /></Panel>
+      </section>
+    </>
   );
 }
 

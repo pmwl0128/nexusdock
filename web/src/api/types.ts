@@ -75,7 +75,8 @@ export type CommandType =
   | 'service.inspect'
   | 'service.restart'
   | 'diagnostics.collect'
-  | 'agentdock.reload';
+  | 'agentdock.reload'
+  | 'env.manage';
 export type CommandStatus = 'queued' | 'leased' | 'running' | 'succeeded' | 'failed' | 'expired' | 'cancelled';
 
 export type DeviceCapability = {

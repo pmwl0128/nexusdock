@@ -240,3 +240,69 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		t.Fatalf("new token heartbeat status=%d body=%s", response.Code, response.Body.String())
 	}
 }
+
+func TestEnvManagePayloadIsRedactedInControlPlaneResponses(t *testing.T) {
+	handler, _ := newControlPlaneTestHandler(t)
+	secret := "weread-secret-value"
+
+	response := controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/enrollment-tokens", "admin-token", contracts.EnrollmentTokenCreateRequest{
+		CreatedBy:           "test-admin",
+		TtlSeconds:          3600,
+		AllowedCommandTypes: []string{"env.manage"},
+		MaxRisk:             "medium",
+	})
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create enrollment token status=%d body=%s", response.Code, response.Body.String())
+	}
+	enrollmentToken := decodeResponse[contracts.EnrollmentTokenCreateResponse](t, response)
+
+	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/enroll", "", contracts.DeviceEnrollmentRequest{
+		EnrollmentToken:  enrollmentToken.Token,
+		Name:             "DockMini",
+		Platform:         "darwin",
+		Arch:             "arm64",
+		AgentdockVersion: "test",
+		PublicKey:        "test-public-key",
+		Labels:           json.RawMessage(`{"role":"test"}`),
+	})
+	if response.Code != http.StatusCreated {
+		t.Fatalf("enroll status=%d body=%s", response.Code, response.Body.String())
+	}
+	enrolled := decodeResponse[contracts.DeviceEnrollmentResponse](t, response)
+
+	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/approve", "admin-token", nil)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("approve status=%d body=%s", response.Code, response.Body.String())
+	}
+
+	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/env/actions", "admin-token", map[string]string{
+		"action": "set", "skill": "weread-skills", "name": "WEREAD_API_KEY", "kind": "secret", "value": secret,
+	})
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create env action status=%d body=%s", response.Code, response.Body.String())
+	}
+	if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+		t.Fatalf("create response leaked secret: %s", response.Body.String())
+	}
+	created := decodeResponse[contracts.DeviceCommand](t, response)
+	if !bytes.Contains(created.Payload, []byte("[REDACTED]")) {
+		t.Fatalf("create response did not redact payload: %s", string(created.Payload))
+	}
+
+	response = controlPlaneRequest(t, handler, http.MethodGet, "/v1/devices/"+enrolled.DeviceId+"/commands", "admin-token", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("list commands status=%d body=%s", response.Code, response.Body.String())
+	}
+	if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+		t.Fatalf("list response leaked secret: %s", response.Body.String())
+	}
+
+	response = controlPlaneRequest(t, handler, http.MethodGet, "/v1/commands/"+created.Id, "admin-token", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("get command status=%d body=%s", response.Code, response.Body.String())
+	}
+	if bytes.Contains(response.Body.Bytes(), []byte(secret)) {
+		t.Fatalf("get response leaked secret: %s", response.Body.String())
+	}
+
+}

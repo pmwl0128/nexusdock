@@ -3,6 +3,7 @@ package httpx
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/devices/{deviceId}/revoke", admin(s.revokeDevice))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/heartbeat", s.reportDeviceHeartbeat)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/token/rotate", s.rotateDeviceToken)
+	mux.HandleFunc("POST /v1/devices/{deviceId}/env/actions", admin(s.createDeviceEnvAction))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/commands", admin(s.createDeviceCommand))
 	mux.HandleFunc("GET /v1/devices/{deviceId}/commands", admin(s.listDeviceCommands))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/commands/lease", s.leaseDeviceCommand)
@@ -75,7 +77,11 @@ func (s *Server) listDeviceCommands(w http.ResponseWriter, r *http.Request) {
 		writeControlPlaneError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	itemsOut := make([]commands.Command, 0, len(items))
+	for _, item := range items {
+		itemsOut = append(itemsOut, redactCommandForAdmin(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": itemsOut})
 }
 
 func (s *Server) getCommand(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +90,7 @@ func (s *Server) getCommand(w http.ResponseWriter, r *http.Request) {
 		writeControlPlaneError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, command)
+	writeJSON(w, http.StatusOK, redactCommandForAdmin(command))
 }
 
 func (s *Server) enrollDevice(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +192,77 @@ func (s *Server) rotateDeviceToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, contracts.DeviceTokenRotationResponse{DeviceToken: result.DeviceToken, TokenExpiresAt: result.TokenExpiresAt.Format(time.RFC3339Nano)})
 }
 
+type envActionRequest struct {
+	Action    string `json:"action"`
+	Skill     string `json:"skill,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Kind      string `json:"kind,omitempty"`
+	Value     string `json:"value,omitempty"`
+	Operation string `json:"operation,omitempty"`
+	EnvFile   string `json:"env_file,omitempty"`
+}
+
+func (s *Server) createDeviceEnvAction(w http.ResponseWriter, r *http.Request) {
+	var request envActionRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	payload, risk, err := buildEnvActionPayload(request)
+	if err != nil {
+		writeNexusError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+	now := time.Now().UTC()
+	command, created, err := s.commands.Enqueue(r.Context(), commands.EnqueueRequest{
+		DeviceID: r.PathValue("deviceId"), Type: commands.TypeEnvManage, Risk: risk,
+		Payload: payload, IdempotencyKey: fmt.Sprintf("env-%d", now.UnixNano()), Priority: 0,
+		MaxAttempts: 1, NotBefore: now.Add(-time.Second), ExpiresAt: now.Add(5 * time.Minute), CreatedBy: "nexus-env-ui",
+	})
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, contractCommand(command))
+}
+
+func buildEnvActionPayload(request envActionRequest) (json.RawMessage, devices.RiskLevel, error) {
+	action := strings.TrimSpace(request.Action)
+	if action == "" {
+		return nil, "", errors.New("action is required")
+	}
+	allowed := map[string]devices.RiskLevel{
+		"list":                       devices.RiskLow,
+		"inspect":                    devices.RiskLow,
+		"verify":                     devices.RiskLow,
+		"set":                        devices.RiskMedium,
+		"delete":                     devices.RiskMedium,
+		"migrate-from-agentdock-env": devices.RiskMedium,
+	}
+	risk, ok := allowed[action]
+	if !ok {
+		return nil, "", fmt.Errorf("unsupported env action %q", action)
+	}
+	values := map[string]string{"action": action}
+	optional := map[string]string{
+		"skill": request.Skill, "name": request.Name, "kind": request.Kind,
+		"value": request.Value, "operation": request.Operation, "env_file": request.EnvFile,
+	}
+	for key, value := range optional {
+		if strings.TrimSpace(value) != "" {
+			values[key] = value
+		}
+	}
+	payload, err := json.Marshal(values)
+	if err != nil {
+		return nil, "", err
+	}
+	return payload, risk, nil
+}
+
 func (s *Server) createDeviceCommand(w http.ResponseWriter, r *http.Request) {
 	var request contracts.DeviceCommandCreateRequest
 	if !decodeJSON(w, r, &request) {
@@ -232,7 +309,7 @@ func (s *Server) leaseDeviceCommand(w http.ResponseWriter, r *http.Request) {
 		writeControlPlaneError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, contractLease(lease))
+	writeJSON(w, http.StatusOK, contractLeaseForDevice(lease))
 }
 
 func (s *Server) startCommand(w http.ResponseWriter, r *http.Request) {
@@ -259,7 +336,7 @@ func (s *Server) renewCommandLease(w http.ResponseWriter, r *http.Request) {
 		writeControlPlaneError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, contractLease(lease))
+	writeJSON(w, http.StatusOK, contractLeaseForDevice(lease))
 }
 
 func (s *Server) reportCommandProgress(w http.ResponseWriter, r *http.Request) {
@@ -325,10 +402,53 @@ func (s *Server) authorizeCommandRequest(w http.ResponseWriter, r *http.Request,
 func contractCommand(command commands.Command) contracts.DeviceCommand {
 	return contracts.DeviceCommand{
 		Id: command.ID, DeviceId: command.DeviceID, Type: string(command.Type), Status: string(command.Status),
-		Payload: command.Payload, Risk: string(command.Risk), IdempotencyKey: command.IdempotencyKey,
+		Payload: redactCommandPayload(command.Type, command.Payload), Risk: string(command.Risk), IdempotencyKey: command.IdempotencyKey,
 		CreatedAt: command.CreatedAt.Format(time.RFC3339Nano), ExpiresAt: command.ExpiresAt.Format(time.RFC3339Nano),
 		Attempt: int64(command.Attempts), MaxAttempts: int64(command.MaxAttempts),
 	}
+}
+
+func redactCommandPayload(commandType commands.Type, payload json.RawMessage) json.RawMessage {
+	if commandType != commands.TypeEnvManage || len(payload) == 0 {
+		return append(json.RawMessage(nil), payload...)
+	}
+	var values map[string]any
+	if err := json.Unmarshal(payload, &values); err != nil {
+		return append(json.RawMessage(nil), payload...)
+	}
+	if value, ok := values["value"].(string); ok && value != "" {
+		values["value"] = "[REDACTED]"
+	}
+	redacted, err := json.Marshal(values)
+	if err != nil {
+		return append(json.RawMessage(nil), payload...)
+	}
+	return redacted
+}
+
+func redactCommandForAdmin(command commands.Command) commands.Command {
+	command = commands.Command{
+		ID: command.ID, DeviceID: command.DeviceID, Type: command.Type, Risk: command.Risk,
+		Payload: redactCommandPayload(command.Type, command.Payload), Status: command.Status,
+		IdempotencyKey: command.IdempotencyKey, Priority: command.Priority, MaxAttempts: command.MaxAttempts,
+		Attempts: command.Attempts, NotBefore: command.NotBefore, ExpiresAt: command.ExpiresAt,
+		LeaseID: command.LeaseID, LeaseExpiresAt: command.LeaseExpiresAt, Progress: command.Progress,
+		Result: command.Result, CreatedBy: command.CreatedBy, CreatedAt: command.CreatedAt,
+		UpdatedAt: command.UpdatedAt, StartedAt: command.StartedAt, CompletedAt: command.CompletedAt,
+		Version: command.Version,
+	}
+	if command.Progress != nil {
+		progress := *command.Progress
+		progress.Details = append(json.RawMessage(nil), progress.Details...)
+		command.Progress = &progress
+	}
+	if command.Result != nil {
+		result := *command.Result
+		result.Output = append(json.RawMessage(nil), result.Output...)
+		result.EvidenceID = append([]string(nil), result.EvidenceID...)
+		command.Result = &result
+	}
+	return command
 }
 
 func contractLease(lease commands.Lease) contracts.CommandLease {
@@ -336,6 +456,23 @@ func contractLease(lease commands.Lease) contracts.CommandLease {
 		Command: contractCommand(lease.Command), LeaseId: lease.ID,
 		LeasedAt: lease.LeasedAt.Format(time.RFC3339Nano), ExpiresAt: lease.ExpiresAt.Format(time.RFC3339Nano),
 		RenewAfterSeconds: int64(lease.RenewAfterSeconds),
+	}
+}
+
+func contractLeaseForDevice(lease commands.Lease) contracts.CommandLease {
+	return contracts.CommandLease{
+		Command: contractCommandRaw(lease.Command), LeaseId: lease.ID,
+		LeasedAt: lease.LeasedAt.Format(time.RFC3339Nano), ExpiresAt: lease.ExpiresAt.Format(time.RFC3339Nano),
+		RenewAfterSeconds: int64(lease.RenewAfterSeconds),
+	}
+}
+
+func contractCommandRaw(command commands.Command) contracts.DeviceCommand {
+	return contracts.DeviceCommand{
+		Id: command.ID, DeviceId: command.DeviceID, Type: string(command.Type), Status: string(command.Status),
+		Payload: command.Payload, Risk: string(command.Risk), IdempotencyKey: command.IdempotencyKey,
+		CreatedAt: command.CreatedAt.Format(time.RFC3339Nano), ExpiresAt: command.ExpiresAt.Format(time.RFC3339Nano),
+		Attempt: int64(command.Attempts), MaxAttempts: int64(command.MaxAttempts),
 	}
 }
 

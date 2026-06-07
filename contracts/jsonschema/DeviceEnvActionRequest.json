@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/EnrollmentTokenCreateResponse.json",
-  "title": "EnrollmentTokenCreateResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/DeviceEnvActionRequest.json",
+  "title": "DeviceEnvActionRequest",
   "$defs": {
     "ErrorDetail": {
       "type": "object",
@@ -2844,21 +2844,66 @@
     }
   },
   "type": "object",
-  "description": "一次性设备注册 token。",
+  "description": "创建设备 Env 管理动作；响应必须脱敏 value。",
   "additionalProperties": false,
   "properties": {
-    "token": {
+    "action": {
       "type": "string",
-      "description": "仅返回一次的明文注册 token。"
+      "description": "Env 管理动作。",
+      "enum": [
+        "list",
+        "inspect",
+        "set",
+        "delete",
+        "verify",
+        "migrate-from-agentdock-env"
+      ]
     },
-    "expires_at": {
+    "skill": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Skill 名称。"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "环境变量名。"
+    },
+    "kind": {
       "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
+      "description": "变量类型。",
+      "enum": [
+        "plain",
+        "secret"
+      ]
+    },
+    "value": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "写入值；API 响应不得回显明文。"
+    },
+    "operation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "verify 使用的 operation。"
+    },
+    "env_file": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "迁移来源 env 文件路径。"
     }
   },
   "required": [
-    "token",
-    "expires_at"
+    "action"
   ]
 }
