@@ -187,6 +187,7 @@ agentdock/generated/nexuscontracts/types.gen.go
 
 ## 开发文档
 
+- [项目整体开发文档](docs/agentdock-nexus-development-guide.md)
 - [设备管理前端闭环开发文档](docs/agentdock-nexus-devices-frontend-closure.md)
 
 ## 部署验收

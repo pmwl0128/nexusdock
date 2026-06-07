@@ -172,3 +172,15 @@ func (c *Client) GetRun(ctx context.Context, runID string) (Run, error) {
 	err := c.doJSON(ctx, http.MethodGet, "/v1/runs/"+url.PathEscape(runID), "", nil, &response)
 	return response, err
 }
+
+func (c *Client) ListSchedules(ctx context.Context) (ScheduleListResponse, error) {
+	var response ScheduleListResponse
+	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules", "", nil, &response)
+	return response, err
+}
+
+func (c *Client) GetSchedule(ctx context.Context, scheduleID string) (ScheduleItem, error) {
+	var response ScheduleItem
+	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules/"+url.PathEscape(scheduleID), "", nil, &response)
+	return response, err
+}

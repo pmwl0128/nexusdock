@@ -65,6 +65,7 @@ ERROR_CODES = [
     "VERSION_CONFLICT",
     "DB_CONFLICT",
     "INTERNAL_ERROR",
+    "INVALID_JSON",
     "VALIDATION_ERROR",
     "NOT_FOUND",
     "ALREADY_EXISTS",
@@ -92,6 +93,7 @@ ERROR_CODES = [
     "LEASE_NOT_FOUND",
     "LEASE_MISMATCH",
     "INVALID_COMMAND_TRANSITION",
+    "SCHEDULE_NOT_FOUND",
 ]
 
 COMMAND_TYPES = [
@@ -197,7 +199,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         {
             "type": enum(
                 "对象类型。",
-                ["device", "memory", "skill", "run", "proposal", "project", "task", "command"],
+                ["device", "memory", "skill", "run", "proposal", "project", "task", "command", "schedule"],
             ),
             "id": scalar("string", "对象 ID。"),
             "label": scalar("string", "可读标签。"),
@@ -548,6 +550,53 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ("run_id", "skill_id", "operation", "status", "output", "started_at", "completed_at"),
     )
 
+    schedule_states = ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]
+    schemas["ScheduleHistory"] = obj(
+        "计划任务执行历史；只包含脱敏后的归档和状态证据。",
+        {
+            "schema_version": scalar("integer", "状态文件版本。", minimum=1),
+            "state": enum("执行状态。", schedule_states),
+            "message": scalar("string", "脱敏后的状态说明。"),
+            "started_at": scalar(["string", "null"], "开始时间。", format="date-time"),
+            "completed_at": scalar(["string", "null"], "结束时间。", format="date-time"),
+            "host": scalar("string", "执行主机显示名；不得包含凭据。"),
+            "archive": scalar("string", "归档文件名。"),
+            "archive_size": scalar("integer", "归档字节数。", minimum=0),
+            "sha256": scalar("string", "归档 SHA256。"),
+            "remote_path": scalar("string", "脱敏后的远端路径。"),
+        },
+        ("state",),
+    )
+    schemas["ScheduleItem"] = obj(
+        "计划任务状态摘要。",
+        {
+            "id": scalar("string", "稳定计划任务 ID。", pattern="^[a-z][a-z0-9._-]*$"),
+            "title": scalar("string", "显示标题。"),
+            "description": scalar("string", "任务说明。"),
+            "provider": scalar("string", "调度提供方。"),
+            "device": scalar("string", "执行设备显示名。"),
+            "enabled": scalar("boolean", "是否启用。"),
+            "schedule": scalar("string", "可读执行计划。"),
+            "schedule_type": enum("计划类型。", ["calendar", "interval", "manual"]),
+            "state": enum("最近状态。", schedule_states),
+            "last_started_at": scalar(["string", "null"], "最近开始时间。", format="date-time"),
+            "last_completed_at": scalar(["string", "null"], "最近完成时间。", format="date-time"),
+            "next_run_at": TIMESTAMP,
+            "message": scalar("string", "脱敏后的状态说明。"),
+            "archive": scalar("string", "最近归档文件名。"),
+            "archive_size": scalar("integer", "最近归档字节数。", minimum=0),
+            "sha256": scalar("string", "最近归档 SHA256。"),
+            "remote_path": scalar("string", "脱敏后的远端路径。"),
+            "history": array("最近执行历史。", ref("ScheduleHistory")),
+        },
+        ("id", "title", "provider", "device", "enabled", "schedule", "schedule_type", "state", "next_run_at", "history"),
+    )
+    schemas["ScheduleListResponse"] = obj(
+        "计划任务列表响应。",
+        {"items": array("计划任务。", ref("ScheduleItem"))},
+        ("items",),
+    )
+
     schemas["MemoryEntry"] = obj(
         "长期记忆条目。",
         {
@@ -728,6 +777,13 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "SkillId": path_param("skillId", "Skill UUID。"),
         "TaskId": path_param("taskId", "Task UUID。"),
         "RunId": path_param("runId", "Run UUID。"),
+        "ScheduleId": {
+            "name": "scheduleId",
+            "in": "path",
+            "required": True,
+            "description": "Schedule stable ID。",
+            "schema": {"type": "string", "pattern": "^[a-z][a-z0-9._-]*$"},
+        },
         "IdempotencyKey": {
             "name": "Idempotency-Key",
             "in": "header",
@@ -760,6 +816,8 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/tasks/{taskId}/context": {"get": {"operationId": "getTaskContext", "summary": "读取 Task Context Pack", "parameters": [{"$ref": "#/components/parameters/TaskId"}], "responses": {"200": response(ref("TaskContextPack")), "404": error}}},
         "/v1/tasks/{taskId}/complete": {"post": {"operationId": "completeTask", "summary": "完成 Task", "parameters": [{"$ref": "#/components/parameters/TaskId"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": body(ref("TaskCompletion")), "responses": {"200": response(ref("Task")), "409": error}}},
         "/v1/runs/{runId}": {"get": {"operationId": "getRun", "summary": "读取 Run", "parameters": [{"$ref": "#/components/parameters/RunId"}], "responses": {"200": response(ref("Run")), "404": error}}},
+        "/v1/schedules": {"get": {"operationId": "listSchedules", "summary": "列出计划任务", "responses": {"200": response(ref("ScheduleListResponse")), "401": error}}},
+        "/v1/schedules/{scheduleId}": {"get": {"operationId": "getSchedule", "summary": "读取计划任务", "parameters": [{"$ref": "#/components/parameters/ScheduleId"}], "responses": {"200": response(ref("ScheduleItem")), "401": error, "404": error}}},
         "/v1/memory/context": {"post": {"operationId": "buildMemoryContext", "summary": "构建 Memory Context Pack", "requestBody": body(obj("Memory Context 请求。", {"task_id": scalar(["string", "null"], "Task ID。", format="uuid"), "project": scalar(["string", "null"], "项目键。"), "device_id": scalar(["string", "null"], "设备 ID。", format="uuid"), "skill_id": scalar(["string", "null"], "Skill ID。", format="uuid"), "max_bytes": scalar("integer", "最大字节数。", minimum=1024, maximum=1000000)}, ("max_bytes",))), "responses": {"200": response(ref("MemoryContextPack")), "400": error}}},
         "/v1/events": {"get": {"operationId": "streamEvents", "summary": "SSE 事件流", "parameters": [{"name": "Last-Event-ID", "in": "header", "required": False, "description": "断点续传事件 ID。", "schema": {"type": "string"}}], "responses": {"200": {"description": "text/event-stream 事件流。", "content": {"text/event-stream": {"schema": {"type": "string"}}}}, "401": error}}},
     }
@@ -1132,6 +1190,18 @@ func (c *Client) GetRun(ctx context.Context, runID string) (Run, error) {
 	err := c.doJSON(ctx, http.MethodGet, "/v1/runs/"+url.PathEscape(runID), "", nil, &response)
 	return response, err
 }
+
+func (c *Client) ListSchedules(ctx context.Context) (ScheduleListResponse, error) {
+	var response ScheduleListResponse
+	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules", "", nil, &response)
+	return response, err
+}
+
+func (c *Client) GetSchedule(ctx context.Context, scheduleID string) (ScheduleItem, error) {
+	var response ScheduleItem
+	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules/"+url.PathEscape(scheduleID), "", nil, &response)
+	return response, err
+}
 '''
 
 
@@ -1193,4 +1263,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

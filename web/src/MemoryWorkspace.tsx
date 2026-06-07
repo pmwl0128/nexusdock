@@ -26,6 +26,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
+import { api } from './api/client';
 
 type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
 type EntryType = 'file' | 'directory';
@@ -105,18 +106,6 @@ type Toast = { message: string; danger?: boolean } | null;
 
 const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
 const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
-
-async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false) {
-    throw new Error(data?.error?.message || res.statusText);
-  }
-  return data as T;
-}
 
 function normalizePath(path: string): string {
   return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
@@ -1618,5 +1607,4 @@ function AccessSettings({ access, onRefresh, onSave }: { access: AccessConfig | 
     </div>
   );
 }
-
 

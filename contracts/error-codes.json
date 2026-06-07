@@ -30,6 +30,10 @@
       "description": "稳定公共错误码。"
     },
     {
+      "code": "INVALID_JSON",
+      "description": "稳定公共错误码。"
+    },
+    {
       "code": "VALIDATION_ERROR",
       "description": "稳定公共错误码。"
     },
@@ -135,6 +139,10 @@
     },
     {
       "code": "INVALID_COMMAND_TRANSITION",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "SCHEDULE_NOT_FOUND",
       "description": "稳定公共错误码。"
     }
   ]

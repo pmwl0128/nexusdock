@@ -513,6 +513,76 @@ type SkillRunResult struct {
 	Verification *VerificationResult `json:"verification,omitempty"`
 }
 
+// ScheduleHistory 计划任务执行历史；只包含脱敏后的归档和状态证据。
+type ScheduleHistory struct {
+	// SchemaVersion 状态文件版本。
+	SchemaVersion *int64 `json:"schema_version,omitempty"`
+	// State 执行状态。
+	State string `json:"state"`
+	// Message 脱敏后的状态说明。
+	Message *string `json:"message,omitempty"`
+	// StartedAt 开始时间。
+	StartedAt *string `json:"started_at,omitempty"`
+	// CompletedAt 结束时间。
+	CompletedAt *string `json:"completed_at,omitempty"`
+	// Host 执行主机显示名；不得包含凭据。
+	Host *string `json:"host,omitempty"`
+	// Archive 归档文件名。
+	Archive *string `json:"archive,omitempty"`
+	// ArchiveSize 归档字节数。
+	ArchiveSize *int64 `json:"archive_size,omitempty"`
+	// Sha256 归档 SHA256。
+	Sha256 *string `json:"sha256,omitempty"`
+	// RemotePath 脱敏后的远端路径。
+	RemotePath *string `json:"remote_path,omitempty"`
+}
+
+// ScheduleItem 计划任务状态摘要。
+type ScheduleItem struct {
+	// Id 稳定计划任务 ID。
+	Id string `json:"id"`
+	// Title 显示标题。
+	Title string `json:"title"`
+	// Description 任务说明。
+	Description *string `json:"description,omitempty"`
+	// Provider 调度提供方。
+	Provider string `json:"provider"`
+	// Device 执行设备显示名。
+	Device string `json:"device"`
+	// Enabled 是否启用。
+	Enabled bool `json:"enabled"`
+	// Schedule 可读执行计划。
+	Schedule string `json:"schedule"`
+	// ScheduleType 计划类型。
+	ScheduleType string `json:"schedule_type"`
+	// State 最近状态。
+	State string `json:"state"`
+	// LastStartedAt 最近开始时间。
+	LastStartedAt *string `json:"last_started_at,omitempty"`
+	// LastCompletedAt 最近完成时间。
+	LastCompletedAt *string `json:"last_completed_at,omitempty"`
+	// NextRunAt RFC 3339 UTC 时间。
+	NextRunAt string `json:"next_run_at"`
+	// Message 脱敏后的状态说明。
+	Message *string `json:"message,omitempty"`
+	// Archive 最近归档文件名。
+	Archive *string `json:"archive,omitempty"`
+	// ArchiveSize 最近归档字节数。
+	ArchiveSize *int64 `json:"archive_size,omitempty"`
+	// Sha256 最近归档 SHA256。
+	Sha256 *string `json:"sha256,omitempty"`
+	// RemotePath 脱敏后的远端路径。
+	RemotePath *string `json:"remote_path,omitempty"`
+	// History 最近执行历史。
+	History []ScheduleHistory `json:"history"`
+}
+
+// ScheduleListResponse 计划任务列表响应。
+type ScheduleListResponse struct {
+	// Items 计划任务。
+	Items []ScheduleItem `json:"items"`
+}
+
 // MemoryEntry 长期记忆条目。
 type MemoryEntry struct {
 	// Id 全局唯一标识符。

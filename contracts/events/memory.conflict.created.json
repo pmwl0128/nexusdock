@@ -44,7 +44,8 @@
             "proposal",
             "project",
             "task",
-            "command"
+            "command",
+            "schedule"
           ]
         },
         "id": {
@@ -128,6 +129,7 @@
             "VERSION_CONFLICT",
             "DB_CONFLICT",
             "INTERNAL_ERROR",
+            "INVALID_JSON",
             "VALIDATION_ERROR",
             "NOT_FOUND",
             "ALREADY_EXISTS",
@@ -154,7 +156,8 @@
             "COMMAND_NOT_LEASEABLE",
             "LEASE_NOT_FOUND",
             "LEASE_MISMATCH",
-            "INVALID_COMMAND_TRANSITION"
+            "INVALID_COMMAND_TRANSITION",
+            "SCHEDULE_NOT_FOUND"
           ]
         },
         "message": {
@@ -307,7 +310,8 @@
             "proposal",
             "project",
             "task",
-            "command"
+            "command",
+            "schedule"
           ]
         },
         "id": {
@@ -1824,6 +1828,211 @@
         "output",
         "started_at",
         "completed_at"
+      ]
+    },
+    "ScheduleHistory": {
+      "type": "object",
+      "description": "计划任务执行历史；只包含脱敏后的归档和状态证据。",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "description": "状态文件版本。",
+          "minimum": 1
+        },
+        "state": {
+          "type": "string",
+          "description": "执行状态。",
+          "enum": [
+            "never_run",
+            "queued",
+            "running",
+            "success",
+            "failed",
+            "unknown",
+            "disabled"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "description": "脱敏后的状态说明。"
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "开始时间。",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "结束时间。",
+          "format": "date-time"
+        },
+        "host": {
+          "type": "string",
+          "description": "执行主机显示名；不得包含凭据。"
+        },
+        "archive": {
+          "type": "string",
+          "description": "归档文件名。"
+        },
+        "archive_size": {
+          "type": "integer",
+          "description": "归档字节数。",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "description": "归档 SHA256。"
+        },
+        "remote_path": {
+          "type": "string",
+          "description": "脱敏后的远端路径。"
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "ScheduleItem": {
+      "type": "object",
+      "description": "计划任务状态摘要。",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "稳定计划任务 ID。",
+          "pattern": "^[a-z][a-z0-9._-]*$"
+        },
+        "title": {
+          "type": "string",
+          "description": "显示标题。"
+        },
+        "description": {
+          "type": "string",
+          "description": "任务说明。"
+        },
+        "provider": {
+          "type": "string",
+          "description": "调度提供方。"
+        },
+        "device": {
+          "type": "string",
+          "description": "执行设备显示名。"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用。"
+        },
+        "schedule": {
+          "type": "string",
+          "description": "可读执行计划。"
+        },
+        "schedule_type": {
+          "type": "string",
+          "description": "计划类型。",
+          "enum": [
+            "calendar",
+            "interval",
+            "manual"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "description": "最近状态。",
+          "enum": [
+            "never_run",
+            "queued",
+            "running",
+            "success",
+            "failed",
+            "unknown",
+            "disabled"
+          ]
+        },
+        "last_started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "最近开始时间。",
+          "format": "date-time"
+        },
+        "last_completed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "最近完成时间。",
+          "format": "date-time"
+        },
+        "next_run_at": {
+          "type": "string",
+          "description": "RFC 3339 UTC 时间。",
+          "format": "date-time"
+        },
+        "message": {
+          "type": "string",
+          "description": "脱敏后的状态说明。"
+        },
+        "archive": {
+          "type": "string",
+          "description": "最近归档文件名。"
+        },
+        "archive_size": {
+          "type": "integer",
+          "description": "最近归档字节数。",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "description": "最近归档 SHA256。"
+        },
+        "remote_path": {
+          "type": "string",
+          "description": "脱敏后的远端路径。"
+        },
+        "history": {
+          "type": "array",
+          "description": "最近执行历史。",
+          "items": {
+            "$ref": "#/$defs/ScheduleHistory"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "provider",
+        "device",
+        "enabled",
+        "schedule",
+        "schedule_type",
+        "state",
+        "next_run_at",
+        "history"
+      ]
+    },
+    "ScheduleListResponse": {
+      "type": "object",
+      "description": "计划任务列表响应。",
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "type": "array",
+          "description": "计划任务。",
+          "items": {
+            "$ref": "#/$defs/ScheduleItem"
+          }
+        }
+      },
+      "required": [
+        "items"
       ]
     },
     "MemoryEntry": {
