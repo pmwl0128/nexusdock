@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/DeviceEnrollmentResponse.json",
-  "title": "DeviceEnrollmentResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/DeviceEnvActionRequest.json",
+  "title": "DeviceEnvActionRequest",
   "$defs": {
     "ErrorDetail": {
       "type": "object",
@@ -2636,40 +2636,66 @@
     }
   },
   "type": "object",
-  "description": "设备注册结果。",
+  "description": "创建设备 Env 管理动作；响应必须脱敏 value。",
   "additionalProperties": false,
   "properties": {
-    "device_id": {
+    "action": {
       "type": "string",
-      "description": "全局唯一标识符。",
-      "format": "uuid"
+      "description": "Env 管理动作。",
+      "enum": [
+        "list",
+        "inspect",
+        "set",
+        "delete",
+        "verify",
+        "migrate-from-agentdock-env"
+      ]
     },
-    "device_token": {
+    "skill": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Skill 名称。"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "环境变量名。"
+    },
+    "kind": {
       "type": "string",
-      "description": "后续设备认证 token；仅返回一次。"
+      "description": "变量类型。",
+      "enum": [
+        "plain",
+        "secret"
+      ]
     },
-    "token_expires_at": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
+    "value": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "写入值；API 响应不得回显明文。"
     },
-    "heartbeat_interval_seconds": {
-      "type": "integer",
-      "description": "心跳建议间隔。",
-      "minimum": 10,
-      "maximum": 300
+    "operation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "verify 使用的 operation。"
     },
-    "server_time": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
+    "env_file": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "迁移来源 env 文件路径。"
     }
   },
   "required": [
-    "device_id",
-    "device_token",
-    "token_expires_at",
-    "heartbeat_interval_seconds",
-    "server_time"
+    "action"
   ]
 }

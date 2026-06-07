@@ -104,6 +104,7 @@ COMMAND_TYPES = [
     "service.restart",
     "diagnostics.collect",
     "agentdock.reload",
+    "env.manage",
 ]
 
 EVOLUTION_TRIGGERS = [
@@ -288,6 +289,19 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "expires_at": TIMESTAMP,
         },
         ("type", "payload", "risk", "idempotency_key", "priority", "max_attempts", "not_before", "expires_at"),
+    )
+    schemas["DeviceEnvActionRequest"] = obj(
+        "创建设备 Env 管理动作；响应必须脱敏 value。",
+        {
+            "action": enum("Env 管理动作。", ["list", "inspect", "set", "delete", "verify", "migrate-from-agentdock-env"]),
+            "skill": scalar(["string", "null"], "Skill 名称。"),
+            "name": scalar(["string", "null"], "环境变量名。"),
+            "kind": enum("变量类型。", ["plain", "secret"]),
+            "value": scalar(["string", "null"], "写入值；API 响应不得回显明文。"),
+            "operation": scalar(["string", "null"], "verify 使用的 operation。"),
+            "env_file": scalar(["string", "null"], "迁移来源 env 文件路径。"),
+        },
+        ("action",),
     )
     schemas["DeviceHeartbeat"] = obj(
         "设备心跳快照。",
@@ -746,6 +760,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/devices/{deviceId}/approve": {"post": {"operationId": "approveDevice", "summary": "批准设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"204": {"description": "已批准。"}, "401": error, "403": error, "404": error, "409": error}}},
         "/v1/devices/{deviceId}/revoke": {"post": {"operationId": "revokeDevice", "summary": "撤销设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceRevokeRequest")), "responses": {"204": {"description": "已撤销。"}, "401": error, "403": error, "404": error, "409": error}}},
         "/v1/devices/{deviceId}/token/rotate": {"post": {"operationId": "rotateDeviceToken", "summary": "轮换设备 token", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("DeviceTokenRotationResponse")), "401": error, "409": error}}},
+        "/v1/devices/{deviceId}/env/actions": {"post": {"operationId": "createDeviceEnvAction", "summary": "创建 Env 管理命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceEnvActionRequest")), "responses": {"201": response(ref("DeviceCommand")), "200": response(ref("DeviceCommand"), "幂等命中。"), "400": error, "401": error, "403": error, "409": error}}},
         "/v1/devices/{deviceId}/commands": {"post": {"operationId": "createDeviceCommand", "summary": "创建设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceCommandCreateRequest")), "responses": {"201": response(ref("DeviceCommand")), "200": response(ref("DeviceCommand"), "幂等命中。"), "400": error, "401": error, "403": error, "409": error}}},
         "/v1/devices/{deviceId}/commands/lease": {"post": {"operationId": "leaseDeviceCommand", "summary": "租用下一条设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("CommandLease")), "204": {"description": "当前无命令。"}, "401": error, "409": error}}},
         "/v1/commands/{commandId}/start": {"post": {"operationId": "startCommand", "summary": "标记命令开始执行", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandLeaseAction")), "responses": {"204": {"description": "已开始。"}, "401": error, "409": error}}},
@@ -1193,4 +1208,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

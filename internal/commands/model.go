@@ -19,12 +19,14 @@ const (
 	TypeServiceRestart     Type = "service.restart"
 	TypeDiagnosticsCollect Type = "diagnostics.collect"
 	TypeAgentDockReload    Type = "agentdock.reload"
+	TypeEnvManage          Type = "env.manage"
 )
 
 var allowedTypes = map[Type]struct{}{
 	TypeHealthCheck: {}, TypeSkillInstall: {}, TypeSkillRun: {},
 	TypeSkillRollback: {}, TypeMemorySync: {}, TypeServiceInspect: {},
 	TypeServiceRestart: {}, TypeDiagnosticsCollect: {}, TypeAgentDockReload: {},
+	TypeEnvManage: {},
 }
 
 func (t Type) Valid() bool {

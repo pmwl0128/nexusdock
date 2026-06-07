@@ -2,7 +2,7 @@ import type { CommandStatus, CommandType, DeviceStatus, RiskLevel } from '../../
 
 export const COMMAND_TYPES: CommandType[] = [
   'health.check', 'skill.install', 'skill.run', 'skill.rollback', 'memory.sync',
-  'service.inspect', 'service.restart', 'diagnostics.collect', 'agentdock.reload',
+  'service.inspect', 'service.restart', 'diagnostics.collect', 'agentdock.reload', 'env.manage',
 ];
 
 export const TERMINAL_COMMAND_STATUSES = new Set<CommandStatus>(['succeeded', 'failed', 'expired', 'cancelled']);
@@ -25,6 +25,7 @@ export const COMMAND_LABELS: Record<CommandType, string> = {
   'service.restart': '重启服务',
   'diagnostics.collect': '收集诊断',
   'agentdock.reload': '重载 AgentDock',
+  'env.manage': '管理 Env',
 };
 
 export const DEFAULT_RISK: Record<CommandType, RiskLevel> = {
@@ -37,6 +38,7 @@ export const DEFAULT_RISK: Record<CommandType, RiskLevel> = {
   'service.restart': 'high',
   'diagnostics.collect': 'low',
   'agentdock.reload': 'high',
+  'env.manage': 'medium',
 };
 
 export function createIdempotencyKey(): string {
@@ -65,6 +67,7 @@ export function buildCommandPayload(type: CommandType, fields: Record<string, st
     case 'service.inspect':
     case 'service.restart': return compact({ service: fields.service });
     case 'diagnostics.collect': return compact({ scope: fields.scope, include_logs: fields.include_logs });
+    case 'env.manage': return compact({ action: fields.action, skill: fields.skill, name: fields.name, kind: fields.kind, value: fields.value, operation: fields.operation, env_file: fields.env_file });
     case 'agentdock.reload': return compact({ reason: fields.reason });
   }
 }
