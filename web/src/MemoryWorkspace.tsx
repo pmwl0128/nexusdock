@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Archive,
   Braces,
@@ -103,9 +102,29 @@ type AccessConfig = {
 };
 
 type Toast = { message: string; danger?: boolean } | null;
+type HealthTone = 'ok' | 'warn' | 'danger' | 'neutral';
+type HealthItem = { label: string; value: string; tone: HealthTone };
 
 const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
 const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
+
+const MEMORY_NAV: Array<{ id: Tab; label: string; title: string; icon: typeof Home }> = [
+  { id: 'dashboard', label: '工作台', title: '今日状态、最近记忆、同步健康和快速入口', icon: Home },
+  { id: 'memories', label: '记忆库', title: '浏览、整理、编辑和审阅你的记忆文件', icon: Archive },
+  { id: 'git', label: '变更审阅', title: '查看和处理本地记忆变更', icon: GitBranch },
+  { id: 'sync', label: '同步中心', title: '查看同步状态并手动保存到远程', icon: Settings },
+];
+
+const MEMORY_NAV_BY_ID = Object.fromEntries(MEMORY_NAV.map((item) => [item.id, item])) as Record<Tab, (typeof MEMORY_NAV)[number]>;
+
+const PRODUCT_COPY = {
+  brand: 'Nexus Memory',
+  strapline: 'Knowledge workspace',
+  sidebarTitle: 'Git backed memory',
+  sidebarBody: 'Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布',
+  heroTitle: '记忆、变更和同步，一屏掌控',
+  heroBody: '先看状态，再决定是继续写、审阅本地变更，还是保存到远程。',
+};
 
 function normalizePath(path: string): string {
   return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
@@ -121,7 +140,8 @@ function routeBase(): string {
 function routeFromLocation(): { tab: Tab; path: string; prefix: string; search: string } {
   const params = new URLSearchParams(window.location.search);
   const rawTab = params.get('tab') || '';
-  const tab: Tab = rawTab === 'dashboard' || rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : 'memories';
+  const hasMemoryDeepLink = params.has('path') || params.has('prefix') || params.has('q');
+  const tab: Tab = rawTab === 'dashboard' || rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : hasMemoryDeepLink ? 'memories' : 'dashboard';
   return {
     tab,
     path: normalizePath(params.get('path') || ''),
@@ -465,6 +485,19 @@ function parseSideBySideDiff(sections: { title: string; diff: string }[]): DiffS
   return parsed;
 }
 
+function syncHealthItems(status: SyncStatus | null, diff: GitDiff | null): HealthItem[] {
+  const dirty = Boolean(diff?.dirty || status?.dirty);
+  const pending = Boolean(status?.pending_push);
+  const ahead = String(status?.ahead ?? '0');
+  const behind = String(status?.behind ?? '0');
+  return [
+    { label: '本地更改', value: dirty ? '有' : '无', tone: dirty ? 'warn' : 'ok' },
+    { label: '待保存', value: pending ? '是' : '否', tone: pending ? 'warn' : 'ok' },
+    { label: '领先远程', value: ahead, tone: ahead !== '0' ? 'warn' : 'ok' },
+    { label: '落后远程', value: behind, tone: behind !== '0' ? 'warn' : 'ok' },
+  ];
+}
+
 function useToast() {
   const [toast, setToast] = useState<Toast>(null);
   const show = (message: string, danger = false) => {
@@ -479,7 +512,6 @@ export default function App() {
   const initialRoute = useMemo(() => routeFromLocation(), []);
   const [tab, setTab] = useState<Tab>(initialRoute.tab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
-  const [explorerCollapsed, setExplorerCollapsed] = useState(localStorage.getItem('memorydock.explorerCollapsed') === '1');
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['']));
   const [current, setCurrent] = useState<Memory | null>(null);
@@ -488,7 +520,6 @@ export default function App() {
   const [draftContent, setDraftContent] = useState('');
   const [search, setSearch] = useState(initialRoute.search);
   const [prefix, setPrefix] = useState(initialRoute.prefix);
-  const [loading, setLoading] = useState(false);
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
@@ -505,10 +536,9 @@ export default function App() {
   const tree = useMemo(() => buildTree(entries), [entries]);
   const fileCount = entries.filter((entry) => entry.type === 'file').length;
   const dirCount = entries.filter((entry) => entry.type === 'directory').length;
-  const explorerFocusCollapsed = false;
 
   useEffect(() => {
-    void loadList();
+    void loadList().catch((error) => show(error instanceof Error ? error.message : '读取记忆列表失败', true));
     if (initialRoute.tab === 'memories' && initialRoute.path) {
       void loadMemory(initialRoute.path).catch((e) => show(e.message, true));
     }
@@ -521,10 +551,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('memorydock.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    localStorage.setItem('memorydock.explorerCollapsed', explorerCollapsed ? '1' : '0');
-  }, [explorerCollapsed]);
 
   useEffect(() => {
     if (tab === 'dashboard') {
@@ -792,7 +818,7 @@ export default function App() {
           />
         )}
         {tab === 'memories' && (
-          <section className={`memory-layout ${explorerFocusCollapsed ? 'explorer-collapsed' : ''}`}>
+          <section className="memory-layout">
             <Explorer
               tree={tree}
               expanded={expanded}
@@ -817,8 +843,6 @@ export default function App() {
               draggingPath={draggingPath}
               setDraggingPath={setDraggingPath}
               onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
-              collapsed={explorerFocusCollapsed}
-              onToggle={() => setExplorerCollapsed((v) => !v)}
             />
             <MemoryEditor
               current={current}
@@ -882,9 +906,9 @@ function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen,
     <section className="dashboard-grid">
       <div className="dashboard-hero panel-card">
         <div>
-          <span className="eyebrow">MemoryDock</span>
-          <h2>记忆、变更和同步，一屏掌控</h2>
-          <p>先看状态，再决定是继续写、审阅本地变更，还是保存到远程。</p>
+          <span className="eyebrow">{PRODUCT_COPY.brand}</span>
+          <h2>{PRODUCT_COPY.heroTitle}</h2>
+          <p>{PRODUCT_COPY.heroBody}</p>
         </div>
         <div className="hero-actions">
           <button className="primary" onClick={onNew}><Plus size={16} />新建记忆</button>
@@ -918,12 +942,7 @@ function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen,
 }
 
 function SyncHealth({ status, diff }: { status: SyncStatus | null; diff: GitDiff | null }) {
-  const items = [
-    { label: '本地更改', value: diff?.dirty ? '有' : '无', tone: diff?.dirty ? 'warn' : 'ok' },
-    { label: '待保存', value: status?.pending_push ? '是' : '否', tone: status?.pending_push ? 'warn' : 'ok' },
-    { label: 'Ahead', value: String(status?.ahead ?? '0'), tone: String(status?.ahead ?? '0') !== '0' ? 'warn' : 'ok' },
-    { label: 'Behind', value: String(status?.behind ?? '0'), tone: String(status?.behind ?? '0') !== '0' ? 'warn' : 'ok' },
-  ];
+  const items = syncHealthItems(status, diff);
   return <div className="health-grid">{items.map((item) => <div className={`health-item ${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>;
 }
 
@@ -1061,11 +1080,11 @@ function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, o
       onClick={() => { if (mobileCompact && !dragRef.current?.dragging) onCompactOpen?.(); }}
     >
       <div className="brand">
-        <div className="brand-mark">M</div>
+        <div className="brand-mark">N</div>
         {!collapsed && (
           <div className="brand-text">
-            <h1>MemoryDock</h1>
-            <p>Knowledge workspace</p>
+            <h1>{PRODUCT_COPY.brand}</h1>
+            <p>{PRODUCT_COPY.strapline}</p>
           </div>
         )}
         <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? '展开侧栏' : '折叠侧栏'}>
@@ -1073,23 +1092,20 @@ function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, o
         </button>
       </div>
       <nav className="nav">
-        <a className={tab === 'dashboard' ? 'active' : ''} href={routeHref('dashboard')} onClick={(event) => { event.preventDefault(); setTab('dashboard'); }} title="工作台">
-          <Home size={17} /> {!collapsed && <span>工作台</span>}
-        </a>
-        <a className={tab === 'memories' ? 'active' : ''} href={routeHref('memories', currentPath, prefix, search)} onClick={(event) => { event.preventDefault(); setTab('memories'); }} title="记忆库">
-          <Archive size={17} /> {!collapsed && <span>记忆库</span>}
-        </a>
-        <a className={tab === 'git' ? 'active' : ''} href={routeHref('git')} onClick={(event) => { event.preventDefault(); setTab('git'); }} title="变更审阅">
-          <GitBranch size={17} /> {!collapsed && <span>变更审阅</span>}
-        </a>
-        <a className={tab === 'sync' ? 'active' : ''} href={routeHref('sync')} onClick={(event) => { event.preventDefault(); setTab('sync'); }} title="同步设置">
-          <Settings size={17} /> {!collapsed && <span>同步设置</span>}
-        </a>
+        {MEMORY_NAV.map((item) => {
+          const Icon = item.icon;
+          const href = item.id === 'memories' ? routeHref(item.id, currentPath, prefix, search) : routeHref(item.id);
+          return (
+            <a className={tab === item.id ? 'active' : ''} href={href} onClick={(event) => { event.preventDefault(); setTab(item.id); }} title={item.label} key={item.id}>
+              <Icon size={17} /> {!collapsed && <span>{item.label}</span>}
+            </a>
+          );
+        })}
       </nav>
       {!collapsed && (
         <div className="sidebar-card">
-          <strong>Git backed memory</strong>
-          <span>Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布</span>
+          <strong>{PRODUCT_COPY.sidebarTitle}</strong>
+          <span>{PRODUCT_COPY.sidebarBody}</span>
         </div>
       )}
     </aside>
@@ -1097,12 +1113,12 @@ function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, o
 }
 
 function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number; onCommand: () => void }) {
-  const title = tab === 'dashboard' ? '记忆工作台' : tab === 'memories' ? '记忆库' : tab === 'git' ? '变更审阅' : '同步中心';
-  const subtitle = tab === 'dashboard' ? '今日状态、最近记忆、同步健康和快速入口' : tab === 'memories' ? current?.path || '浏览、整理、编辑和审阅你的记忆文件' : tab === 'git' ? '查看和处理本地记忆变更' : '查看同步状态并手动保存到远程';
+  const active = MEMORY_NAV_BY_ID[tab];
+  const subtitle = tab === 'memories' ? current?.path || active.title : active.title;
   return (
     <header className="topbar">
       <div className="page-title">
-        <h2>{title}</h2>
+        <h2>{active.label}</h2>
         <p>{subtitle}</p>
       </div>
       <div className="status-strip">
@@ -1139,8 +1155,6 @@ function Explorer(props: {
   draggingPath: string;
   setDraggingPath: (path: string) => void;
   onMove: (from: string, to: string) => void;
-  collapsed: boolean;
-  onToggle: () => void;
 }) {
   return (
     <aside className="explorer-panel">
@@ -1522,11 +1536,8 @@ function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: st
 }
 
 function SyncView({ status, access, onRefresh, onAction, onAccessRefresh, onAccessSave }: { status: SyncStatus | null; access: AccessConfig | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void>; onAccessRefresh: () => Promise<void>; onAccessSave: (username: string, secret: string) => Promise<void> }) {
-  const dirty = Boolean(status?.dirty);
-  const pending = Boolean(status?.pending_push);
-  const ahead = String(status?.ahead ?? '0');
-  const behind = String(status?.behind ?? '0');
-  const healthy = !dirty && !pending && ahead === '0' && behind === '0';
+  const healthItems = syncHealthItems(status, null);
+  const healthy = healthItems.every((item) => item.tone === 'ok');
   return (
     <section className="sync-grid">
       <div className="panel-card sync-status-card">
@@ -1536,10 +1547,7 @@ function SyncView({ status, access, onRefresh, onAction, onAccessRefresh, onAcce
         </div>
         <div className="sync-card-grid">
           <SyncCard label="整体状态" value={healthy ? '健康' : '需处理'} tone={healthy ? 'ok' : 'warn'} />
-          <SyncCard label="本地脏区" value={dirty ? '有更改' : '干净'} tone={dirty ? 'warn' : 'ok'} />
-          <SyncCard label="待保存远程" value={pending ? '是' : '否'} tone={pending ? 'warn' : 'ok'} />
-          <SyncCard label="领先远程" value={ahead} tone={ahead !== '0' ? 'warn' : 'ok'} />
-          <SyncCard label="落后远程" value={behind} tone={behind !== '0' ? 'warn' : 'ok'} />
+          {healthItems.map((item) => <SyncCard key={item.label} label={item.label} value={item.value} tone={item.tone} />)}
         </div>
         <details className="raw-status"><summary>查看原始状态</summary><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></details>
       </div>
@@ -1607,4 +1615,3 @@ function AccessSettings({ access, onRefresh, onSave }: { access: AccessConfig | 
     </div>
   );
 }
-
