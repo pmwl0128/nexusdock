@@ -71,3 +71,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 中文化 Nexus 与 Memory 导航
+
+**Date**: 2026-06-09
+**Task**: 中文化 Nexus 与 Memory 导航
+**Branch**: `main`
+
+### Summary
+
+将 Nexus 主导航、设备页入口和 Memory 工作台导航周边文案中文化；保留 Memory 内部二级导航；构建并完成桌面/移动浏览器验证。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7267171` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
