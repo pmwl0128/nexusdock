@@ -1,38 +1,41 @@
 # Backend Development Guidelines
 
-> Best practices for backend development in this project.
+These guidelines describe the current AgentDock Nexus backend conventions. They are executable project rules for humans and AI agents working in this repository.
 
----
+## Scope
 
-## Overview
-
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
-
----
+Applies to Go code under `cmd/`, `internal/`, `migrations/`, `generated/`, `contracts/`, `scripts/`, and backend-facing tests under `tests/`.
 
 ## Guidelines Index
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Directory Structure](./directory-structure.md) | Module organization and ownership boundaries | Active |
+| [Database Guidelines](./database-guidelines.md) | SQLite, migrations, repositories, transactions | Active |
+| [Error Handling](./error-handling.md) | Domain errors, API responses, validation boundaries | Active |
+| [Quality Guidelines](./quality-guidelines.md) | Required checks, generated-code rules, forbidden patterns | Active |
+| [Logging Guidelines](./logging-guidelines.md) | `slog` usage and secret-safe logging | Active |
 
----
+## Pre-Development Checklist
 
-## How to Fill These Guidelines
+- Read [Directory Structure](./directory-structure.md) before adding or moving packages.
+- Read [Database Guidelines](./database-guidelines.md) before changing repositories, migrations, or SQLite behavior.
+- Read [Error Handling](./error-handling.md) before adding service methods or HTTP handlers.
+- Read [Quality Guidelines](./quality-guidelines.md) before changing contracts, generated files, tests, or build scripts.
+- Read [Logging Guidelines](./logging-guidelines.md) before adding operational logs.
 
-For each guideline file:
+## Required Verification
 
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
+Run the narrowest relevant checks while iterating, then finish backend changes with:
 
-The goal is to help AI assistants and new team members understand how YOUR project works.
+```bash
+go test ./...
+go vet ./...
+python3 scripts/check-contracts.py
+```
 
----
+If the change touches embedded UI assets or `web/`, also run:
 
-**Language**: All documentation should be written in **English**.
+```bash
+cd web && npm run build
+```

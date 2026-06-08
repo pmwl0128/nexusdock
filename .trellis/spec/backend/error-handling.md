@@ -1,51 +1,42 @@
 # Error Handling
 
-> How errors are handled in this project.
-
----
-
-## Overview
-
-<!--
-Document your project's error handling conventions here.
-
-Questions to answer:
-- What error types do you define?
-- How are errors propagated?
-- How are errors logged?
-- How are errors returned to clients?
--->
-
-(To be filled by the team)
-
----
+Backend errors should preserve internal context for logs and tests while exposing stable, non-secret codes to API callers.
 
 ## Error Types
 
-<!-- Custom error classes/types -->
+- Shared API/control-plane errors use `internal/core.CodedError` and stable codes from `internal/core/errors.go`.
+- Domain packages may own local error constants or wrappers in `errors.go` when the errors are not shared outside the package.
+- Wrap unexpected infrastructure failures with `%w` so callers can inspect causes.
+- Use validation errors for bad caller input, not generic internal errors.
 
-(To be filled by the team)
+## Service Layer Patterns
 
----
+- Validate required fields at service entry points before repository writes.
+- Keep authorization and state-transition checks in services, not repositories.
+- Return idempotent success for already-completed safe operations when the existing service contract does so, such as approving an already-approved device.
+- Do not log or return plaintext tokens, cookies, passwords, authorization headers, or secret environment values.
 
-## Error Handling Patterns
+## HTTP Patterns
 
-<!-- Try-catch patterns, error propagation -->
+- Decode JSON through helpers that call `DisallowUnknownFields`.
+- Map stable error codes to HTTP status consistently:
+  - auth required, invalid token, revoked token: `401`
+  - forbidden: `403`
+  - validation: `400`
+  - not found: `404`
+  - version or database conflicts: `409`
+  - unknown infrastructure failure: `500`
+- Response bodies should include a stable code and a user-facing message; avoid exposing raw SQL, filesystem, or secret-bearing details.
+- Limit request bodies where handlers accept arbitrary JSON.
 
-(To be filled by the team)
+## Contract Boundary
 
----
-
-## API Error Responses
-
-<!-- Standard error response format -->
-
-(To be filled by the team)
-
----
+- Contract-visible errors must be represented in `contracts/error-codes.json` and regenerated if they affect generated DTOs.
+- Device command, skill run, memory write, and migration errors should leave enough state or audit evidence for operators to determine whether work completed.
 
 ## Common Mistakes
 
-<!-- Error handling mistakes your team has made -->
-
-(To be filled by the team)
+- Returning raw driver errors directly to API clients.
+- Treating version conflicts as generic validation failures.
+- Accepting unknown JSON fields in control-plane write endpoints.
+- Emitting secrets in errors during config, auth, env, or skill flows.
