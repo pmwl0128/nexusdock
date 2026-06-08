@@ -27,7 +27,7 @@ func (a *app) issueToken(w http.ResponseWriter, r *http.Request) {
 		time.Duration(request.TTLSeconds)*time.Second,
 	)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	principal, _ := middleware.PrincipalFromContext(r.Context())
@@ -37,7 +37,7 @@ func (a *app) issueToken(w http.ResponseWriter, r *http.Request) {
 		"token_kind":   request.TokenKind,
 		"scopes":       request.Scopes,
 	}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, issued)
@@ -47,11 +47,11 @@ func (a *app) revokeToken(w http.ResponseWriter, r *http.Request) {
 	principal, _ := middleware.PrincipalFromContext(r.Context())
 	tokenID := r.PathValue("token_id")
 	if err := a.auth.Revoke(r.Context(), tokenID, principal.Actor); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "auth.token.revoke", "auth_token", tokenID, "high", "", nil); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "token_id": tokenID})

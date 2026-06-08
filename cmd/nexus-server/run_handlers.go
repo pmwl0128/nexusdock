@@ -31,11 +31,11 @@ func (a *app) createRun(w http.ResponseWriter, r *http.Request) {
 		IdempotencyKey: request.IdempotencyKey, Input: request.Input,
 	})
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "run.create", "run", run.ID, "low", run.ID, map[string]any{"kind": run.Kind}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, run)
@@ -44,7 +44,7 @@ func (a *app) createRun(w http.ResponseWriter, r *http.Request) {
 func (a *app) getRun(w http.ResponseWriter, r *http.Request) {
 	run, err := a.runs.Get(r.Context(), r.PathValue("run_id"))
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, run)
@@ -59,11 +59,11 @@ func (a *app) appendStep(w http.ResponseWriter, r *http.Request) {
 	request.RunID = r.PathValue("run_id")
 	step, err := a.runs.AppendStep(r.Context(), request)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "run.step.append", "run_step", step.ID, "low", step.RunID, map[string]any{"sequence": step.Sequence, "name": step.Name}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, step)
@@ -78,11 +78,11 @@ func (a *app) addEvidence(w http.ResponseWriter, r *http.Request) {
 	request.RunID = r.PathValue("run_id")
 	evidence, err := a.runs.AddEvidence(r.Context(), request)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "run.evidence.add", "run_evidence", evidence.ID, "low", evidence.RunID, map[string]any{"kind": evidence.Kind}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, evidence)
@@ -97,11 +97,11 @@ func (a *app) addVerification(w http.ResponseWriter, r *http.Request) {
 	request.RunID = r.PathValue("run_id")
 	verification, err := a.runs.AddVerification(r.Context(), request)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "run.verification.add", "run_verification", verification.ID, "low", verification.RunID, map[string]any{"status": verification.Status}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, verification)
@@ -124,11 +124,11 @@ func (a *app) completeRun(w http.ResponseWriter, r *http.Request) {
 		ErrorCode: request.ErrorCode, ErrorMessage: request.ErrorMessage, Version: request.Version,
 	})
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	if err := a.recordAudit(r, principal.Actor, "run.complete", "run", run.ID, "low", run.ID, map[string]any{"status": run.Status}); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, run)

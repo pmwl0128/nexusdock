@@ -3,9 +3,14 @@ export type ApiErrorBody = {
     code?: string;
     message?: string;
     details?: unknown;
+    request_id?: string;
     trace_id?: string;
   };
+  code?: string;
   message?: string;
+  details?: unknown;
+  request_id?: string;
+  trace_id?: string;
 };
 
 export class ApiError extends Error {
@@ -18,9 +23,9 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
     this.status = status;
-    this.code = body.error?.code;
-    this.details = body.error?.details;
-    this.traceId = body.error?.trace_id;
+    this.code = body.error?.code ?? body.code;
+    this.details = body.error?.details ?? body.details;
+    this.traceId = body.error?.trace_id ?? body.error?.request_id ?? body.trace_id ?? body.request_id;
   }
 }
 
@@ -99,7 +104,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     }
 
     const errorBody = body as ApiErrorBody;
-    if (!response.ok || errorBody.error) {
+    if (!response.ok || errorBody.error || errorBody.code) {
       throw new ApiError(
         errorBody.error?.message || errorBody.message || response.statusText || '请求失败',
         response.status,

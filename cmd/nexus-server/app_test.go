@@ -52,6 +52,27 @@ func TestHTTPAuthRunAuditFlow(t *testing.T) {
 		t.Fatalf("ready status=%d body=%s", response.Code, response.Body.String())
 	}
 
+	request = httptest.NewRequest(http.MethodGet, "/v1/auth/me", nil)
+	request.Header.Set("X-Request-ID", "req_contract_test")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status=%d body=%s", response.Code, response.Body.String())
+	}
+	var errorResponse map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &errorResponse); err != nil {
+		t.Fatalf("decode unauthorized response: %v body=%s", err, response.Body.String())
+	}
+	if errorResponse["code"] != string(core.CodeAuthRequired) || errorResponse["message"] == "" || errorResponse["request_id"] != "req_contract_test" {
+		t.Fatalf("unauthorized response does not match ErrorResponse contract: %#v", errorResponse)
+	}
+	if _, ok := errorResponse["ok"]; ok {
+		t.Fatalf("Nexus ErrorResponse must not include compatibility ok flag: %#v", errorResponse)
+	}
+	if _, ok := errorResponse["error"]; ok {
+		t.Fatalf("Nexus ErrorResponse must not use nested compatibility error shape: %#v", errorResponse)
+	}
+
 	issued := doJSON(t, handler, http.MethodPost, "/v1/auth/tokens", "root-secret", map[string]any{
 		"subject_type": "agent",
 		"subject_id":   "agent-1",

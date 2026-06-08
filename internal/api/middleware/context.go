@@ -70,20 +70,20 @@ func (w *statusWriter) Write(data []byte) (int, error) {
 	return n, err
 }
 
-func Authenticate(service auth.AuthService, requiredScope string, onError func(http.ResponseWriter, error), next http.Handler) http.Handler {
+func Authenticate(service auth.AuthService, requiredScope string, onError func(http.ResponseWriter, *http.Request, error), next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := strings.TrimSpace(r.Header.Get("Authorization"))
 		if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
-			onError(w, core.NewError(core.CodeAuthRequired, "bearer token is required", nil))
+			onError(w, r, core.NewError(core.CodeAuthRequired, "bearer token is required", nil))
 			return
 		}
 		principal, err := service.Authenticate(r.Context(), strings.TrimSpace(header[7:]))
 		if err != nil {
-			onError(w, err)
+			onError(w, r, err)
 			return
 		}
 		if requiredScope != "" && !principal.HasScope(requiredScope) {
-			onError(w, core.NewError(core.CodeForbidden, "missing scope "+requiredScope, nil))
+			onError(w, r, core.NewError(core.CodeForbidden, "missing scope "+requiredScope, nil))
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, principal)))

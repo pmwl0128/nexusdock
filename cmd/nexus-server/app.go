@@ -50,7 +50,7 @@ func (a *app) handler() http.Handler {
 }
 
 func (a *app) require(scope string, next http.Handler) http.Handler {
-	return middleware.Authenticate(a.auth, scope, func(w http.ResponseWriter, err error) { writeError(w, err) }, next)
+	return middleware.Authenticate(a.auth, scope, writeError, next)
 }
 
 func (a *app) health(w http.ResponseWriter, _ *http.Request) {
@@ -61,12 +61,12 @@ func (a *app) ready(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	if err := a.db.PingContext(ctx); err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "code": core.CodeInternal, "message": "database unavailable"})
+		writeErrorStatus(w, r, http.StatusServiceUnavailable, core.CodeInternal, "database unavailable")
 		return
 	}
 	version, err := a.migrations.CurrentVersion(ctx)
 	if err != nil || version == 0 {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"ok": false, "code": core.CodeInternal, "message": "schema unavailable"})
+		writeErrorStatus(w, r, http.StatusServiceUnavailable, core.CodeInternal, "schema unavailable")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "schema_version": version})
@@ -81,7 +81,7 @@ func (a *app) listAudit(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	events, err := a.audit.List(r.Context(), limit)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": events})
@@ -92,17 +92,17 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
-		writeError(w, core.NewError(core.CodeValidation, "invalid JSON request body", err))
+		writeError(w, r, core.NewError(core.CodeValidation, "invalid JSON request body", err))
 		return false
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		writeError(w, core.NewError(core.CodeValidation, "request body must contain one JSON document", err))
+		writeError(w, r, core.NewError(core.CodeValidation, "request body must contain one JSON document", err))
 		return false
 	}
 	return true
 }
 
-func writeError(w http.ResponseWriter, err error) {
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	code := core.ErrorCodeOf(err)
 	status := http.StatusInternalServerError
 	switch code {
@@ -122,7 +122,15 @@ func writeError(w http.ResponseWriter, err error) {
 	if errors.As(err, &coded) && coded.Message != "" {
 		message = coded.Message
 	}
-	writeJSON(w, status, map[string]any{"ok": false, "code": code, "message": message})
+	writeErrorStatus(w, r, status, code, message)
+}
+
+func writeErrorStatus(w http.ResponseWriter, r *http.Request, status int, code core.ErrorCode, message string) {
+	requestID := middleware.RequestIDFromContext(r.Context())
+	if requestID == "" {
+		requestID = r.Header.Get("X-Request-ID")
+	}
+	writeJSON(w, status, map[string]any{"code": code, "message": message, "request_id": requestID})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
