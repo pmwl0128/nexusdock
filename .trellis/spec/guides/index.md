@@ -24,6 +24,8 @@ These guides help you **ask the right questions before coding**.
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
 
+Frontend-specific implementation rules live in [`../frontend/index.md`](../frontend/index.md).
+
 ---
 
 ## Quick Reference: Thinking Triggers

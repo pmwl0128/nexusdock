@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Children, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   Activity,
   BellRing,
@@ -10,6 +10,7 @@ import {
   CircleCheck,
   Database,
   Home,
+  KeyRound,
   Menu,
   PlayCircle,
   RefreshCw,
@@ -439,7 +440,30 @@ export default function App() {
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
   const resource = useOverview(refreshToken);
+  const devicesResource = useResource<NexusDeviceSummary[]>(['/v1/devices'], [], refreshToken);
+  const schedulesResource = useResource<Schedule[]>(['/api/v1/schedules', '/v1/schedules'], [], refreshToken);
   const overview = { ...EMPTY_OVERVIEW, ...resource.data };
+  const devices = Array.isArray(devicesResource.data) ? devicesResource.data : [];
+  const schedules = Array.isArray(schedulesResource.data) ? schedulesResource.data : [];
+  const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
+  const activeSchedules = schedules.filter((schedule) => schedule.enabled);
+  const failedSchedules = schedules.filter((schedule) => toneForStatus(schedule.state) === 'danger');
+  const attentionItems = [
+    ...unhealthyDevices.slice(0, 3).map((device) => ({
+      id: `device:${device.id}`,
+      title: device.name || device.id,
+      detail: `${device.status || 'unknown'} / ${device.platform || 'unknown'} / ${device.arch || 'unknown'}`,
+      tone: toneForStatus(device.status),
+      target: 'devices' as Section,
+    })),
+    ...failedSchedules.slice(0, 3).map((schedule) => ({
+      id: `schedule:${schedule.id}`,
+      title: schedule.title,
+      detail: `${schedule.state || 'unknown'} / ${formatTime(schedule.last_completed_at || schedule.last_started_at)}`,
+      tone: toneForStatus(schedule.state),
+      target: 'schedules' as Section,
+    })),
+  ].slice(0, 5);
   const cards = useMemo(() => [
     ['Agent 待办', overview.agent_tasks, Bot, 'inbox' as Section, 'warn' as Tone],
     ['用户待办', overview.user_tasks, BellRing, 'inbox' as Section, 'warn' as Tone],
@@ -451,9 +475,17 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
 
   return (
     <>
-      <section className="nexus-hero">
-        <div><span className="nexus-kicker">统一控制面</span><h2>设备、记忆、Skill 与任务，一处掌控</h2><p>从 Agent Inbox 到多设备运行证据，形成可审计、可回退的完整闭环。</p></div>
-        <StatusBadge tone={resource.error ? 'danger' : resource.live ? 'ok' : 'warn'}>{resource.error ? 'API 访问受限' : resource.live ? '实时数据已连接' : '等待 Nexus API 合并'}</StatusBadge>
+      <section className="nexus-hero nexus-workbench-hero">
+        <div>
+          <span className="nexus-kicker">Control workspace</span>
+          <h2>今天先看异常、待办和可执行入口</h2>
+          <p>把设备心跳、计划任务、Memory 和 Env 管理放在同一张工作台里，优先暴露需要处理的对象。</p>
+        </div>
+        <div className="hero-health-stack">
+          <StatusBadge tone={resource.error ? 'danger' : resource.live ? 'ok' : 'warn'}>{resource.error ? 'API 访问受限' : resource.live ? '概览实时' : '兼容模式'}</StatusBadge>
+          <span>{devicesResource.live ? `${devices.length} 台设备` : '设备数据待接入'}</span>
+          <span>{schedulesResource.live ? `${activeSchedules.length} 个启用计划` : '计划任务待接入'}</span>
+        </div>
       </section>
       {resource.error && <InlineAlert tone="danger" title="概览数据读取失败" message={resource.error} />}
       <section className="metric-grid">
@@ -464,14 +496,35 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
           </button>
         ))}
       </section>
-      <section className="two-column">
-        <Panel title="系统态势" subtitle="当前 Nexus 集成状态">
-          <TimelineItem icon={<CircleCheck size={16} />} title="Memory 工作区已接入" detail="保留目录、Diff、时间线和移动端体验" tone="ok" />
-          <TimelineItem icon={<Activity size={16} />} title="控制面数据自动探测" detail="后端分支合并后自动显示实时状态" tone="warn" />
-          <TimelineItem icon={<ShieldCheck size={16} />} title="安全与迁移测试入口已建立" detail="覆盖恶意包、路径逃逸、Secret 泄露和回退" tone="ok" />
+
+      <section className="action-grid" aria-label="常用操作">
+        <ActionTile icon={<Server size={18} />} title="管理设备" detail="注册、审批、命令历史" onClick={() => navigate('devices')} />
+        <ActionTile icon={<KeyRound size={18} />} title="配置 Env" detail="按设备下发 env.manage" onClick={() => navigate('settings')} />
+        <ActionTile icon={<Database size={18} />} title="打开 Memory" detail="查看、编辑、同步记忆仓库" onClick={() => navigate('memory')} />
+        <ActionTile icon={<CalendarClock size={18} />} title="检查计划任务" detail="备份归档与最近执行证据" onClick={() => navigate('schedules')} />
+      </section>
+
+      <section className="dashboard-grid-nexus">
+        <Panel title="设备控制面" subtitle={devicesResource.live ? `${devices.length} 台真实设备` : '等待设备 API 数据'}>
+          <SummaryStat label="在线" value={String(devices.filter((device) => toneForStatus(device.status) === 'ok').length)} tone="ok" />
+          <SummaryStat label="需关注" value={String(unhealthyDevices.length || overview.device_alerts)} tone={unhealthyDevices.length || overview.device_alerts ? 'danger' : 'muted'} />
+          <SummaryList empty="暂无设备异常。">{devices.slice(0, 4).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
         </Panel>
-        <Panel title="闭环进度" subtitle="M0 → M6 产品里程碑">
-          {['契约冻结', 'Nexus Core', 'Memory + Task', '多设备', 'Skill MVP', 'Evolution', '产品完成'].map((name, index) => <ProgressRow key={name} name={name} value={index < 2 ? 100 : index < 6 ? 55 : 30} />)}
+
+        <Panel title="计划任务" subtitle={schedulesResource.live ? `${activeSchedules.length} 个启用，${failedSchedules.length} 个失败` : '等待计划任务 API 数据'}>
+          <SummaryStat label="启用" value={String(activeSchedules.length)} tone="ok" />
+          <SummaryStat label="失败" value={String(failedSchedules.length || overview.recent_failures)} tone={failedSchedules.length || overview.recent_failures ? 'danger' : 'muted'} />
+          <SummaryList empty="暂无计划任务记录。">{schedules.slice(0, 4).map((schedule) => <ObjectRow key={schedule.id} title={schedule.title} detail={`${schedule.state || 'unknown'} / ${formatTime(schedule.last_completed_at || schedule.last_started_at)}`} tone={toneForStatus(schedule.state)} />)}</SummaryList>
+        </Panel>
+
+        <Panel title="需要关注" subtitle="来自设备和计划任务的合并队列">
+          {attentionItems.length ? attentionItems.map((item) => (
+            <button type="button" className="attention-row" key={item.id} onClick={() => navigate(item.target)}>
+              <StatusBadge tone={item.tone}>{item.tone}</StatusBadge>
+              <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+              <ChevronRight size={16} />
+            </button>
+          )) : <EmptyMini text="当前没有需要立刻处理的设备或计划任务。" />}
         </Panel>
       </section>
     </>
@@ -595,3 +648,8 @@ function EmptyState({ text }: { text: string }) { return <div className="empty-s
 function ErrorState({ text }: { text: string }) { return <div className="empty-state error-state"><span><CircleAlert size={24} /></span><h3>数据读取失败</h3><p>{text}</p></div>; }
 function SettingRow({ label, detail }: { label: string; detail: string }) { return <div className="setting-row"><div><strong>{label}</strong><p>{detail}</p></div><ChevronRight size={17} /></div>; }
 function EntityCard({ icon, title, status, detail, leftLabel, leftValue, rightLabel, rightValue }: { icon: ReactNode; title: string; status: string; detail: string; leftLabel: string; leftValue: string; rightLabel: string; rightValue: string }) { return <article className="entity-card"><div className="entity-head"><span className="entity-avatar">{icon}</span><StatusBadge tone={toneForStatus(status)}>{status}</StatusBadge></div><h3>{title}</h3><p>{detail}</p><dl><div><dt>{leftLabel}</dt><dd>{leftValue}</dd></div><div><dt>{rightLabel}</dt><dd>{rightValue}</dd></div></dl></article>; }
+function ActionTile({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick: () => void }) { return <button type="button" className="action-tile" onClick={onClick}><span>{icon}</span><strong>{title}</strong><small>{detail}</small><ChevronRight size={16} /></button>; }
+function SummaryStat({ label, value, tone }: { label: string; value: string; tone: Tone }) { return <div className="summary-stat"><span className={`metric-icon tone-${tone}`}><Activity size={15} /></span><div><strong>{value}</strong><small>{label}</small></div></div>; }
+function SummaryList({ empty, children }: { empty: string; children: ReactNode }) { return <div className="summary-list">{Children.count(children) ? children : <EmptyMini text={empty} />}</div>; }
+function ObjectRow({ title, detail, tone }: { title: string; detail: string; tone: Tone }) { return <div className="object-row"><StatusBadge tone={tone}>{tone}</StatusBadge><span><strong>{title}</strong><small>{detail}</small></span></div>; }
+function EmptyMini({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }

@@ -1,0 +1,2 @@
+{"file":".trellis/spec/guides/index.md","reason":"Shared quality checklist for code reuse and cross-layer consistency review."}
+{"file":".trellis/spec/backend/index.md","reason":"Only configured repo spec layer; verify no frontend-specific spec was skipped."}
