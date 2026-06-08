@@ -59,7 +59,7 @@ export default function DevicesPage({ refreshToken }: { refreshToken: number }) 
   return (
     <section className="nx-devices-page">
       <div className="section-heading nx-devices-heading">
-        <div><h2>Devices Control Plane</h2><p>完成设备注册、审批、心跳状态、命令下发和结果追踪闭环。</p></div>
+        <div><h2>设备控制面</h2><p>完成设备注册、审批、心跳状态、命令下发和结果追踪闭环。</p></div>
         <div className="nx-heading-actions">
           <button type="button" className="nx-button is-secondary" onClick={refresh}><RefreshCw size={16} />刷新</button>
           <button type="button" className="nx-button" onClick={() => open('enroll')}><KeyRound size={16} />创建注册 Token</button>
@@ -104,7 +104,7 @@ function DeviceCard({ snapshot, onDetails, onAction }: {
       <p className="nx-mono nx-device-id">{device.id}</p>
       <div className="nx-device-meta"><span>{device.platform || '未知平台'} / {device.arch || '未知架构'}</span><span>AgentDock {heartbeat?.agentdock_version || device.agentdock_version || '未知版本'}</span></div>
       <div className="nx-capability-list">{capabilities.length ? capabilities.slice(0, 5).map((capability) => <span key={capability.name} className={capability.enabled ? 'is-on' : 'is-off'}>{capability.name}</span>) : <span className="is-off">暂无能力</span>}</div>
-      <dl className="nx-device-stats"><div><dt>Skills</dt><dd>{skills.filter((skill) => skill.active).length} / {skills.length}</dd></div><div><dt>最后心跳</dt><dd>{formatTime(device.last_seen || heartbeat?.received_at)}</dd></div></dl>
+      <dl className="nx-device-stats"><div><dt>能力</dt><dd>{skills.filter((skill) => skill.active).length} / {skills.length}</dd></div><div><dt>最后心跳</dt><dd>{formatTime(device.last_seen || heartbeat?.received_at)}</dd></div></dl>
       <div className="nx-card-actions">
         {device.status === 'pending' && <button type="button" className="nx-button is-small" onClick={() => onAction('approve')}><ShieldCheck size={15} />批准</button>}
         {!['pending', 'revoked'].includes(device.status) && <button type="button" className="nx-button is-small" onClick={() => onAction('command')}><Play size={15} />命令</button>}

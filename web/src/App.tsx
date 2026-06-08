@@ -111,14 +111,14 @@ type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 type SearchResult = { id: string; label: string; description: string; target: Section; source: 'section' | 'device' | 'schedule' };
 
 const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'inbox', label: 'Inbox', icon: BellRing },
-  { id: 'devices', label: 'Devices', icon: Server },
-  { id: 'memory', label: 'Memory', icon: Database },
-  { id: 'skills', label: 'Skills', icon: Boxes },
-  { id: 'runs', label: 'Runs', icon: PlayCircle },
+  { id: 'home', label: '总览', icon: Home },
+  { id: 'inbox', label: '待办', icon: BellRing },
+  { id: 'devices', label: '设备', icon: Server },
+  { id: 'memory', label: '记忆', icon: Database },
+  { id: 'skills', label: '能力', icon: Boxes },
+  { id: 'runs', label: '运行', icon: PlayCircle },
   { id: 'schedules', label: '计划任务', icon: CalendarClock },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'settings', label: '设置', icon: Settings },
 ];
 
 const SEARCH_HINTS: Record<Section, string[]> = {
@@ -400,7 +400,7 @@ export default function App() {
             );
           })}
         </nav>
-        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>Control Plane</span></div>
+        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>控制面</span></div>
       </aside>
       {menuOpen && <button className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
       <main className="nexus-main">
@@ -469,7 +469,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
     ['用户待办', overview.user_tasks, BellRing, 'inbox' as Section, 'warn' as Tone],
     ['设备异常', overview.device_alerts, Server, 'devices' as Section, 'danger' as Tone],
     ['Skill 候选', overview.skill_candidates, Sparkles, 'skills' as Section, 'ok' as Tone],
-    ['Memory 冲突', overview.memory_conflicts, Database, 'memory' as Section, 'danger' as Tone],
+    ['记忆冲突', overview.memory_conflicts, Database, 'memory' as Section, 'danger' as Tone],
     ['最近失败', overview.recent_failures, CircleAlert, 'runs' as Section, 'danger' as Tone],
   ] as const, [overview.agent_tasks, overview.user_tasks, overview.device_alerts, overview.skill_candidates, overview.memory_conflicts, overview.recent_failures]);
 
@@ -477,9 +477,9 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
     <>
       <section className="nexus-hero nexus-workbench-hero">
         <div>
-          <span className="nexus-kicker">Control workspace</span>
+          <span className="nexus-kicker">控制工作台</span>
           <h2>今天先看异常、待办和可执行入口</h2>
-          <p>把设备心跳、计划任务、Memory 和 Env 管理放在同一张工作台里，优先暴露需要处理的对象。</p>
+          <p>把设备心跳、计划任务、记忆和 Env 管理放在同一张工作台里，优先暴露需要处理的对象。</p>
         </div>
         <div className="hero-health-stack">
           <StatusBadge tone={resource.error ? 'danger' : resource.live ? 'ok' : 'warn'}>{resource.error ? 'API 访问受限' : resource.live ? '概览实时' : '兼容模式'}</StatusBadge>
@@ -500,7 +500,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
       <section className="action-grid" aria-label="常用操作">
         <ActionTile icon={<Server size={18} />} title="管理设备" detail="注册、审批、命令历史" onClick={() => navigate('devices')} />
         <ActionTile icon={<KeyRound size={18} />} title="配置 Env" detail="按设备下发 env.manage" onClick={() => navigate('settings')} />
-        <ActionTile icon={<Database size={18} />} title="打开 Memory" detail="查看、编辑、同步记忆仓库" onClick={() => navigate('memory')} />
+        <ActionTile icon={<Database size={18} />} title="打开记忆" detail="查看、编辑、同步记忆仓库" onClick={() => navigate('memory')} />
         <ActionTile icon={<CalendarClock size={18} />} title="检查计划任务" detail="备份归档与最近执行证据" onClick={() => navigate('schedules')} />
       </section>
 
@@ -535,7 +535,7 @@ function InboxPage({ refreshToken }: { refreshToken: number }) {
   const resource = useResource<Task[]>(['/api/v1/tasks', '/api/tasks'], [], refreshToken);
   const tasks = Array.isArray(resource.data) ? resource.data : [];
   return (
-    <CollectionPage title="Agent Inbox" description="统一处理 needs_agent、needs_user、review 与 automatic 任务。" live={resource.live} loading={resource.loading} error={resource.error} count={tasks.length} empty="暂无任务。设备告警、Skill 失败、Memory 冲突和 Evolution Proposal 会自动进入这里。">
+    <CollectionPage title="Agent 待办" description="统一处理 needs_agent、needs_user、review 与 automatic 任务。" live={resource.live} loading={resource.loading} error={resource.error} count={tasks.length} empty="暂无任务。设备告警、Skill 失败、记忆冲突和 Evolution Proposal 会自动进入这里。">
       {tasks.map((task) => <ListCard key={task.id} title={task.title} meta={`${task.type} · ${task.source || 'unknown source'}`} trailing={<><StatusBadge tone={toneForStatus(task.status)}>{task.status}</StatusBadge><small>{formatTime(task.updated_at)}</small></>} />)}
     </CollectionPage>
   );
@@ -549,7 +549,7 @@ function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const resource = useResource<Skill[]>(['/api/v1/skills', '/api/skills'], [], refreshToken);
   const skills = Array.isArray(resource.data) ? resource.data : [];
   return (
-    <CollectionPage title="Skill Catalog" description="查看规范、Operations、安装设备、Runs、Evolution 与版本。" live={resource.live} loading={resource.loading} error={resource.error} count={skills.length} empty="Catalog 为空。导入外部 Skill 后将显示 provenance、trust、maturity 和 release。">
+    <CollectionPage title="能力目录" description="查看规范、Operations、安装设备、Runs、Evolution 与版本。" live={resource.live} loading={resource.loading} error={resource.error} count={skills.length} empty="目录为空。导入外部 Skill 后将显示 provenance、trust、maturity 和 release。">
       <div className="card-grid">{skills.map((skill) => <EntityCard key={skill.id} icon={<Boxes size={20} />} title={skill.name} status={skill.maturity || 'draft'} detail={`v${skill.version || '0.0.0'} · trust: ${skill.trust || 'unverified'}`} leftLabel="安装设备" leftValue={String(skill.installations ?? 0)} rightLabel="Release" rightValue={skill.version || '无'} />)}</div>
     </CollectionPage>
   );
@@ -559,7 +559,7 @@ function RunsPage({ refreshToken }: { refreshToken: number }) {
   const resource = useResource<Run[]>(['/api/v1/runs', '/api/runs'], [], refreshToken);
   const runs = Array.isArray(resource.data) ? resource.data : [];
   return (
-    <CollectionPage title="Runs & Evidence" description="统一查看步骤、证据、验证结果和失败层级。" live={resource.live} loading={resource.loading} error={resource.error} count={runs.length} empty="暂无 Run。Skill 执行或设备命令完成后会记录到统一 Run Registry。">
+    <CollectionPage title="运行与证据" description="统一查看步骤、证据、验证结果和失败层级。" live={resource.live} loading={resource.loading} error={resource.error} count={runs.length} empty="暂无运行记录。Skill 执行或设备命令完成后会记录到统一运行注册表。">
       {runs.map((run) => <ListCard key={run.id} title={run.title || run.skill || run.id} meta={`${run.device || '未知设备'} · ${formatTime(run.started_at)}`} trailing={<StatusBadge tone={toneForStatus(run.status)}>{run.status}</StatusBadge>} />)}
     </CollectionPage>
   );
@@ -635,7 +635,7 @@ function SettingsPage() {
 }
 
 function CollectionPage({ title, description, live, loading, error, count, empty, children }: { title: string; description: string; live: boolean; loading: boolean; error?: string; count: number; empty: string; children: ReactNode }) {
-  return <section><div className="section-heading"><div><h2>{title}</h2><p>{description}</p></div><StatusBadge tone={error ? 'danger' : live ? 'ok' : 'warn'}>{error ? 'API 访问受限' : live ? 'Live API' : 'Compatibility mode'}</StatusBadge></div>{loading ? <EmptyState text="正在读取 Nexus 数据…" /> : error ? <ErrorState text={error} /> : count > 0 && children ? <div className="collection-stack">{children}</div> : <EmptyState text={empty} />}</section>;
+  return <section><div className="section-heading"><div><h2>{title}</h2><p>{description}</p></div><StatusBadge tone={error ? 'danger' : live ? 'ok' : 'warn'}>{error ? 'API 访问受限' : live ? '实时 API' : '兼容模式'}</StatusBadge></div>{loading ? <EmptyState text="正在读取 Nexus 数据…" /> : error ? <ErrorState text={error} /> : count > 0 && children ? <div className="collection-stack">{children}</div> : <EmptyState text={empty} />}</section>;
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }

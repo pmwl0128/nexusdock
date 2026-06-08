@@ -118,9 +118,9 @@ const MEMORY_NAV: Array<{ id: Tab; label: string; title: string; icon: typeof Ho
 const MEMORY_NAV_BY_ID = Object.fromEntries(MEMORY_NAV.map((item) => [item.id, item])) as Record<Tab, (typeof MEMORY_NAV)[number]>;
 
 const PRODUCT_COPY = {
-  brand: 'Nexus Memory',
-  strapline: 'Knowledge workspace',
-  sidebarTitle: 'Git backed memory',
+  brand: 'Nexus 记忆',
+  strapline: '知识工作台',
+  sidebarTitle: 'Git 驱动的记忆库',
   sidebarBody: 'Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布',
   heroTitle: '记忆、变更和同步，一屏掌控',
   heroBody: '先看状态，再决定是继续写、审阅本地变更，还是保存到远程。',
@@ -972,12 +972,12 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
     .filter((entry) => !normalized || entry.path.toLowerCase().includes(normalized))
     .slice(0, 8);
   const actions = [
-    { label: '打开工作台', hint: 'Dashboard', icon: <Home size={16} />, run: () => onTab('dashboard') },
-    { label: '新建记忆', hint: 'Create note', icon: <Plus size={16} />, run: onNew },
-    { label: '打开记忆库', hint: 'Explorer', icon: <Archive size={16} />, run: () => onTab('memories') },
-    { label: '打开变更审阅', hint: 'Review local changes', icon: <GitBranch size={16} />, run: () => onTab('git') },
-    { label: '打开同步中心', hint: 'Sync status', icon: <Settings size={16} />, run: () => onTab('sync') },
-    { label: '立即更新并保存', hint: 'Pull + push', icon: <RefreshCw size={16} />, run: onSync },
+    { label: '打开工作台', hint: '查看状态', icon: <Home size={16} />, run: () => onTab('dashboard') },
+    { label: '新建记忆', hint: '创建笔记', icon: <Plus size={16} />, run: onNew },
+    { label: '打开记忆库', hint: '浏览文件', icon: <Archive size={16} />, run: () => onTab('memories') },
+    { label: '打开变更审阅', hint: '审阅本地变更', icon: <GitBranch size={16} />, run: () => onTab('git') },
+    { label: '打开同步中心', hint: '查看同步状态', icon: <Settings size={16} />, run: () => onTab('sync') },
+    { label: '立即更新并保存', hint: '拉取并推送', icon: <RefreshCw size={16} />, run: onSync },
   ].filter((item) => !normalized || item.label.toLowerCase().includes(normalized) || item.hint.toLowerCase().includes(normalized));
 
   return (
@@ -1123,9 +1123,9 @@ function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; cu
       </div>
       <div className="status-strip">
         <button className="command-button" onClick={onCommand}><Command size={14} />⌘K</button>
-        <span className="pill ok">● Online</span>
-        <span className="pill">{fileCount} files</span>
-        <span className="pill">{dirCount} dirs</span>
+        <span className="pill ok">● 在线</span>
+        <span className="pill">{fileCount} 个文件</span>
+        <span className="pill">{dirCount} 个目录</span>
       </div>
     </header>
   );
@@ -1159,7 +1159,7 @@ function Explorer(props: {
   return (
     <aside className="explorer-panel">
       <div className="panel-head">
-        <h3>Explorer</h3>
+        <h3>记忆浏览器</h3>
         <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>
       </div>
       <>
@@ -1321,7 +1321,7 @@ function MemoryEditor(props: {
         <div className="hero-empty">
           <FileText size={42} />
           <h3>选择一个记忆文件</h3>
-          <p>从左侧 Explorer 选择 Markdown 文件，或新建一条记忆。</p>
+          <p>从左侧记忆浏览器选择 Markdown 文件，或新建一条记忆。</p>
         </div>
       )}
     </main>
@@ -1392,12 +1392,12 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
       <main className={`review-canvas ${fullscreen ? 'fullscreen-panel review-fullscreen' : ''}`}>
         <div className="review-hero">
           <div>
-            <span className="eyebrow">Review Studio</span>
+            <span className="eyebrow">审阅工作台</span>
             <h3>{selectedCommit ? selectedTitle : '变更审阅'}</h3>
             <p>{selectedCommit ? `${selectedCommit.commit.short_hash} · ${[selectedCommit.commit.author, selectedCommit.commit.date].filter(Boolean).join(' · ')}` : diff?.dirty ? '聚焦 diff 内容，左侧处理本地变更，右侧查看历史版本。' : '没有需要审阅的本地更改。'}</p>
           </div>
           <div className="review-hero-actions">
-            {selectedCommit && <span className="pill">{selectedCommit.files.length} files changed</span>}
+            {selectedCommit && <span className="pill">{selectedCommit.files.length} 个文件变更</span>}
             <button onClick={() => setDiffMode((mode) => mode === 'split' ? 'unified' : 'split')} title={diffMode === 'split' ? '切换到单栏' : '切换到左右'}>{diffMode === 'split' ? '单栏' : '左右'}</button>
             <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏审阅'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
             <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
@@ -1435,7 +1435,7 @@ function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFi
       <aside className="review-side review-history">
         <div className="review-side-head">
           <div>
-            <span className="eyebrow">History</span>
+            <span className="eyebrow">历史</span>
             <h3>版本时间线</h3>
             <p>{commits.length} 个最近提交</p>
           </div>
