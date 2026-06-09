@@ -93,7 +93,7 @@ func TestBuiltFrontendContainsNexusSectionsAndResponsiveRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk frontend dist: %v", err)
 	}
-	for _, label := range []string{"AgentDock", "Nexus", "Inbox", "Devices", "Memory", "Skills", "Runs", "Settings", "计划任务", "API 访问受限", "全局搜索", "真实 Nexus 数据", "拒绝跨源 API 请求", "INVALID_JSON"} {
+	for _, label := range []string{"AgentDock", "Nexus", "总览", "待办", "设备", "记忆", "能力", "运行", "设置", "计划任务", "API 访问受限", "全局搜索", "真实 Nexus 数据", "拒绝跨源 API 请求", "INVALID_JSON"} {
 		if !strings.Contains(javascript.String(), label) {
 			t.Errorf("frontend bundle missing section label %q", label)
 		}

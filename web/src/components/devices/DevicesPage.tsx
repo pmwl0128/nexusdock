@@ -96,7 +96,8 @@ function DeviceCard({ snapshot, onDetails, onAction }: {
 }) {
   const { device, heartbeat } = snapshot;
   const capabilities = heartbeat?.capabilities ?? device.capabilities ?? [];
-  const skills = heartbeat?.skills ?? [];
+  const skills = Array.isArray(heartbeat?.skills) ? heartbeat.skills : [];
+  const skillSummary = Array.isArray(heartbeat?.skills) ? `${skills.filter((skill) => skill.active).length} / ${skills.length}` : '未上报';
   return (
     <article className="nx-device-card">
       <div className="nx-device-card-head"><span className="entity-avatar"><Server size={20} /></span><DeviceStatusBadge status={device.status} /></div>
@@ -104,7 +105,7 @@ function DeviceCard({ snapshot, onDetails, onAction }: {
       <p className="nx-mono nx-device-id">{device.id}</p>
       <div className="nx-device-meta"><span>{device.platform || '未知平台'} / {device.arch || '未知架构'}</span><span>AgentDock {heartbeat?.agentdock_version || device.agentdock_version || '未知版本'}</span></div>
       <div className="nx-capability-list">{capabilities.length ? capabilities.slice(0, 5).map((capability) => <span key={capability.name} className={capability.enabled ? 'is-on' : 'is-off'}>{capability.name}</span>) : <span className="is-off">暂无能力</span>}</div>
-      <dl className="nx-device-stats"><div><dt>能力</dt><dd>{skills.filter((skill) => skill.active).length} / {skills.length}</dd></div><div><dt>最后心跳</dt><dd>{formatTime(device.last_seen || heartbeat?.received_at)}</dd></div></dl>
+      <dl className="nx-device-stats"><div><dt>Skill</dt><dd>{skillSummary}</dd></div><div><dt>最后心跳</dt><dd>{formatTime(device.last_seen || heartbeat?.received_at)}</dd></div></dl>
       <div className="nx-card-actions">
         {device.status === 'pending' && <button type="button" className="nx-button is-small" onClick={() => onAction('approve')}><ShieldCheck size={15} />批准</button>}
         {!['pending', 'revoked'].includes(device.status) && <button type="button" className="nx-button is-small" onClick={() => onAction('command')}><Play size={15} />命令</button>}
@@ -122,6 +123,8 @@ function DeviceDetails({ snapshot, onClose, onAction }: {
 }) {
   const { device, heartbeat } = snapshot;
   const capabilities = heartbeat?.capabilities ?? device.capabilities ?? [];
+  const metrics = heartbeat?.metrics;
+  const hasReportedMetrics = Boolean(metrics && (metrics.cpu_percent > 0 || metrics.memory_percent > 0 || metrics.disk_percent > 0));
   return <Dialog title={device.name} description={device.id} onClose={onClose} wide>
     <div className="nx-detail-header"><DeviceStatusBadge status={device.status} /><span>更新于 {formatTime(device.updated_at)}</span></div>
     <div className="nx-detail-grid">
@@ -134,7 +137,7 @@ function DeviceDetails({ snapshot, onClose, onAction }: {
     </div>
     <h3 className="nx-subtitle">能力</h3>
     <div className="nx-capability-table">{capabilities.length ? capabilities.map((item) => <div key={item.name}><span className={item.enabled ? 'nx-dot is-on' : 'nx-dot'} /><strong>{item.name}</strong><span>{item.version || '无版本'}</span><span>{item.enabled ? '已启用' : '未启用'}</span></div>) : <p className="nx-muted">尚未上报能力。</p>}</div>
-    {heartbeat && <><h3 className="nx-subtitle">资源指标</h3><div className="nx-metrics"><Metric label="CPU" value={heartbeat.metrics.cpu_percent} /><Metric label="内存" value={heartbeat.metrics.memory_percent} /><Metric label="磁盘" value={heartbeat.metrics.disk_percent} /></div></>}
+    {heartbeat && <><h3 className="nx-subtitle">资源指标</h3><div className="nx-metrics"><Metric label="CPU" value={hasReportedMetrics ? metrics?.cpu_percent : undefined} /><Metric label="内存" value={hasReportedMetrics ? metrics?.memory_percent : undefined} /><Metric label="磁盘" value={hasReportedMetrics ? metrics?.disk_percent : undefined} /></div></>}
     <h3 className="nx-subtitle">策略</h3>
     <div className="nx-policy-box"><span>最大风险：{device.policy.max_risk}</span><span>发布通道：{device.policy.release_channel}</span><span>命令：{device.policy.allowed_command_types.join('、') || '无'}</span></div>
     <div className="nx-dialog-actions">
@@ -289,7 +292,10 @@ function CommandDetails({ commandId, seed }: { commandId: string; seed: DeviceCo
 function JsonPanel({ title, value }: { title: string; value: unknown }) { return <div className="nx-json-panel"><strong>{title}</strong><pre>{safeJSON(value)}</pre></div>; }
 function TextField({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) { return <label><span>{label}</span><input required={required} value={value} onChange={(event) => onChange(event.target.value)} /></label>; }
 function Detail({ label, value }: { label: string; value: string }) { return <div className="nx-detail"><span>{label}</span><strong>{value || '暂无'}</strong></div>; }
-function Metric({ label, value }: { label: string; value: number }) { return <div><span>{label}</span><strong>{value.toFixed(1)}%</strong><progress max={100} value={value} /></div>; }
+function Metric({ label, value }: { label: string; value?: number }) {
+  const reported = typeof value === 'number';
+  return <div><span>{label}</span><strong>{reported ? `${value.toFixed(1)}%` : '未上报'}</strong><progress max={100} value={reported ? value : 0} /></div>;
+}
 function DeviceEmpty({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div className="empty-state nx-device-empty"><span>{icon}</span><h3>{title}</h3><p>{text}</p></div>; }
 type ActionDialogProps = { snapshot: DeviceSnapshot; onClose: () => void; onComplete: () => void };
 function messageOf(reason: unknown) { return reason instanceof Error ? reason.message : '操作失败'; }

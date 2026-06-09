@@ -135,7 +135,7 @@ export type DeviceHeartbeat = {
   agentdock_version: string;
   metrics: { cpu_percent: number; memory_percent: number; disk_percent: number };
   capabilities: DeviceCapability[];
-  skills: DeviceSkillSummary[];
+  skills?: DeviceSkillSummary[] | null;
   memory_sync: DeviceMemorySyncSummary;
 };
 

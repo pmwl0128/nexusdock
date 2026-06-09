@@ -125,10 +125,24 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		UptimeSeconds:    10,
 		AgentdockVersion: "test",
 		Metrics:          json.RawMessage(`{"cpu_percent":1,"memory_percent":2,"disk_percent":3}`),
-		Capabilities:     []contracts.DeviceCapability{},
+		Capabilities:     []contracts.DeviceCapability{{Name: "memory", Version: "v1", Enabled: true}},
 	})
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("heartbeat status=%d body=%s", response.Code, response.Body.String())
+	}
+
+	response = controlPlaneRequest(t, handler, http.MethodGet, "/api/v1/skills", "admin-token", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("list skills status=%d body=%s", response.Code, response.Body.String())
+	}
+	var skills struct {
+		Items []skillListItem `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &skills); err != nil {
+		t.Fatalf("skills response is not json: %v body=%s", err, response.Body.String())
+	}
+	if len(skills.Items) != 1 || skills.Items[0].Name != "memory" || skills.Items[0].Installations != 1 {
+		t.Fatalf("unexpected skills response: %#v", skills.Items)
 	}
 
 	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands", "admin-token", contracts.DeviceCommandCreateRequest{
@@ -145,6 +159,20 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		t.Fatalf("create command status=%d body=%s", response.Code, response.Body.String())
 	}
 	created := decodeResponse[contracts.DeviceCommand](t, response)
+
+	response = controlPlaneRequest(t, handler, http.MethodGet, "/api/v1/runs", "admin-token", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("list runs status=%d body=%s", response.Code, response.Body.String())
+	}
+	var runs struct {
+		Items []runListItem `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &runs); err != nil {
+		t.Fatalf("runs response is not json: %v body=%s", err, response.Body.String())
+	}
+	if len(runs.Items) != 1 || runs.Items[0].ID != created.Id || runs.Items[0].Status != string(commands.StatusQueued) {
+		t.Fatalf("unexpected runs response: %#v", runs.Items)
+	}
 
 	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands/lease", enrolled.DeviceToken, nil)
 	if response.Code != http.StatusOK {
