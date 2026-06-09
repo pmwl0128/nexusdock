@@ -104,3 +104,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 补齐 Nexus 能力目录和运行数据
+
+**Date**: 2026-06-09
+**Task**: 补齐 Nexus 能力目录和运行数据
+**Branch**: `main`
+
+### Summary
+
+新增 Nexus skills/runs JSON API 聚合设备能力与命令历史，前端区分未上报设备心跳数据，并完成构建、全量 Go 测试与 contracts 校验。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8955f6f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

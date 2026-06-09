@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~106 | Active |
+| `journal-1.md` | ~139 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-06-09 | 补齐 Nexus 能力目录和运行数据 | `8955f6f` | `main` |
 | 3 | 2026-06-09 | 中文化 Nexus 与 Memory 导航 | `7267171` | `main` |
 | 2 | 2026-06-09 | 产品化 Memory 工作台入口 | `d794c5a` | `main` |
 | 1 | 2026-06-08 | 完善 Nexus 前端工作台体验 | `62694bd` | `main` |
