@@ -206,14 +206,16 @@ function useOverview(refreshToken: number): Resource<Overview> {
     let cancelled = false;
     setState((current) => ({ ...current, loading: true }));
     void (async () => {
-      try {
-        const body = await api<unknown>('/api/v1/nexus/overview');
-        if (!cancelled) setState({ data: { ...EMPTY_OVERVIEW, ...unpackAPI<Overview>(body) }, live: true, loading: false });
-        return;
-      } catch (error) {
-        if (!isCompatibilityMiss(error)) {
-          if (!cancelled) setState({ data: EMPTY_OVERVIEW, live: false, loading: false, error: messageOf(error) });
+      for (const path of ['/api/v1/nexus/overview', '/v1/nexus/overview']) {
+        try {
+          const body = await api<unknown>(path);
+          if (!cancelled) setState({ data: { ...EMPTY_OVERVIEW, ...unpackAPI<Overview>(body) }, live: true, loading: false });
           return;
+        } catch (error) {
+          if (!isCompatibilityMiss(error)) {
+            if (!cancelled) setState({ data: EMPTY_OVERVIEW, live: false, loading: false, error: messageOf(error) });
+            return;
+          }
         }
       }
 
@@ -532,7 +534,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
 }
 
 function InboxPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Task[]>(['/api/v1/tasks', '/api/tasks'], [], refreshToken);
+  const resource = useResource<Task[]>(['/v1/tasks', '/api/v1/tasks', '/api/tasks'], [], refreshToken);
   const tasks = Array.isArray(resource.data) ? resource.data : [];
   return (
     <CollectionPage title="Agent 待办" description="统一处理 needs_agent、needs_user、review 与 automatic 任务。" live={resource.live} loading={resource.loading} error={resource.error} count={tasks.length} empty="暂无任务。设备告警、Skill 失败、记忆冲突和 Evolution Proposal 会自动进入这里。">

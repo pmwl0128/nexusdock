@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -30,17 +31,24 @@ type runListItem struct {
 }
 
 func (s *Server) listSkills(w http.ResponseWriter, r *http.Request) {
-	deviceItems, err := s.devices.List(r.Context())
+	result, err := s.skillItems(r.Context())
 	if err != nil {
 		writeControlPlaneError(w, err)
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": result})
+}
+
+func (s *Server) skillItems(ctx context.Context) ([]skillListItem, error) {
+	deviceItems, err := s.devices.List(ctx)
+	if err != nil {
+		return nil, err
+	}
 	items := map[string]*skillListItem{}
 	for _, device := range deviceItems {
-		snapshot, err := s.devices.Snapshot(r.Context(), device.ID)
+		snapshot, err := s.devices.Snapshot(ctx, device.ID)
 		if err != nil {
-			writeControlPlaneError(w, err)
-			return
+			return nil, err
 		}
 		if snapshot.Heartbeat != nil && len(snapshot.Heartbeat.Skills) > 0 {
 			for _, skill := range snapshot.Heartbeat.Skills {
@@ -62,7 +70,7 @@ func (s *Server) listSkills(w http.ResponseWriter, r *http.Request) {
 		}
 		return result[i].Name < result[j].Name
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"items": result})
+	return result, nil
 }
 
 func addSkillSummary(items map[string]*skillListItem, skill devices.SkillSummary) {
