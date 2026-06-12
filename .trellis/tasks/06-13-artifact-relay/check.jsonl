@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"最终检查清单"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"迁移与数据一致性审查"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"鉴权和错误映射审查"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"测试和契约检查"}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"敏感信息泄露审查"}

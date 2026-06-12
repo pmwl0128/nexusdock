@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/uvwt/agentdock-nexus/internal/artifacts"
 	"github.com/uvwt/agentdock-nexus/internal/auth"
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
@@ -102,6 +103,15 @@ func main() {
 		logger.Error("failed to initialize command control plane", "error", err)
 		os.Exit(1)
 	}
+	artifactService, err := artifacts.NewService(
+		artifacts.NewSQLiteRepository(controlDB), deviceService, commandService,
+		filepath.Join(controlDir, "artifacts"),
+	)
+	if err != nil {
+		logger.Error("failed to initialize artifact relay", "error", err)
+		os.Exit(1)
+	}
+	go artifactService.RunCleanup(ctx, time.Hour)
 
 	server := httpx.NewServer(
 		cfg,
@@ -110,6 +120,7 @@ func main() {
 		logger,
 		httpx.WithControlPlane(deviceService, commandService),
 		httpx.WithWebAuthentication(authService),
+		httpx.WithArtifactRelay(artifactService),
 	)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr(),

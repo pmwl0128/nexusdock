@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端总览、必跑检查与包边界"}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"新增 artifacts 领域包与 HTTP wiring"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"SQLite repository、事务与迁移"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"稳定错误码与密钥安全"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"测试、格式化、契约验证"}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Token、密钥与文件内容不得进入日志"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Connector→Nexus→设备跨层数据流"}

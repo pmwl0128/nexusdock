@@ -1800,7 +1800,8 @@
                 "service.restart",
                 "diagnostics.collect",
                 "agentdock.reload",
-                "env.manage"
+                "env.manage",
+                "artifact.pull"
               ]
             }
           },
@@ -1910,7 +1911,8 @@
               "service.restart",
               "diagnostics.collect",
               "agentdock.reload",
-              "env.manage"
+              "env.manage",
+              "artifact.pull"
             ]
           },
           "payload": {
@@ -2205,7 +2207,8 @@
               "service.restart",
               "diagnostics.collect",
               "agentdock.reload",
-              "env.manage"
+              "env.manage",
+              "artifact.pull"
             ]
           },
           "status": {

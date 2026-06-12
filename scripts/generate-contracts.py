@@ -107,6 +107,7 @@ COMMAND_TYPES = [
     "diagnostics.collect",
     "agentdock.reload",
     "env.manage",
+    "artifact.pull",
 ]
 
 EVOLUTION_TRIGGERS = [

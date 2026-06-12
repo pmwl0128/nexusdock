@@ -27,6 +27,7 @@ func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/devices/enroll", s.enrollDevice)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/approve", admin(s.approveDevice))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/revoke", admin(s.revokeDevice))
+	mux.HandleFunc("PUT /v1/devices/{deviceId}/policy", admin(s.updateDevicePolicy))
 	mux.HandleFunc("POST /v1/devices/{deviceId}/heartbeat", s.reportDeviceHeartbeat)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/token/rotate", s.rotateDeviceToken)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/env/actions", admin(s.createDeviceEnvAction))
@@ -133,6 +134,33 @@ func (s *Server) approveDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) updateDevicePolicy(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		ExpectedVersion     int64    `json:"expected_version"`
+		AllowedCommandTypes []string `json:"allowed_command_types"`
+		MaxRisk             string   `json:"max_risk"`
+		ReleaseChannel      string   `json:"release_channel"`
+		AutoUpdate          bool     `json:"auto_update"`
+		AllowedSkills       []string `json:"allowed_skills,omitempty"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	policy := devices.Policy{
+		AllowedCommandTypes: request.AllowedCommandTypes,
+		MaxRisk:             devices.RiskLevel(request.MaxRisk),
+		ReleaseChannel:      devices.ReleaseChannel(request.ReleaseChannel),
+		AutoUpdate:          request.AutoUpdate,
+		AllowedSkills:       request.AllowedSkills,
+	}
+	updated, err := s.devices.UpdatePolicy(r.Context(), r.PathValue("deviceId"), policy, request.ExpectedVersion)
+	if err != nil {
+		writeControlPlaneError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
@@ -415,15 +443,24 @@ func contractCommand(command commands.Command) contracts.DeviceCommand {
 }
 
 func redactCommandPayload(commandType commands.Type, payload json.RawMessage) json.RawMessage {
-	if commandType != commands.TypeEnvManage || len(payload) == 0 {
+	if len(payload) == 0 || (commandType != commands.TypeEnvManage && commandType != commands.TypeArtifactPull) {
 		return append(json.RawMessage(nil), payload...)
 	}
 	var values map[string]any
 	if err := json.Unmarshal(payload, &values); err != nil {
 		return append(json.RawMessage(nil), payload...)
 	}
-	if value, ok := values["value"].(string); ok && value != "" {
-		values["value"] = "[REDACTED]"
+	if commandType == commands.TypeEnvManage {
+		if value, ok := values["value"].(string); ok && value != "" {
+			values["value"] = "[REDACTED]"
+		}
+	}
+	if commandType == commands.TypeArtifactPull {
+		for _, key := range []string{"download_token", "wrapped_key", "wrap_nonce"} {
+			if value, ok := values[key].(string); ok && value != "" {
+				values[key] = "[REDACTED]"
+			}
+		}
 	}
 	redacted, err := json.Marshal(values)
 	if err != nil {

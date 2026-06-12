@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/uvwt/agentdock-nexus/internal/artifacts"
 	"github.com/uvwt/agentdock-nexus/internal/auth"
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
@@ -19,20 +20,25 @@ import (
 )
 
 type Server struct {
-	mu       sync.RWMutex
-	cfg      config.Config
-	store    *memory.Store
-	syncer   *syncer.Manager
-	logger   *slog.Logger
-	devices  *devices.Service
-	commands *commands.Service
-	auth     *auth.Service
+	mu        sync.RWMutex
+	cfg       config.Config
+	store     *memory.Store
+	syncer    *syncer.Manager
+	logger    *slog.Logger
+	devices   *devices.Service
+	commands  *commands.Service
+	auth      *auth.Service
+	artifacts *artifacts.Service
 }
 
 type ServerOption func(*Server)
 
 func WithWebAuthentication(authService *auth.Service) ServerOption {
 	return func(server *Server) { server.auth = authService }
+}
+
+func WithArtifactRelay(service *artifacts.Service) ServerOption {
+	return func(server *Server) { server.artifacts = service }
 }
 
 func WithControlPlane(deviceService *devices.Service, commandService *commands.Service) ServerOption {
@@ -86,6 +92,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/memories/", protected(s.deleteMemory))
 	if s.devices != nil && s.commands != nil {
 		s.registerControlPlaneRoutes(mux)
+	}
+	if s.artifacts != nil && s.devices != nil && s.commands != nil {
+		s.registerArtifactRoutes(mux)
 	}
 	return logRequests(mux, s.logger)
 }
