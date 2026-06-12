@@ -45,23 +45,15 @@ func TestHealthDoesNotRequireAuth(t *testing.T) {
 	}
 }
 
-func TestV1BearerTokenAndBasicAuth(t *testing.T) {
+func TestV1BearerTokenOnly(t *testing.T) {
 	h := newTestHandler(t, config.Config{AuthToken: "token", Username: "admin", Password: "secret"})
 
 	res := doJSON(t, h, http.MethodGet, "/v1/memories", "")
 	if res.Code != http.StatusUnauthorized {
-		t.Fatalf("missing basic auth status = %d", res.Code)
+		t.Fatalf("missing credentials status = %d", res.Code)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/memories", nil)
-	req.SetBasicAuth("admin", "secret")
-	res = httptest.NewRecorder()
-	h.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Fatalf("basic auth fallback status=%d body=%s", res.Code, res.Body.String())
-	}
-
-	req = httptest.NewRequest(http.MethodGet, "/v1/memories", nil)
 	req.Header.Set("Authorization", "Bearer token")
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, req)

@@ -143,7 +143,7 @@ python3 deploy/memory_migration.py verify /path/to/backups/memorydock-YYYYmmddTH
 
 ## 认证与安全
 
-Memory 兼容入口继续支持 Bearer Token 与 UI Basic Auth：
+浏览器 UI 使用服务端 Session Cookie 登录；Agent、设备和脚本继续使用 Bearer Token：
 
 ```http
 Authorization: Bearer <MEMORYDOCK_AUTH_TOKEN>
@@ -154,9 +154,24 @@ Authorization: Bearer <MEMORYDOCK_AUTH_TOKEN>
 ```text
 MEMORYDOCK_REQUIRE_AUTH=true
 MEMORYDOCK_AUTH_TOKEN=<strong-random-token>
-MEMORYDOCK_USERNAME=<non-default-user>
-MEMORYDOCK_PASSWORD=<strong-password>
+NEXUS_TRUSTED_PROXIES=127.0.0.1,::1,<reverse-proxy-address>
 ```
+
+从旧版升级时，`MEMORYDOCK_USERNAME` 与 `MEMORYDOCK_PASSWORD` 只在数据库尚未初始化时迁移一次。迁移完成后 SQLite 中的管理员凭据是唯一权威，旧环境变量不会在重启时覆盖新密码。迁移账号首次登录必须修改密码。
+
+没有可迁移账号时，只能在部署主机本地初始化，不开放公网注册页：
+
+```bash
+docker compose exec memorydock memorydock admin init <username>
+```
+
+忘记密码时在部署主机本地恢复；命令会隐藏输入并撤销全部浏览器会话：
+
+```bash
+docker compose exec memorydock memorydock admin recover [username]
+```
+
+浏览器会话使用 Host-only、HttpOnly、SameSite=Strict Cookie。生产登录要求 HTTPS；只有显式设置 `NEXUS_AUTH_ALLOW_INSECURE_HTTP=true` 时才允许本地 HTTP 开发登录。所有基于 Cookie 的写请求同时校验同源 `Origin` 与 `X-CSRF-Token`。
 
 安全规则：
 

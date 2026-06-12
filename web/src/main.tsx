@@ -1,6 +1,13 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { CredentialUpdatePage, LoginPage } from './Auth';
 import './styles.css';
 import './memory-nexus.css';
 
-createRoot(document.getElementById('root')!).render(<App />);
+const page = window.location.pathname === '/login'
+  ? <LoginPage />
+  : window.location.pathname === '/change-password'
+    ? <CredentialUpdatePage />
+    : <App />;
+
+createRoot(document.getElementById('root')!).render(page);

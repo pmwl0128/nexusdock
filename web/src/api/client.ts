@@ -31,33 +31,15 @@ export class ApiError extends Error {
 
 export type ApiOptions = RequestInit & { timeoutMs?: number };
 
-function decodeURLCredential(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+let csrfToken = '';
+
+export function setCSRFToken(value: string): void {
+  csrfToken = value;
 }
 
-function encodeBasicAuth(value: string): string {
-  const bytes = new TextEncoder().encode(value);
-  let binary = '';
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-  return `Basic ${btoa(binary)}`;
+export function clearCSRFToken(): void {
+  csrfToken = '';
 }
-
-function readEmbeddedBasicAuth(): string {
-  const current = new URL(window.location.href);
-  if (!current.username && !current.password) return '';
-  const username = decodeURLCredential(current.username);
-  const password = decodeURLCredential(current.password);
-  current.username = '';
-  current.password = '';
-  window.history.replaceState(window.history.state, document.title, `${current.pathname}${current.search}${current.hash}`);
-  return encodeBasicAuth(`${username}:${password}`);
-}
-
-const embeddedBasicAuth = readEmbeddedBasicAuth();
 
 function requestURL(path: string): URL {
   const url = new URL(path, window.location.origin);
@@ -67,6 +49,15 @@ function requestURL(path: string): URL {
     throw new ApiError('拒绝跨源 API 请求，避免泄漏管理凭据', 0);
   }
   return url;
+}
+
+function isUnsafeMethod(method?: string): boolean {
+  const normalized = (method || 'GET').toUpperCase();
+  return !['GET', 'HEAD', 'OPTIONS'].includes(normalized);
+}
+
+function shouldSignalSessionExpiry(path: string, status: number): boolean {
+  return status === 401 && !path.startsWith('/v1/auth/login') && !path.startsWith('/v1/auth/status');
 }
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
@@ -81,8 +72,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/json');
     if (options.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    if (csrfToken && isUnsafeMethod(options.method) && !headers.has('X-CSRF-Token')) {
+      headers.set('X-CSRF-Token', csrfToken);
+    }
     const url = requestURL(path);
-    if (embeddedBasicAuth && !headers.has('Authorization')) headers.set('Authorization', embeddedBasicAuth);
 
     const response = await fetch(url.toString(), {
       ...options,
@@ -105,6 +98,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
     const errorBody = body as ApiErrorBody;
     if (!response.ok || errorBody.error || errorBody.code) {
+      if (shouldSignalSessionExpiry(path, response.status)) {
+        clearCSRFToken();
+        window.dispatchEvent(new CustomEvent('nexus:session-expired'));
+      }
       throw new ApiError(
         errorBody.error?.message || errorBody.message || response.statusText || '请求失败',
         response.status,

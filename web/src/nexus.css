@@ -270,3 +270,20 @@
     width: 100%;
   }
 }
+
+.nexus-session-user {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--nx-muted, #8f99a9);
+  font-size: 12px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+}
+
+@media (max-width: 700px) {
+  .nexus-session-user { display: none; }
+}

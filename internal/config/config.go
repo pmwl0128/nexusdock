@@ -17,39 +17,43 @@ import (
 )
 
 type Config struct {
-	Host          string
-	Port          int
-	StoreDir      string
-	AuthToken     string
-	Username      string
-	Password      string
-	PasswordHash  string
-	AccessFile    string
-	RequireAuth   bool
-	AutoSync      bool
-	PullInterval  time.Duration
-	PushDebounce  time.Duration
-	CommitMessage string
-	LogLevelName  string
+	Host                  string
+	Port                  int
+	StoreDir              string
+	AuthToken             string
+	Username              string
+	Password              string
+	PasswordHash          string
+	AccessFile            string
+	RequireAuth           bool
+	AuthAllowInsecureHTTP bool
+	TrustedProxies        []string
+	AutoSync              bool
+	PullInterval          time.Duration
+	PushDebounce          time.Duration
+	CommitMessage         string
+	LogLevelName          string
 }
 
 func FromEnv() Config {
 	storeDir := getenv("MEMORYDOCK_STORE_DIR", "memory")
 	cfg := Config{
-		Host:          getenv("MEMORYDOCK_HOST", "127.0.0.1"),
-		Port:          getenvInt("MEMORYDOCK_PORT", 18777),
-		StoreDir:      storeDir,
-		AuthToken:     os.Getenv("MEMORYDOCK_AUTH_TOKEN"),
-		Username:      strings.TrimSpace(os.Getenv("MEMORYDOCK_USERNAME")),
-		Password:      os.Getenv("MEMORYDOCK_PASSWORD"),
-		PasswordHash:  strings.TrimSpace(os.Getenv("MEMORYDOCK_PASSWORD_HASH")),
-		AccessFile:    getenv("MEMORYDOCK_ACCESS_FILE", filepath.Join(storeDir, ".memorydock", "access.json")),
-		RequireAuth:   getenvBool("MEMORYDOCK_REQUIRE_AUTH", false),
-		AutoSync:      getenvBool("MEMORYDOCK_AUTO_SYNC", false),
-		PullInterval:  time.Duration(getenvInt("MEMORYDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
-		PushDebounce:  time.Duration(getenvInt("MEMORYDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
-		CommitMessage: getenv("MEMORYDOCK_COMMIT_MESSAGE", "memory: 自动同步记忆"),
-		LogLevelName:  getenv("MEMORYDOCK_LOG_LEVEL", "info"),
+		Host:                  getenv("MEMORYDOCK_HOST", "127.0.0.1"),
+		Port:                  getenvInt("MEMORYDOCK_PORT", 18777),
+		StoreDir:              storeDir,
+		AuthToken:             os.Getenv("MEMORYDOCK_AUTH_TOKEN"),
+		Username:              strings.TrimSpace(os.Getenv("MEMORYDOCK_USERNAME")),
+		Password:              os.Getenv("MEMORYDOCK_PASSWORD"),
+		PasswordHash:          strings.TrimSpace(os.Getenv("MEMORYDOCK_PASSWORD_HASH")),
+		AccessFile:            getenv("MEMORYDOCK_ACCESS_FILE", filepath.Join(storeDir, ".memorydock", "access.json")),
+		RequireAuth:           getenvBool("MEMORYDOCK_REQUIRE_AUTH", false),
+		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
+		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
+		AutoSync:              getenvBool("MEMORYDOCK_AUTO_SYNC", false),
+		PullInterval:          time.Duration(getenvInt("MEMORYDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
+		PushDebounce:          time.Duration(getenvInt("MEMORYDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
+		CommitMessage:         getenv("MEMORYDOCK_COMMIT_MESSAGE", "memory: 自动同步记忆"),
+		LogLevelName:          getenv("MEMORYDOCK_LOG_LEVEL", "info"),
 	}
 	_ = cfg.LoadAccessFile()
 	return cfg
@@ -104,6 +108,17 @@ func getenvBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }
 
 const passwordHashPrefix = "pbkdf2-sha256"
@@ -230,11 +245,8 @@ func (c Config) ValidateStartup() error {
 	if !c.RequireAuth {
 		return nil
 	}
-	if !c.AccessEnabled() || strings.TrimSpace(c.AuthToken) == "" {
-		return errors.New("MEMORYDOCK_REQUIRE_AUTH=true requires UI Basic Auth and MEMORYDOCK_AUTH_TOKEN")
-	}
-	if c.Username == "admin" && c.Password == "memorydock" {
-		return errors.New("refusing to start with default MEMORYDOCK_USERNAME=admin and MEMORYDOCK_PASSWORD=memorydock when MEMORYDOCK_REQUIRE_AUTH=true")
+	if strings.TrimSpace(c.AuthToken) == "" {
+		return errors.New("MEMORYDOCK_REQUIRE_AUTH=true requires MEMORYDOCK_AUTH_TOKEN for programmatic API access")
 	}
 	return nil
 }

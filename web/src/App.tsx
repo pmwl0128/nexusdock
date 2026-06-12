@@ -22,7 +22,8 @@ import {
   X,
 } from 'lucide-react';
 import MemoryWorkspace from './MemoryWorkspace';
-import { ApiError, api } from './api/client';
+import { AccountSecurity, type WebSession } from './Auth';
+import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import EnvManagerPage from './components/env/EnvManagerPage';
 import './nexus.css';
@@ -343,6 +344,29 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [globalQuery, setGlobalQuery] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [session, setSession] = useState<WebSession | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ ok: boolean; session: WebSession }>('/v1/auth/session').then((result) => {
+      if (cancelled) return;
+      setSession(result.session);
+      if (result.session.csrf_token) setCSRFToken(result.session.csrf_token);
+      if (result.session.must_change_password) {
+        const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        window.location.replace(`/change-password?return_to=${encodeURIComponent(returnTo)}`);
+      }
+    }).catch((error) => {
+      if (!cancelled && error instanceof ApiError && error.status === 401) setSessionExpired(true);
+    });
+    const expired = () => setSessionExpired(true);
+    window.addEventListener('nexus:session-expired', expired);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('nexus:session-expired', expired);
+    };
+  }, []);
 
   useEffect(() => {
     const onHash = () => setSection(sectionFromHash());
@@ -380,6 +404,7 @@ export default function App() {
           <ChevronRight size={15} /> 返回 Nexus
         </button>
         <MemoryWorkspace />
+        {sessionExpired && <SessionExpiredDialog />}
       </div>
     );
   }
@@ -424,6 +449,7 @@ export default function App() {
               )}
             </form>
             <button className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
+            <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
           </div>
         </header>
         <div className="nexus-content">
@@ -436,8 +462,17 @@ export default function App() {
           {section === 'settings' && <SettingsPage />}
         </div>
       </main>
+      {sessionExpired && <SessionExpiredDialog />}
     </div>
   );
+}
+
+function SessionExpiredDialog() {
+  function signInAgain() {
+    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.location.assign(`/login?return_to=${encodeURIComponent(returnTo)}`);
+  }
+  return <div className="session-expired-overlay" role="presentation"><section className="session-expired-dialog" role="dialog" aria-modal="true" aria-labelledby="session-expired-title"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。重新登录后将返回这里。</p><button onClick={signInAgain}>重新登录</button></section></div>;
 }
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
@@ -626,6 +661,7 @@ function SchedulesPage({ refreshToken }: { refreshToken: number }) {
 function SettingsPage() {
   return (
     <>
+      <AccountSecurity />
       <EnvManagerPage />
       <section className="settings-grid">
         <Panel title="认证与访问" subtitle="用户、Agent 与设备身份"><SettingRow label="User Session" detail="浏览器登录与会话管理" /><SettingRow label="Agent Token" detail="Scope 限制与撤销" /><SettingRow label="Device Token" detail="Enrollment 后独立轮换" /></Panel>

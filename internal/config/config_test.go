@@ -48,14 +48,7 @@ func TestAccessFileRoundTrip(t *testing.T) {
 	}
 }
 
-func TestRequireAuthRejectsDefaultPassword(t *testing.T) {
-	cfg := Config{RequireAuth: true, Username: "admin", Password: "memorydock", AuthToken: "token"}
-	if err := cfg.ValidateStartup(); err == nil {
-		t.Fatalf("expected default password to be rejected when require auth is enabled")
-	}
-}
-
-func TestRequireAuthNeedsBothUIAndAPIAuth(t *testing.T) {
+func TestRequireAuthNeedsAPIToken(t *testing.T) {
 	cfg := Config{RequireAuth: true, Username: "admin", Password: "not-default"}
 	if err := cfg.ValidateStartup(); err == nil {
 		t.Fatalf("expected missing bearer token to be rejected")

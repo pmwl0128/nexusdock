@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from './api/client';
+import { clearMemoryDraft, loadMemoryDraft, saveMemoryDraft } from './lib/drafts';
 
 type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
 type EntryType = 'file' | 'directory';
@@ -93,12 +94,6 @@ type SyncStatus = Record<string, unknown> & {
   ahead?: string;
   behind?: string;
   pending_push?: boolean;
-};
-
-type AccessConfig = {
-  ok: boolean;
-  enabled: boolean;
-  username: string;
 };
 
 type Toast = { message: string; danger?: boolean } | null;
@@ -524,7 +519,6 @@ export default function App() {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [accessConfig, setAccessConfig] = useState<AccessConfig | null>(null);
   const [draggingPath, setDraggingPath] = useState('');
   const [renamingPath, setRenamingPath] = useState('');
   const [renamingValue, setRenamingValue] = useState('');
@@ -541,8 +535,22 @@ export default function App() {
     void loadList().catch((error) => show(error instanceof Error ? error.message : '读取记忆列表失败', true));
     if (initialRoute.tab === 'memories' && initialRoute.path) {
       void loadMemory(initialRoute.path).catch((e) => show(e.message, true));
+      return;
+    }
+    const restored = loadMemoryDraft();
+    if (restored) {
+      setTab('memories');
+      setDraftPath(restored.path);
+      setDraftContent(restored.content);
+      setEditing(true);
+      show('已恢复当前标签页中的未提交草稿');
     }
   }, []);
+
+  useEffect(() => {
+    if (editing) saveMemoryDraft(draftPath, draftContent);
+    else clearMemoryDraft();
+  }, [editing, draftPath, draftContent]);
 
   useEffect(() => {
     replaceRoute(tab, tab === 'memories' ? (current?.path || routePath) : '', prefix, search);
@@ -561,7 +569,6 @@ export default function App() {
     if (tab === 'git') void loadGitPanel();
     if (tab === 'sync') {
       void loadSyncStatus();
-      void loadAccessConfig().catch(() => undefined);
     }
   }, [tab]);
 
@@ -782,17 +789,6 @@ export default function App() {
     setSyncStatus(data);
   }
 
-  async function loadAccessConfig() {
-    const data = await api<AccessConfig>('/v1/config/access');
-    setAccessConfig(data);
-  }
-
-  async function updateAccessConfig(username: string, secret: string) {
-    const data = await api<AccessConfig>('/v1/config/access', { method: 'POST', body: JSON.stringify({ username, secret }) });
-    setAccessConfig(data);
-    show('账号密码已更新，后续请求请使用新凭据。');
-  }
-
   async function syncAction(action: 'pull' | 'push' | 'now') {
     const data = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST' });
     setSyncStatus(data);
@@ -865,7 +861,7 @@ export default function App() {
           </section>
         )}
         {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFullscreenChange={setContentFullscreen} />}
-        {tab === 'sync' && <SyncView status={syncStatus} access={accessConfig} onRefresh={loadSyncStatus} onAction={syncAction} onAccessRefresh={loadAccessConfig} onAccessSave={updateAccessConfig} />}
+        {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
       </section>
       {commandOpen && (
         <CommandPalette
@@ -1535,7 +1531,7 @@ function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: st
   return <div className={`sync-card ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function SyncView({ status, access, onRefresh, onAction, onAccessRefresh, onAccessSave }: { status: SyncStatus | null; access: AccessConfig | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void>; onAccessRefresh: () => Promise<void>; onAccessSave: (username: string, secret: string) => Promise<void> }) {
+function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void> }) {
   const healthItems = syncHealthItems(status, null);
   const healthy = healthItems.every((item) => item.tone === 'ok');
   return (
@@ -1559,59 +1555,6 @@ function SyncView({ status, access, onRefresh, onAction, onAccessRefresh, onAcce
           <button className="primary" onClick={() => void onAction('now')}><Save size={15} />更新并保存</button>
         </div>
       </div>
-      <AccessSettings access={access} onRefresh={onAccessRefresh} onSave={onAccessSave} />
     </section>
-  );
-}
-
-function AccessSettings({ access, onRefresh, onSave }: { access: AccessConfig | null; onRefresh: () => Promise<void>; onSave: (username: string, secret: string) => Promise<void> }) {
-  const [username, setUsername] = useState(access?.username || '');
-  const [secret, setSecret] = useState('');
-  const [confirmSecret, setConfirmSecret] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setUsername(access?.username || '');
-  }, [access?.username]);
-
-  async function submit() {
-    const nextUser = username.trim();
-    if (!nextUser) {
-      alert('用户名不能为空');
-      return;
-    }
-    if (!secret) {
-      alert('请输入新密码');
-      return;
-    }
-    if (secret !== confirmSecret) {
-      alert('两次输入的密码不一致');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave(nextUser, secret);
-      setSecret('');
-      setConfirmSecret('');
-      await onRefresh().catch(() => undefined);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="panel-card access-settings-card">
-      <div className="card-head"><div><h3>账号密码</h3><p>{access?.enabled ? '已启用访问保护，可在这里更新登录凭据。' : '设置后访问 UI 和 API 都需要认证。'}</p></div><Settings size={18} /></div>
-      <div className="access-form">
-        <label><span>用户名</span><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="admin" autoComplete="username" /></label>
-        <label><span>新密码</span><input type="password" value={secret} onChange={(event) => setSecret(event.target.value)} placeholder="输入新密码" autoComplete="new-password" /></label>
-        <label><span>确认密码</span><input type="password" value={confirmSecret} onChange={(event) => setConfirmSecret(event.target.value)} placeholder="再次输入新密码" autoComplete="new-password" /></label>
-      </div>
-      <div className="button-row access-actions">
-        <button onClick={() => void onRefresh()}><RefreshCw size={14} />刷新</button>
-        <button className="primary" disabled={saving} onClick={() => void submit()}>{saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}保存账号密码</button>
-      </div>
-      <p className="muted access-note">保存后浏览器可能仍缓存旧认证；若提示未授权，请关闭页面后重新打开并输入新账号密码。</p>
-    </div>
   );
 }
