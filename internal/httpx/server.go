@@ -71,10 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	s.registerWebAuthRoutes(mux)
-	mux.HandleFunc("GET /v1/schedules", protected(s.listSchedules))
-	mux.HandleFunc("GET /v1/schedules/", protected(s.getSchedule))
-	mux.HandleFunc("GET /api/v1/schedules", protected(s.listSchedules))
-	mux.HandleFunc("GET /api/v1/schedules/", protected(s.getSchedule))
+	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
 	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", protected(s.gitDiff))
 	mux.HandleFunc("POST /v1/git/discard", protected(s.gitDiscard))
@@ -99,6 +96,8 @@ func (s *Server) Handler() http.Handler {
 		s.registerArtifactRoutes(mux)
 		s.registerArtifactFetchRoutes(mux)
 	}
+	mux.HandleFunc("GET /v1/", http.NotFound)
+	mux.HandleFunc("GET /api/", http.NotFound)
 	return logRequests(mux, s.logger)
 }
 

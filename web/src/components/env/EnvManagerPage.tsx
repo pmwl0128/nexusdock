@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Check, KeyRound, Play, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { createEnvAction, type EnvActionRequest } from '../../api/env';
 import { listDeviceCommands } from '../../api/commands';
-import type { DeviceCommand, DeviceSnapshot } from '../../api/types';
+import type { DeviceCommand } from '../../api/types';
 import { useCommandPolling } from '../../hooks/useCommandPolling';
 import { useDevices } from '../../hooks/useDevices';
 import { CommandStatusBadge } from '../devices/StatusBadge';
@@ -32,16 +32,6 @@ type EnvOutput = {
   var?: EnvEntry;
   message?: string;
   result?: unknown;
-};
-
-const DEFAULT_SKILLS = ['weread-skills', 'openlist', 'dida365-open-api', 'spotify-web-api', 'baidu-netdisk', 'xiaohongshu-mcp'];
-const DEFAULT_NAMES: Record<string, string[]> = {
-  'baidu-netdisk': ['BDPAN_BIN', 'BDPAN_CONFIG_FILE', 'BDPAN_HOME'],
-  'weread-skills': ['WEREAD_API_KEY'],
-  openlist: ['OPENLIST_URL', 'OPENLIST_TOKEN', 'OPENLIST_SESSION_FILE', 'OPENLIST_INSECURE_TLS'],
-  'dida365-open-api': ['DIDA365_ACCESS_TOKEN', 'DIDA365_CLIENT_ID', 'DIDA365_CLIENT_SECRET', 'DIDA365_REDIRECT_URI', 'DIDA365_REGION'],
-  'spotify-web-api': ['SPOTIFY_CLIENT_ID', 'SPOTIFY_REDIRECT_URI', 'SPOTIFY_SCOPES'],
-  'xiaohongshu-mcp': ['XIAOHONGSHU_CHROME_BIN', 'XIAOHONGSHU_COOKIE_FILE', 'XIAOHONGSHU_LAUNCH_AGENT', 'XIAOHONGSHU_MCP_URL'],
 };
 
 export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: string }) {
@@ -124,7 +114,7 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
             {fixedDeviceId ? <div className="env-fixed-device"><span>目标设备</span><strong>{selectedDevice?.device.name || fixedDeviceId}</strong></div> : <label><span>目标设备</span><select value={deviceId} onChange={(event) => setDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>}
             {selectedDevice && <div className="env-policy-line"><span className={canManageEnv ? 'is-ok' : 'is-bad'}>{canManageEnv ? '允许 env.manage' : '未允许 env.manage'}</span><span className={riskOK ? 'is-ok' : 'is-bad'}>{riskOK ? 'medium 风险可用' : '风险等级不足'}</span></div>}
             {selectedDevice && (!canManageEnv || !riskOK) && <div className="nx-alert is-warning"><ShieldAlert size={17} />设备策略需要允许 env.manage 且 max_risk 至少为 medium。</div>}
-            <EnvActions disabled={!deviceId || !canManageEnv || !riskOK} onSubmit={submit} />
+            <EnvActions summaries={summaries} disabled={!deviceId || !canManageEnv || !riskOK} onSubmit={submit} />
           </div>
         </article>
 
@@ -152,17 +142,41 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
   );
 }
 
-function EnvActions({ disabled, onSubmit }: { disabled: boolean; onSubmit: (request: EnvActionRequest) => Promise<void> }) {
-  const [skill, setSkill] = useState('weread-skills');
-  const [name, setName] = useState('WEREAD_API_KEY');
+function EnvActions({ summaries, disabled, onSubmit }: {
+  summaries: EnvSkillSummary[];
+  disabled: boolean;
+  onSubmit: (request: EnvActionRequest) => Promise<void>;
+}) {
+  const skills = summaries.map((item) => item.skill).filter(Boolean);
+  const [skill, setSkill] = useState('');
+  const [name, setName] = useState('');
   const [kind, setKind] = useState<'secret' | 'plain'>('secret');
   const [value, setValue] = useState('');
   const [operation, setOperation] = useState('status');
-  const names = DEFAULT_NAMES[skill] ?? [];
+  const entries = summaries.find((item) => item.skill === skill)?.vars ?? [];
+  const names = entries.map((item) => item.name).filter(Boolean);
+  const selectedEntry = entries.find((item) => item.name === name);
 
   useEffect(() => {
-    if (names.length > 0 && !names.includes(name)) setName(names[0]);
-  }, [skill, names, name]);
+    if (skills.length === 0) {
+      setSkill('');
+      setName('');
+      return;
+    }
+    if (!skills.includes(skill)) setSkill(skills[0]);
+  }, [skills.join('\u0000'), skill]);
+
+  useEffect(() => {
+    if (names.length === 0) {
+      setName('');
+      return;
+    }
+    if (!names.includes(name)) setName(names[0]);
+  }, [names.join('\u0000'), name]);
+
+  useEffect(() => {
+    if (selectedEntry?.kind === 'plain' || selectedEntry?.kind === 'secret') setKind(selectedEntry.kind);
+  }, [selectedEntry?.kind]);
 
   async function setVariable(event: FormEvent) {
     event.preventDefault();
@@ -170,20 +184,22 @@ function EnvActions({ disabled, onSubmit }: { disabled: boolean; onSubmit: (requ
     setValue('');
   }
 
+  const registryUnavailable = summaries.length === 0;
   return (
     <div className="env-actions">
+      {registryUnavailable && <div className="nx-alert is-info">先读取设备 Env Registry，再从 Runtime 上报的 Skill 和变量定义中选择。</div>}
       <div className="env-action-row">
-        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'list' })}><Search size={15} />列出</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'inspect', skill })}>Inspect</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'verify', skill, operation })}><Play size={15} />Verify</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'migrate-from-agentdock-env' })}>迁移</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'list' })}><Search size={15} />读取 Registry</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'inspect', skill })}>查看 Skill</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'verify', skill, operation })}><Play size={15} />验证</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'migrate-from-agentdock-env' })}>迁移旧配置</button>
       </div>
       <form className="env-set-form" onSubmit={setVariable}>
-        <label><span>Skill</span><input list="env-skill-list" value={skill} onChange={(event) => setSkill(event.target.value)} /><datalist id="env-skill-list">{DEFAULT_SKILLS.map((item) => <option key={item} value={item} />)}</datalist></label>
-        <label><span>变量</span><input list="env-name-list" value={name} onChange={(event) => setName(event.target.value.toUpperCase())} /><datalist id="env-name-list">{names.map((item) => <option key={item} value={item} />)}</datalist></label>
-        <label><span>类型</span><select value={kind} onChange={(event) => setKind(event.target.value as 'secret' | 'plain')}><option value="secret">secret</option><option value="plain">plain</option></select></label>
-        <label><span>Verify Operation</span><input value={operation} onChange={(event) => setOperation(event.target.value)} /></label>
-        <label className="env-value-field"><span>值</span><input type={kind === 'secret' ? 'password' : 'text'} value={value} onChange={(event) => setValue(event.target.value)} autoComplete="off" /></label>
+        <label><span>Skill</span><select value={skill} onChange={(event) => setSkill(event.target.value)} disabled={registryUnavailable}>{skills.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>变量</span><select value={name} onChange={(event) => setName(event.target.value)} disabled={!skill || names.length === 0}>{names.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>类型</span><select value={kind} onChange={(event) => setKind(event.target.value as 'secret' | 'plain')} disabled={!name}><option value="secret">secret</option><option value="plain">plain</option></select></label>
+        <label><span>验证 Operation</span><input value={operation} onChange={(event) => setOperation(event.target.value)} disabled={!skill} /></label>
+        <label className="env-value-field"><span>值</span><input type={kind === 'secret' ? 'password' : 'text'} value={value} onChange={(event) => setValue(event.target.value)} autoComplete="off" disabled={!name} /></label>
         <div className="env-action-row">
           <button type="submit" className="nx-button" disabled={disabled || !skill || !name || value === ''}><KeyRound size={15} />保存</button>
           <button type="button" className="nx-button is-danger" disabled={disabled || !skill || !name} onClick={() => onSubmit({ action: 'delete', skill, name })}><Trash2 size={15} />删除</button>

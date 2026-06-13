@@ -1,23 +1,22 @@
-# AgentDock Nexus 公共契约
+# AgentDock Nexus 当前公共契约
 
-`contracts/` 是 Nexus Server、Web、AgentDock 节点和外部集成的唯一公共协议来源。
+`contracts/` 只描述 Nexus 当前生产服务 `cmd/memorydock` 的真实 HTTP 能力，是 Web、AgentDock 节点和外部集成的协议来源。
 
-## 内容
+## 当前内容
 
-- `openapi/nexus.yaml`：REST API、SSE 入口及所有公共 DTO。
-- `jsonschema/agentdock-skill-v1.json`：`agentdock.yaml` V1。
-- `jsonschema/*.json`：独立领域 DTO Schema，供事件和非 HTTP 消费者复用。
-- `events/*.json`：事件信封与 10 个冻结事件 Schema。
+- `openapi/nexus.yaml`：总览所需系统状态、设备控制、记忆、Git 同步、加密文件中继、备份状态和账号会话 API。
+- `jsonschema/*.json`：当前 HTTP DTO 的独立 JSON Schema。
 - `error-codes.json`：稳定错误码目录。
-- `compatibility/v1-baseline.json`：冻结兼容性签名。
+- `generated/nexuscontracts/`：由生成器产生的 Go DTO 与设备客户端。
 
-## 命令
+Nexus 不维护独立 Task、Run、Context Pack、Skill Catalog、Evolution、Worker 或 SSE 事件总线契约。Skill 包格式和生命周期属于 AgentDock Runtime，不属于 Nexus 公共契约。
+
+## 验证
 
 ```bash
 python3 scripts/generate-contracts.py
 python3 scripts/check-contracts.py
-go test ./generated/nexuscontracts ./internal/api/dto
+go test ./generated/nexuscontracts
 ```
 
-生成文件不得手改。契约变更必须同时更新说明、重新生成并通过兼容性检查。
-
+生成文件不得手改。新增接口前必须确认它直接服务个人多设备控制台的真实工作流。

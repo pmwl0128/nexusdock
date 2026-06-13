@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, Check, ChevronRight, Clipboard, Clock3, Cpu, History, KeyRound,
+  Check, ChevronRight, Clipboard, Clock3, History, KeyRound,
   Play, RefreshCw, Search, Server, ShieldAlert, ShieldCheck, TerminalSquare, Trash2,
 } from 'lucide-react';
 import { approveDevice, createEnrollmentToken, revokeDevice } from '../../api/devices';
 import { createDeviceCommand, listDeviceCommands } from '../../api/commands';
 import type {
   CommandType, DeviceCommand, DeviceCommandCreateRequest, DeviceSnapshot,
-  EnrollmentTokenCreateRequest, EnrollmentTokenCreateResponse, NexusDevice, RiskLevel,
+  EnrollmentTokenCreateRequest, EnrollmentTokenCreateResponse, RiskLevel,
 } from '../../api/types';
 import { useCommandPolling } from '../../hooks/useCommandPolling';
 import { useDevices } from '../../hooks/useDevices';
@@ -221,34 +221,32 @@ function RevokeDialog({ snapshot, onClose, onComplete }: ActionDialogProps) {
 }
 
 function CommandCreateDialog({ snapshot, onClose, onComplete }: { snapshot: DeviceSnapshot; onClose: () => void; onComplete: (command: DeviceCommand) => void }) {
-  const allowed = COMMAND_TYPES.filter((type) => snapshot.device.policy.allowed_command_types.includes(type) && RISK_RANK[DEFAULT_RISK[type]] <= RISK_RANK[snapshot.device.policy.max_risk]);
+  const allowed = COMMAND_TYPES.filter((type) => type !== 'env.manage' && snapshot.device.policy.allowed_command_types.includes(type) && RISK_RANK[DEFAULT_RISK[type]] <= RISK_RANK[snapshot.device.policy.max_risk]);
   const [type, setType] = useState<CommandType>(allowed[0] ?? 'health.check');
-  const [risk, setRisk] = useState<RiskLevel>(DEFAULT_RISK[allowed[0] ?? 'health.check']);
   const [fields, setFields] = useState<Record<string, string | boolean>>({ direction: 'bidirectional', scope: 'standard', include_logs: true });
-  const [ttl, setTtl] = useState(300);
-  const [maxAttempts, setMaxAttempts] = useState(1);
   const [idempotencyKey] = useState(createIdempotencyKey);
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false); const [error, setError] = useState('');
 
-  function changeType(next: CommandType) { setType(next); setRisk(DEFAULT_RISK[next]); setConfirmed(false); }
+  function changeType(next: CommandType) { setType(next); setConfirmed(false); }
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setLoading(true); setError('');
     try {
       const now = new Date();
-      const request: DeviceCommandCreateRequest = { type, payload: buildCommandPayload(type, fields), risk, idempotency_key: idempotencyKey, priority: 0, max_attempts: maxAttempts, not_before: now.toISOString(), expires_at: new Date(now.getTime() + ttl * 1000).toISOString() };
+      const risk = DEFAULT_RISK[type];
+      const request: DeviceCommandCreateRequest = { type, payload: buildCommandPayload(type, fields), risk, idempotency_key: idempotencyKey, priority: 0, max_attempts: 1, not_before: now.toISOString(), expires_at: new Date(now.getTime() + 5 * 60 * 1000).toISOString() };
       onComplete(await createDeviceCommand(snapshot.device.id, request));
     } catch (cause) { setError(messageOf(cause)); setLoading(false); }
   }
 
-  const highRisk = risk === 'high';
+  const highRisk = DEFAULT_RISK[type] === 'high';
   return <Dialog title={`向 ${snapshot.device.name} 下发命令`} description="仅允许公共契约定义的结构化命令，不提供 Shell 输入。" onClose={onClose} wide>
     <form className="nx-form" onSubmit={submit}>
       {snapshot.device.status === 'offline' && <div className="nx-alert is-warning"><Clock3 size={17} />设备离线，命令只能排队，不能视为已执行。</div>}
       {!allowed.length && <div className="nx-alert is-error">设备策略未允许任何可用命令。</div>}
-      <div className="nx-form-grid"><label><span>命令类型</span><select value={type} onChange={(event) => changeType(event.target.value as CommandType)} disabled={!allowed.length}>{allowed.map((item) => <option key={item} value={item}>{COMMAND_LABELS[item]} ({item})</option>)}</select></label><label><span>风险等级</span><select value={risk} onChange={(event) => setRisk(event.target.value as RiskLevel)}><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label><label><span>有效期（秒）</span><input type="number" min={30} max={86400} value={ttl} onChange={(event) => setTtl(Number(event.target.value))} /></label><label><span>最大尝试次数</span><input type="number" min={1} max={20} value={maxAttempts} onChange={(event) => setMaxAttempts(Number(event.target.value))} /></label></div>
+      <label><span>操作</span><select value={type} onChange={(event) => changeType(event.target.value as CommandType)} disabled={!allowed.length}>{allowed.map((item) => <option key={item} value={item}>{COMMAND_LABELS[item]}</option>)}</select></label>
+      <div className="nx-alert is-info">风险、有效期和重试策略由 Nexus 使用安全默认值，不在人工界面中调整。</div>
       <CommandFields type={type} fields={fields} setFields={setFields} />
-      <label><span>幂等键</span><input className="nx-mono" readOnly value={idempotencyKey} /></label>
       {highRisk && <><div className="nx-alert is-warning"><ShieldAlert size={17} />高风险命令可能导致服务中断，后端策略仍会执行最终校验。</div><label className="nx-confirm-check"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />我确认执行此高风险命令</label></>}
       {error && <div className="nx-alert is-error">{error}</div>}
       <div className="nx-dialog-actions"><button type="button" className="nx-button is-secondary" onClick={onClose}>取消</button><button type="submit" className="nx-button" disabled={loading || !allowed.length || (highRisk && !confirmed)}>{loading ? '创建中…' : '创建命令'}</button></div>
@@ -259,20 +257,16 @@ function CommandCreateDialog({ snapshot, onClose, onComplete }: { snapshot: Devi
 function CommandFields({ type, fields, setFields }: { type: CommandType; fields: Record<string, string | boolean>; setFields: (value: Record<string, string | boolean>) => void }) {
   const field = (key: string, value: string | boolean) => setFields({ ...fields, [key]: value });
   if (type === 'health.check') return <p className="nx-muted">健康检查无需额外参数。</p>;
-  if (type === 'skill.install') return <div className="nx-form-grid"><TextField label="Source" required value={String(fields.source ?? '')} onChange={(value) => field('source', value)} /><TextField label="Digest SHA-256" value={String(fields.digest_sha256 ?? '')} onChange={(value) => field('digest_sha256', value)} /><TextField label="发布通道" value={String(fields.channel ?? 'stable')} onChange={(value) => field('channel', value)} /><label className="nx-confirm-check"><input type="checkbox" checked={Boolean(fields.confirmed_no_env)} onChange={(event) => field('confirmed_no_env', event.target.checked)} />确认这个 Skill 不需要 Env Manager 配置</label></div>;
-  if (type === 'skill.run') return <><TextField label="Skill 名称" required value={String(fields.skill ?? '')} onChange={(value) => field('skill', value)} /><label><span>结构化输入（JSON）</span><textarea rows={5} value={String(fields.input ?? '{}')} onChange={(event) => field('input', event.target.value)} /></label></>;
-  if (type === 'skill.rollback') return <div className="nx-form-grid"><TextField label="Skill 名称" required value={String(fields.skill ?? '')} onChange={(value) => field('skill', value)} /><TextField label="目标版本" required value={String(fields.target_version ?? '')} onChange={(value) => field('target_version', value)} /></div>;
   if (type === 'memory.sync') return <label><span>同步方向</span><select value={String(fields.direction ?? 'bidirectional')} onChange={(event) => field('direction', event.target.value)}><option value="bidirectional">双向</option><option value="pull">拉取</option><option value="push">推送</option></select></label>;
   if (type === 'service.inspect' || type === 'service.restart') return <TextField label="受控服务名" required value={String(fields.service ?? '')} onChange={(value) => field('service', value)} />;
   if (type === 'diagnostics.collect') return <div className="nx-form-grid"><TextField label="诊断范围" value={String(fields.scope ?? 'standard')} onChange={(value) => field('scope', value)} /><label className="nx-confirm-check"><input type="checkbox" checked={Boolean(fields.include_logs)} onChange={(event) => field('include_logs', event.target.checked)} />包含脱敏日志</label></div>;
-  if (type === 'env.manage') return <div className="nx-form-grid"><TextField label="Action" required value={String(fields.action ?? 'list')} onChange={(value) => field('action', value)} /><TextField label="Skill" value={String(fields.skill ?? '')} onChange={(value) => field('skill', value)} /><TextField label="变量名" value={String(fields.name ?? '')} onChange={(value) => field('name', value)} /><TextField label="类型" value={String(fields.kind ?? 'secret')} onChange={(value) => field('kind', value)} /></div>;
   return <TextField label="重载原因" required value={String(fields.reason ?? '')} onChange={(value) => field('reason', value)} />;
 }
 
 function CommandHistoryDialog({ snapshot, onClose, onCreate }: { snapshot: DeviceSnapshot; onClose: () => void; onCreate: () => void }) {
   const [commands, setCommands] = useState<DeviceCommand[]>([]); const [selected, setSelected] = useState<DeviceCommand>(); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [refreshToken, setRefreshToken] = useState(0);
   useEffect(() => { const controller = new AbortController(); setLoading(true); listDeviceCommands(snapshot.device.id, controller.signal).then(({ items }) => { setCommands([...items].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))); if (!selected && items.length) setSelected(items[0]); }).catch((cause) => { if (!controller.signal.aborted) setError(messageOf(cause)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [snapshot.device.id, refreshToken]);
-  return <Dialog title={`${snapshot.device.name} · 命令历史`} description="查看命令生命周期、结构化输出、错误和 Evidence。" onClose={onClose} wide>
+  return <Dialog title={`${snapshot.device.name} · 命令历史`} description="查看设备操作的状态、结果和错误。" onClose={onClose} wide>
     <div className="nx-history-toolbar"><button type="button" className="nx-button" onClick={onCreate}><Play size={15} />下发命令</button><button type="button" className="nx-button is-secondary" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={15} />刷新</button></div>
     {error && <div className="nx-alert is-error">{error}</div>}
     {loading ? <p className="nx-muted">正在读取命令…</p> : commands.length === 0 ? <DeviceEmpty icon={<TerminalSquare />} title="暂无命令" text="从此处创建第一条受控命令。" /> : <div className="nx-command-layout"><div className="nx-command-list">{commands.map((command) => <button type="button" key={command.id} className={selected?.id === command.id ? 'is-active' : ''} onClick={() => setSelected(command)}><span><strong>{COMMAND_LABELS[command.type]}</strong><small>{formatTime(command.created_at)}</small></span><CommandStatusBadge status={command.status} /></button>)}</div>{selected && <CommandDetails commandId={selected.id} seed={selected} />}</div>}
@@ -293,11 +287,10 @@ function CommandDetails({ commandId, seed }: { commandId: string; seed: DeviceCo
     <JsonPanel title="Payload" value={command.payload} />
     {command.result?.output !== undefined && <JsonPanel title="结构化输出" value={command.result.output} />}
     {command.result?.error && <div className="nx-error-result"><strong>{command.result.error_code || 'COMMAND_FAILED'}</strong><p>{command.result.error}</p></div>}
-    {command.result?.evidence_ids?.length ? <div className="nx-evidence"><strong>Evidence</strong>{command.result.evidence_ids.map((id) => <code key={id}>{id}</code>)}</div> : null}
   </div>;
 }
 
-function JsonPanel({ title, value }: { title: string; value: unknown }) { return <div className="nx-json-panel"><strong>{title}</strong><pre>{safeJSON(value)}</pre></div>; }
+function JsonPanel({ title, value }: { title: string; value: unknown }) { return <details className="nx-json-panel"><summary>{title}</summary><pre>{safeJSON(value)}</pre></details>; }
 function TextField({ label, value, onChange, required = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean }) { return <label><span>{label}</span><input required={required} value={value} onChange={(event) => onChange(event.target.value)} /></label>; }
 function Detail({ label, value }: { label: string; value: string }) { return <div className="nx-detail"><span>{label}</span><strong>{value || '暂无'}</strong></div>; }
 function Metric({ label, value }: { label: string; value?: number }) {

@@ -2,23 +2,18 @@
 
 - 状态：Accepted
 - 日期：2026-06-05
-- Owner：T0
+- 更新：2026-06-14
 
 ## 决策
 
-Nexus v1 不提供任意 Shell 命令。设备命令 `type` 只允许：
+Nexus 不提供任意 Shell。节点只执行公共协议声明、本地实现存在且设备策略允许的结构化命令，例如健康检查、Memory 同步、受控服务检查或重启、诊断、AgentDock 重载、Env 管理以及 Artifact 传输。为兼容外部 Agent，底层协议可以继续承载 Skill 生命周期命令，但 Nexus 人工界面不提供安装、运行或回滚 Skill 的入口。
 
-- `health.check`
-- `skill.install`
-- `skill.run`
-- `skill.rollback`
-- `memory.sync`
-- `service.inspect`
-- `service.restart`
-- `diagnostics.collect`
-- `agentdock.reload`
+人工界面只选择可理解的设备动作：
 
-命令必须包含风险等级、过期时间、幂等键和结构化 payload。节点只执行契约中声明且本地策略允许的命令。租约过期、token 撤销、命令过期或 handler 缺失时不得产生副作用。
+- 风险等级由命令类型固定。
+- 默认有效期和重试策略由 Nexus 设置。
+- 高风险动作要求明确确认。
+- Env 变量只能来自设备 Runtime 上报的 Registry。
+- 命令 payload 禁止携带明文 Secret。
 
-命令 payload 的具体字段由对应命令 handler 在业务线程内校验；公共信封禁止携带明文 Secret。
-
+租约过期、Token 撤销、命令过期、策略拒绝或 Handler 缺失时不得产生副作用。

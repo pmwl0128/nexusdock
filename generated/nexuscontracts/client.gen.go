@@ -149,38 +149,8 @@ func (c *Client) CompleteCommand(ctx context.Context, commandID string, request 
 	return c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/result", "", request, nil)
 }
 
-func (c *Client) RunSkill(ctx context.Context, idempotencyKey string, request SkillRunRequest) (Run, error) {
-	var response Run
-	err := c.doJSON(ctx, http.MethodPost, "/v1/skill-runs", idempotencyKey, request, &response)
-	return response, err
-}
-
-func (c *Client) GetTask(ctx context.Context, taskID string) (Task, error) {
-	var response Task
-	err := c.doJSON(ctx, http.MethodGet, "/v1/tasks/"+url.PathEscape(taskID), "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetTaskContext(ctx context.Context, taskID string) (TaskContextPack, error) {
-	var response TaskContextPack
-	err := c.doJSON(ctx, http.MethodGet, "/v1/tasks/"+url.PathEscape(taskID)+"/context", "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetRun(ctx context.Context, runID string) (Run, error) {
-	var response Run
-	err := c.doJSON(ctx, http.MethodGet, "/v1/runs/"+url.PathEscape(runID), "", nil, &response)
-	return response, err
-}
-
-func (c *Client) ListSchedules(ctx context.Context) (ScheduleListResponse, error) {
-	var response ScheduleListResponse
-	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules", "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetSchedule(ctx context.Context, scheduleID string) (ScheduleItem, error) {
-	var response ScheduleItem
-	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules/"+url.PathEscape(scheduleID), "", nil, &response)
+func (c *Client) GetBackupStatus(ctx context.Context) (BackupStatus, error) {
+	var response BackupStatus
+	err := c.doJSON(ctx, http.MethodGet, "/v1/backup/status", "", nil, &response)
 	return response, err
 }

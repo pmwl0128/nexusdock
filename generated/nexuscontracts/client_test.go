@@ -60,27 +60,32 @@ func TestEnrollDevice(t *testing.T) {
 	}
 }
 
-func TestRunSkillSendsAuthorizationAndIdempotency(t *testing.T) {
+func TestCreateDeviceCommandSendsAuthorizationAndIdempotency(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
 			t.Fatalf("Authorization = %q", got)
 		}
-		if got := r.Header.Get("Idempotency-Key"); got != "run-key-12345678" {
+		if got := r.Header.Get("Idempotency-Key"); got != "command-key-12345678" {
 			t.Fatalf("Idempotency-Key = %q", got)
 		}
+		if r.URL.Path != "/v1/devices/11111111-1111-1111-1111-111111111111/commands" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{
 			"id":"22222222-2222-2222-2222-222222222222",
-			"type":"skill",
-			"status":"pending",
-			"actor":{"type":"agent","id":"33333333-3333-3333-3333-333333333333"},
-			"summary":"queued",
-			"steps":[],
-			"evidence":[],
-			"version":1
+			"device_id":"11111111-1111-1111-1111-111111111111",
+			"type":"health.check",
+			"status":"queued",
+			"payload":{},
+			"risk":"low",
+			"idempotency_key":"command-key-12345678",
+			"created_at":"2026-06-13T00:00:00Z",
+			"expires_at":"2026-06-13T00:05:00Z",
+			"attempt":0,
+			"max_attempts":1
 		}`))
 	}))
 	defer server.Close()
@@ -90,18 +95,21 @@ func TestRunSkillSendsAuthorizationAndIdempotency(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 	client.Token = "test-token"
-	result, err := client.RunSkill(context.Background(), "run-key-12345678", SkillRunRequest{
-		SkillId:        "44444444-4444-4444-4444-444444444444",
-		Operation:      "inspect",
-		Input:          json.RawMessage(`{"service":"agentdock"}`),
-		DeviceId:       "11111111-1111-1111-1111-111111111111",
-		IdempotencyKey: "run-key-12345678",
+	result, err := client.CreateDeviceCommand(context.Background(), "11111111-1111-1111-1111-111111111111", DeviceCommandCreateRequest{
+		Type:           "health.check",
+		Payload:        json.RawMessage(`{}`),
+		Risk:           "low",
+		IdempotencyKey: "command-key-12345678",
+		Priority:       0,
+		MaxAttempts:    1,
+		NotBefore:      "2026-06-13T00:00:00Z",
+		ExpiresAt:      "2026-06-13T00:05:00Z",
 	})
 	if err != nil {
-		t.Fatalf("RunSkill: %v", err)
+		t.Fatalf("CreateDeviceCommand: %v", err)
 	}
-	if result.Status != "pending" {
-		t.Fatalf("status = %q, want pending", result.Status)
+	if result.Status != "queued" {
+		t.Fatalf("status = %q, want queued", result.Status)
 	}
 }
 
@@ -119,7 +127,7 @@ func TestClientReturnsNexusError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	_, err = client.GetTask(context.Background(), "55555555-5555-5555-5555-555555555555")
+	_, err = client.GetBackupStatus(context.Background())
 	if err == nil || err.Error() != "Nexus VERSION_CONFLICT: stale version" {
 		t.Fatalf("error = %v", err)
 	}

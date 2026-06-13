@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import pathlib
-import re
 import subprocess
 from typing import Any
 
@@ -93,7 +92,6 @@ ERROR_CODES = [
     "LEASE_NOT_FOUND",
     "LEASE_MISMATCH",
     "INVALID_COMMAND_TRANSITION",
-    "SCHEDULE_NOT_FOUND",
 ]
 
 COMMAND_TYPES = [
@@ -111,38 +109,9 @@ COMMAND_TYPES = [
     "artifact.fetch",
 ]
 
-EVOLUTION_TRIGGERS = [
-    "user_correction",
-    "agent_recovery_success",
-    "false_success",
-    "false_failure",
-    "repeated_failure",
-    "repeated_manual_step",
-    "missing_validation",
-    "environment_drift",
-    "performance_regression",
-    "security_violation",
-    "upstream_update",
-]
-
-EVOLUTION_STATES = [
-    "observed",
-    "watching",
-    "candidate",
-    "proposal_draft",
-    "review_ready",
-    "approved",
-    "testing",
-    "canary",
-    "released",
-    "rejected",
-    "deferred",
-    "rolled_back",
-]
-
-
 def build_schemas() -> dict[str, dict[str, Any]]:
     schemas: dict[str, dict[str, Any]] = {}
+    schemas["JsonObject"] = obj("通用结构化对象。", {}, additional=True)
     schemas["ErrorDetail"] = obj(
         "字段级错误详情。",
         {
@@ -155,61 +124,88 @@ def build_schemas() -> dict[str, dict[str, Any]]:
     schemas["ErrorResponse"] = obj(
         "统一错误响应。",
         {
-            "code": enum("稳定错误码。", ERROR_CODES),
+            "code": scalar("string", "稳定错误码。"),
             "message": scalar("string", "面向调用方的错误说明。"),
             "request_id": scalar("string", "请求关联 ID。"),
             "details": array("可选字段级错误。", ref("ErrorDetail")),
         },
         ("code", "message", "request_id"),
     )
-    schemas["Pagination"] = obj(
-        "游标分页信息。",
+    schemas["LegacyErrorEnvelope"] = obj(
+        "Memory 与浏览器兼容接口使用的错误信封。",
         {
-            "next_cursor": scalar(["string", "null"], "下一页游标；无下一页时为 null。"),
-            "limit": scalar("integer", "本页上限。", minimum=1, maximum=200),
-            "total": scalar(["integer", "null"], "可选总数。", minimum=0),
-        },
-        ("limit",),
-    )
-    schemas["Actor"] = obj(
-        "执行动作的主体。",
-        {
-            "type": enum("主体类型。", ["user", "agent", "device", "system"]),
-            "id": ID,
-            "display_name": scalar("string", "显示名称。"),
-        },
-        ("type", "id"),
-    )
-    schemas["AuditReference"] = obj(
-        "审计事件引用。",
-        {
-            "audit_id": ID,
-            "request_id": scalar("string", "请求关联 ID。"),
-            "run_id": scalar(["string", "null"], "关联 Run ID。", format="uuid"),
-        },
-        ("audit_id", "request_id"),
-    )
-    schemas["IdempotencyKey"] = obj(
-        "幂等键及其作用域。",
-        {
-            "key": scalar("string", "调用方生成的幂等键。", minLength=8, maxLength=128),
-            "scope": scalar("string", "幂等操作作用域。", minLength=1, maxLength=128),
-        },
-        ("key", "scope"),
-    )
-    schemas["ObjectReference"] = obj(
-        "跨模块对象引用。",
-        {
-            "type": enum(
-                "对象类型。",
-                ["device", "memory", "skill", "run", "proposal", "project", "task", "command", "schedule"],
+            "ok": scalar("boolean", "固定为 false。"),
+            "error": obj(
+                "错误详情。",
+                {
+                    "code": scalar("string", "稳定错误码。"),
+                    "message": scalar("string", "可读错误说明。"),
+                },
+                ("code", "message"),
             ),
-            "id": scalar("string", "对象 ID。"),
-            "label": scalar("string", "可读标签。"),
         },
-        ("type", "id"),
+        ("ok", "error"),
     )
-
+    schemas["HealthResponse"] = obj(
+        "服务健康状态。",
+        {
+            "ok": scalar("boolean", "服务是否健康。"),
+            "service": scalar("string", "服务名称。"),
+        },
+        ("ok", "service"),
+    )
+    schemas["SystemStatus"] = obj(
+        "Nexus 系统与数据存储状态。",
+        {
+            "ok": scalar("boolean", "系统是否健康。"),
+            "service": scalar("string", "服务名称。"),
+            "database": scalar("string", "SQLite 健康状态。"),
+            "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
+            "memory_root": scalar("string", "记忆仓库路径。"),
+            "artifact_root": scalar("string", "Artifact 密文存储路径。"),
+        },
+        ("ok", "service", "database", "schema_version", "memory_root", "artifact_root"),
+    )
+    schemas["BackupHistory"] = obj(
+        "一次备份执行的脱敏结果。",
+        {
+            "schema_version": scalar("integer", "状态文件版本。", minimum=0),
+            "state": enum("备份状态。", ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]),
+            "message": scalar("string", "状态说明。"),
+            "started_at": TIMESTAMP,
+            "completed_at": TIMESTAMP,
+            "host": scalar("string", "执行设备。"),
+            "archive": scalar("string", "归档文件名。"),
+            "archive_size": scalar("integer", "归档字节数。", minimum=0),
+            "sha256": scalar("string", "归档 SHA-256。"),
+            "remote_path": scalar("string", "脱敏后的远端路径。"),
+        },
+        ("state",),
+    )
+    schemas["BackupStatus"] = obj(
+        "AgentDock 与 Nexus 的单一备份状态。",
+        {
+            "id": scalar("string", "稳定备份标识。"),
+            "title": scalar("string", "备份名称。"),
+            "description": scalar("string", "备份内容说明。"),
+            "provider": scalar("string", "计划执行提供方。"),
+            "device": scalar("string", "执行设备。"),
+            "enabled": scalar("boolean", "备份是否启用。"),
+            "schedule": scalar("string", "可读计划。"),
+            "schedule_type": scalar("string", "计划类型。"),
+            "state": enum("备份状态。", ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]),
+            "last_started_at": TIMESTAMP,
+            "last_completed_at": TIMESTAMP,
+            "next_run_at": TIMESTAMP,
+            "message": scalar("string", "状态说明。"),
+            "archive": scalar("string", "最近归档文件名。"),
+            "archive_size": scalar("integer", "最近归档字节数。", minimum=0),
+            "sha256": scalar("string", "最近归档 SHA-256。"),
+            "remote_path": scalar("string", "脱敏后的远端路径。"),
+            "history": array("最近备份历史。", ref("BackupHistory")),
+        },
+        ("id", "title", "provider", "device", "enabled", "schedule", "state", "next_run_at", "history"),
+    )
     schemas["DeviceCapability"] = obj(
         "设备能力声明。",
         {
@@ -228,7 +224,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "platform": enum("平台。", ["darwin", "linux"]),
             "arch": enum("架构。", ["arm64", "amd64"]),
             "agentdock_version": scalar("string", "AgentDock 版本。"),
-            "public_key": scalar("string", "设备公钥，PEM 或 JWK。"),
+            "public_key": scalar("string", "设备公钥。"),
             "labels": obj("设备标签。", {}, additional={"type": "string"}),
         },
         ("enrollment_token", "name", "platform", "arch", "agentdock_version", "public_key"),
@@ -237,7 +233,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "设备注册结果。",
         {
             "device_id": ID,
-            "device_token": scalar("string", "后续设备认证 token；仅返回一次。"),
+            "device_token": scalar("string", "设备认证 token；仅返回一次。"),
             "token_expires_at": TIMESTAMP,
             "heartbeat_interval_seconds": scalar("integer", "心跳建议间隔。", minimum=10, maximum=300),
             "server_time": TIMESTAMP,
@@ -249,7 +245,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         {
             "created_by": scalar("string", "创建主体标识。"),
             "ttl_seconds": scalar("integer", "有效期秒数。", minimum=60, maximum=604800),
-            "allowed_command_types": array("允许的命令类型。", enum("命令类型。", COMMAND_TYPES)),
+            "allowed_command_types": array("允许的结构化命令类型。", enum("命令类型。", COMMAND_TYPES)),
             "max_risk": enum("最大允许风险。", ["low", "medium", "high"]),
         },
         ("created_by", "ttl_seconds", "allowed_command_types", "max_risk"),
@@ -262,11 +258,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("token", "expires_at"),
     )
-    schemas["CommandLeaseAction"] = obj(
-        "命令租约动作请求。",
-        {"lease_id": ID},
-        ("lease_id",),
-    )
+    schemas["CommandLeaseAction"] = obj("命令租约动作请求。", {"lease_id": ID}, ("lease_id",))
     schemas["DeviceTokenRotationResponse"] = obj(
         "设备 token 轮换结果。",
         {
@@ -298,8 +290,8 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "创建设备 Env 管理动作；响应必须脱敏 value。",
         {
             "action": enum("Env 管理动作。", ["list", "inspect", "set", "delete", "verify", "migrate-from-agentdock-env"]),
-            "skill": scalar(["string", "null"], "Skill 名称。"),
-            "name": scalar(["string", "null"], "环境变量名。"),
+            "skill": scalar(["string", "null"], "Runtime 上报的 Skill 名称。"),
+            "name": scalar(["string", "null"], "Runtime 上报的环境变量名。"),
             "kind": enum("变量类型。", ["plain", "secret"]),
             "value": scalar(["string", "null"], "写入值；API 响应不得回显明文。"),
             "operation": scalar(["string", "null"], "verify 使用的 operation。"),
@@ -314,17 +306,9 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "sent_at": TIMESTAMP,
             "uptime_seconds": scalar("integer", "进程运行秒数。", minimum=0),
             "agentdock_version": scalar("string", "AgentDock 版本。"),
-            "metrics": obj(
-                "基础资源指标。",
-                {
-                    "cpu_percent": scalar("number", "CPU 使用率。", minimum=0, maximum=100),
-                    "memory_percent": scalar("number", "内存使用率。", minimum=0, maximum=100),
-                    "disk_percent": scalar("number", "数据盘使用率。", minimum=0, maximum=100),
-                },
-                ("cpu_percent", "memory_percent", "disk_percent"),
-            ),
+            "metrics": obj("基础资源指标。", {}, additional=True),
             "capabilities": array("设备能力。", ref("DeviceCapability")),
-            "skill_summary": obj("Skill 安装摘要。", {}, additional=True),
+            "skill_summary": obj("设备 Runtime 上报的 Skill 状态摘要。", {}, additional=True),
             "memory_sync_summary": obj("Memory 同步摘要。", {}, additional=True),
         },
         ("device_id", "sent_at", "uptime_seconds", "agentdock_version", "metrics", "capabilities"),
@@ -333,7 +317,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "设备控制面状态。",
         {
             "device_id": ID,
-            "status": enum("设备状态；90 秒无心跳 degraded，180 秒 offline。", ["pending", "online", "degraded", "offline", "revoked"]),
+            "status": enum("设备状态。", ["pending", "online", "degraded", "offline", "revoked"]),
             "last_seen_at": TIMESTAMP,
             "agentdock_version": scalar("string", "AgentDock 版本。"),
             "labels": obj("设备标签。", {}, additional={"type": "string"}),
@@ -349,9 +333,9 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "device_id": ID,
             "type": enum("命令类型。", COMMAND_TYPES),
             "status": enum("命令状态。", ["queued", "leased", "running", "succeeded", "failed", "expired", "cancelled"]),
-            "payload": obj("命令结构化参数；不得包含明文 Secret。", {}, additional=True),
+            "payload": obj("命令结构化参数。", {}, additional=True),
             "risk": enum("风险等级。", ["low", "medium", "high"]),
-            "idempotency_key": scalar("string", "副作用幂等键。", minLength=8, maxLength=128),
+            "idempotency_key": scalar("string", "副作用幂等键。"),
             "created_at": TIMESTAMP,
             "expires_at": TIMESTAMP,
             "attempt": scalar("integer", "当前尝试次数。", minimum=0),
@@ -392,464 +376,164 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "completed_at": TIMESTAMP,
             "output": obj("脱敏后的结构化结果。", {}, additional=True),
             "error": {"description": "失败详情；成功时为 null。", "oneOf": [ref("ErrorResponse"), {"type": "null"}]},
-            "run_id": scalar(["string", "null"], "关联 Run ID。", format="uuid"),
+            "run_id": scalar(["string", "null"], "兼容节点可选上报的不透明执行关联 ID；Nexus 不创建对应资源。", format="uuid"),
         },
         ("command_id", "lease_id", "status", "started_at", "completed_at", "output"),
     )
-
-    schemas["SkillOperation"] = obj(
-        "Skill 可执行 operation。",
-        {
-            "name": scalar("string", "稳定 operation 名。", pattern="^[a-z][a-z0-9._-]*$"),
-            "description": scalar("string", "operation 说明。"),
-            "input_schema": obj("JSON Schema 输入定义。", {}, additional=True),
-            "output_schema": obj("JSON Schema 输出定义。", {}, additional=True),
-            "timeout_seconds": scalar("integer", "默认超时。", minimum=1, maximum=86400),
-            "permissions": array("声明权限。", scalar("string", "权限名。")),
-        },
-        ("name", "description", "input_schema", "output_schema", "timeout_seconds", "permissions"),
-    )
-    schemas["SkillSummary"] = obj(
-        "Skill 列表摘要。",
-        {
-            "id": ID,
-            "name": scalar("string", "稳定 Skill 名。"),
-            "display_name": scalar("string", "显示名称。"),
-            "description": scalar("string", "简介。"),
-            "latest_version": scalar("string", "最新发布版本。"),
-            "trust": enum("信任状态。", ["unknown", "reviewed", "trusted", "blocked"]),
-            "maturity": enum("成熟度。", ["experimental", "development", "canary", "stable", "deprecated"]),
-            "updated_at": TIMESTAMP,
-        },
-        ("id", "name", "display_name", "description", "latest_version", "trust", "maturity", "updated_at"),
-    )
-    schemas["SkillRelease"] = obj(
-        "不可变 Skill 发布。",
-        {
-            "id": ID,
-            "skill_id": ID,
-            "version": scalar("string", "语义版本。", pattern=r"^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"),
-            "channel": enum("发布通道。", ["development", "canary", "stable", "pinned"]),
-            "digest": scalar("string", "sha256 摘要。", pattern="^sha256:[0-9a-f]{64}$"),
-            "manifest_url": scalar("string", "manifest 下载地址。", format="uri"),
-            "package_url": scalar("string", "包下载地址。", format="uri"),
-            "published_at": TIMESTAMP,
-            "published_by": ref("Actor"),
-        },
-        ("id", "skill_id", "version", "channel", "digest", "manifest_url", "package_url", "published_at", "published_by"),
-    )
-    schemas["SkillInstallation"] = obj(
-        "设备上的 Skill 安装状态。",
-        {
-            "id": ID,
-            "skill_id": ID,
-            "device_id": ID,
-            "release_id": ID,
-            "version": scalar("string", "安装版本。"),
-            "channel": enum("安装通道。", ["development", "canary", "stable", "pinned"]),
-            "status": enum("安装状态。", ["pending", "installing", "active", "failed", "rolling_back", "rolled_back", "removed"]),
-            "installed_at": TIMESTAMP,
-            "verified_at": scalar(["string", "null"], "最近验证时间。", format="date-time"),
-            "last_error": {"description": "最近错误。", "oneOf": [ref("ErrorResponse"), {"type": "null"}]},
-        },
-        ("id", "skill_id", "device_id", "release_id", "version", "channel", "status", "installed_at"),
-    )
-    schemas["SkillDetail"] = obj(
-        "Skill 完整详情。",
-        {
-            "summary": ref("SkillSummary"),
-            "operations": array("可执行 operations。", ref("SkillOperation")),
-            "releases": array("发布列表。", ref("SkillRelease")),
-            "compatibility": obj("平台和 AgentDock 兼容性。", {}, additional=True),
-            "provenance": obj("来源与许可证信息。", {}, additional=True),
-            "installed_devices": array("安装记录。", ref("SkillInstallation")),
-        },
-        ("summary", "operations", "releases", "compatibility", "provenance", "installed_devices"),
-    )
-    schemas["SkillRunRequest"] = obj(
-        "执行 Skill operation 请求。",
-        {
-            "skill_id": ID,
-            "operation": scalar("string", "operation 名。"),
-            "input": obj("按 operation input_schema 校验的输入。", {}, additional=True),
-            "device_id": ID,
-            "release_id": scalar(["string", "null"], "指定 release；null 使用 active。", format="uuid"),
-            "timeout_seconds": scalar(["integer", "null"], "调用级超时覆盖。", minimum=1, maximum=86400),
-            "idempotency_key": scalar("string", "运行幂等键。", minLength=8, maxLength=128),
-        },
-        ("skill_id", "operation", "input", "device_id", "idempotency_key"),
-    )
-
-    schemas["VerificationResult"] = obj(
-        "运行验证结果。",
-        {
-            "status": enum("验证状态。", ["passed", "failed", "skipped"]),
-            "summary": scalar("string", "验证摘要。"),
-            "checks": array(
-                "验证检查项。",
-                obj(
-                    "验证检查项。",
-                    {
-                        "name": scalar("string", "检查名。"),
-                        "passed": scalar("boolean", "是否通过。"),
-                        "evidence_id": scalar(["string", "null"], "证据 ID。", format="uuid"),
-                        "message": scalar("string", "检查说明。"),
-                    },
-                    ("name", "passed", "message"),
-                ),
-            ),
-            "verified_at": TIMESTAMP,
-        },
-        ("status", "summary", "checks", "verified_at"),
-    )
-    schemas["RunEvidence"] = obj(
-        "Run 证据。",
-        {
-            "id": ID,
-            "run_id": ID,
-            "type": enum("证据类型。", ["log", "command", "http", "screenshot", "artifact", "diff", "metric", "user_confirmation"]),
-            "uri": scalar(["string", "null"], "证据 URI。", format="uri"),
-            "digest": scalar(["string", "null"], "内容摘要。"),
-            "summary": scalar("string", "脱敏摘要。"),
-            "created_at": TIMESTAMP,
-        },
-        ("id", "run_id", "type", "summary", "created_at"),
-    )
-    schemas["RunStep"] = obj(
-        "Run 步骤。",
-        {
-            "id": ID,
-            "run_id": ID,
-            "sequence": scalar("integer", "从 1 开始的顺序号。", minimum=1),
-            "name": scalar("string", "步骤名。"),
-            "status": enum("步骤状态。", ["pending", "running", "succeeded", "failed", "skipped"]),
-            "started_at": scalar(["string", "null"], "开始时间。", format="date-time"),
-            "completed_at": scalar(["string", "null"], "结束时间。", format="date-time"),
-            "summary": scalar("string", "步骤摘要。"),
-            "error": {"description": "步骤错误。", "oneOf": [ref("ErrorResponse"), {"type": "null"}]},
-        },
-        ("id", "run_id", "sequence", "name", "status", "summary"),
-    )
-    schemas["Run"] = obj(
-        "统一运行注册记录。",
-        {
-            "id": ID,
-            "type": enum("Run 类型。", ["skill", "command", "memory", "task", "evolution", "migration", "system"]),
-            "status": enum("Run 状态。", ["pending", "running", "succeeded", "failed", "cancelled", "timed_out"]),
-            "actor": ref("Actor"),
-            "device_id": scalar(["string", "null"], "设备 ID。", format="uuid"),
-            "task_id": scalar(["string", "null"], "Task ID。", format="uuid"),
-            "skill_id": scalar(["string", "null"], "Skill ID。", format="uuid"),
-            "started_at": scalar(["string", "null"], "开始时间。", format="date-time"),
-            "completed_at": scalar(["string", "null"], "结束时间。", format="date-time"),
-            "summary": scalar("string", "运行摘要。"),
-            "steps": array("步骤。", ref("RunStep")),
-            "evidence": array("证据。", ref("RunEvidence")),
-            "verification": {"description": "最终验证。", "oneOf": [ref("VerificationResult"), {"type": "null"}]},
-            "version": VERSION,
-        },
-        ("id", "type", "status", "actor", "summary", "steps", "evidence", "version"),
-    )
-    schemas["SkillRunResult"] = obj(
-        "Skill operation 结果。",
-        {
-            "run_id": ID,
-            "skill_id": ID,
-            "operation": scalar("string", "operation 名。"),
-            "status": enum("运行终态。", ["succeeded", "failed", "cancelled", "timed_out"]),
-            "output": obj("按 output_schema 校验并脱敏的输出。", {}, additional=True),
-            "error": {"description": "运行错误。", "oneOf": [ref("ErrorResponse"), {"type": "null"}]},
-            "started_at": TIMESTAMP,
-            "completed_at": TIMESTAMP,
-            "verification": {"description": "结果验证。", "oneOf": [ref("VerificationResult"), {"type": "null"}]},
-        },
-        ("run_id", "skill_id", "operation", "status", "output", "started_at", "completed_at"),
-    )
-
-    schedule_states = ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]
-    schemas["ScheduleHistory"] = obj(
-        "计划任务执行历史；只包含脱敏后的归档和状态证据。",
-        {
-            "schema_version": scalar("integer", "状态文件版本。", minimum=1),
-            "state": enum("执行状态。", schedule_states),
-            "message": scalar("string", "脱敏后的状态说明。"),
-            "started_at": scalar(["string", "null"], "开始时间。", format="date-time"),
-            "completed_at": scalar(["string", "null"], "结束时间。", format="date-time"),
-            "host": scalar("string", "执行主机显示名；不得包含凭据。"),
-            "archive": scalar("string", "归档文件名。"),
-            "archive_size": scalar("integer", "归档字节数。", minimum=0),
-            "sha256": scalar("string", "归档 SHA256。"),
-            "remote_path": scalar("string", "脱敏后的远端路径。"),
-        },
-        ("state",),
-    )
-    schemas["ScheduleItem"] = obj(
-        "计划任务状态摘要。",
-        {
-            "id": scalar("string", "稳定计划任务 ID。", pattern="^[a-z][a-z0-9._-]*$"),
-            "title": scalar("string", "显示标题。"),
-            "description": scalar("string", "任务说明。"),
-            "provider": scalar("string", "调度提供方。"),
-            "device": scalar("string", "执行设备显示名。"),
-            "enabled": scalar("boolean", "是否启用。"),
-            "schedule": scalar("string", "可读执行计划。"),
-            "schedule_type": enum("计划类型。", ["calendar", "interval", "manual"]),
-            "state": enum("最近状态。", schedule_states),
-            "last_started_at": scalar(["string", "null"], "最近开始时间。", format="date-time"),
-            "last_completed_at": scalar(["string", "null"], "最近完成时间。", format="date-time"),
-            "next_run_at": TIMESTAMP,
-            "message": scalar("string", "脱敏后的状态说明。"),
-            "archive": scalar("string", "最近归档文件名。"),
-            "archive_size": scalar("integer", "最近归档字节数。", minimum=0),
-            "sha256": scalar("string", "最近归档 SHA256。"),
-            "remote_path": scalar("string", "脱敏后的远端路径。"),
-            "history": array("最近执行历史。", ref("ScheduleHistory")),
-        },
-        ("id", "title", "provider", "device", "enabled", "schedule", "schedule_type", "state", "next_run_at", "history"),
-    )
-    schemas["ScheduleListResponse"] = obj(
-        "计划任务列表响应。",
-        {"items": array("计划任务。", ref("ScheduleItem"))},
-        ("items",),
-    )
-
     schemas["MemoryEntry"] = obj(
-        "长期记忆条目。",
+        "Markdown 记忆条目。",
         {
-            "id": ID,
-            "path": scalar("string", "Memory Repository 相对路径。"),
-            "title": scalar("string", "标题。"),
-            "scope": enum("作用域。", ["profile", "global", "project", "device", "agent", "ops", "inbox"]),
-            "status": enum("记忆状态。", ["active", "stale", "conflicted", "unverified", "deprecated"]),
-            "content": scalar("string", "Markdown 内容。"),
-            "verified_at": scalar(["string", "null"], "最近验证时间。", format="date-time"),
-            "verification_run_id": scalar(["string", "null"], "验证 Run ID。", format="uuid"),
-            "source_device": scalar(["string", "null"], "来源设备 ID。", format="uuid"),
-            "source_agent": scalar(["string", "null"], "来源 Agent ID。", format="uuid"),
-            "confidence": scalar("number", "置信度。", minimum=0, maximum=1),
-            "updated_at": TIMESTAMP,
-            "version": VERSION,
+            "path": scalar("string", "记忆相对路径。"),
+            "content": scalar("string", "Markdown 或文本内容。"),
+            "size_bytes": scalar("integer", "内容字节数。", minimum=0),
+            "modified_at": TIMESTAMP,
         },
-        ("id", "path", "title", "scope", "status", "content", "confidence", "updated_at", "version"),
-    )
-    schemas["MemoryConflict"] = obj(
-        "记忆与事实冲突。",
-        {
-            "id": ID,
-            "memory_id": ID,
-            "status": enum("冲突状态。", ["open", "resolved", "dismissed"]),
-            "source_type": enum("冲突来源。", ["device_snapshot", "skill_run", "user_edit", "git_merge", "agent_repair"]),
-            "observed_value": {"description": "设备或运行观察到的结构化值。"},
-            "memory_value": {"description": "Memory 当前结构化值。"},
-            "summary": scalar("string", "冲突摘要。"),
-            "detected_at": TIMESTAMP,
-            "resolved_at": scalar(["string", "null"], "解决时间。", format="date-time"),
-            "resolution_run_id": scalar(["string", "null"], "解决 Run ID。", format="uuid"),
-        },
-        ("id", "memory_id", "status", "source_type", "observed_value", "memory_value", "summary", "detected_at"),
-    )
-    schemas["MemoryContextPack"] = obj(
-        "任务所需记忆上下文。",
-        {
-            "entries": array("选中的记忆。", ref("MemoryEntry")),
-            "conflicts": array("相关冲突。", ref("MemoryConflict")),
-            "truncated": scalar("boolean", "是否因 max_bytes 截断。"),
-            "total_bytes": scalar("integer", "实际包字节数。", minimum=0),
-            "generated_at": TIMESTAMP,
-        },
-        ("entries", "conflicts", "truncated", "total_bytes", "generated_at"),
-    )
-
-    schemas["Observation"] = obj(
-        "Skill 运行观察事件。",
-        {
-            "id": ID,
-            "skill_id": ID,
-            "run_id": ID,
-            "device_id": scalar(["string", "null"], "设备 ID。", format="uuid"),
-            "trigger": enum("进化触发类型。", EVOLUTION_TRIGGERS),
-            "signature": scalar("string", "归一化错误或行为签名。"),
-            "summary": scalar("string", "观察摘要。"),
-            "evidence_ids": array("证据 ID。", ID),
-            "private_scope": scalar("boolean", "是否包含仅设备可用信息。"),
-            "observed_at": TIMESTAMP,
-        },
-        ("id", "skill_id", "run_id", "trigger", "signature", "summary", "evidence_ids", "private_scope", "observed_at"),
-    )
-    schemas["EvolutionCandidate"] = obj(
-        "聚合后的进化候选。",
-        {
-            "id": ID,
-            "skill_id": ID,
-            "status": enum("候选状态。", EVOLUTION_STATES),
-            "signature": scalar("string", "聚合签名。"),
-            "trigger": enum("主要触发类型。", EVOLUTION_TRIGGERS),
-            "observation_ids": array("Observation ID。", ID),
-            "score": scalar("number", "固定规则计算的可解释分数。", minimum=0, maximum=100),
-            "confidence": scalar("number", "跨运行置信度。", minimum=0, maximum=1),
-            "reasoning": array("评分依据。", scalar("string", "可解释规则结果。")),
-            "created_at": TIMESTAMP,
-            "updated_at": TIMESTAMP,
-        },
-        ("id", "skill_id", "status", "signature", "trigger", "observation_ids", "score", "confidence", "reasoning", "created_at", "updated_at"),
-    )
-    schemas["EvolutionProposal"] = obj(
-        "待审查的 Skill 进化提案。",
-        {
-            "id": ID,
-            "candidate_id": ID,
-            "skill_id": ID,
-            "status": enum("提案状态。", EVOLUTION_STATES),
-            "problem": scalar("string", "问题定义。"),
-            "evidence": array("证据引用。", ref("ObjectReference")),
-            "scope": enum("提案作用域。", ["global", "project", "device"]),
-            "suggested_files": array("建议修改的 Skill 相对路径。", scalar("string", "相对路径。")),
-            "risk": enum("风险等级。", ["low", "medium", "high", "critical"]),
-            "tests": array("必须执行的测试。", scalar("string", "测试说明。")),
-            "expected_benefit": scalar("string", "预期收益。"),
-            "created_at": TIMESTAMP,
-            "updated_at": TIMESTAMP,
-        },
-        ("id", "candidate_id", "skill_id", "status", "problem", "evidence", "scope", "suggested_files", "risk", "tests", "expected_benefit", "created_at", "updated_at"),
-    )
-
-    schemas["TaskLink"] = obj(
-        "Task 与领域对象的 Link。",
-        {
-            "type": enum("Link 类型。", ["device", "memory", "skill", "run", "proposal", "project"]),
-            "object_id": scalar("string", "对象 ID。"),
-            "relation": scalar("string", "关系说明。"),
-        },
-        ("type", "object_id", "relation"),
-    )
-    schemas["TaskCompletion"] = obj(
-        "Task 完成结果。",
-        {
-            "summary": scalar("string", "完成摘要。"),
-            "verification_summary": scalar("string", "必须提供的验证摘要。", minLength=1),
-            "run_id": scalar(["string", "null"], "完成 Run ID。", format="uuid"),
-            "evidence_ids": array("完成证据 ID。", ID),
-            "completed_at": TIMESTAMP,
-        },
-        ("summary", "verification_summary", "evidence_ids", "completed_at"),
-    )
-    schemas["Task"] = obj(
-        "Agent Inbox 任务。",
-        {
-            "id": ID,
-            "type": enum("任务类型。", ["needs_agent", "needs_user", "automatic", "scheduled", "review"]),
-            "status": enum("任务状态。", ["inbox", "ready", "in_progress", "blocked", "awaiting_user", "awaiting_agent", "completed", "cancelled", "failed"]),
-            "title": scalar("string", "标题。"),
-            "description": scalar("string", "任务说明。"),
-            "category": scalar("string", "稳定分类。"),
-            "source_type": scalar("string", "创建来源类型。"),
-            "source_id": scalar("string", "创建来源 ID。"),
-            "object_id": scalar("string", "主要对象 ID。"),
-            "priority": enum("优先级。", ["low", "normal", "high", "critical"]),
-            "links": array("领域对象链接。", ref("TaskLink")),
-            "assigned_actor": {"description": "当前负责人。", "oneOf": [ref("Actor"), {"type": "null"}]},
-            "completion_criteria": array("完成标准。", scalar("string", "标准。")),
-            "risk_constraints": array("风险约束。", scalar("string", "约束。")),
-            "completion": {"description": "完成结果。", "oneOf": [ref("TaskCompletion"), {"type": "null"}]},
-            "created_at": TIMESTAMP,
-            "updated_at": TIMESTAMP,
-            "version": VERSION,
-        },
-        ("id", "type", "status", "title", "description", "category", "source_type", "source_id", "object_id", "priority", "links", "completion_criteria", "risk_constraints", "created_at", "updated_at", "version"),
-    )
-    schemas["TaskContextPack"] = obj(
-        "完成 Task 的聚合上下文。",
-        {
-            "task": ref("Task"),
-            "memory": ref("MemoryContextPack"),
-            "device": {"description": "设备快照。", "oneOf": [ref("DeviceStatus"), {"type": "null"}]},
-            "skill": {"description": "Skill 详情。", "oneOf": [ref("SkillDetail"), {"type": "null"}]},
-            "recent_runs": array("最近相关 Runs。", ref("Run")),
-            "evidence": array("相关证据。", ref("RunEvidence")),
-            "generated_at": TIMESTAMP,
-            "truncated": scalar("boolean", "是否截断。"),
-        },
-        ("task", "memory", "recent_runs", "evidence", "generated_at", "truncated"),
+        ("path",),
     )
     return schemas
-
 
 def response(schema: dict[str, Any], description: str = "成功。") -> dict[str, Any]:
     return {"description": description, "content": {"application/json": {"schema": schema}}}
 
 
 def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
-    error = response(ref("ErrorResponse"), "错误。")
-    path_param = lambda name, description: {
-        "name": name,
-        "in": "path",
-        "required": True,
-        "description": description,
-        "schema": {"type": "string", "format": "uuid"},
-    }
+    error = response({"oneOf": [ref("ErrorResponse"), ref("LegacyErrorEnvelope")]}, "错误。")
+    generic = ref("JsonObject")
+
+    def path_param(name: str, description: str, *, uuid: bool = True) -> dict[str, Any]:
+        schema: dict[str, Any] = {"type": "string"}
+        if uuid:
+            schema["format"] = "uuid"
+        return {"name": name, "in": "path", "required": True, "description": description, "schema": schema}
+
     parameters = {
         "DeviceId": path_param("deviceId", "Device UUID。"),
         "CommandId": path_param("commandId", "Command UUID。"),
-        "SkillId": path_param("skillId", "Skill UUID。"),
-        "TaskId": path_param("taskId", "Task UUID。"),
-        "RunId": path_param("runId", "Run UUID。"),
-        "ScheduleId": {
-            "name": "scheduleId",
-            "in": "path",
-            "required": True,
-            "description": "Schedule stable ID。",
-            "schema": {"type": "string", "pattern": "^[a-z][a-z0-9._-]*$"},
-        },
-        "IdempotencyKey": {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": True,
-            "description": "写操作幂等键。",
-            "schema": {"type": "string", "minLength": 8, "maxLength": 128},
-        },
+        "ArtifactId": path_param("artifactId", "Artifact UUID。"),
+        "DeliveryId": path_param("deliveryId", "Delivery UUID。"),
+        "FetchId": path_param("fetchId", "Artifact Fetch UUID。"),
+        "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
+        "MemoryPath": path_param("path", "URL 编码后的记忆相对路径。", uuid=False),
     }
-    body = lambda schema: {"required": True, "content": {"application/json": {"schema": schema}}}
+
+    def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
+        return {"required": True, "content": {"application/json": {"schema": schema}}}
+
+    def ok(schema: dict[str, Any] = generic, description: str = "成功。") -> dict[str, Any]:
+        return response(schema, description)
+
+    def operation(
+        operation_id: str,
+        summary: str,
+        *,
+        success: dict[str, Any] | None = None,
+        request: dict[str, Any] | None = None,
+        params: list[dict[str, Any]] | None = None,
+        success_code: str = "200",
+        additional_success: dict[str, dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        responses = {success_code: success or ok(), "400": error, "401": error, "403": error, "404": error, "409": error}
+        if additional_success:
+            responses.update(additional_success)
+        value: dict[str, Any] = {
+            "operationId": operation_id,
+            "summary": summary,
+            "responses": responses,
+        }
+        if request is not None:
+            value["requestBody"] = request
+        if params:
+            value["parameters"] = params
+        return value
+
+    p = lambda name: {"$ref": f"#/components/parameters/{name}"}
+    no_content = {"description": "已接受，无响应体。"}
+    binary = {"description": "密文二进制内容。", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}
+    multipart = {"required": True, "content": {"multipart/form-data": {"schema": generic}}}
+
     paths: dict[str, Any] = {
-        "/health": {"get": {"operationId": "getHealth", "summary": "存活检查", "responses": {"200": response(obj("健康状态。", {"ok": scalar("boolean", "是否健康。"), "service": scalar("string", "服务名。")}, ("ok", "service")))}}},
-        "/ready": {"get": {"operationId": "getReadiness", "summary": "就绪检查", "responses": {"200": response(obj("就绪状态。", {"ready": scalar("boolean", "是否就绪。")}, ("ready",))), "503": error}}},
-        "/v1/devices/enroll": {"post": {"operationId": "enrollDevice", "summary": "注册设备", "requestBody": body(ref("DeviceEnrollmentRequest")), "responses": {"201": response(ref("DeviceEnrollmentResponse")), "400": error, "401": error, "409": error}}},
-        "/v1/devices/enrollment-tokens": {"post": {"operationId": "createEnrollmentToken", "summary": "创建一次性注册 token", "requestBody": body(ref("EnrollmentTokenCreateRequest")), "responses": {"201": response(ref("EnrollmentTokenCreateResponse")), "400": error, "401": error, "403": error}}},
-        "/v1/devices/{deviceId}/heartbeat": {"post": {"operationId": "reportDeviceHeartbeat", "summary": "上报设备心跳", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceHeartbeat")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
-        "/v1/devices/{deviceId}/approve": {"post": {"operationId": "approveDevice", "summary": "批准设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"204": {"description": "已批准。"}, "401": error, "403": error, "404": error, "409": error}}},
-        "/v1/devices/{deviceId}/revoke": {"post": {"operationId": "revokeDevice", "summary": "撤销设备", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceRevokeRequest")), "responses": {"204": {"description": "已撤销。"}, "401": error, "403": error, "404": error, "409": error}}},
-        "/v1/devices/{deviceId}/token/rotate": {"post": {"operationId": "rotateDeviceToken", "summary": "轮换设备 token", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("DeviceTokenRotationResponse")), "401": error, "409": error}}},
-        "/v1/devices/{deviceId}/env/actions": {"post": {"operationId": "createDeviceEnvAction", "summary": "创建 Env 管理命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceEnvActionRequest")), "responses": {"201": response(ref("DeviceCommand")), "200": response(ref("DeviceCommand"), "幂等命中。"), "400": error, "401": error, "403": error, "409": error}}},
-        "/v1/devices/{deviceId}/commands": {"post": {"operationId": "createDeviceCommand", "summary": "创建设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "requestBody": body(ref("DeviceCommandCreateRequest")), "responses": {"201": response(ref("DeviceCommand")), "200": response(ref("DeviceCommand"), "幂等命中。"), "400": error, "401": error, "403": error, "409": error}}},
-        "/v1/devices/{deviceId}/commands/lease": {"post": {"operationId": "leaseDeviceCommand", "summary": "租用下一条设备命令", "parameters": [{"$ref": "#/components/parameters/DeviceId"}], "responses": {"200": response(ref("CommandLease")), "204": {"description": "当前无命令。"}, "401": error, "409": error}}},
-        "/v1/commands/{commandId}/start": {"post": {"operationId": "startCommand", "summary": "标记命令开始执行", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandLeaseAction")), "responses": {"204": {"description": "已开始。"}, "401": error, "409": error}}},
-        "/v1/commands/{commandId}/renew": {"post": {"operationId": "renewCommandLease", "summary": "续租命令", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandLeaseAction")), "responses": {"200": response(ref("CommandLease")), "401": error, "409": error}}},
-        "/v1/commands/{commandId}/progress": {"post": {"operationId": "reportCommandProgress", "summary": "上报命令进度", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandProgress")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
-        "/v1/commands/{commandId}/result": {"post": {"operationId": "completeCommand", "summary": "上报命令结果", "parameters": [{"$ref": "#/components/parameters/CommandId"}], "requestBody": body(ref("CommandResult")), "responses": {"204": {"description": "已接受。"}, "401": error, "409": error}}},
-        "/v1/skills": {"get": {"operationId": "listSkills", "summary": "列出 Skills", "responses": {"200": response(obj("Skill 分页列表。", {"items": array("Skills。", ref("SkillSummary")), "pagination": ref("Pagination")}, ("items", "pagination"))), "401": error}}},
-        "/v1/skills/{skillId}": {"get": {"operationId": "getSkill", "summary": "读取 Skill 详情", "parameters": [{"$ref": "#/components/parameters/SkillId"}], "responses": {"200": response(ref("SkillDetail")), "404": error}}},
-        "/v1/skill-runs": {"post": {"operationId": "runSkill", "summary": "请求运行 Skill", "parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": body(ref("SkillRunRequest")), "responses": {"202": response(ref("Run")), "400": error, "409": error}}},
-        "/v1/tasks": {"get": {"operationId": "listTasks", "summary": "列出 Tasks", "responses": {"200": response(obj("Task 分页列表。", {"items": array("Tasks。", ref("Task")), "pagination": ref("Pagination")}, ("items", "pagination"))), "401": error}}},
-        "/v1/tasks/{taskId}": {"get": {"operationId": "getTask", "summary": "读取 Task", "parameters": [{"$ref": "#/components/parameters/TaskId"}], "responses": {"200": response(ref("Task")), "404": error}}},
-        "/v1/tasks/{taskId}/context": {"get": {"operationId": "getTaskContext", "summary": "读取 Task Context Pack", "parameters": [{"$ref": "#/components/parameters/TaskId"}], "responses": {"200": response(ref("TaskContextPack")), "404": error}}},
-        "/v1/tasks/{taskId}/complete": {"post": {"operationId": "completeTask", "summary": "完成 Task", "parameters": [{"$ref": "#/components/parameters/TaskId"}, {"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": body(ref("TaskCompletion")), "responses": {"200": response(ref("Task")), "409": error}}},
-        "/v1/runs/{runId}": {"get": {"operationId": "getRun", "summary": "读取 Run", "parameters": [{"$ref": "#/components/parameters/RunId"}], "responses": {"200": response(ref("Run")), "404": error}}},
-        "/v1/schedules": {"get": {"operationId": "listSchedules", "summary": "列出计划任务", "responses": {"200": response(ref("ScheduleListResponse")), "401": error}}},
-        "/v1/schedules/{scheduleId}": {"get": {"operationId": "getSchedule", "summary": "读取计划任务", "parameters": [{"$ref": "#/components/parameters/ScheduleId"}], "responses": {"200": response(ref("ScheduleItem")), "401": error, "404": error}}},
-        "/v1/memory/context": {"post": {"operationId": "buildMemoryContext", "summary": "构建 Memory Context Pack", "requestBody": body(obj("Memory Context 请求。", {"task_id": scalar(["string", "null"], "Task ID。", format="uuid"), "project": scalar(["string", "null"], "项目键。"), "device_id": scalar(["string", "null"], "设备 ID。", format="uuid"), "skill_id": scalar(["string", "null"], "Skill ID。", format="uuid"), "max_bytes": scalar("integer", "最大字节数。", minimum=1024, maximum=1000000)}, ("max_bytes",))), "responses": {"200": response(ref("MemoryContextPack")), "400": error}}},
-        "/v1/events": {"get": {"operationId": "streamEvents", "summary": "SSE 事件流", "parameters": [{"name": "Last-Event-ID", "in": "header", "required": False, "description": "断点续传事件 ID。", "schema": {"type": "string"}}], "responses": {"200": {"description": "text/event-stream 事件流。", "content": {"text/event-stream": {"schema": {"type": "string"}}}}, "401": error}}},
+        "/health": {"get": operation("getHealth", "读取服务健康状态", success=ok(ref("HealthResponse")))},
+        "/v1/system/status": {"get": operation("getSystemStatus", "读取 Nexus 与 SQLite 状态", success=ok(ref("SystemStatus")))},
+        "/v1/backup/status": {"get": operation("getBackupStatus", "读取 AgentDock 与 Nexus 备份状态", success=ok(ref("BackupStatus")))},
+        "/v1/auth/status": {"get": operation("getAuthStatus", "读取管理员初始化状态")},
+        "/v1/auth/login": {"post": operation("login", "登录管理员会话", request=body())},
+        "/v1/auth/session": {"get": operation("getCurrentSession", "读取当前浏览器会话")},
+        "/v1/auth/logout": {"post": operation("logout", "退出当前浏览器会话", request=body())},
+        "/v1/auth/credential": {"post": operation("updateCredential", "更新管理员凭据", request=body())},
+        "/v1/auth/sessions": {"get": operation("listSessions", "列出管理员浏览器会话")},
+        "/v1/auth/sessions/{sessionID}": {"delete": operation("revokeSession", "撤销指定浏览器会话", params=[p("SessionId")])},
+        "/v1/auth/sessions/logout-others": {"post": operation("logoutOtherSessions", "撤销其他浏览器会话", request=body())},
+        "/v1/devices": {"get": operation("listDevices", "列出已注册设备")},
+        "/v1/devices/{deviceId}": {"get": operation("getDevice", "读取设备详情", params=[p("DeviceId")])},
+        "/v1/devices/enroll": {"post": operation("enrollDevice", "注册设备", request=body(ref("DeviceEnrollmentRequest")), success=ok(ref("DeviceEnrollmentResponse")), success_code="201")},
+        "/v1/devices/enrollment-tokens": {"post": operation("createEnrollmentToken", "创建一次性设备注册 token", request=body(ref("EnrollmentTokenCreateRequest")), success=ok(ref("EnrollmentTokenCreateResponse")), success_code="201")},
+        "/v1/devices/{deviceId}/approve": {"post": operation("approveDevice", "批准设备", params=[p("DeviceId")], success=no_content, success_code="204")},
+        "/v1/devices/{deviceId}/revoke": {"post": operation("revokeDevice", "撤销设备", params=[p("DeviceId")], request=body(ref("DeviceRevokeRequest")), success=no_content, success_code="204")},
+        "/v1/devices/{deviceId}/policy": {"put": operation("updateDevicePolicy", "更新设备结构化命令策略", params=[p("DeviceId")], request=body())},
+        "/v1/devices/{deviceId}/heartbeat": {"post": operation("reportDeviceHeartbeat", "上报设备心跳", params=[p("DeviceId")], request=body(ref("DeviceHeartbeat")), success=no_content, success_code="204")},
+        "/v1/devices/{deviceId}/token/rotate": {"post": operation("rotateDeviceToken", "轮换设备 token", params=[p("DeviceId")], success=ok(ref("DeviceTokenRotationResponse")))},
+        "/v1/devices/{deviceId}/env/actions": {"post": operation("createDeviceEnvAction", "创建基于 Runtime Registry 的 Env 管理动作", params=[p("DeviceId")], request=body(ref("DeviceEnvActionRequest")), success=ok(ref("DeviceCommand")), additional_success={"201": ok(ref("DeviceCommand"), "已创建。")})},
+        "/v1/devices/{deviceId}/commands": {
+            "get": operation("listDeviceCommands", "列出设备结构化命令", params=[p("DeviceId")]),
+            "post": operation("createDeviceCommand", "创建设备结构化命令", params=[p("DeviceId")], request=body(ref("DeviceCommandCreateRequest")), success=ok(ref("DeviceCommand")), additional_success={"201": ok(ref("DeviceCommand"), "已创建。")}),
+        },
+        "/v1/devices/{deviceId}/commands/lease": {"post": operation("leaseDeviceCommand", "租用下一条设备命令", params=[p("DeviceId")], success=ok(ref("CommandLease")), additional_success={"204": no_content})},
+        "/v1/commands/{commandId}": {"get": operation("getCommand", "读取设备命令详情", params=[p("CommandId")], success=ok(ref("DeviceCommand")))},
+        "/v1/commands/{commandId}/start": {"post": operation("startCommand", "标记命令开始执行", params=[p("CommandId")], request=body(ref("CommandLeaseAction")), success=no_content, success_code="204")},
+        "/v1/commands/{commandId}/renew": {"post": operation("renewCommandLease", "续租设备命令", params=[p("CommandId")], request=body(ref("CommandLeaseAction")), success=ok(ref("CommandLease")))},
+        "/v1/commands/{commandId}/progress": {"post": operation("reportCommandProgress", "上报设备命令进度", params=[p("CommandId")], request=body(ref("CommandProgress")), success=no_content, success_code="204")},
+        "/v1/commands/{commandId}/result": {"post": operation("completeCommand", "上报设备命令结果", params=[p("CommandId")], request=body(ref("CommandResult")), success=no_content, success_code="204")},
+        "/v1/memories": {
+            "get": operation("listMemories", "列出记忆条目"),
+            "post": operation("writeMemory", "创建记忆条目", request=body(ref("MemoryEntry"))),
+        },
+        "/v1/memories/move": {"post": operation("moveMemory", "移动记忆条目", request=body())},
+        "/v1/memories/search": {"post": operation("searchMemories", "搜索记忆内容", request=body())},
+        "/v1/memories/pack": {"post": operation("packMemories", "打包记忆条目", request=body())},
+        "/v1/notes/append": {"post": operation("appendNote", "追加记忆笔记", request=body())},
+        "/v1/memories/{path}": {
+            "get": operation("readMemory", "读取记忆条目", params=[p("MemoryPath")], success=ok(ref("MemoryEntry"))),
+            "patch": operation("patchMemory", "修改记忆条目", params=[p("MemoryPath")], request=body()),
+            "delete": operation("deleteMemory", "删除记忆条目", params=[p("MemoryPath")]),
+        },
+        "/v1/sync/status": {"get": operation("getSyncStatus", "读取记忆 Git 同步状态")},
+        "/v1/git/diff": {"get": operation("getGitDiff", "读取记忆仓库变更")},
+        "/v1/git/discard": {"post": operation("discardGitChanges", "丢弃记忆仓库本地变更", request=body())},
+        "/v1/git/log": {"get": operation("getGitLog", "读取记忆仓库提交历史")},
+        "/v1/git/commit": {"get": operation("getGitCommit", "读取记忆仓库提交详情")},
+        "/v1/sync/pull": {"post": operation("pullMemory", "从远端更新记忆仓库", request=body())},
+        "/v1/sync/push": {"post": operation("pushMemory", "保存记忆仓库到远端", request=body())},
+        "/v1/sync/now": {"post": operation("syncMemoryNow", "立即双向同步记忆仓库", request=body())},
+        "/v1/artifacts": {"get": operation("listArtifacts", "列出最近加密文件发送记录")},
+        "/v1/artifact-fetches": {"get": operation("listArtifactFetches", "列出最近反向文件接收记录")},
+        "/v1/artifacts/uploads": {"post": operation("createArtifactUpload", "创建管理员文件上传", request=body(), success_code="201")},
+        "/v1/artifacts/{artifactId}": {"get": operation("getArtifact", "读取文件发送详情", params=[p("ArtifactId")])},
+        "/v1/artifacts/{artifactId}/dispatch": {"post": operation("dispatchArtifact", "派发加密文件", params=[p("ArtifactId")], request=body())},
+        "/v1/artifacts/{artifactId}/content": {"post": operation("uploadArtifactContent", "上传加密文件内容", params=[p("ArtifactId")], request=multipart, success_code="201")},
+        "/v1/devices/{deviceId}/artifacts/uploads": {"post": operation("createDeviceArtifactUpload", "创建设备文件上传", params=[p("DeviceId")], request=body(), success_code="201")},
+        "/v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/content": {"get": operation("downloadArtifactContent", "下载派发给设备的加密内容", params=[p("DeviceId"), p("DeliveryId")], success=binary)},
+        "/v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/result": {"post": operation("completeArtifactDelivery", "上报设备文件落盘结果", params=[p("DeviceId"), p("DeliveryId")], request=body())},
+        "/v1/devices/{deviceId}/artifact-fetches": {"post": operation("createArtifactFetch", "创建反向文件接收请求", params=[p("DeviceId")], request=body(), success_code="201")},
+        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}": {"get": operation("getArtifactFetch", "读取反向文件接收详情", params=[p("DeviceId"), p("FetchId")])},
+        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/content": {
+            "get": operation("downloadArtifactFetch", "下载反向接收的加密内容", params=[p("DeviceId"), p("FetchId")], success=binary),
+            "post": operation("uploadArtifactFetch", "上传反向接收的加密内容", params=[p("DeviceId"), p("FetchId")], request=multipart, success_code="201"),
+        },
+        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/mounted": {"post": operation("confirmArtifactFetchMounted", "确认反向接收文件已挂载", params=[p("DeviceId"), p("FetchId")], request=body())},
+        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/result": {"post": operation("reportArtifactFetchResult", "上报反向接收文件结果", params=[p("DeviceId"), p("FetchId")], request=body())},
     }
+
     return {
         "openapi": "3.1.0",
         "info": {
             "title": "AgentDock Nexus API",
             "version": "1.0.0",
-            "description": "AgentDock Nexus 公共 REST/SSE 契约。",
+            "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、记忆、加密文件、备份状态和账号会话。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,
         "components": {"parameters": parameters, "schemas": schemas},
     }
-
 
 def rewrite_refs(value: Any) -> Any:
     if isinstance(value, dict):
@@ -857,114 +541,6 @@ def rewrite_refs(value: Any) -> Any:
     if isinstance(value, list):
         return [rewrite_refs(item) for item in value]
     return value
-
-
-def skill_manifest_schema() -> dict[str, Any]:
-    operation = obj(
-        "Skill operation 声明。",
-        {
-            "name": scalar("string", "Operation 名。", pattern="^[a-z][a-z0-9._-]*$"),
-            "description": scalar("string", "Operation 说明。", minLength=1),
-            "inputSchema": obj("输入 JSON Schema。", {}, additional=True),
-            "outputSchema": obj("输出 JSON Schema。", {}, additional=True),
-            "timeoutSeconds": scalar("integer", "超时秒数。", minimum=1, maximum=86400),
-        },
-        ("name", "description", "inputSchema", "outputSchema", "timeoutSeconds"),
-    )
-    return {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://schemas.agentdock.dev/skill/v1/agentdock-skill-v1.json",
-        "title": "AgentDock Skill Manifest V1",
-        **obj(
-            "AgentDock Skill 包清单。",
-            {
-                "apiVersion": {"const": "agentdock.dev/v1", "description": "Skill manifest API 版本。"},
-                "kind": {"const": "Skill", "description": "固定资源类型。"},
-                "metadata": obj(
-                    "Skill 元数据。",
-                    {
-                        "name": scalar("string", "稳定 Skill 名。", pattern="^[a-z][a-z0-9-]{1,62}$"),
-                        "version": scalar("string", "语义版本。", pattern=r"^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"),
-                        "displayName": scalar("string", "显示名称。", minLength=1, maxLength=120),
-                        "description": scalar("string", "Skill 说明。", minLength=1, maxLength=2000),
-                        "license": scalar("string", "SPDX 或许可证说明。"),
-                        "homepage": scalar("string", "主页。", format="uri"),
-                    },
-                    ("name", "version", "displayName", "description"),
-                ),
-                "spec": obj(
-                    "Skill 运行声明。",
-                    {
-                        "entrypoint": scalar("string", "包内相对入口路径。", pattern=r"^(?!/)(?!.*(?:^|/)\.\.(?:/|$)).+$"),
-                        "operations": scalar("array", "Operations。", minItems=1, items=operation),
-                        "compatibility": obj(
-                            "兼容性。",
-                            {
-                                "platforms": scalar("array", "支持平台。", minItems=1, uniqueItems=True, items={"type": "string", "enum": ["darwin", "linux"]}),
-                                "architectures": scalar("array", "支持架构。", minItems=1, uniqueItems=True, items={"type": "string", "enum": ["arm64", "amd64"]}),
-                                "agentdock": scalar("string", "兼容的 AgentDock 版本约束。"),
-                            },
-                            ("platforms", "architectures", "agentdock"),
-                        ),
-                        "permissions": obj(
-                            "显式权限声明。",
-                            {
-                                "filesystem": array("声明文件访问。", scalar("string", "路径或访问模式。")),
-                                "network": array("声明网络目标。", scalar("string", "网络目标。")),
-                                "secrets": array("Secret 逻辑名。", scalar("string", "Secret 名。")),
-                                "commands": array("允许子进程命令。", scalar("string", "命令名。")),
-                            },
-                            ("filesystem", "network", "secrets", "commands"),
-                        ),
-                        "bindings": array("所需设备 Binding 名。", scalar("string", "Binding 名。")),
-                        "verification": array("发布和回退后的验证项。", scalar("string", "验证项。")),
-                    },
-                    ("entrypoint", "operations", "compatibility", "permissions"),
-                ),
-            },
-            ("apiVersion", "kind", "metadata", "spec"),
-        ),
-    }
-
-
-EVENTS = {
-    "device.status.changed": ("DeviceStatus", "设备状态变化。"),
-    "command.status.changed": ("DeviceCommand", "命令状态变化。"),
-    "task.created": ("Task", "Task 创建。"),
-    "task.updated": ("Task", "Task 更新。"),
-    "run.started": ("Run", "Run 开始。"),
-    "run.completed": ("Run", "Run 完成。"),
-    "skill.release.published": ("SkillRelease", "Skill Release 发布。"),
-    "skill.installation.changed": ("SkillInstallation", "Skill 安装状态变化。"),
-    "evolution.candidate.created": ("EvolutionCandidate", "进化候选创建。"),
-    "memory.conflict.created": ("MemoryConflict", "Memory 冲突创建。"),
-}
-
-
-def event_schema(event_type: str, payload: str, description: str, schemas: dict[str, Any]) -> dict[str, Any]:
-    return rewrite_refs(
-        {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "$id": f"https://schemas.agentdock.dev/nexus/events/v1/{event_type}.json",
-            "title": event_type,
-            **obj(
-                description,
-                {
-                    "id": ID,
-                    "type": {"const": event_type, "description": "冻结事件类型。"},
-                    "version": {"const": 1, "description": "事件 Schema 版本。"},
-                    "occurred_at": TIMESTAMP,
-                    "producer": scalar("string", "事件生产者。"),
-                    "subject": schemas["ObjectReference"],
-                    "correlation_id": scalar(["string", "null"], "跨流程关联 ID。"),
-                    "causation_id": scalar(["string", "null"], "直接原因事件 ID。"),
-                    "data": {"$ref": f"#/components/schemas/{payload}"},
-                },
-                ("id", "type", "version", "occurred_at", "producer", "subject", "data"),
-            ),
-            "$defs": schemas,
-        }
-    )
 
 
 def snake_to_camel(value: str) -> str:
@@ -1184,59 +760,12 @@ func (c *Client) CompleteCommand(ctx context.Context, commandID string, request 
 	return c.doJSON(ctx, http.MethodPost, "/v1/commands/"+url.PathEscape(commandID)+"/result", "", request, nil)
 }
 
-func (c *Client) RunSkill(ctx context.Context, idempotencyKey string, request SkillRunRequest) (Run, error) {
-	var response Run
-	err := c.doJSON(ctx, http.MethodPost, "/v1/skill-runs", idempotencyKey, request, &response)
-	return response, err
-}
-
-func (c *Client) GetTask(ctx context.Context, taskID string) (Task, error) {
-	var response Task
-	err := c.doJSON(ctx, http.MethodGet, "/v1/tasks/"+url.PathEscape(taskID), "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetTaskContext(ctx context.Context, taskID string) (TaskContextPack, error) {
-	var response TaskContextPack
-	err := c.doJSON(ctx, http.MethodGet, "/v1/tasks/"+url.PathEscape(taskID)+"/context", "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetRun(ctx context.Context, runID string) (Run, error) {
-	var response Run
-	err := c.doJSON(ctx, http.MethodGet, "/v1/runs/"+url.PathEscape(runID), "", nil, &response)
-	return response, err
-}
-
-func (c *Client) ListSchedules(ctx context.Context) (ScheduleListResponse, error) {
-	var response ScheduleListResponse
-	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules", "", nil, &response)
-	return response, err
-}
-
-func (c *Client) GetSchedule(ctx context.Context, scheduleID string) (ScheduleItem, error) {
-	var response ScheduleItem
-	err := c.doJSON(ctx, http.MethodGet, "/v1/schedules/"+url.PathEscape(scheduleID), "", nil, &response)
+func (c *Client) GetBackupStatus(ctx context.Context) (BackupStatus, error) {
+	var response BackupStatus
+	err := c.doJSON(ctx, http.MethodGet, "/v1/backup/status", "", nil, &response)
 	return response, err
 }
 '''
-
-
-def compatibility_signature(schemas: dict[str, Any]) -> dict[str, Any]:
-    result: dict[str, Any] = {"version": 1, "schemas": {}}
-    for name, schema in sorted(schemas.items()):
-        properties: dict[str, Any] = {}
-        for prop_name, prop in sorted(schema.get("properties", {}).items()):
-            properties[prop_name] = {
-                "type": prop.get("type"),
-                "ref": prop.get("$ref"),
-                "enum": prop.get("enum"),
-            }
-        result["schemas"][name] = {
-            "required": sorted(schema.get("required", [])),
-            "properties": properties,
-        }
-    return result
 
 
 def write_json(path: pathlib.Path, value: Any) -> None:
@@ -1246,6 +775,21 @@ def write_json(path: pathlib.Path, value: Any) -> None:
 
 def main() -> None:
     schemas = build_schemas()
+    jsonschema_dir = CONTRACTS / "jsonschema"
+    jsonschema_dir.mkdir(parents=True, exist_ok=True)
+    for stale in jsonschema_dir.glob("*.json"):
+        stale.unlink()
+    events_dir = CONTRACTS / "events"
+    if events_dir.exists():
+        for stale in events_dir.glob("*.json"):
+            stale.unlink()
+        events_dir.rmdir()
+    compatibility_dir = CONTRACTS / "compatibility"
+    if compatibility_dir.exists():
+        for stale in compatibility_dir.glob("*.json"):
+            stale.unlink()
+        compatibility_dir.rmdir()
+
     write_json(CONTRACTS / "openapi" / "nexus.yaml", build_openapi(schemas))
     for name, schema in schemas.items():
         standalone = rewrite_refs(
@@ -1257,17 +801,11 @@ def main() -> None:
                 **schema,
             }
         )
-        write_json(CONTRACTS / "jsonschema" / f"{name}.json", standalone)
-    write_json(CONTRACTS / "jsonschema" / "agentdock-skill-v1.json", skill_manifest_schema())
-    for event_type, (payload, description) in EVENTS.items():
-        write_json(CONTRACTS / "events" / f"{event_type}.json", event_schema(event_type, payload, description, schemas))
+        write_json(jsonschema_dir / f"{name}.json", standalone)
     write_json(
         CONTRACTS / "error-codes.json",
         {"version": 1, "codes": [{"code": code, "description": "稳定公共错误码。"} for code in ERROR_CODES]},
     )
-    baseline = CONTRACTS / "compatibility" / "v1-baseline.json"
-    if not baseline.exists():
-        write_json(baseline, compatibility_signature(schemas))
     GENERATED.mkdir(parents=True, exist_ok=True)
     (GENERATED / "types.gen.go").write_text(generate_go(schemas), encoding="utf-8")
     (GENERATED / "client.gen.go").write_text(CLIENT_GO, encoding="utf-8")
@@ -1275,7 +813,7 @@ def main() -> None:
         ["gofmt", "-w", str(GENERATED / "types.gen.go"), str(GENERATED / "client.gen.go")],
         check=True,
     )
-    print(f"generated {len(schemas)} DTO schemas, {len(EVENTS)} event schemas and Go client")
+    print(f"generated {len(schemas)} current Nexus DTO schemas and Go client")
 
 
 if __name__ == "__main__":

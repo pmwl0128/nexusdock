@@ -1,1477 +1,404 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  Archive,
-  Braces,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Command,
-  FileText,
-  Home,
-  Folder,
-  FolderOpen,
-  GitBranch,
-  Loader2,
-  Maximize2,
-  Minimize2,
-  PenLine,
-  Plus,
-  RefreshCw,
-  Save,
-  Search,
-  Settings,
-  Trash2,
-  Undo2,
-  X,
+  Archive, Check, Clock3, FileText, Folder, GitBranch, Pencil, Plus,
+  RefreshCw, Save, Search, Trash2, UploadCloud,
 } from 'lucide-react';
 import { api } from './api/client';
 import { clearMemoryDraft, loadMemoryDraft, saveMemoryDraft } from './lib/drafts';
 
-type Tab = 'memories' | 'git' | 'sync';
 type EntryType = 'file' | 'directory';
-
-type MemoryEntry = {
-  path: string;
-  name: string;
-  type: EntryType;
-  size_bytes?: number;
-};
-
-type Memory = {
-  path: string;
-  content: string;
-};
-
-type TreeNode = {
-  name: string;
-  path: string;
-  type: EntryType;
-  entry?: MemoryEntry;
-  children: Map<string, TreeNode>;
-};
-
-type ChangedFile = {
-  status: string;
-  path: string;
-};
-
-type GitDiff = {
-  ok: boolean;
-  git_repo: boolean;
-  dirty: boolean;
-  status: string;
-  stat: string;
-  diff: string;
-  cached_diff: string;
-  files?: ChangedFile[];
-};
-
-type GitCommit = {
-  hash: string;
-  short_hash: string;
-  date: string;
-  author: string;
-  subject: string;
-};
-
-type CommitFile = {
-  status: string;
-  path: string;
-};
-
-type CommitDetail = {
-  ok: boolean;
-  git_repo: boolean;
-  commit: GitCommit;
-  files: CommitFile[];
-  stat: string;
-  diff: string;
-};
-
+type MemoryEntry = { path: string; name?: string; type: EntryType; size_bytes?: number };
+type Memory = { path: string; content: string };
+type GitCommit = { hash: string; short_hash: string; date: string; author: string; subject: string };
+type ChangedFile = { status: string; path: string };
+type GitDiff = { ok?: boolean; git_repo?: boolean; dirty?: boolean; status?: string; stat?: string; files?: ChangedFile[] };
 type SyncStatus = Record<string, unknown> & {
-  dirty?: boolean;
-  ahead?: string;
-  behind?: string;
-  pending_push?: boolean;
+  dirty?: boolean; ahead?: string | number; behind?: string | number;
+  pending_push?: boolean; branch?: string; remote?: string;
 };
+type Notice = { text: string; danger?: boolean } | null;
 
-type Toast = { message: string; danger?: boolean } | null;
-type HealthTone = 'ok' | 'warn' | 'danger' | 'neutral';
-type HealthItem = { label: string; value: string; tone: HealthTone };
+const NEW_MEMORY_TEMPLATE = `---
+type: note
+scope: inbox
+source: user-confirmed
+confidence: medium
+---
 
-const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
-const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
+# 新记忆
 
-const MEMORY_NAV: Array<{ id: Tab; label: string; title: string; icon: typeof Home }> = [
-  { id: 'memories', label: '记忆库', title: '浏览、整理、编辑和审阅你的记忆文件', icon: Archive },
-  { id: 'git', label: '变更审阅', title: '查看和处理本地记忆变更', icon: GitBranch },
-  { id: 'sync', label: '同步中心', title: '查看同步状态并手动保存到远程', icon: Settings },
-];
+`;
 
-const MEMORY_NAV_BY_ID = Object.fromEntries(MEMORY_NAV.map((item) => [item.id, item])) as Record<Tab, (typeof MEMORY_NAV)[number]>;
-
-const PRODUCT_COPY = {
-  brand: 'Nexus 记忆',
-  strapline: '知识工作台',
-  sidebarTitle: 'Git 驱动的记忆库',
-  sidebarBody: 'Markdown 记忆库 · Git 审阅 · 目录整理 · 同步发布',
-  heroTitle: '记忆、变更和同步，一屏掌控',
-  heroBody: '先看状态，再决定是继续写、审阅本地变更，还是保存到远程。',
-};
-
-function normalizePath(path: string): string {
-  return String(path || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+function normalizePath(value: string): string {
+  return String(value || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
 }
 
-function routeBase(): string {
-  const marker = '/ui';
-  const path = window.location.pathname || '/ui/';
-  const index = path.indexOf(marker);
-  return index >= 0 ? `${path.slice(0, index + marker.length)}/` : '/ui/';
+function nameOf(path: string): string {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  return parts.at(-1) || path;
 }
 
-function routeFromLocation(): { tab: Tab; path: string; prefix: string; search: string } {
+function formatBytes(value?: number): string {
+  if (!value) return '—';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+function formatTime(value?: string): string {
+  if (!value) return '未知';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function initialPath(): string {
+  return normalizePath(new URLSearchParams(window.location.search).get('path') || '');
+}
+
+function updateRoute(path = '', query = '') {
   const params = new URLSearchParams(window.location.search);
-  const rawTab = params.get('tab') || '';
-  const tab: Tab = rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : 'memories';
-  return {
-    tab,
-    path: normalizePath(params.get('path') || ''),
-    prefix: normalizePath(params.get('prefix') || ''),
-    search: params.get('q') || '',
-  };
+  params.delete('tab');
+  params.delete('prefix');
+  if (path) params.set('path', path); else params.delete('path');
+  if (query) params.set('q', query); else params.delete('q');
+  const next = `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}#memory`;
+  window.history.replaceState(null, '', next);
 }
 
-function routeHref(tab: Tab, path = '', prefix = '', search = ''): string {
-  const params = new URLSearchParams({ tab });
-  if (tab === 'memories' && path) params.set('path', normalizePath(path));
-  if (tab === 'memories' && prefix) params.set('prefix', normalizePath(prefix));
-  if (tab === 'memories' && search) params.set('q', search);
-  return `${routeBase()}?${params.toString()}#memory`;
+function messageOf(reason: unknown): string {
+  return reason instanceof Error ? reason.message : '操作失败';
 }
 
-function replaceRoute(tab: Tab, path = '', prefix = '', search = '') {
-  const next = routeHref(tab, path, prefix, search);
-  const current = `${window.location.pathname}${window.location.search}`;
-  if (next !== current) window.history.replaceState(null, '', next);
-}
-
-function fileName(path: string): string {
-  const parts = normalizePath(path).split('/').filter(Boolean);
-  return parts[parts.length - 1] || '';
-}
-
-function parentPath(path: string): string {
-  const parts = normalizePath(path).split('/').filter(Boolean);
-  parts.pop();
-  return parts.join('/');
-}
-
-function joinPath(dir: string, name: string): string {
-  dir = normalizePath(dir);
-  name = fileName(name);
-  return dir ? `${dir}/${name}` : name;
-}
-
-function formatBytes(bytes?: number): string {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function buildTree(entries: MemoryEntry[]): TreeNode {
-  const root: TreeNode = { name: '', path: '', type: 'directory', children: new Map() };
-  for (const entry of entries) {
-    const parts = normalizePath(entry.path).split('/').filter(Boolean);
-    let node = root;
-    let cursor = '';
-    parts.forEach((part, index) => {
-      cursor = cursor ? `${cursor}/${part}` : part;
-      const leaf = index === parts.length - 1;
-      let child = node.children.get(part);
-      if (!child) {
-        child = { name: part, path: cursor, type: 'directory', children: new Map() };
-        node.children.set(part, child);
-      }
-      if (leaf) {
-        child.type = entry.type;
-        child.entry = entry;
-      }
-      node = child;
-    });
-  }
-  return root;
-}
-
-function sortedChildren(node: TreeNode): TreeNode[] {
-  return [...node.children.values()].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-    return a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
-  });
-}
-
-function countFiles(node: TreeNode): number {
-  if (node.type === 'file') return 1;
-  return [...node.children.values()].reduce((sum, child) => sum + countFiles(child), 0);
-}
-
-function isPathInside(path: string, dir: string): boolean {
-  path = normalizePath(path);
-  dir = normalizePath(dir);
-  return Boolean(path && dir && (path === dir || path.startsWith(`${dir}/`)));
-}
-
-function renderInlineMarkdown(input: string): string {
-  let html = escapeHtml(input);
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  return html;
-}
-
-function escapeHtml(input: string): string {
-  return String(input).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
-}
-
-function splitFrontmatter(content: string): { meta: string; body: string } {
-  if (!content.startsWith('---\n')) return { meta: '', body: content };
-  const end = content.indexOf('\n---\n', 4);
-  if (end < 0) return { meta: '', body: content };
-  return { meta: content.slice(4, end), body: content.slice(end + 5) };
-}
-
-function markdownToHtml(content: string): string {
-  const { meta, body } = splitFrontmatter(content);
-  const lines = body.replace(/\r\n/g, '\n').split('\n');
-  const out: string[] = [];
-  let paragraph: string[] = [];
-  let list: null | { type: 'ul' | 'ol'; items: string[] } = null;
-  let code: string[] | null = null;
-  let quote: string[] = [];
-
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    out.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    out.push(`<${list.type}>${list.items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${list.type}>`);
-    list = null;
-  };
-  const flushQuote = () => {
-    if (!quote.length) return;
-    out.push(`<blockquote>${quote.map((line) => `<p>${renderInlineMarkdown(line)}</p>`).join('')}</blockquote>`);
-    quote = [];
-  };
-  const close = () => {
-    flushParagraph();
-    flushList();
-    flushQuote();
-  };
-
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      if (code) {
-        out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
-        code = null;
-      } else {
-        close();
-        code = [];
-      }
-      continue;
-    }
-    if (code) {
-      code.push(line);
-      continue;
-    }
-    if (!line.trim()) {
-      close();
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
-    if (heading) {
-      close();
-      const level = Math.min(6, heading[1].length);
-      out.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
-      continue;
-    }
-    if (/^---+$/.test(line.trim())) {
-      close();
-      out.push('<hr />');
-      continue;
-    }
-    if (line.startsWith('>')) {
-      flushParagraph();
-      flushList();
-      quote.push(line.replace(/^>\s?/, ''));
-      continue;
-    }
-    const unordered = /^\s*[-*+]\s+(.+)$/.exec(line);
-    const ordered = /^\s*\d+[.)]\s+(.+)$/.exec(line);
-    if (unordered || ordered) {
-      flushParagraph();
-      flushQuote();
-      const type = unordered ? 'ul' : 'ol';
-      if (!list || list.type !== type) flushList();
-      if (!list) list = { type, items: [] };
-      list.items.push((unordered || ordered)![1]);
-      continue;
-    }
-    paragraph.push(line.trim());
-  }
-  if (code) out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
-  close();
-  const metaHtml = meta.trim()
-    ? `<details class="frontmatter"><summary>Frontmatter</summary><pre><code>${escapeHtml(meta.trim())}</code></pre></details>`
-    : '';
-  return metaHtml + (out.join('\n') || '<p class="muted">空 Markdown 文件</p>');
-}
-
-function diffFileName(line: string): string {
-  const parts = line.trim().split(/\s+/);
-  const b = parts.find((part) => part.startsWith('b/'));
-  const a = parts.find((part) => part.startsWith('a/'));
-  return (b || a || parts[parts.length - 1] || 'diff').replace(/^[ab]\//, '');
-}
-
-function parseHunkHeader(line: string): { oldLine: number; newLine: number } {
-  const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
-  return { oldLine: match ? Number(match[1]) : 0, newLine: match ? Number(match[3]) : 0 };
-}
-
-type DiffRow = {
-  kind: 'ctx' | 'add' | 'del' | 'change' | 'meta' | 'hunk' | 'note';
-  oldNo?: number;
-  newNo?: number;
-  left?: string;
-  right?: string;
-};
-
-type DiffFile = { name: string; rows: DiffRow[] };
-type DiffSection = { title: string; files: DiffFile[] };
-
-type InlineDiffPart = { text: string; changed: boolean };
-
-type InlineDiffPair = { left: InlineDiffPart[]; right: InlineDiffPart[] };
-
-function stripDiffPrefix(value: string): string {
-  return value.replace(/^[-+ ]/, '');
-}
-
-function commonPrefixLength(left: string, right: string): number {
-  const max = Math.min(left.length, right.length);
-  let index = 0;
-  while (index < max && left[index] === right[index]) index++;
-  return index;
-}
-
-function commonSuffixLength(left: string, right: string, prefixLength: number): number {
-  const leftRemaining = left.length - prefixLength;
-  const rightRemaining = right.length - prefixLength;
-  const max = Math.min(leftRemaining, rightRemaining);
-  let count = 0;
-  while (count < max && left[left.length - 1 - count] === right[right.length - 1 - count]) count++;
-  return count;
-}
-
-function inlineDiffParts(leftRaw: string, rightRaw: string): InlineDiffPair {
-  const left = stripDiffPrefix(leftRaw || '');
-  const right = stripDiffPrefix(rightRaw || '');
-  const prefix = commonPrefixLength(left, right);
-  const suffix = commonSuffixLength(left, right, prefix);
-  const leftMidEnd = suffix ? left.length - suffix : left.length;
-  const rightMidEnd = suffix ? right.length - suffix : right.length;
-
-  const leftParts: InlineDiffPart[] = [];
-  const rightParts: InlineDiffPart[] = [];
-  const push = (parts: InlineDiffPart[], text: string, changed: boolean) => {
-    if (!text) return;
-    const prev = parts[parts.length - 1];
-    if (prev?.changed === changed) prev.text += text;
-    else parts.push({ text, changed });
-  };
-
-  push(leftParts, left.slice(0, prefix), false);
-  push(rightParts, right.slice(0, prefix), false);
-  push(leftParts, left.slice(prefix, leftMidEnd), true);
-  push(rightParts, right.slice(prefix, rightMidEnd), true);
-  push(leftParts, suffix ? left.slice(left.length - suffix) : '', false);
-  push(rightParts, suffix ? right.slice(right.length - suffix) : '', false);
-
-  return { left: leftParts.length ? leftParts : [{ text: left || ' ', changed: false }], right: rightParts.length ? rightParts : [{ text: right || ' ', changed: false }] };
-}
-
-function InlineDiffCode({ parts, side }: { parts: InlineDiffPart[]; side: 'left' | 'right' }) {
-  return <>{parts.map((part, index) => <span key={index} className={part.changed ? `inline-diff ${side}` : undefined}>{part.text}</span>)}</>;
-}
-
-function parseSideBySideDiff(sections: { title: string; diff: string }[]): DiffSection[] {
-  const parsed: DiffSection[] = [];
-  for (const section of sections.filter((s) => s.diff?.trim())) {
-    const result: DiffSection = { title: section.title, files: [] };
-    let file: DiffFile | null = null;
-    let oldLine = 0;
-    let newLine = 0;
-    let pendingDeletes: { no: number; text: string }[] = [];
-
-    const ensureFile = (name = 'diff') => {
-      if (!file) {
-        file = { name, rows: [] };
-        result.files.push(file);
-      }
-      return file;
-    };
-    const flushDeletes = () => {
-      const current = ensureFile();
-      for (const item of pendingDeletes) current.rows.push({ kind: 'del', oldNo: item.no, left: item.text, right: '' });
-      pendingDeletes = [];
-    };
-
-    for (const line of section.diff.split('\n')) {
-      if (line.startsWith('diff --git ')) {
-        if (file) flushDeletes();
-        file = { name: diffFileName(line), rows: [] };
-        result.files.push(file);
-        continue;
-      }
-      const current = ensureFile();
-      if (line.startsWith('@@ ')) {
-        flushDeletes();
-        const parsedHeader = parseHunkHeader(line);
-        oldLine = parsedHeader.oldLine;
-        newLine = parsedHeader.newLine;
-        current.rows.push({ kind: 'hunk', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('index ') || line.startsWith('new file mode') || line.startsWith('deleted file mode') || line.startsWith('similarity index') || line.startsWith('rename from') || line.startsWith('rename to') || line.startsWith('--- ') || line.startsWith('+++ ')) {
-        flushDeletes();
-        current.rows.push({ kind: 'meta', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('\\ No newline')) {
-        flushDeletes();
-        current.rows.push({ kind: 'note', left: line, right: line });
-        continue;
-      }
-      if (line.startsWith('-')) {
-        pendingDeletes.push({ no: oldLine++, text: line });
-        continue;
-      }
-      if (line.startsWith('+')) {
-        const deleted = pendingDeletes.shift();
-        if (deleted) current.rows.push({ kind: 'change', oldNo: deleted.no, newNo: newLine++, left: deleted.text, right: line });
-        else current.rows.push({ kind: 'add', newNo: newLine++, left: '', right: line });
-        continue;
-      }
-      flushDeletes();
-      current.rows.push({ kind: 'ctx', oldNo: oldLine || undefined, newNo: newLine || undefined, left: line || ' ', right: line || ' ' });
-      if (oldLine) oldLine++;
-      if (newLine) newLine++;
-    }
-    if (file) flushDeletes();
-    if (result.files.length) parsed.push(result);
-  }
-  return parsed;
-}
-
-function syncHealthItems(status: SyncStatus | null, diff: GitDiff | null): HealthItem[] {
-  const dirty = Boolean(diff?.dirty || status?.dirty);
-  const pending = Boolean(status?.pending_push);
-  const ahead = String(status?.ahead ?? '0');
-  const behind = String(status?.behind ?? '0');
-  return [
-    { label: '本地更改', value: dirty ? '有' : '无', tone: dirty ? 'warn' : 'ok' },
-    { label: '待保存', value: pending ? '是' : '否', tone: pending ? 'warn' : 'ok' },
-    { label: '领先远程', value: ahead, tone: ahead !== '0' ? 'warn' : 'ok' },
-    { label: '落后远程', value: behind, tone: behind !== '0' ? 'warn' : 'ok' },
-  ];
-}
-
-function useToast() {
-  const [toast, setToast] = useState<Toast>(null);
-  const show = (message: string, danger = false) => {
-    setToast({ message, danger });
-    window.setTimeout(() => setToast(null), 3200);
-  };
-  return { toast, show };
-}
-
-export default function App() {
-  const { toast, show } = useToast();
-  const initialRoute = useMemo(() => routeFromLocation(), []);
-  const [tab, setTab] = useState<Tab>(initialRoute.tab);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem('memorydock.sidebarCollapsed') === '1');
+export default function MemoryWorkspace() {
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['']));
   const [current, setCurrent] = useState<Memory | null>(null);
-  const [editing, setEditing] = useState(false);
   const [draftPath, setDraftPath] = useState('');
   const [draftContent, setDraftContent] = useState('');
-  const [search, setSearch] = useState(initialRoute.search);
-  const [prefix, setPrefix] = useState(initialRoute.prefix);
+  const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [commits, setCommits] = useState<GitCommit[]>([]);
-  const [selectedCommit, setSelectedCommit] = useState<CommitDetail | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [draggingPath, setDraggingPath] = useState('');
-  const [renamingPath, setRenamingPath] = useState('');
-  const [renamingValue, setRenamingValue] = useState('');
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [contentFullscreen, setContentFullscreen] = useState(false);
-  const [routePath, setRoutePath] = useState(initialRoute.path);
-  const [mobileNavCompact, setMobileNavCompact] = useState(() => window.matchMedia('(max-width: 900px)').matches);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+  const [draftAvailable, setDraftAvailable] = useState(false);
 
-  const tree = useMemo(() => buildTree(entries), [entries]);
-  const fileCount = entries.filter((entry) => entry.type === 'file').length;
-  const dirCount = entries.filter((entry) => entry.type === 'directory').length;
+  const fileEntries = useMemo(
+    () => entries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
+    [entries],
+  );
+  const directoryCount = useMemo(
+    () => new Set(fileEntries.map((entry) => normalizePath(entry.path).split('/').slice(0, -1).join('/')).filter(Boolean)).size,
+    [fileEntries],
+  );
+  const changedCount = gitDiff?.files?.length ?? 0;
+  const dirty = Boolean(gitDiff?.dirty || syncStatus?.dirty || syncStatus?.pending_push);
+  const hasUnsavedChanges = editing && (draftPath !== (current?.path || '') || draftContent !== (current?.content || ''));
 
   useEffect(() => {
-    void loadList().catch((error) => show(error instanceof Error ? error.message : '读取记忆列表失败', true));
-    if (initialRoute.tab === 'memories' && initialRoute.path) {
-      void loadMemory(initialRoute.path).catch((e) => show(e.message, true));
-      return;
-    }
-    const restored = loadMemoryDraft();
-    if (restored) {
-      setTab('memories');
-      setDraftPath(restored.path);
-      setDraftContent(restored.content);
-      setEditing(true);
-      show('已恢复当前标签页中的未提交草稿');
-    }
+    const saved = loadMemoryDraft();
+    if (saved?.path || saved?.content) setDraftAvailable(true);
+    void refreshAll(initialPath());
   }, []);
 
   useEffect(() => {
-    if (editing) saveMemoryDraft(draftPath, draftContent);
-    else clearMemoryDraft();
+    if (!editing) return;
+    const timer = window.setTimeout(() => saveMemoryDraft(draftPath, draftContent), 250);
+    return () => window.clearTimeout(timer);
   }, [editing, draftPath, draftContent]);
 
   useEffect(() => {
-    replaceRoute(tab, tab === 'memories' ? (current?.path || routePath) : '', prefix, search);
-  }, [tab, current?.path, routePath, prefix, search]);
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
-  useEffect(() => {
-    localStorage.setItem('memorydock.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    if (tab === 'git') void loadGitPanel();
-    if (tab === 'sync') {
-      void loadSyncStatus();
+  async function refreshAll(path = current?.path || '') {
+    setLoading(true);
+    try {
+      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      if (path) await openMemory(path);
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setLoading(false);
     }
-  }, [tab]);
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        setCommandOpen((open) => !open);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  useEffect(() => {
-    const syncMobileDock = () => {
-      const mobile = window.matchMedia('(max-width: 900px)').matches;
-      if (mobile) setMobileNavCompact(true);
-      else setMobileNavCompact(false);
-    };
-    syncMobileDock();
-    window.addEventListener('resize', syncMobileDock);
-    return () => window.removeEventListener('resize', syncMobileDock);
-  }, []);
-
-  function viewChange(update: () => void) {
-    update();
-  }
-
-  function selectTab(next: Tab) {
-    viewChange(() => {
-      setMobileNavCompact(window.matchMedia('(max-width: 900px)').matches);
-      setContentFullscreen(false);
-      setTab(next);
-    });
-  }
-
-  function expandPath(path: string) {
-    const parts = normalizePath(path).split('/').filter(Boolean);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      let cursor = '';
-      for (let i = 0; i < parts.length - 1; i++) {
-        cursor = cursor ? `${cursor}/${parts[i]}` : parts[i];
-        next.add(cursor);
-      }
-      return next;
-    });
   }
 
   async function loadList() {
-    const qs = new URLSearchParams({ max_entries: '500' });
-    if (prefix.trim()) qs.set('prefix', prefix.trim());
-    const data = await api<{ entries: MemoryEntry[] }>(`/v1/memories?${qs}`);
-    setEntries(data.entries || []);
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      const root = buildTree(data.entries || []);
-      const walk = (node: TreeNode) => {
-        if (node.type === 'directory') next.add(node.path);
-        sortedChildren(node).forEach(walk);
-      };
-      sortedChildren(root).forEach(walk);
-      return next;
-    });
+    const response = await api<{ entries: MemoryEntry[] }>('/v1/memories?max_entries=500');
+    setEntries(response.entries || []);
   }
 
-  async function doSearch() {
-    if (!search.trim()) return loadList();
-    const data = await api<{ results: Array<{ path: string; size_bytes?: number }>; count: number }>('/v1/memories/search', {
+  async function searchMemories(event?: FormEvent) {
+    event?.preventDefault();
+    if (!query.trim()) {
+      await loadList();
+      updateRoute(current?.path || '', '');
+      return;
+    }
+    const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/memories/search', {
       method: 'POST',
-      body: JSON.stringify({ query: search.trim(), prefix: prefix.trim(), max_results: 100 }),
+      body: JSON.stringify({ query: query.trim(), prefix: '', max_results: 100 }),
     });
-    setEntries((data.results || []).map((result) => ({ path: result.path, name: fileName(result.path), type: 'file', size_bytes: result.size_bytes || 0 })));
+    setEntries((response.results || []).map((item) => ({ path: item.path, name: nameOf(item.path), type: 'file', size_bytes: item.size_bytes })));
+    updateRoute(current?.path || '', query.trim());
   }
 
-  async function loadMemory(path: string) {
-    const data = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
-    viewChange(() => {
-      setCurrent(data.memory);
-      setRoutePath(data.memory.path);
-      setDraftPath(data.memory.path);
-      setDraftContent(data.memory.content);
-      setEditing(false);
-      expandPath(data.memory.path);
-    });
+  async function openMemory(path: string) {
+    const response = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
+    setCurrent(response.memory);
+    setDraftPath(response.memory.path);
+    setDraftContent(response.memory.content);
+    setEditing(false);
+    setCreating(false);
+    clearMemoryDraft();
+    setDraftAvailable(false);
+    updateRoute(response.memory.path, query.trim());
   }
 
-  function newMemory() {
-    const template = '---\ntype: note\nscope: inbox\nsource: user-confirmed\nconfidence: medium\n---\n\n# 新记忆\n\n';
+  function startNew() {
     setCurrent(null);
-    setRoutePath('');
     setDraftPath('inbox/new-memory.md');
-    setDraftContent(template);
+    setDraftContent(NEW_MEMORY_TEMPLATE);
     setEditing(true);
+    setCreating(true);
+  }
+
+  function startEdit() {
+    if (!current) return;
+    setDraftPath(current.path);
+    setDraftContent(current.content);
+    setEditing(true);
+    setCreating(false);
+  }
+
+  function cancelEdit() {
+    setDraftPath(current?.path || '');
+    setDraftContent(current?.content || '');
+    setEditing(false);
+    setCreating(false);
+    clearMemoryDraft();
+    setDraftAvailable(false);
+  }
+
+  function restoreDraft() {
+    const saved = loadMemoryDraft();
+    if (!saved) return;
+    setCurrent(null);
+    setDraftPath(saved.path || 'inbox/recovered-memory.md');
+    setDraftContent(saved.content);
+    setEditing(true);
+    setCreating(true);
+    setDraftAvailable(false);
   }
 
   async function saveMemory() {
-    if (!draftPath.trim() || !draftContent.trim()) return show('path 和 content 不能为空', true);
-    const existing = Boolean(current?.path);
-    const target = existing ? `/v1/memories/${encodeURIComponent(current!.path)}` : '/v1/memories';
-    const data = await api<{ memory: Memory }>(target, {
-      method: existing ? 'PATCH' : 'POST',
-      body: JSON.stringify({ path: existing ? current!.path : draftPath.trim(), content: draftContent, confirmed: true, overwrite: true }),
-    });
-    show('已保存');
-    await loadList();
-    await loadMemory(data.memory.path);
+    const path = normalizePath(draftPath);
+    if (!path || !draftContent.trim()) {
+      setNotice({ text: '路径和内容不能为空', danger: true });
+      return;
+    }
+    if (!/\.(md|markdown|txt)$/i.test(path)) {
+      setNotice({ text: '记忆文件必须使用 .md、.markdown 或 .txt 扩展名', danger: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      const existing = Boolean(current?.path) && !creating;
+      const target = existing ? `/v1/memories/${encodeURIComponent(current!.path)}` : '/v1/memories';
+      const response = await api<{ memory: Memory }>(target, {
+        method: existing ? 'PATCH' : 'POST',
+        body: JSON.stringify({ path: existing ? current!.path : path, content: draftContent, confirmed: true, overwrite: true }),
+      });
+      clearMemoryDraft();
+      setDraftAvailable(false);
+      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      await openMemory(response.memory.path);
+      setNotice({ text: '记忆已保存' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function renameCurrent() {
+    if (!current?.path) return;
+    const next = window.prompt('新的记忆路径', current.path);
+    if (!next) return;
+    const normalized = normalizePath(next);
+    if (!normalized || normalized === current.path) return;
+    if (!/\.(md|markdown|txt)$/i.test(normalized)) {
+      setNotice({ text: '目标路径必须是 Markdown 或文本文件', danger: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await api<{ memory: Memory }>('/v1/memories/move', {
+        method: 'POST',
+        body: JSON.stringify({ from_path: current.path, to_path: normalized, confirmed: true, overwrite: false }),
+      });
+      await loadList();
+      await openMemory(response.memory.path);
+      setNotice({ text: '记忆已移动' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function deleteCurrent() {
-    if (!current?.path) return;
-    if (!confirm(`确认删除：${current.path} ?`)) return;
-    await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
-    setCurrent(null);
-    setRoutePath('');
-    setEditing(false);
-    setDraftPath('');
-    setDraftContent('');
-    show('已删除');
-    await loadList();
-  }
-
-  async function moveToDirectory(fromPath: string, dirPath: string) {
-    fromPath = normalizePath(fromPath);
-    const toPath = joinPath(dirPath, fromPath);
-    if (!fromPath || toPath === fromPath) return;
-    if (!confirm(`移动文件？\n\n${fromPath}\n→ ${toPath}`)) return;
-    const data = await api<{ memory: Memory }>('/v1/memories/move', {
-      method: 'POST',
-      body: JSON.stringify({ from_path: fromPath, to_path: toPath, confirmed: true, overwrite: false }),
-    });
-    show(`已移动到 ${toPath}`);
-    await loadList();
-    await loadMemory(data.memory.path);
-  }
-
-  function renameNode(node: TreeNode) {
-    setRenamingPath(node.path);
-    setRenamingValue(node.name);
-  }
-
-  function cancelRename() {
-    setRenamingPath('');
-    setRenamingValue('');
-  }
-
-  async function commitRename(node: TreeNode, nextName: string) {
-    const oldPath = normalizePath(node.path);
-    const trimmed = nextName.trim();
-    if (trimmed === node.name) return cancelRename();
-    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed.startsWith('.')) {
-      setRenamingValue(node.name);
-      show('名称不能为空，且不能包含 /、\\ 或以 . 开头', true);
-      return;
-    }
-    const newPath = joinPath(parentPath(oldPath), trimmed);
-    if (node.type === 'file' && !TEXT_EXTENSIONS.test(newPath)) {
-      setRenamingValue(node.name);
-      show('文件名需要以 .md、.markdown 或 .txt 结尾', true);
-      return;
-    }
-    await api('/v1/memories/move', { method: 'POST', body: JSON.stringify({ from_path: oldPath, to_path: newPath, confirmed: true, overwrite: false }) });
-    cancelRename();
-    show(`已重命名为 ${newPath}`);
-    const nextCurrent = current?.path && isPathInside(current.path, oldPath) ? current.path.replace(oldPath, newPath) : current?.path;
-    await loadList();
-    if (nextCurrent) await loadMemory(nextCurrent).catch(() => setCurrent(null));
-  }
-
-  async function deleteNode(node: TreeNode) {
-    const path = normalizePath(node.path);
-    const message = node.type === 'directory' ? `确认递归删除整个文件夹？\n\n${path}\n\n其中的所有文件都会被删除。` : `确认删除文件？\n\n${path}`;
-    if (!confirm(message)) return;
-    await api(`/v1/memories/${encodeURIComponent(path)}?confirmed=true`, { method: 'DELETE' });
-    if (current?.path && (node.type === 'directory' ? isPathInside(current.path, path) : current.path === path)) { setCurrent(null); setRoutePath(''); }
-    show(node.type === 'directory' ? `已删除文件夹 ${path}` : `已删除文件 ${path}`);
-    await loadList();
-  }
-
-  async function loadGitPanel() {
-    await Promise.all([loadGitDiff(), loadGitLog()]);
-  }
-
-  async function loadGitDiff() {
-    const data = await api<GitDiff>('/v1/git/diff');
-    setGitDiff(data);
-  }
-
-  async function loadGitLog() {
-    const data = await api<{ commits: GitCommit[] }>('/v1/git/log?limit=50');
-    setCommits(data.commits || []);
-  }
-
-  async function loadCommitDetail(hash: string) {
-    const data = await api<CommitDetail>(`/v1/git/commit?hash=${encodeURIComponent(hash)}`);
-    setSelectedCommit(data);
-  }
-
-  function openGitFile(path: string) {
-    selectTab('memories');
-    void loadMemory(path)
-      .then(() => setEditing(true))
-      .catch((e) => show(e.message, true));
-  }
-
-  async function discardGitChanges(path = '') {
-    const target = path ? `文件：${path}` : '全部未提交变更';
-    if (!confirm(`确认丢弃 ${target}？\n\n这个操作不可撤销。`)) return;
-    await api('/v1/git/discard', { method: 'POST', body: JSON.stringify({ path, confirmed: true }) });
-    show(path ? `已丢弃 ${path} 的变更` : '已丢弃全部未提交变更');
-    await Promise.all([loadGitDiff(), loadList().catch(() => undefined), loadSyncStatus().catch(() => undefined)]);
-    if (current?.path) await loadMemory(current.path).catch(() => setCurrent(null));
-  }
-
-  async function loadSyncStatus() {
-    const data = await api<SyncStatus>('/v1/sync/status');
-    setSyncStatus(data);
-  }
-
-  async function syncAction(action: 'pull' | 'push' | 'now') {
-    const data = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST' });
-    setSyncStatus(data);
-    show('同步操作完成');
-  }
-
-  return (
-    <div className={`app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${mobileNavCompact ? 'mobile-nav-orb' : ''} ${contentFullscreen ? 'content-fullscreen-active' : ''}`}>
-      <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} currentPath={current?.path || routePath} prefix={prefix} search={search} />
-      <section className="workspace">
-        <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
-        {tab === 'memories' && (
-          <section className="memory-layout">
-            <Explorer
-              tree={tree}
-              expanded={expanded}
-              setExpanded={setExpanded}
-              currentPath={current?.path || ''}
-              fileCount={fileCount}
-              dirCount={dirCount}
-              search={search}
-              prefix={prefix}
-              setSearch={setSearch}
-              setPrefix={setPrefix}
-              onSearch={() => void doSearch().catch((e) => show(e.message, true))}
-              onRefresh={() => void loadList().catch((e) => show(e.message, true))}
-              onOpen={(path) => void loadMemory(path).catch((e) => show(e.message, true))}
-              onRename={renameNode}
-              onRenameCommit={(node, value) => void commitRename(node, value).catch((e) => show(e.message, true))}
-              onRenameCancel={cancelRename}
-              renamingPath={renamingPath}
-              renamingValue={renamingValue}
-              setRenamingValue={setRenamingValue}
-              onDelete={(node) => void deleteNode(node).catch((e) => show(e.message, true))}
-              draggingPath={draggingPath}
-              setDraggingPath={setDraggingPath}
-              onMove={(from, to) => void moveToDirectory(from, to).catch((e) => show(e.message, true))}
-            />
-            <MemoryEditor
-              current={current}
-              editing={editing}
-              draftPath={draftPath}
-              draftContent={draftContent}
-              setDraftPath={setDraftPath}
-              setDraftContent={setDraftContent}
-              onNew={newMemory}
-              onEdit={() => viewChange(() => setEditing(true))}
-              onCancel={() => viewChange(() => {
-                setEditing(false);
-                setDraftPath(current?.path || '');
-                setDraftContent(current?.content || '');
-              })}
-              onSave={() => void saveMemory().catch((e) => show(e.message, true))}
-              onDelete={() => void deleteCurrent().catch((e) => show(e.message, true))}
-              onFullscreenChange={setContentFullscreen}
-            />
-          </section>
-        )}
-        {tab === 'git' && <GitView diff={gitDiff} commits={commits} selectedCommit={selectedCommit} onRefresh={loadGitPanel} onDiscard={discardGitChanges} onOpenFile={openGitFile} onSelectCommit={loadCommitDetail} onFullscreenChange={setContentFullscreen} />}
-        {tab === 'sync' && <SyncView status={syncStatus} onRefresh={loadSyncStatus} onAction={syncAction} />}
-      </section>
-      {commandOpen && (
-        <CommandPalette
-          entries={entries}
-          current={current}
-          onClose={() => setCommandOpen(false)}
-          onNew={() => { setCommandOpen(false); selectTab('memories'); newMemory(); }}
-          onOpen={(path) => { setCommandOpen(false); selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-          onTab={(next) => { setCommandOpen(false); selectTab(next); }}
-          onSync={() => { setCommandOpen(false); selectTab('sync'); void syncAction('now').catch((e) => show(e.message, true)); }}
-        />
-      )}
-      {toast && <div className={`toast ${toast.danger ? 'danger' : ''}`}>{toast.message}</div>}
-    </div>
-  );
-}
-
-
-
-function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSync }: {
-  entries: MemoryEntry[];
-  current: Memory | null;
-  onClose: () => void;
-  onNew: () => void;
-  onOpen: (path: string) => void;
-  onTab: (tab: Tab) => void;
-  onSync: () => void;
-}) {
-  const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  const normalized = query.trim().toLowerCase();
-  const files = entries
-    .filter((entry) => entry.type === 'file')
-    .filter((entry) => !normalized || entry.path.toLowerCase().includes(normalized))
-    .slice(0, 8);
-  const actions = [
-    { label: '新建记忆', hint: '创建笔记', icon: <Plus size={16} />, run: onNew },
-    { label: '打开记忆库', hint: '浏览文件', icon: <Archive size={16} />, run: () => onTab('memories') },
-    { label: '打开变更审阅', hint: '审阅本地变更', icon: <GitBranch size={16} />, run: () => onTab('git') },
-    { label: '打开同步中心', hint: '查看同步状态', icon: <Settings size={16} />, run: () => onTab('sync') },
-    { label: '立即更新并保存', hint: '拉取并推送', icon: <RefreshCw size={16} />, run: onSync },
-  ].filter((item) => !normalized || item.label.toLowerCase().includes(normalized) || item.hint.toLowerCase().includes(normalized));
-
-  return (
-    <div className="command-overlay" onMouseDown={onClose}>
-      <div className="command-panel" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="command-search">
-          <Command size={17} />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索命令或文件…" />
-        </div>
-        <div className="command-group">
-          <span>命令</span>
-          {actions.map((item) => <button key={item.label} onClick={item.run}>{item.icon}<strong>{item.label}</strong><small>{item.hint}</small></button>)}
-        </div>
-        <div className="command-group">
-          <span>文件</span>
-          {files.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={16} /><strong>{entry.path}</strong><small>{formatBytes(entry.size_bytes)}</small></button>)}
-          {!files.length && <p className="muted command-empty">没有匹配文件{current ? ` · 当前：${current.path}` : ''}</p>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function AppSidebar({ collapsed, tab, setTab, onToggle, mobileCompact = false, onCompactOpen, currentPath = '', prefix = '', search = '' }: { collapsed: boolean; tab: Tab; setTab: (tab: Tab) => void; onToggle: () => void; mobileCompact?: boolean; onCompactOpen?: () => void; currentPath?: string; prefix?: string; search?: string }) {
-  const [orbPosition, setOrbPosition] = useState(() => {
-    const saved = localStorage.getItem('memorydock.mobileOrbPosition');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as { side?: 'left' | 'right'; y?: number };
-        return { side: parsed.side === 'right' ? 'right' as const : 'left' as const, y: Number.isFinite(parsed.y) ? Number(parsed.y) : 0 };
-      } catch {
-        return { side: 'left' as const, y: 0 };
-      }
-    }
-    return { side: 'left' as const, y: 0 };
-  });
-  const dragRef = useRef<{ startX: number; startY: number; currentX: number; currentY: number; dragging: boolean; raf: number; nextX: number; nextY: number } | null>(null);
-
-  function clampOrbY(y: number) {
-    const min = 12 + (window.visualViewport?.offsetTop || 0);
-    const max = Math.max(min, window.innerHeight - 92 - 12);
-    return Math.min(max, Math.max(min, y));
-  }
-
-  function beginOrbDrag(event: React.PointerEvent<HTMLElement>) {
-    if (!mobileCompact) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    dragRef.current = { startX: event.clientX, startY: event.clientY, currentX: rect.left, currentY: rect.top, dragging: false, raf: 0, nextX: rect.left, nextY: rect.top };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function moveOrb(event: React.PointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!mobileCompact || !drag) return;
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-    if (Math.abs(dx) + Math.abs(dy) > 6) drag.dragging = true;
-    if (!drag.dragging) return;
-    drag.nextX = Math.min(window.innerWidth - 76 - 8, Math.max(8, drag.currentX + dx));
-    drag.nextY = clampOrbY(drag.currentY + dy);
-    const target = event.currentTarget;
-    if (!drag.raf) {
-      drag.raf = window.requestAnimationFrame(() => {
-        target.style.setProperty('--mobile-orb-left', `${drag.nextX}px`);
-        target.style.setProperty('--mobile-orb-top', `${drag.nextY}px`);
-        drag.raf = 0;
-      });
+    if (!current?.path || !window.confirm(`确认删除 ${current.path}？`)) return;
+    setBusy(true);
+    try {
+      await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
+      setCurrent(null);
+      setDraftPath('');
+      setDraftContent('');
+      setEditing(false);
+      updateRoute('', query.trim());
+      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      setNotice({ text: '记忆已删除' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
     }
   }
 
-  function endOrbDrag(event: React.PointerEvent<HTMLElement>) {
-    const drag = dragRef.current;
-    if (!mobileCompact || !drag) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const side: 'left' | 'right' = rect.left + rect.width / 2 > window.innerWidth / 2 ? 'right' : 'left';
-    if (drag.raf) window.cancelAnimationFrame(drag.raf);
-    const y = clampOrbY(rect.top);
-    const next = { side, y };
-    setOrbPosition(next);
-    localStorage.setItem('memorydock.mobileOrbPosition', JSON.stringify(next));
-    event.currentTarget.style.removeProperty('--mobile-orb-left');
-    event.currentTarget.style.removeProperty('--mobile-orb-top');
-    window.setTimeout(() => { dragRef.current = null; }, 0);
+  async function loadSyncState() {
+    const [sync, diff] = await Promise.all([
+      api<SyncStatus>('/v1/sync/status'),
+      api<GitDiff>('/v1/git/diff'),
+    ]);
+    setSyncStatus(sync);
+    setGitDiff(diff);
   }
 
-  const orbStyle = mobileCompact ? ({
-    '--mobile-orb-top': orbPosition.y ? `${orbPosition.y}px` : undefined,
-    '--mobile-orb-left': orbPosition.side === 'right' ? 'calc(100vw - 86px)' : '14px',
-  } as React.CSSProperties) : undefined;
+  async function loadHistory() {
+    const response = await api<{ commits: GitCommit[] }>('/v1/git/log?limit=12');
+    setCommits(response.commits || []);
+  }
+
+  async function syncNow(action: 'pull' | 'push' | 'now' = 'now') {
+    setBusy(true);
+    try {
+      const response = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST', body: '{}' });
+      setSyncStatus(response);
+      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      if (current?.path) await openMemory(current.path).catch(() => setCurrent(null));
+      setNotice({ text: action === 'pull' ? '已从远端更新' : action === 'push' ? '已保存到远端' : '记忆已同步' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <aside
-      className={`sidebar ${mobileCompact ? 'compact-orb' : ''} ${mobileCompact ? `orb-${orbPosition.side}` : ''}`}
-      style={orbStyle}
-      onPointerDown={beginOrbDrag}
-      onPointerMove={moveOrb}
-      onPointerUp={endOrbDrag}
-      onPointerCancel={endOrbDrag}
-      onClick={() => { if (mobileCompact && !dragRef.current?.dragging) onCompactOpen?.(); }}
-    >
-      <div className="brand">
-        <div className="brand-mark">N</div>
-        {!collapsed && (
-          <div className="brand-text">
-            <h1>{PRODUCT_COPY.brand}</h1>
-            <p>{PRODUCT_COPY.strapline}</p>
-          </div>
-        )}
-        <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? '展开侧栏' : '折叠侧栏'}>
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
-      </div>
-      <nav className="nav">
-        {MEMORY_NAV.map((item) => {
-          const Icon = item.icon;
-          const href = item.id === 'memories' ? routeHref(item.id, currentPath, prefix, search) : routeHref(item.id);
-          return (
-            <a className={tab === item.id ? 'active' : ''} href={href} onClick={(event) => { event.preventDefault(); setTab(item.id); }} title={item.label} key={item.id}>
-              <Icon size={17} /> {!collapsed && <span>{item.label}</span>}
-            </a>
-          );
-        })}
-      </nav>
-      {!collapsed && (
-        <div className="sidebar-card">
-          <strong>{PRODUCT_COPY.sidebarTitle}</strong>
-          <span>{PRODUCT_COPY.sidebarBody}</span>
-        </div>
-      )}
-    </aside>
-  );
-}
-
-function Topbar({ tab, current, fileCount, dirCount, onCommand }: { tab: Tab; current: Memory | null; fileCount: number; dirCount: number; onCommand: () => void }) {
-  const active = MEMORY_NAV_BY_ID[tab];
-  const subtitle = tab === 'memories' ? current?.path || active.title : active.title;
-  return (
-    <header className="topbar">
-      <div className="page-title">
-        <h2>{active.label}</h2>
-        <p>{subtitle}</p>
-      </div>
-      <div className="status-strip">
-        <button className="command-button" onClick={onCommand}><Command size={14} />⌘K</button>
-        <span className="pill ok">● 在线</span>
-        <span className="pill">{fileCount} 个文件</span>
-        <span className="pill">{dirCount} 个目录</span>
-      </div>
-    </header>
-  );
-}
-
-function Explorer(props: {
-  tree: TreeNode;
-  expanded: Set<string>;
-  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
-  currentPath: string;
-  fileCount: number;
-  dirCount: number;
-  search: string;
-  prefix: string;
-  setSearch: (value: string) => void;
-  setPrefix: (value: string) => void;
-  onSearch: () => void;
-  onRefresh: () => void;
-  onOpen: (path: string) => void;
-  onRename: (node: TreeNode) => void;
-  onRenameCommit: (node: TreeNode, value: string) => void;
-  onRenameCancel: () => void;
-  renamingPath: string;
-  renamingValue: string;
-  setRenamingValue: (value: string) => void;
-  onDelete: (node: TreeNode) => void;
-  draggingPath: string;
-  setDraggingPath: (path: string) => void;
-  onMove: (from: string, to: string) => void;
-}) {
-  return (
-    <aside className="explorer-panel">
-      <div className="panel-head">
-        <h3>记忆浏览器</h3>
-        <span className="badge">{props.dirCount} 目录 · {props.fileCount} 文件</span>
-      </div>
-      <>
-          <div className="panel-search">
-            <div className="input-row"><Search size={15} /><input value={props.search} onChange={(e) => props.setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && props.onSearch()} placeholder="搜索关键词" /></div>
-            <div className="input-row"><Folder size={15} /><input value={props.prefix} onChange={(e) => props.setPrefix(e.target.value)} placeholder="prefix，例如 shared/projects" /></div>
-            <div className="button-row"><button className="primary" onClick={props.onSearch}>搜索</button><button onClick={props.onRefresh}><RefreshCw size={14} />刷新</button></div>
-          </div>
-          <div className="tree-scroll">
-            {sortedChildren(props.tree).length ? sortedChildren(props.tree).map((node) => (
-              <TreeItem
-                key={node.path}
-                node={node}
-                depth={0}
-                expanded={props.expanded}
-                setExpanded={props.setExpanded}
-                currentPath={props.currentPath}
-                onOpen={props.onOpen}
-                onRename={props.onRename}
-                onRenameCommit={props.onRenameCommit}
-                onRenameCancel={props.onRenameCancel}
-                renamingPath={props.renamingPath}
-                renamingValue={props.renamingValue}
-                setRenamingValue={props.setRenamingValue}
-                onDelete={props.onDelete}
-                draggingPath={props.draggingPath}
-                setDraggingPath={props.setDraggingPath}
-                onMove={props.onMove}
-              />
-            )) : <div className="empty-state">没有记忆文件</div>}
-          </div>
-      </>
-    </aside>
-  );
-}
-
-function TreeItem({ node, depth, expanded, setExpanded, currentPath, onOpen, onRename, onRenameCommit, onRenameCancel, renamingPath, renamingValue, setRenamingValue, onDelete, draggingPath, setDraggingPath, onMove }: {
-  node: TreeNode;
-  depth: number;
-  expanded: Set<string>;
-  setExpanded: React.Dispatch<React.SetStateAction<Set<string>>>;
-  currentPath: string;
-  onOpen: (path: string) => void;
-  onRename: (node: TreeNode) => void;
-  onRenameCommit: (node: TreeNode, value: string) => void;
-  onRenameCancel: () => void;
-  renamingPath: string;
-  renamingValue: string;
-  setRenamingValue: (value: string) => void;
-  onDelete: (node: TreeNode) => void;
-  draggingPath: string;
-  setDraggingPath: (path: string) => void;
-  onMove: (from: string, to: string) => void;
-}) {
-  const open = expanded.has(node.path);
-  const active = node.type === 'file' && node.path === currentPath;
-  const isDir = node.type === 'directory';
-  const renaming = renamingPath === node.path;
-  const toggle = () => setExpanded((prev) => {
-    const next = new Set(prev);
-    open ? next.delete(node.path) : next.add(node.path);
-    return next;
-  });
-  return (
-    <>
-      <div
-        className={`tree-row ${isDir ? 'dir' : 'file'} ${active ? 'active' : ''} ${renaming ? 'renaming' : ''}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!isDir && !renaming}
-        onDragStart={(e) => { if (!isDir) { setDraggingPath(node.path); e.dataTransfer.setData('text/plain', node.path); } }}
-        onDragEnd={() => setDraggingPath('')}
-        onDragOver={(e) => { if (isDir && draggingPath) e.preventDefault(); }}
-        onDrop={(e) => { if (isDir) { e.preventDefault(); onMove(e.dataTransfer.getData('text/plain') || draggingPath, node.path); } }}
-        onClick={() => renaming ? undefined : isDir ? toggle() : onOpen(node.path)}
-      >
-        <span className="tree-toggle">{isDir ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}</span>
-        <span className="tree-icon">{isDir ? (open ? <FolderOpen size={15} /> : <Folder size={15} />) : <FileText size={15} />}</span>
-        {renaming ? (
-          <input
-            className="tree-rename-input"
-            autoFocus
-            value={renamingValue}
-            onChange={(e) => setRenamingValue(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onBlur={(e) => { if (e.currentTarget.dataset.cancel !== '1') onRenameCommit(node, renamingValue); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                onRenameCommit(node, renamingValue);
-              }
-              if (e.key === 'Escape') {
-                e.currentTarget.dataset.cancel = '1';
-                onRenameCancel();
-              }
-            }}
-          />
-        ) : <span className="tree-name" title={node.path}>{node.name}</span>}
-        <span className="tree-meta">{isDir ? `${countFiles(node)} 文件` : formatBytes(node.entry?.size_bytes)}</span>
-        <button className="tree-action" onClick={(e) => { e.stopPropagation(); onRename(node); }} title="重命名"><PenLine size={13} /></button>
-        <button className="tree-action danger" onClick={(e) => { e.stopPropagation(); onDelete(node); }} title="删除"><Trash2 size={13} /></button>
-      </div>
-      {isDir && open && sortedChildren(node).map((child) => <TreeItem key={child.path} node={child} depth={depth + 1} expanded={expanded} setExpanded={setExpanded} currentPath={currentPath} onOpen={onOpen} onRename={onRename} onRenameCommit={onRenameCommit} onRenameCancel={onRenameCancel} renamingPath={renamingPath} renamingValue={renamingValue} setRenamingValue={setRenamingValue} onDelete={onDelete} draggingPath={draggingPath} setDraggingPath={setDraggingPath} onMove={onMove} />)}
-    </>
-  );
-}
-
-function MemoryEditor(props: {
-  current: Memory | null;
-  editing: boolean;
-  draftPath: string;
-  draftContent: string;
-  setDraftPath: (value: string) => void;
-  setDraftContent: (value: string) => void;
-  onNew: () => void;
-  onEdit: () => void;
-  onCancel: () => void;
-  onSave: () => void;
-  onDelete: () => void;
-  onFullscreenChange: (active: boolean) => void;
-}) {
-  const isMarkdown = MARKDOWN_EXTENSIONS.test(props.current?.path || props.draftPath);
-  const [fullscreen, setFullscreen] = useState(false);
-  useEffect(() => {
-    props.onFullscreenChange(fullscreen);
-    return () => props.onFullscreenChange(false);
-  }, [fullscreen, props.onFullscreenChange]);
-  return (
-    <main className={`document-panel ${fullscreen ? 'fullscreen-panel' : ''}`}>
-      <div className="doc-toolbar">
+    <main className="mem-lite">
+      <header className="mem-lite-header">
         <div>
-          <div className="doc-path">{props.current?.path || (props.editing ? '新建记忆' : '未选择文件')}</div>
-          <div className="muted">{props.editing ? '编辑草稿 · 左写右预览 · 保存后进入本地变更' : '阅读模式 · Markdown 自动渲染'}</div>
+          <span className="mem-lite-kicker">NEXUS MEMORY</span>
+          <h1>记忆库</h1>
+          <p>浏览、编辑和同步 Markdown 记忆；复杂 Git 操作继续交给 Agent。</p>
         </div>
-        <div className="toolbar-actions">
-          <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏阅读'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
-          <button onClick={props.onNew}><Plus size={15} />新建</button>
-          {!props.editing && <button disabled={!props.current} onClick={props.onEdit}><PenLine size={15} />编辑</button>}
-          {props.editing && <button className="primary" onClick={props.onSave}><Save size={15} />保存</button>}
-          {props.editing && <button onClick={props.onCancel}><X size={15} />取消</button>}
-          <button className="danger" disabled={!props.current} onClick={props.onDelete}><Trash2 size={15} />删除</button>
+        <div className="mem-lite-header-actions">
+          <span className={`mem-lite-health ${dirty ? 'warn' : 'ok'}`}>{dirty ? `${changedCount} 项待同步` : '已同步'}</span>
+          <button onClick={() => void refreshAll()} disabled={loading || busy}><RefreshCw size={15} />刷新</button>
+          <button className="primary" onClick={() => void syncNow()} disabled={busy}><UploadCloud size={15} />立即同步</button>
         </div>
-      </div>
-      {props.editing ? (
-        <div className="editor-body split-editor">
-          <div className="editor-pane">
-            <div className="pane-title"><span>编辑</span><small>{props.draftPath || '未命名'}</small></div>
-            <input value={props.draftPath} onChange={(e) => props.setDraftPath(e.target.value)} placeholder="memory-relative path，例如 inbox/note.md" />
-            <textarea value={props.draftContent} onChange={(e) => props.setDraftContent(e.target.value)} spellCheck={false} />
-          </div>
-          <div className="preview-pane">
-            <div className="pane-title"><span>预览</span><small>{MARKDOWN_EXTENSIONS.test(props.draftPath) ? 'Markdown' : 'Plain text'}</small></div>
-            {MARKDOWN_EXTENSIONS.test(props.draftPath) ? <article className="markdown-body preview" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.draftContent) }} /> : <pre className="plain-view preview">{props.draftContent}</pre>}
-          </div>
-        </div>
-      ) : props.current ? (
-        isMarkdown ? <article className="markdown-body" dangerouslySetInnerHTML={{ __html: markdownToHtml(props.current.content) }} /> : <pre className="plain-view">{props.current.content}</pre>
-      ) : (
-        <div className="hero-empty">
-          <FileText size={42} />
-          <h3>选择一个记忆文件</h3>
-          <p>从左侧记忆浏览器选择 Markdown 文件，或新建一条记忆。</p>
-        </div>
-      )}
-    </main>
-  );
-}
+      </header>
 
-function GitView({ diff, commits, selectedCommit, onRefresh, onDiscard, onOpenFile, onSelectCommit, onFullscreenChange }: {
-  diff: GitDiff | null;
-  commits: GitCommit[];
-  selectedCommit: CommitDetail | null;
-  onRefresh: () => Promise<void>;
-  onDiscard: (path?: string) => Promise<void>;
-  onOpenFile: (path: string) => void;
-  onSelectCommit: (hash: string) => Promise<void>;
-  onFullscreenChange: (active: boolean) => void;
-}) {
-  const sections = useMemo(() => parseSideBySideDiff([
-    { title: '已暂存更改', diff: diff?.cached_diff || '' },
-    { title: '工作区更改', diff: diff?.diff || '' },
-  ]), [diff]);
-  const commitSections = useMemo(() => parseSideBySideDiff([
-    { title: selectedCommit?.commit?.short_hash ? `提交 ${selectedCommit.commit.short_hash}` : '提交详情', diff: selectedCommit?.diff || '' },
-  ]), [selectedCommit]);
-  const diffFiles = sections.flatMap((section) => section.files.map((file) => ({ status: 'M', path: file.name })));
-  const changedFiles = (diff?.files?.length ? diff.files : diffFiles).filter((file) => Boolean(file.path));
-  const statusLines = (diff?.status || '').split('\n').filter(Boolean).length;
-  const statLines = (diff?.stat || '').split('\n').filter(Boolean);
-  const selectedTitle = selectedCommit?.commit.subject || '选择一个历史提交';
-  const [fullscreen, setFullscreen] = useState(false);
-  const [diffMode, setDiffMode] = useState<'split' | 'unified'>(() => {
-    const saved = localStorage.getItem('memorydock.diffMode');
-    if (saved === 'split' || saved === 'unified') return saved;
-    return window.matchMedia('(max-width: 900px)').matches ? 'unified' : 'split';
-  });
-  useEffect(() => {
-    onFullscreenChange(fullscreen);
-    return () => onFullscreenChange(false);
-  }, [fullscreen, onFullscreenChange]);
+      {notice && <div className={`mem-lite-notice ${notice.danger ? 'danger' : ''}`}>{notice.danger ? null : <Check size={16} />}{notice.text}</div>}
+      {draftAvailable && !editing && <div className="mem-lite-notice"><span>检测到未提交草稿。</span><button onClick={restoreDraft}>恢复草稿</button><button onClick={() => { clearMemoryDraft(); setDraftAvailable(false); }}>丢弃</button></div>}
 
-  useEffect(() => {
-    localStorage.setItem('memorydock.diffMode', diffMode);
-  }, [diffMode]);
+      <section className="mem-lite-stats">
+        <div><Archive size={18} /><span>文件</span><strong>{fileEntries.length}</strong></div>
+        <div><Folder size={18} /><span>目录</span><strong>{directoryCount}</strong></div>
+        <div><GitBranch size={18} /><span>本地变更</span><strong>{changedCount}</strong></div>
+        <div><Clock3 size={18} /><span>最近版本</span><strong>{commits.length}</strong></div>
+      </section>
 
-  return (
-    <section className={`git-workbench review-studio ${selectedCommit ? 'history-open' : 'local-open'}`}>
-      <aside className="review-side review-changes">
-        <div className="review-side-head">
-          <div>
-            <span className="eyebrow">Local</span>
-            <h3>变更队列</h3>
-            <p>{changedFiles.length ? `${changedFiles.length} 个文件待处理` : '工作区干净'}</p>
+      <section className="mem-lite-grid">
+        <aside className="mem-lite-browser">
+          <div className="mem-lite-panel-head">
+            <div><h2>文件</h2><p>{query ? '搜索结果' : '当前记忆仓库'}</p></div>
+            <button className="icon" onClick={startNew} title="新建记忆"><Plus size={17} /></button>
           </div>
-          <button className="icon-button" onClick={() => void onRefresh()} title="刷新"><RefreshCw size={14} /></button>
-        </div>
-        <div className="review-change-list">
-          {changedFiles.length ? changedFiles.map((file) => (
-            <button className="review-change-card" key={file.status + file.path} onClick={() => onOpenFile(file.path)}>
-              <span className="file-status">{file.status}</span>
-              <span className="review-change-text"><strong>{file.path}</strong><small>{file.status === '??' ? '新文件 · 可打开编辑' : '本地修改 · 可打开编辑'}</small></span>
-            </button>
-          )) : <div className="review-empty-card"><GitBranch size={18} /><strong>没有本地变更</strong><span>当前工作区没有需要审阅的修改。</span></div>}
-        </div>
-        <div className="review-side-foot">
-          <button className="danger" disabled={!changedFiles.length} onClick={() => void onDiscard('')}><Undo2 size={14} />放弃全部</button>
-        </div>
-      </aside>
-
-      <main className={`review-canvas ${fullscreen ? 'fullscreen-panel review-fullscreen' : ''}`}>
-        <div className="review-hero">
-          <div>
-            <span className="eyebrow">审阅工作台</span>
-            <h3>{selectedCommit ? selectedTitle : '变更审阅'}</h3>
-            <p>{selectedCommit ? `${selectedCommit.commit.short_hash} · ${[selectedCommit.commit.author, selectedCommit.commit.date].filter(Boolean).join(' · ')}` : diff?.dirty ? '聚焦 diff 内容，左侧处理本地变更，右侧查看历史版本。' : '没有需要审阅的本地更改。'}</p>
-          </div>
-          <div className="review-hero-actions">
-            {selectedCommit && <span className="pill">{selectedCommit.files.length} 个文件变更</span>}
-            <button onClick={() => setDiffMode((mode) => mode === 'split' ? 'unified' : 'split')} title={diffMode === 'split' ? '切换到单栏' : '切换到左右'}>{diffMode === 'split' ? '单栏' : '左右'}</button>
-            <button onClick={() => setFullscreen((v) => !v)} title={fullscreen ? '退出全屏' : '全屏审阅'}>{fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{fullscreen ? '退出全屏' : '全屏'}</button>
-            <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
-          </div>
-        </div>
-
-        {!selectedCommit && (
-          <div className="review-stats">
-            <div><span>状态</span><strong>{diff?.dirty ? '有本地更改' : '已同步'}</strong></div>
-            <div><span>文件</span><strong>{changedFiles.length}</strong></div>
-            <div><span>状态行</span><strong>{statusLines}</strong></div>
-            <div><span>统计</span><strong>{statLines.length ? statLines[statLines.length - 1] : '无'}</strong></div>
-          </div>
-        )}
-
-        {selectedCommit && (
-          <div className="commit-focus-strip">
-            {selectedCommit.files.map((file) => (
-              <button key={file.status + file.path} onClick={() => onOpenFile(file.path)}><span className="file-status">{file.status}</span><span>{file.path}</span></button>
+          <form className="mem-lite-search" onSubmit={(event) => void searchMemories(event)}>
+            <Search size={15} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索记忆内容" />
+            <button type="submit">搜索</button>
+          </form>
+          <div className="mem-lite-files">
+            {loading ? <p className="mem-lite-empty">正在读取记忆…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的记忆文件。</p> : fileEntries.map((entry) => (
+              <button key={entry.path} className={current?.path === entry.path ? 'active' : ''} onClick={() => void openMemory(entry.path)}>
+                <FileText size={16} />
+                <span><strong>{nameOf(entry.path)}</strong><small>{entry.path}</small></span>
+                <em>{formatBytes(entry.size_bytes)}</em>
+              </button>
             ))}
           </div>
-        )}
+        </aside>
 
-        <div className="diff-viewer review-diff-canvas">
-          {selectedCommit ? (
-            commitSections.length ? commitSections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} readonly />) : <div className="empty-state">这个提交没有可展示 diff</div>
-          ) : sections.length ? (
-            sections.map((section) => <DiffSectionView key={section.title} section={section} mode={diffMode} onDiscard={onDiscard} onOpenFile={onOpenFile} />)
-          ) : changedFiles.length ? (
-            <ChangedFileCards files={changedFiles} onOpenFile={onOpenFile} onDiscard={onDiscard} />
-          ) : <div className="empty-state">没有 diff</div>}
-        </div>
-      </main>
-
-      <aside className="review-side review-history">
-        <div className="review-side-head">
-          <div>
-            <span className="eyebrow">历史</span>
-            <h3>版本时间线</h3>
-            <p>{commits.length} 个最近提交</p>
-          </div>
-          <Clock3 size={16} />
-        </div>
-        <div className="review-history-list">
-          {commits.map((commit) => (
-            <button className={`review-history-card ${selectedCommit?.commit?.hash === commit.hash ? 'active' : ''}`} key={commit.hash} onClick={() => void onSelectCommit(commit.hash)}>
-              <span className="review-history-dot" />
-              <strong>{commit.subject || '(no subject)'}</strong>
-              <small>{commit.short_hash} · {[commit.author, commit.date].filter(Boolean).join(' · ')}</small>
-            </button>
-          ))}
-        </div>
-      </aside>
-    </section>
-  );
-}
-
-function ChangedFileCards({ files, onOpenFile, onDiscard }: { files: ChangedFile[]; onOpenFile: (path: string) => void; onDiscard: (path?: string) => Promise<void> }) {
-  return (
-    <div className="changed-card-grid">
-      {files.map((file) => (
-        <div className="changed-card" key={file.status + file.path}>
-          <div>
-            <span className="file-status">{file.status}</span>
-            <strong>{file.path}</strong>
-            <p>{file.status === '??' ? '新文件还没有进入 Git diff，但可以直接打开编辑或丢弃。' : '这个文件有本地变更，可以直接打开编辑。'}</p>
-          </div>
-          <div className="button-row">
-            <button className="primary" onClick={() => onOpenFile(file.path)}><PenLine size={14} />打开编辑</button>
-            <button className="danger" onClick={() => void onDiscard(file.path)}>丢弃</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiffSectionView({ section, mode, onDiscard, onOpenFile, readonly = false }: { section: DiffSection; mode: 'split' | 'unified'; onDiscard: (path?: string) => Promise<void>; onOpenFile: (path: string) => void; readonly?: boolean }) {
-  return (
-    <div className="diff-section">
-      <div className="diff-stage">{section.title}</div>
-      {section.files.map((file) => (
-        <div className="diff-file" key={section.title + file.name}>
-          <div className="diff-file-head">
-            <Braces size={14} />
-            <span>{file.name}</span>
-            <button className="ghost" onClick={() => onOpenFile(file.name)}><PenLine size={13} />打开编辑</button>
-            {!readonly && <button className="danger ghost" onClick={() => void onDiscard(file.name)}>丢弃此文件</button>}
-          </div>
-          {mode === 'split' ? (
-            <div className="diff-file-body split-diff-body">
-              <div className="diff-pane diff-pane-before" aria-label="变更前">
-                {file.rows.map((row, index) => <DiffPaneRow key={`left-${index}`} row={row} side="left" />)}
-              </div>
-              <div className="diff-pane diff-pane-after" aria-label="变更后">
-                {file.rows.map((row, index) => <DiffPaneRow key={`right-${index}`} row={row} side="right" />)}
-              </div>
+        <article className="mem-lite-editor">
+          <div className="mem-lite-panel-head">
+            <div><h2>{editing ? creating ? '新建记忆' : '编辑记忆' : current ? nameOf(current.path) : '选择一条记忆'}</h2><p>{editing ? draftPath : current?.path || '从左侧文件列表打开，或新建一条记忆。'}</p></div>
+            <div className="mem-lite-editor-actions">
+              {!editing && current && <button onClick={startEdit}><Pencil size={15} />编辑</button>}
+              {!editing && current && <button onClick={() => void renameCurrent()}>移动</button>}
+              {!editing && current && <button className="danger" onClick={() => void deleteCurrent()}><Trash2 size={15} />删除</button>}
+              {editing && <button onClick={cancelEdit}>取消</button>}
+              {editing && <button className="primary" onClick={() => void saveMemory()} disabled={busy || !hasUnsavedChanges}><Save size={15} />保存</button>}
             </div>
+          </div>
+          {editing ? (
+            <div className="mem-lite-edit-body">
+              <label><span>路径</span><input value={draftPath} onChange={(event) => setDraftPath(event.target.value)} disabled={!creating} /></label>
+              <label className="content"><span>内容</span><textarea value={draftContent} onChange={(event) => setDraftContent(event.target.value)} spellCheck={false} /></label>
+              <small>{draftContent.length.toLocaleString()} 字符 · 草稿自动保存在当前浏览器会话</small>
+            </div>
+          ) : current ? (
+            <pre className="mem-lite-preview">{current.content}</pre>
           ) : (
-            <div className="diff-file-body unified-diff-body">
-              {file.rows.map((row, index) => <UnifiedDiffRow key={index} row={row} />)}
-            </div>
+            <div className="mem-lite-empty large"><FileText size={28} /><strong>没有打开的记忆</strong><span>选择文件或创建一条新记忆。</span><button className="primary" onClick={startNew}><Plus size={15} />新建记忆</button></div>
           )}
-        </div>
-      ))}
-    </div>
-  );
-}
+        </article>
+      </section>
 
-function DiffPaneRow({ row, side }: { row: DiffRow; side: 'left' | 'right' }) {
-  const lineNo = side === 'left' ? row.oldNo : row.newNo;
-  const value = side === 'left' ? row.left : row.right;
-  let content: React.ReactNode = value || ' ';
-  if (row.kind === 'change') {
-    const parts = inlineDiffParts(row.left || '', row.right || '');
-    content = <InlineDiffCode parts={side === 'left' ? parts.left : parts.right} side={side} />;
-  }
-  return <div className={`diff-pane-row ${row.kind}`}><span className="ln">{lineNo || ''}</span><code className={side}>{content}</code></div>;
-}
+      <section className="mem-lite-lower">
+        <article className="mem-lite-sync">
+          <div className="mem-lite-panel-head"><div><h2>同步</h2><p>只提供明确的更新与保存动作</p></div></div>
+          <div className="mem-lite-sync-state">
+            <div><span>分支</span><strong>{String(syncStatus?.branch || '默认')}</strong></div>
+            <div><span>领先</span><strong>{String(syncStatus?.ahead ?? '0')}</strong></div>
+            <div><span>落后</span><strong>{String(syncStatus?.behind ?? '0')}</strong></div>
+            <div><span>状态</span><strong>{dirty ? '需要同步' : '健康'}</strong></div>
+          </div>
+          <div className="mem-lite-sync-actions">
+            <button onClick={() => void syncNow('pull')} disabled={busy}>从远端更新</button>
+            <button onClick={() => void syncNow('push')} disabled={busy}>保存到远端</button>
+            <button className="primary" onClick={() => void syncNow('now')} disabled={busy}>更新并保存</button>
+          </div>
+        </article>
 
-function UnifiedDiffRow({ row }: { row: DiffRow }) {
-  if (row.kind === 'change') {
-    const parts = inlineDiffParts(row.left || '', row.right || '');
-    return <>
-      <div className="unified-diff-row del change"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code><InlineDiffCode parts={parts.left} side="left" /></code></div>
-      <div className="unified-diff-row add change"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code><InlineDiffCode parts={parts.right} side="right" /></code></div>
-    </>;
-  }
-  if (row.kind === 'add') return <div className="unified-diff-row add"><span className="ln">{row.newNo || ''}</span><span className="sign">+</span><code>{row.right || ' '}</code></div>;
-  if (row.kind === 'del') return <div className="unified-diff-row del"><span className="ln">{row.oldNo || ''}</span><span className="sign">−</span><code>{row.left || ' '}</code></div>;
-  return <div className={`unified-diff-row ${row.kind}`}><span className="ln">{row.newNo || row.oldNo || ''}</span><span className="sign"> </span><code>{row.right || row.left || ' '}</code></div>;
-}
-
-function SyncCard({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'danger' | 'neutral' }) {
-  return <div className={`sync-card ${tone}`}><span>{label}</span><strong>{value}</strong></div>;
-}
-
-function SyncView({ status, onRefresh, onAction }: { status: SyncStatus | null; onRefresh: () => Promise<void>; onAction: (action: 'pull' | 'push' | 'now') => Promise<void> }) {
-  const healthItems = syncHealthItems(status, null);
-  const healthy = healthItems.every((item) => item.tone === 'ok');
-  return (
-    <section className="sync-grid">
-      <div className="panel-card sync-status-card">
-        <div className="card-head">
-          <div><h3>同步健康</h3><p>{healthy ? '本地和远程状态一致' : '有状态需要你确认'}</p></div>
-          <button className="primary" onClick={() => void onRefresh()}><RefreshCw size={15} />刷新</button>
-        </div>
-        <div className="sync-card-grid">
-          <SyncCard label="整体状态" value={healthy ? '健康' : '需处理'} tone={healthy ? 'ok' : 'warn'} />
-          {healthItems.map((item) => <SyncCard key={item.label} label={item.label} value={item.value} tone={item.tone} />)}
-        </div>
-        <details className="raw-status"><summary>查看原始状态</summary><pre className="json-view">{JSON.stringify(status || {}, null, 2)}</pre></details>
-      </div>
-      <div className="panel-card sync-actions-card">
-        <div className="card-head"><div><h3>同步操作</h3><p>用清晰动作替代 Git 命令</p></div></div>
-        <div className="sync-actions stacked">
-          <button onClick={() => void onAction('pull')}><RefreshCw size={15} />从远程更新</button>
-          <button onClick={() => void onAction('push')}><GitBranch size={15} />保存到远程</button>
-          <button className="primary" onClick={() => void onAction('now')}><Save size={15} />更新并保存</button>
-        </div>
-      </div>
-    </section>
+        <article className="mem-lite-history">
+          <div className="mem-lite-panel-head"><div><h2>最近版本</h2><p>仅展示时间线；详细 Diff 交给 Git 工具或 Agent</p></div></div>
+          <div className="mem-lite-commits">
+            {commits.length === 0 ? <p className="mem-lite-empty">暂无版本记录。</p> : commits.map((commit) => (
+              <div key={commit.hash}>
+                <span />
+                <div><strong>{commit.subject || '(无说明)'}</strong><small>{commit.short_hash} · {commit.author} · {formatTime(commit.date)}</small></div>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+    </main>
   );
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Nexus contracts, generated output and v1 compatibility."""
+"""Validate the current AgentDock Nexus product contract and generated output."""
 
 from __future__ import annotations
 
@@ -9,9 +9,51 @@ import subprocess
 import sys
 from typing import Any
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
+
+REQUIRED_PATHS = {
+    "/health",
+    "/v1/system/status",
+    "/v1/backup/status",
+    "/v1/devices",
+    "/v1/memories",
+    "/v1/artifacts",
+    "/v1/artifact-fetches",
+}
+FORBIDDEN_PATH_PREFIXES = (
+    "/v1/tasks",
+    "/v1/runs",
+    "/v1/skills",
+    "/v1/skill-runs",
+    "/v1/memory/context",
+    "/v1/events",
+    "/v1/schedules",
+)
+FORBIDDEN_SCHEMAS = {
+    "Task",
+    "TaskCompletion",
+    "TaskContextPack",
+    "TaskLink",
+    "Run",
+    "RunStep",
+    "RunEvidence",
+    "VerificationResult",
+    "MemoryContextPack",
+    "Observation",
+    "EvolutionCandidate",
+    "EvolutionProposal",
+    "SkillOperation",
+    "SkillSummary",
+    "SkillRelease",
+    "SkillInstallation",
+    "SkillDetail",
+    "SkillRunRequest",
+    "SkillRunResult",
+    "ScheduleHistory",
+    "ScheduleItem",
+    "ScheduleListResponse",
+}
 
 
 def load(path: pathlib.Path) -> Any:
@@ -45,21 +87,30 @@ def validate_descriptions(value: Any, path: str, errors: list[str]) -> None:
             validate_descriptions(item, f"{path}[{index}]", errors)
 
 
-def validate_openapi(errors: list[str]) -> dict[str, Any]:
-    path = CONTRACTS / "openapi" / "nexus.yaml"
-    document = load(path)
+def validate_openapi(errors: list[str]) -> None:
+    document = load(CONTRACTS / "openapi" / "nexus.yaml")
     if document.get("openapi") != "3.1.0":
         errors.append("OpenAPI version must be 3.1.0")
     schemas = document.get("components", {}).get("schemas", {})
+    paths = document.get("paths", {})
     if not schemas:
         errors.append("OpenAPI components.schemas is empty")
+    missing_paths = sorted(REQUIRED_PATHS - set(paths))
+    if missing_paths:
+        errors.append("missing current product paths: " + ", ".join(missing_paths))
+    for route in paths:
+        if route.startswith(FORBIDDEN_PATH_PREFIXES):
+            errors.append(f"retired product path is still public: {route}")
+    retired_schemas = sorted(FORBIDDEN_SCHEMAS & set(schemas))
+    if retired_schemas:
+        errors.append("retired product schemas are still public: " + ", ".join(retired_schemas))
     for reference in collect_refs(document):
         prefix = "#/components/schemas/"
         if reference.startswith(prefix) and reference[len(prefix):] not in schemas:
             errors.append(f"unresolved OpenAPI ref: {reference}")
     validate_descriptions({"schemas": schemas}, "components", errors)
     operation_ids: set[str] = set()
-    for route, path_item in document.get("paths", {}).items():
+    for route, path_item in paths.items():
         for method, operation in path_item.items():
             operation_id = operation.get("operationId")
             if not operation_id:
@@ -68,11 +119,15 @@ def validate_openapi(errors: list[str]) -> dict[str, Any]:
                 errors.append(f"duplicate operationId: {operation_id}")
             else:
                 operation_ids.add(operation_id)
-    return schemas
 
 
 def validate_json_schemas(errors: list[str]) -> None:
-    for path in sorted((CONTRACTS / "jsonschema").glob("*.json")):
+    schema_dir = CONTRACTS / "jsonschema"
+    actual = {path.stem for path in schema_dir.glob("*.json")}
+    retired = sorted(FORBIDDEN_SCHEMAS & actual)
+    if retired:
+        errors.append("retired standalone schemas remain: " + ", ".join(retired))
+    for path in sorted(schema_dir.glob("*.json")):
         document = load(path)
         if document.get("$schema") != "https://json-schema.org/draft/2020-12/schema":
             errors.append(f"{path.name}: wrong or missing $schema")
@@ -85,94 +140,72 @@ def validate_json_schemas(errors: list[str]) -> None:
                 errors.append(f"{path.name}: unresolved ref {reference}")
 
 
-def validate_events(errors: list[str]) -> None:
-    required = {
-        "device.status.changed",
-        "command.status.changed",
-        "task.created",
-        "task.updated",
-        "run.started",
-        "run.completed",
-        "skill.release.published",
-        "skill.installation.changed",
-        "evolution.candidate.created",
-        "memory.conflict.created",
-    }
-    actual = {path.stem for path in (CONTRACTS / "events").glob("*.json")}
-    missing = sorted(required - actual)
-    if missing:
-        errors.append("missing event schemas: " + ", ".join(missing))
-    for path in sorted((CONTRACTS / "events").glob("*.json")):
-        document = load(path)
-        props = document.get("properties", {})
-        if props.get("type", {}).get("const") != path.stem:
-            errors.append(f"{path.name}: event type const mismatch")
-        if props.get("version", {}).get("const") != 1:
-            errors.append(f"{path.name}: event version must be 1")
+def validate_retired_contract_dirs(errors: list[str]) -> None:
+    for name in ("events", "compatibility"):
+        directory = CONTRACTS / name
+        if directory.exists() and any(directory.iterdir()):
+            errors.append(f"retired active contract directory remains: contracts/{name}")
 
 
-def validate_compatibility(current: dict[str, Any], errors: list[str]) -> None:
-    baseline = load(CONTRACTS / "compatibility" / "v1-baseline.json")
-    for schema_name, old_schema in baseline.get("schemas", {}).items():
-        new_schema = current.get(schema_name)
-        if new_schema is None:
-            errors.append(f"breaking: removed schema {schema_name}")
-            continue
-        old_properties = old_schema.get("properties", {})
-        new_properties = new_schema.get("properties", {})
-        for property_name, old_property in old_properties.items():
-            if property_name not in new_properties:
-                errors.append(f"breaking: removed {schema_name}.{property_name}")
-                continue
-            new_property = new_properties[property_name]
-            if old_property.get("type") != new_property.get("type"):
-                errors.append(f"breaking: changed type of {schema_name}.{property_name}")
-            if old_property.get("ref") != new_property.get("$ref"):
-                errors.append(f"breaking: changed ref of {schema_name}.{property_name}")
-            old_enum = old_property.get("enum")
-            new_enum = new_property.get("enum")
-            if old_enum and new_enum and not set(old_enum).issubset(new_enum):
-                errors.append(f"breaking: removed enum value from {schema_name}.{property_name}")
-        old_required = set(old_schema.get("required", []))
-        new_required = set(new_schema.get("required", []))
-        added_required = new_required - old_required
-        if added_required:
-            errors.append(f"breaking: added required fields to {schema_name}: {sorted(added_required)}")
+def validate_generated_boundary(errors: list[str]) -> None:
+    generated = ROOT / "generated" / "nexuscontracts"
+    text = "\n".join(path.read_text(encoding="utf-8") for path in generated.glob("*.go"))
+    forbidden_tokens = [
+        "type Task ", "type Run ", "type Evolution", "type SkillRelease ",
+        "RunSkill(", "GetTask(", "GetRun(", "ListSchedules(", "GetSchedule(",
+    ]
+    for token in forbidden_tokens:
+        if token in text:
+            errors.append(f"generated client still exposes retired concept: {token.strip()}")
+
+
+def snapshot_generated() -> dict[str, bytes]:
+    roots = [
+        CONTRACTS / "openapi" / "nexus.yaml",
+        CONTRACTS / "jsonschema",
+        CONTRACTS / "error-codes.json",
+        ROOT / "generated" / "nexuscontracts",
+    ]
+    result: dict[str, bytes] = {}
+    for root in roots:
+        if root.is_file():
+            result[str(root.relative_to(ROOT))] = root.read_bytes()
+        elif root.exists():
+            for path in sorted(item for item in root.rglob("*") if item.is_file()):
+                result[str(path.relative_to(ROOT))] = path.read_bytes()
+    return result
 
 
 def validate_generated_drift(errors: list[str]) -> None:
-    tracked = [
-        ROOT / "contracts" / "openapi" / "nexus.yaml",
-        ROOT / "contracts" / "jsonschema",
-        ROOT / "contracts" / "events",
-        ROOT / "contracts" / "error-codes.json",
-        ROOT / "generated" / "nexuscontracts",
-    ]
-    before = {path: path.read_bytes() for item in tracked for path in ([item] if item.is_file() else sorted(item.glob("*.json")) + sorted(item.glob("*.go")))}
-    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "generate-contracts.py")], cwd=ROOT, capture_output=True, text=True)
+    before = snapshot_generated()
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "generate-contracts.py")],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
     if result.returncode != 0:
         errors.append("generator failed: " + result.stderr.strip())
         return
-    after = {path: path.read_bytes() for item in tracked for path in ([item] if item.is_file() else sorted(item.glob("*.json")) + sorted(item.glob("*.go")))}
+    after = snapshot_generated()
     if before != after:
         errors.append("generated contract output was stale; regenerate and commit it")
 
 
 def main() -> int:
     errors: list[str] = []
-    current = validate_openapi(errors)
+    validate_openapi(errors)
     validate_json_schemas(errors)
-    validate_events(errors)
-    validate_compatibility(current, errors)
+    validate_retired_contract_dirs(errors)
+    validate_generated_boundary(errors)
     validate_generated_drift(errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
-    print("contracts valid: OpenAPI, JSON Schema, events, compatibility and generated output")
+    print("contracts valid: current Nexus paths, schemas, product boundary and generated output")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

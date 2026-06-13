@@ -3,6 +3,9 @@ package nexuscontracts
 
 import "encoding/json"
 
+// JsonObject 通用结构化对象。
+type JsonObject json.RawMessage
+
 // ErrorDetail 字段级错误详情。
 type ErrorDetail struct {
 	// Field 字段路径。
@@ -25,52 +28,100 @@ type ErrorResponse struct {
 	Details []ErrorDetail `json:"details,omitempty"`
 }
 
-// Pagination 游标分页信息。
-type Pagination struct {
-	// NextCursor 下一页游标；无下一页时为 null。
-	NextCursor *string `json:"next_cursor,omitempty"`
-	// Limit 本页上限。
-	Limit int64 `json:"limit"`
-	// Total 可选总数。
-	Total *int64 `json:"total,omitempty"`
+// LegacyErrorEnvelope Memory 与浏览器兼容接口使用的错误信封。
+type LegacyErrorEnvelope struct {
+	// Ok 固定为 false。
+	Ok bool `json:"ok"`
+	// Error 错误详情。
+	Error json.RawMessage `json:"error"`
 }
 
-// Actor 执行动作的主体。
-type Actor struct {
-	// Type 主体类型。
-	Type string `json:"type"`
-	// Id 全局唯一标识符。
+// HealthResponse 服务健康状态。
+type HealthResponse struct {
+	// Ok 服务是否健康。
+	Ok bool `json:"ok"`
+	// Service 服务名称。
+	Service string `json:"service"`
+}
+
+// SystemStatus Nexus 系统与数据存储状态。
+type SystemStatus struct {
+	// Ok 系统是否健康。
+	Ok bool `json:"ok"`
+	// Service 服务名称。
+	Service string `json:"service"`
+	// Database SQLite 健康状态。
+	Database string `json:"database"`
+	// SchemaVersion 数据库 Schema 版本。
+	SchemaVersion int64 `json:"schema_version"`
+	// MemoryRoot 记忆仓库路径。
+	MemoryRoot string `json:"memory_root"`
+	// ArtifactRoot Artifact 密文存储路径。
+	ArtifactRoot string `json:"artifact_root"`
+}
+
+// BackupHistory 一次备份执行的脱敏结果。
+type BackupHistory struct {
+	// SchemaVersion 状态文件版本。
+	SchemaVersion *int64 `json:"schema_version,omitempty"`
+	// State 备份状态。
+	State string `json:"state"`
+	// Message 状态说明。
+	Message *string `json:"message,omitempty"`
+	// StartedAt RFC 3339 UTC 时间。
+	StartedAt *string `json:"started_at,omitempty"`
+	// CompletedAt RFC 3339 UTC 时间。
+	CompletedAt *string `json:"completed_at,omitempty"`
+	// Host 执行设备。
+	Host *string `json:"host,omitempty"`
+	// Archive 归档文件名。
+	Archive *string `json:"archive,omitempty"`
+	// ArchiveSize 归档字节数。
+	ArchiveSize *int64 `json:"archive_size,omitempty"`
+	// Sha256 归档 SHA-256。
+	Sha256 *string `json:"sha256,omitempty"`
+	// RemotePath 脱敏后的远端路径。
+	RemotePath *string `json:"remote_path,omitempty"`
+}
+
+// BackupStatus AgentDock 与 Nexus 的单一备份状态。
+type BackupStatus struct {
+	// Id 稳定备份标识。
 	Id string `json:"id"`
-	// DisplayName 显示名称。
-	DisplayName *string `json:"display_name,omitempty"`
-}
-
-// AuditReference 审计事件引用。
-type AuditReference struct {
-	// AuditId 全局唯一标识符。
-	AuditId string `json:"audit_id"`
-	// RequestId 请求关联 ID。
-	RequestId string `json:"request_id"`
-	// RunId 关联 Run ID。
-	RunId *string `json:"run_id,omitempty"`
-}
-
-// IdempotencyKey 幂等键及其作用域。
-type IdempotencyKey struct {
-	// Key 调用方生成的幂等键。
-	Key string `json:"key"`
-	// Scope 幂等操作作用域。
-	Scope string `json:"scope"`
-}
-
-// ObjectReference 跨模块对象引用。
-type ObjectReference struct {
-	// Type 对象类型。
-	Type string `json:"type"`
-	// Id 对象 ID。
-	Id string `json:"id"`
-	// Label 可读标签。
-	Label *string `json:"label,omitempty"`
+	// Title 备份名称。
+	Title string `json:"title"`
+	// Description 备份内容说明。
+	Description *string `json:"description,omitempty"`
+	// Provider 计划执行提供方。
+	Provider string `json:"provider"`
+	// Device 执行设备。
+	Device string `json:"device"`
+	// Enabled 备份是否启用。
+	Enabled bool `json:"enabled"`
+	// Schedule 可读计划。
+	Schedule string `json:"schedule"`
+	// ScheduleType 计划类型。
+	ScheduleType *string `json:"schedule_type,omitempty"`
+	// State 备份状态。
+	State string `json:"state"`
+	// LastStartedAt RFC 3339 UTC 时间。
+	LastStartedAt *string `json:"last_started_at,omitempty"`
+	// LastCompletedAt RFC 3339 UTC 时间。
+	LastCompletedAt *string `json:"last_completed_at,omitempty"`
+	// NextRunAt RFC 3339 UTC 时间。
+	NextRunAt string `json:"next_run_at"`
+	// Message 状态说明。
+	Message *string `json:"message,omitempty"`
+	// Archive 最近归档文件名。
+	Archive *string `json:"archive,omitempty"`
+	// ArchiveSize 最近归档字节数。
+	ArchiveSize *int64 `json:"archive_size,omitempty"`
+	// Sha256 最近归档 SHA-256。
+	Sha256 *string `json:"sha256,omitempty"`
+	// RemotePath 脱敏后的远端路径。
+	RemotePath *string `json:"remote_path,omitempty"`
+	// History 最近备份历史。
+	History []BackupHistory `json:"history"`
 }
 
 // DeviceCapability 设备能力声明。
@@ -97,7 +148,7 @@ type DeviceEnrollmentRequest struct {
 	Arch string `json:"arch"`
 	// AgentdockVersion AgentDock 版本。
 	AgentdockVersion string `json:"agentdock_version"`
-	// PublicKey 设备公钥，PEM 或 JWK。
+	// PublicKey 设备公钥。
 	PublicKey string `json:"public_key"`
 	// Labels 设备标签。
 	Labels json.RawMessage `json:"labels,omitempty"`
@@ -107,7 +158,7 @@ type DeviceEnrollmentRequest struct {
 type DeviceEnrollmentResponse struct {
 	// DeviceId 全局唯一标识符。
 	DeviceId string `json:"device_id"`
-	// DeviceToken 后续设备认证 token；仅返回一次。
+	// DeviceToken 设备认证 token；仅返回一次。
 	DeviceToken string `json:"device_token"`
 	// TokenExpiresAt RFC 3339 UTC 时间。
 	TokenExpiresAt string `json:"token_expires_at"`
@@ -123,7 +174,7 @@ type EnrollmentTokenCreateRequest struct {
 	CreatedBy string `json:"created_by"`
 	// TtlSeconds 有效期秒数。
 	TtlSeconds int64 `json:"ttl_seconds"`
-	// AllowedCommandTypes 允许的命令类型。
+	// AllowedCommandTypes 允许的结构化命令类型。
 	AllowedCommandTypes []string `json:"allowed_command_types"`
 	// MaxRisk 最大允许风险。
 	MaxRisk string `json:"max_risk"`
@@ -181,9 +232,9 @@ type DeviceCommandCreateRequest struct {
 type DeviceEnvActionRequest struct {
 	// Action Env 管理动作。
 	Action string `json:"action"`
-	// Skill Skill 名称。
+	// Skill Runtime 上报的 Skill 名称。
 	Skill *string `json:"skill,omitempty"`
-	// Name 环境变量名。
+	// Name Runtime 上报的环境变量名。
 	Name *string `json:"name,omitempty"`
 	// Kind 变量类型。
 	Kind *string `json:"kind,omitempty"`
@@ -209,7 +260,7 @@ type DeviceHeartbeat struct {
 	Metrics json.RawMessage `json:"metrics"`
 	// Capabilities 设备能力。
 	Capabilities []DeviceCapability `json:"capabilities"`
-	// SkillSummary Skill 安装摘要。
+	// SkillSummary 设备 Runtime 上报的 Skill 状态摘要。
 	SkillSummary json.RawMessage `json:"skill_summary,omitempty"`
 	// MemorySyncSummary Memory 同步摘要。
 	MemorySyncSummary json.RawMessage `json:"memory_sync_summary,omitempty"`
@@ -219,7 +270,7 @@ type DeviceHeartbeat struct {
 type DeviceStatus struct {
 	// DeviceId 全局唯一标识符。
 	DeviceId string `json:"device_id"`
-	// Status 设备状态；90 秒无心跳 degraded，180 秒 offline。
+	// Status 设备状态。
 	Status string `json:"status"`
 	// LastSeenAt RFC 3339 UTC 时间。
 	LastSeenAt string `json:"last_seen_at"`
@@ -243,7 +294,7 @@ type DeviceCommand struct {
 	Type string `json:"type"`
 	// Status 命令状态。
 	Status string `json:"status"`
-	// Payload 命令结构化参数；不得包含明文 Secret。
+	// Payload 命令结构化参数。
 	Payload json.RawMessage `json:"payload"`
 	// Risk 风险等级。
 	Risk string `json:"risk"`
@@ -305,530 +356,18 @@ type CommandResult struct {
 	Output json.RawMessage `json:"output"`
 	// Error 失败详情；成功时为 null。
 	Error *ErrorResponse `json:"error,omitempty"`
-	// RunId 关联 Run ID。
+	// RunId 兼容节点可选上报的不透明执行关联 ID；Nexus 不创建对应资源。
 	RunId *string `json:"run_id,omitempty"`
 }
 
-// SkillOperation Skill 可执行 operation。
-type SkillOperation struct {
-	// Name 稳定 operation 名。
-	Name string `json:"name"`
-	// Description operation 说明。
-	Description string `json:"description"`
-	// InputSchema JSON Schema 输入定义。
-	InputSchema json.RawMessage `json:"input_schema"`
-	// OutputSchema JSON Schema 输出定义。
-	OutputSchema json.RawMessage `json:"output_schema"`
-	// TimeoutSeconds 默认超时。
-	TimeoutSeconds int64 `json:"timeout_seconds"`
-	// Permissions 声明权限。
-	Permissions []string `json:"permissions"`
-}
-
-// SkillSummary Skill 列表摘要。
-type SkillSummary struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// Name 稳定 Skill 名。
-	Name string `json:"name"`
-	// DisplayName 显示名称。
-	DisplayName string `json:"display_name"`
-	// Description 简介。
-	Description string `json:"description"`
-	// LatestVersion 最新发布版本。
-	LatestVersion string `json:"latest_version"`
-	// Trust 信任状态。
-	Trust string `json:"trust"`
-	// Maturity 成熟度。
-	Maturity string `json:"maturity"`
-	// UpdatedAt RFC 3339 UTC 时间。
-	UpdatedAt string `json:"updated_at"`
-}
-
-// SkillRelease 不可变 Skill 发布。
-type SkillRelease struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// Version 语义版本。
-	Version string `json:"version"`
-	// Channel 发布通道。
-	Channel string `json:"channel"`
-	// Digest sha256 摘要。
-	Digest string `json:"digest"`
-	// ManifestUrl manifest 下载地址。
-	ManifestUrl string `json:"manifest_url"`
-	// PackageUrl 包下载地址。
-	PackageUrl string `json:"package_url"`
-	// PublishedAt RFC 3339 UTC 时间。
-	PublishedAt string `json:"published_at"`
-	// PublishedBy 契约字段。
-	PublishedBy Actor `json:"published_by"`
-}
-
-// SkillInstallation 设备上的 Skill 安装状态。
-type SkillInstallation struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// DeviceId 全局唯一标识符。
-	DeviceId string `json:"device_id"`
-	// ReleaseId 全局唯一标识符。
-	ReleaseId string `json:"release_id"`
-	// Version 安装版本。
-	Version string `json:"version"`
-	// Channel 安装通道。
-	Channel string `json:"channel"`
-	// Status 安装状态。
-	Status string `json:"status"`
-	// InstalledAt RFC 3339 UTC 时间。
-	InstalledAt string `json:"installed_at"`
-	// VerifiedAt 最近验证时间。
-	VerifiedAt *string `json:"verified_at,omitempty"`
-	// LastError 最近错误。
-	LastError *ErrorResponse `json:"last_error,omitempty"`
-}
-
-// SkillDetail Skill 完整详情。
-type SkillDetail struct {
-	// Summary 契约字段。
-	Summary SkillSummary `json:"summary"`
-	// Operations 可执行 operations。
-	Operations []SkillOperation `json:"operations"`
-	// Releases 发布列表。
-	Releases []SkillRelease `json:"releases"`
-	// Compatibility 平台和 AgentDock 兼容性。
-	Compatibility json.RawMessage `json:"compatibility"`
-	// Provenance 来源与许可证信息。
-	Provenance json.RawMessage `json:"provenance"`
-	// InstalledDevices 安装记录。
-	InstalledDevices []SkillInstallation `json:"installed_devices"`
-}
-
-// SkillRunRequest 执行 Skill operation 请求。
-type SkillRunRequest struct {
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// Operation operation 名。
-	Operation string `json:"operation"`
-	// Input 按 operation input_schema 校验的输入。
-	Input json.RawMessage `json:"input"`
-	// DeviceId 全局唯一标识符。
-	DeviceId string `json:"device_id"`
-	// ReleaseId 指定 release；null 使用 active。
-	ReleaseId *string `json:"release_id,omitempty"`
-	// TimeoutSeconds 调用级超时覆盖。
-	TimeoutSeconds *int64 `json:"timeout_seconds,omitempty"`
-	// IdempotencyKey 运行幂等键。
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-// VerificationResult 运行验证结果。
-type VerificationResult struct {
-	// Status 验证状态。
-	Status string `json:"status"`
-	// Summary 验证摘要。
-	Summary string `json:"summary"`
-	// Checks 验证检查项。
-	Checks []json.RawMessage `json:"checks"`
-	// VerifiedAt RFC 3339 UTC 时间。
-	VerifiedAt string `json:"verified_at"`
-}
-
-// RunEvidence Run 证据。
-type RunEvidence struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// RunId 全局唯一标识符。
-	RunId string `json:"run_id"`
-	// Type 证据类型。
-	Type string `json:"type"`
-	// Uri 证据 URI。
-	Uri *string `json:"uri,omitempty"`
-	// Digest 内容摘要。
-	Digest *string `json:"digest,omitempty"`
-	// Summary 脱敏摘要。
-	Summary string `json:"summary"`
-	// CreatedAt RFC 3339 UTC 时间。
-	CreatedAt string `json:"created_at"`
-}
-
-// RunStep Run 步骤。
-type RunStep struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// RunId 全局唯一标识符。
-	RunId string `json:"run_id"`
-	// Sequence 从 1 开始的顺序号。
-	Sequence int64 `json:"sequence"`
-	// Name 步骤名。
-	Name string `json:"name"`
-	// Status 步骤状态。
-	Status string `json:"status"`
-	// StartedAt 开始时间。
-	StartedAt *string `json:"started_at,omitempty"`
-	// CompletedAt 结束时间。
-	CompletedAt *string `json:"completed_at,omitempty"`
-	// Summary 步骤摘要。
-	Summary string `json:"summary"`
-	// Error 步骤错误。
-	Error *ErrorResponse `json:"error,omitempty"`
-}
-
-// Run 统一运行注册记录。
-type Run struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// Type Run 类型。
-	Type string `json:"type"`
-	// Status Run 状态。
-	Status string `json:"status"`
-	// Actor 契约字段。
-	Actor Actor `json:"actor"`
-	// DeviceId 设备 ID。
-	DeviceId *string `json:"device_id,omitempty"`
-	// TaskId Task ID。
-	TaskId *string `json:"task_id,omitempty"`
-	// SkillId Skill ID。
-	SkillId *string `json:"skill_id,omitempty"`
-	// StartedAt 开始时间。
-	StartedAt *string `json:"started_at,omitempty"`
-	// CompletedAt 结束时间。
-	CompletedAt *string `json:"completed_at,omitempty"`
-	// Summary 运行摘要。
-	Summary string `json:"summary"`
-	// Steps 步骤。
-	Steps []RunStep `json:"steps"`
-	// Evidence 证据。
-	Evidence []RunEvidence `json:"evidence"`
-	// Verification 最终验证。
-	Verification *VerificationResult `json:"verification,omitempty"`
-	// Version 资源乐观锁版本，从 1 开始。
-	Version int64 `json:"version"`
-}
-
-// SkillRunResult Skill operation 结果。
-type SkillRunResult struct {
-	// RunId 全局唯一标识符。
-	RunId string `json:"run_id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// Operation operation 名。
-	Operation string `json:"operation"`
-	// Status 运行终态。
-	Status string `json:"status"`
-	// Output 按 output_schema 校验并脱敏的输出。
-	Output json.RawMessage `json:"output"`
-	// Error 运行错误。
-	Error *ErrorResponse `json:"error,omitempty"`
-	// StartedAt RFC 3339 UTC 时间。
-	StartedAt string `json:"started_at"`
-	// CompletedAt RFC 3339 UTC 时间。
-	CompletedAt string `json:"completed_at"`
-	// Verification 结果验证。
-	Verification *VerificationResult `json:"verification,omitempty"`
-}
-
-// ScheduleHistory 计划任务执行历史；只包含脱敏后的归档和状态证据。
-type ScheduleHistory struct {
-	// SchemaVersion 状态文件版本。
-	SchemaVersion *int64 `json:"schema_version,omitempty"`
-	// State 执行状态。
-	State string `json:"state"`
-	// Message 脱敏后的状态说明。
-	Message *string `json:"message,omitempty"`
-	// StartedAt 开始时间。
-	StartedAt *string `json:"started_at,omitempty"`
-	// CompletedAt 结束时间。
-	CompletedAt *string `json:"completed_at,omitempty"`
-	// Host 执行主机显示名；不得包含凭据。
-	Host *string `json:"host,omitempty"`
-	// Archive 归档文件名。
-	Archive *string `json:"archive,omitempty"`
-	// ArchiveSize 归档字节数。
-	ArchiveSize *int64 `json:"archive_size,omitempty"`
-	// Sha256 归档 SHA256。
-	Sha256 *string `json:"sha256,omitempty"`
-	// RemotePath 脱敏后的远端路径。
-	RemotePath *string `json:"remote_path,omitempty"`
-}
-
-// ScheduleItem 计划任务状态摘要。
-type ScheduleItem struct {
-	// Id 稳定计划任务 ID。
-	Id string `json:"id"`
-	// Title 显示标题。
-	Title string `json:"title"`
-	// Description 任务说明。
-	Description *string `json:"description,omitempty"`
-	// Provider 调度提供方。
-	Provider string `json:"provider"`
-	// Device 执行设备显示名。
-	Device string `json:"device"`
-	// Enabled 是否启用。
-	Enabled bool `json:"enabled"`
-	// Schedule 可读执行计划。
-	Schedule string `json:"schedule"`
-	// ScheduleType 计划类型。
-	ScheduleType string `json:"schedule_type"`
-	// State 最近状态。
-	State string `json:"state"`
-	// LastStartedAt 最近开始时间。
-	LastStartedAt *string `json:"last_started_at,omitempty"`
-	// LastCompletedAt 最近完成时间。
-	LastCompletedAt *string `json:"last_completed_at,omitempty"`
-	// NextRunAt RFC 3339 UTC 时间。
-	NextRunAt string `json:"next_run_at"`
-	// Message 脱敏后的状态说明。
-	Message *string `json:"message,omitempty"`
-	// Archive 最近归档文件名。
-	Archive *string `json:"archive,omitempty"`
-	// ArchiveSize 最近归档字节数。
-	ArchiveSize *int64 `json:"archive_size,omitempty"`
-	// Sha256 最近归档 SHA256。
-	Sha256 *string `json:"sha256,omitempty"`
-	// RemotePath 脱敏后的远端路径。
-	RemotePath *string `json:"remote_path,omitempty"`
-	// History 最近执行历史。
-	History []ScheduleHistory `json:"history"`
-}
-
-// ScheduleListResponse 计划任务列表响应。
-type ScheduleListResponse struct {
-	// Items 计划任务。
-	Items []ScheduleItem `json:"items"`
-}
-
-// MemoryEntry 长期记忆条目。
+// MemoryEntry Markdown 记忆条目。
 type MemoryEntry struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// Path Memory Repository 相对路径。
+	// Path 记忆相对路径。
 	Path string `json:"path"`
-	// Title 标题。
-	Title string `json:"title"`
-	// Scope 作用域。
-	Scope string `json:"scope"`
-	// Status 记忆状态。
-	Status string `json:"status"`
-	// Content Markdown 内容。
-	Content string `json:"content"`
-	// VerifiedAt 最近验证时间。
-	VerifiedAt *string `json:"verified_at,omitempty"`
-	// VerificationRunId 验证 Run ID。
-	VerificationRunId *string `json:"verification_run_id,omitempty"`
-	// SourceDevice 来源设备 ID。
-	SourceDevice *string `json:"source_device,omitempty"`
-	// SourceAgent 来源 Agent ID。
-	SourceAgent *string `json:"source_agent,omitempty"`
-	// Confidence 置信度。
-	Confidence float64 `json:"confidence"`
-	// UpdatedAt RFC 3339 UTC 时间。
-	UpdatedAt string `json:"updated_at"`
-	// Version 资源乐观锁版本，从 1 开始。
-	Version int64 `json:"version"`
-}
-
-// MemoryConflict 记忆与事实冲突。
-type MemoryConflict struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// MemoryId 全局唯一标识符。
-	MemoryId string `json:"memory_id"`
-	// Status 冲突状态。
-	Status string `json:"status"`
-	// SourceType 冲突来源。
-	SourceType string `json:"source_type"`
-	// ObservedValue 设备或运行观察到的结构化值。
-	ObservedValue json.RawMessage `json:"observed_value"`
-	// MemoryValue Memory 当前结构化值。
-	MemoryValue json.RawMessage `json:"memory_value"`
-	// Summary 冲突摘要。
-	Summary string `json:"summary"`
-	// DetectedAt RFC 3339 UTC 时间。
-	DetectedAt string `json:"detected_at"`
-	// ResolvedAt 解决时间。
-	ResolvedAt *string `json:"resolved_at,omitempty"`
-	// ResolutionRunId 解决 Run ID。
-	ResolutionRunId *string `json:"resolution_run_id,omitempty"`
-}
-
-// MemoryContextPack 任务所需记忆上下文。
-type MemoryContextPack struct {
-	// Entries 选中的记忆。
-	Entries []MemoryEntry `json:"entries"`
-	// Conflicts 相关冲突。
-	Conflicts []MemoryConflict `json:"conflicts"`
-	// Truncated 是否因 max_bytes 截断。
-	Truncated bool `json:"truncated"`
-	// TotalBytes 实际包字节数。
-	TotalBytes int64 `json:"total_bytes"`
-	// GeneratedAt RFC 3339 UTC 时间。
-	GeneratedAt string `json:"generated_at"`
-}
-
-// Observation Skill 运行观察事件。
-type Observation struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// RunId 全局唯一标识符。
-	RunId string `json:"run_id"`
-	// DeviceId 设备 ID。
-	DeviceId *string `json:"device_id,omitempty"`
-	// Trigger 进化触发类型。
-	Trigger string `json:"trigger"`
-	// Signature 归一化错误或行为签名。
-	Signature string `json:"signature"`
-	// Summary 观察摘要。
-	Summary string `json:"summary"`
-	// EvidenceIds 证据 ID。
-	EvidenceIds []string `json:"evidence_ids"`
-	// PrivateScope 是否包含仅设备可用信息。
-	PrivateScope bool `json:"private_scope"`
-	// ObservedAt RFC 3339 UTC 时间。
-	ObservedAt string `json:"observed_at"`
-}
-
-// EvolutionCandidate 聚合后的进化候选。
-type EvolutionCandidate struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// Status 候选状态。
-	Status string `json:"status"`
-	// Signature 聚合签名。
-	Signature string `json:"signature"`
-	// Trigger 主要触发类型。
-	Trigger string `json:"trigger"`
-	// ObservationIds Observation ID。
-	ObservationIds []string `json:"observation_ids"`
-	// Score 固定规则计算的可解释分数。
-	Score float64 `json:"score"`
-	// Confidence 跨运行置信度。
-	Confidence float64 `json:"confidence"`
-	// Reasoning 评分依据。
-	Reasoning []string `json:"reasoning"`
-	// CreatedAt RFC 3339 UTC 时间。
-	CreatedAt string `json:"created_at"`
-	// UpdatedAt RFC 3339 UTC 时间。
-	UpdatedAt string `json:"updated_at"`
-}
-
-// EvolutionProposal 待审查的 Skill 进化提案。
-type EvolutionProposal struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// CandidateId 全局唯一标识符。
-	CandidateId string `json:"candidate_id"`
-	// SkillId 全局唯一标识符。
-	SkillId string `json:"skill_id"`
-	// Status 提案状态。
-	Status string `json:"status"`
-	// Problem 问题定义。
-	Problem string `json:"problem"`
-	// Evidence 证据引用。
-	Evidence []ObjectReference `json:"evidence"`
-	// Scope 提案作用域。
-	Scope string `json:"scope"`
-	// SuggestedFiles 建议修改的 Skill 相对路径。
-	SuggestedFiles []string `json:"suggested_files"`
-	// Risk 风险等级。
-	Risk string `json:"risk"`
-	// Tests 必须执行的测试。
-	Tests []string `json:"tests"`
-	// ExpectedBenefit 预期收益。
-	ExpectedBenefit string `json:"expected_benefit"`
-	// CreatedAt RFC 3339 UTC 时间。
-	CreatedAt string `json:"created_at"`
-	// UpdatedAt RFC 3339 UTC 时间。
-	UpdatedAt string `json:"updated_at"`
-}
-
-// TaskLink Task 与领域对象的 Link。
-type TaskLink struct {
-	// Type Link 类型。
-	Type string `json:"type"`
-	// ObjectId 对象 ID。
-	ObjectId string `json:"object_id"`
-	// Relation 关系说明。
-	Relation string `json:"relation"`
-}
-
-// TaskCompletion Task 完成结果。
-type TaskCompletion struct {
-	// Summary 完成摘要。
-	Summary string `json:"summary"`
-	// VerificationSummary 必须提供的验证摘要。
-	VerificationSummary string `json:"verification_summary"`
-	// RunId 完成 Run ID。
-	RunId *string `json:"run_id,omitempty"`
-	// EvidenceIds 完成证据 ID。
-	EvidenceIds []string `json:"evidence_ids"`
-	// CompletedAt RFC 3339 UTC 时间。
-	CompletedAt string `json:"completed_at"`
-}
-
-// Task Agent Inbox 任务。
-type Task struct {
-	// Id 全局唯一标识符。
-	Id string `json:"id"`
-	// Type 任务类型。
-	Type string `json:"type"`
-	// Status 任务状态。
-	Status string `json:"status"`
-	// Title 标题。
-	Title string `json:"title"`
-	// Description 任务说明。
-	Description string `json:"description"`
-	// Category 稳定分类。
-	Category string `json:"category"`
-	// SourceType 创建来源类型。
-	SourceType string `json:"source_type"`
-	// SourceId 创建来源 ID。
-	SourceId string `json:"source_id"`
-	// ObjectId 主要对象 ID。
-	ObjectId string `json:"object_id"`
-	// Priority 优先级。
-	Priority string `json:"priority"`
-	// Links 领域对象链接。
-	Links []TaskLink `json:"links"`
-	// AssignedActor 当前负责人。
-	AssignedActor *Actor `json:"assigned_actor,omitempty"`
-	// CompletionCriteria 完成标准。
-	CompletionCriteria []string `json:"completion_criteria"`
-	// RiskConstraints 风险约束。
-	RiskConstraints []string `json:"risk_constraints"`
-	// Completion 完成结果。
-	Completion *TaskCompletion `json:"completion,omitempty"`
-	// CreatedAt RFC 3339 UTC 时间。
-	CreatedAt string `json:"created_at"`
-	// UpdatedAt RFC 3339 UTC 时间。
-	UpdatedAt string `json:"updated_at"`
-	// Version 资源乐观锁版本，从 1 开始。
-	Version int64 `json:"version"`
-}
-
-// TaskContextPack 完成 Task 的聚合上下文。
-type TaskContextPack struct {
-	// Task 契约字段。
-	Task Task `json:"task"`
-	// Memory 契约字段。
-	Memory MemoryContextPack `json:"memory"`
-	// Device 设备快照。
-	Device *DeviceStatus `json:"device,omitempty"`
-	// Skill Skill 详情。
-	Skill *SkillDetail `json:"skill,omitempty"`
-	// RecentRuns 最近相关 Runs。
-	RecentRuns []Run `json:"recent_runs"`
-	// Evidence 相关证据。
-	Evidence []RunEvidence `json:"evidence"`
-	// GeneratedAt RFC 3339 UTC 时间。
-	GeneratedAt string `json:"generated_at"`
-	// Truncated 是否截断。
-	Truncated bool `json:"truncated"`
+	// Content Markdown 或文本内容。
+	Content *string `json:"content,omitempty"`
+	// SizeBytes 内容字节数。
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
+	// ModifiedAt RFC 3339 UTC 时间。
+	ModifiedAt *string `json:"modified_at,omitempty"`
 }

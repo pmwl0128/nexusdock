@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/CommandProgress.json",
-  "title": "CommandProgress",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/BackupHistory.json",
+  "title": "BackupHistory",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -1122,47 +1122,64 @@
     }
   },
   "type": "object",
-  "description": "命令进度上报。",
+  "description": "一次备份执行的脱敏结果。",
   "additionalProperties": false,
   "properties": {
-    "command_id": {
-      "type": "string",
-      "description": "全局唯一标识符。",
-      "format": "uuid"
-    },
-    "lease_id": {
-      "type": "string",
-      "description": "全局唯一标识符。",
-      "format": "uuid"
-    },
-    "status": {
-      "type": "string",
-      "description": "执行中状态。",
-      "enum": [
-        "leased",
-        "running"
-      ]
-    },
-    "percent": {
+    "schema_version": {
       "type": "integer",
-      "description": "完成百分比。",
-      "minimum": 0,
-      "maximum": 100
+      "description": "状态文件版本。",
+      "minimum": 0
+    },
+    "state": {
+      "type": "string",
+      "description": "备份状态。",
+      "enum": [
+        "never_run",
+        "queued",
+        "running",
+        "success",
+        "failed",
+        "unknown",
+        "disabled"
+      ]
     },
     "message": {
       "type": "string",
-      "description": "进度说明。"
+      "description": "状态说明。"
     },
-    "reported_at": {
+    "started_at": {
       "type": "string",
       "description": "RFC 3339 UTC 时间。",
       "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "description": "RFC 3339 UTC 时间。",
+      "format": "date-time"
+    },
+    "host": {
+      "type": "string",
+      "description": "执行设备。"
+    },
+    "archive": {
+      "type": "string",
+      "description": "归档文件名。"
+    },
+    "archive_size": {
+      "type": "integer",
+      "description": "归档字节数。",
+      "minimum": 0
+    },
+    "sha256": {
+      "type": "string",
+      "description": "归档 SHA-256。"
+    },
+    "remote_path": {
+      "type": "string",
+      "description": "脱敏后的远端路径。"
     }
   },
   "required": [
-    "command_id",
-    "lease_id",
-    "status",
-    "reported_at"
+    "state"
   ]
 }

@@ -1,6 +1,6 @@
 import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
-  Activity, ArrowDownToLine, ArrowUpFromLine, CalendarClock, ChevronRight,
+  Activity, ArrowDownToLine, ArrowUpFromLine, ChevronRight,
   CircleAlert, Database, FileArchive, HardDrive, Home, Menu, RefreshCw,
   Server, Settings, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
@@ -22,7 +22,7 @@ type NexusDeviceSummary = {
   status?: string;
 };
 
-type ScheduleHistory = {
+type BackupHistory = {
   state: string;
   message?: string;
   started_at?: string;
@@ -33,7 +33,7 @@ type ScheduleHistory = {
   remote_path?: string;
 };
 
-type Schedule = {
+type BackupStatus = {
   id: string;
   title: string;
   description?: string;
@@ -50,7 +50,7 @@ type Schedule = {
   archive_size?: number;
   sha256?: string;
   remote_path?: string;
-  history?: ScheduleHistory[];
+  history?: BackupHistory[];
 };
 
 type Artifact = {
@@ -281,19 +281,18 @@ function SessionExpiredDialog() {
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
   const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
-  const schedulesResource = useResource<Schedule[]>('/v1/schedules', [], refreshToken);
+  const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
   const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=8', [], refreshToken);
   const devices = devicesResource.data ?? [];
-  const schedules = schedulesResource.data ?? [];
   const artifacts = artifactsResource.data ?? [];
   const fetches = fetchesResource.data ?? [];
-  const backup = schedules[0];
+  const backup = backupResource.data;
   const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
   const failedTransfers = artifacts.filter((item) => item.deliveries.some((delivery) => delivery.status === 'failed')).length
     + fetches.filter((item) => item.status === 'failed').length;
   const recentTransferCount = artifacts.length + fetches.length;
-  const errors = [devicesResource.error, schedulesResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
+  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
@@ -309,20 +308,13 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
       <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
     </section>
 
-    <section className="action-grid" aria-label="常用操作">
-      <ActionTile icon={<Server size={18} />} title="管理设备" detail="注册、审批、能力、Env 和命令历史" onClick={() => navigate('devices')} />
-      <ActionTile icon={<Database size={18} />} title="打开记忆" detail="查看、编辑、审阅和同步记忆仓库" onClick={() => navigate('memory')} />
-      <ActionTile icon={<FileArchive size={18} />} title="查看文件" detail="Artifact 发送、Delivery 与 Fetch 状态" onClick={() => navigate('files')} />
-      <ActionTile icon={<Settings size={18} />} title="系统设置" detail="账号、会话、数据库和备份状态" onClick={() => navigate('settings')} />
-    </section>
-
     <section className="dashboard-grid-nexus">
       <Panel title="设备状态" subtitle={`${devices.length} 台已注册设备`}>
         <SummaryStat label="在线" value={String(devices.filter((device) => device.status === 'online').length)} tone="ok" />
         <SummaryStat label="需关注" value={String(unhealthyDevices.length)} tone={unhealthyDevices.length ? 'danger' : 'muted'} />
         <SummaryList empty="暂无设备。">{devices.slice(0, 5).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
       </Panel>
-      <BackupPanel schedule={backup} />
+      <BackupPanel backup={backup} />
       <Panel title="需要处理" subtitle="只聚合真实设备、备份和文件异常">
         {unhealthyDevices.length === 0 && backup?.state !== 'failed' && failedTransfers === 0 ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {unhealthyDevices.slice(0, 4).map((device) => <button type="button" className="attention-row" key={device.id} onClick={() => navigate('devices')}><StatusBadge tone={toneForStatus(device.status)}>{device.status}</StatusBadge><span><strong>{device.name || device.id}</strong><small>{device.platform || 'unknown'} / {device.arch || 'unknown'}</small></span><ChevronRight size={16} /></button>)}
@@ -370,7 +362,7 @@ function FetchCard({ fetch }: { fetch: FetchJob }) {
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'memorydock', database: 'unknown', schema_version: 0, memory_root: '', artifact_root: '' }, refreshToken);
-  const schedules = useResource<Schedule[]>('/v1/schedules', [], refreshToken);
+  const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
@@ -381,20 +373,20 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
         <SettingValue label="记忆仓库" value={system.data.memory_root || '暂无'} mono />
         <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
       </Panel>
-      <BackupPanel schedule={schedules.data?.[0]} />
+      <BackupPanel backup={backup.data} />
     </section>
   </>;
 }
 
-function BackupPanel({ schedule }: { schedule?: Schedule }) {
-  return <Panel title="备份状态" subtitle={schedule ? `${schedule.device} · ${schedule.schedule}` : '等待备份状态'}>
-    {schedule ? <>
-      <SettingValue label="状态" value={schedule.state || 'unknown'} tone={toneForStatus(schedule.state)} />
-      <SettingValue label="最近完成" value={formatTime(schedule.last_completed_at)} />
-      <SettingValue label="下次运行" value={formatTime(schedule.next_run_at)} />
-      <SettingValue label="归档大小" value={formatBytes(schedule.archive_size)} />
-      <SettingValue label="远端路径" value={schedule.remote_path || '暂无'} mono />
-      <SettingValue label="SHA256" value={schedule.sha256 || '暂无'} mono />
+function BackupPanel({ backup }: { backup?: BackupStatus }) {
+  return <Panel title="备份状态" subtitle={backup ? `${backup.device} · ${backup.schedule}` : '等待备份状态'}>
+    {backup ? <>
+      <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
+      <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
+      <SettingValue label="下次运行" value={formatTime(backup.next_run_at)} />
+      <SettingValue label="归档大小" value={formatBytes(backup.archive_size)} />
+      <SettingValue label="远端路径" value={backup.remote_path || '暂无'} mono />
+      <SettingValue label="SHA256" value={backup.sha256 || '暂无'} mono />
     </> : <EmptyMini text="暂无备份状态。" />}
   </Panel>;
 }
@@ -405,7 +397,6 @@ function Panel({ title, subtitle, children }: { title: string; subtitle: string;
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }
 function EmptyState({ text }: { text: string }) { return <div className="empty-state"><span><Activity size={24} /></span><h3>等待数据</h3><p>{text}</p></div>; }
-function ActionTile({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick: () => void }) { return <button type="button" className="action-tile" onClick={onClick}><span>{icon}</span><strong>{title}</strong><small>{detail}</small><ChevronRight size={16} /></button>; }
 function SummaryStat({ label, value, tone }: { label: string; value: string; tone: Tone }) { return <div className="summary-stat"><span className={`metric-icon tone-${tone}`}><Activity size={15} /></span><div><strong>{value}</strong><small>{label}</small></div></div>; }
 function SummaryList({ empty, children }: { empty: string; children: ReactNode }) { return <div className="summary-list">{Children.count(children) ? children : <EmptyMini text={empty} />}</div>; }
 function ObjectRow({ title, detail, tone }: { title: string; detail: string; tone: Tone }) { return <div className="object-row"><StatusBadge tone={tone}>{tone}</StatusBadge><span><strong>{title}</strong><small>{detail}</small></span></div>; }

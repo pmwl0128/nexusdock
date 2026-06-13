@@ -1,52 +1,28 @@
 # Quality Guidelines
 
-Backend changes should stay small, contract-aware, and verifiable with local commands.
-
-## Required Checks
-
-Use focused tests while editing, then run the relevant final checks:
+## 最终检查
 
 ```bash
+gofmt -w <changed-go-files>
 go test ./...
 go vet ./...
 python3 scripts/check-contracts.py
-```
-
-For full repository confidence or frontend-adjacent backend work, also run:
-
-```bash
 cd web && npm run build
 ```
 
-## Required Patterns
+## 必须遵守
 
-- Run `gofmt` on Go files before final verification.
-- Keep generated contracts reproducible through `python3 scripts/generate-contracts.py`.
-- Let `scripts/check-contracts.py` detect stale generated output, missing schema descriptions, unresolved refs, event mismatches, and v1 compatibility breaks.
-- Add or update tests when changing service behavior, repository behavior, migrations, authentication, command state transitions, or contract generation.
-- Keep compatibility code explicit: `cmd/memorydock` is a compatibility entrypoint; `cmd/nexus-server` is the Nexus control plane.
+- `contracts/` 只描述当前生产能力，生成器必须可重复执行。
+- `scripts/check-contracts.py` 必须阻止已退出的产品路径和模型重新进入公共契约。
+- 不手改 `generated/nexuscontracts/`、`contracts/openapi/` 或生成的 JSON Schema。
+- 不在前端硬编码具体 Skill 或 Env 变量定义；使用设备 Runtime 上报状态。
+- 人工界面不暴露 Skill 生命周期、任意 JSON 编排、风险等级、TTL 或重试等底层调度参数。
+- 不加入任意 Shell、不绕过 Service 校验、不在日志、测试和文档中放入真实 Secret。
+- 服务、仓库、迁移、认证和命令状态变化必须有对应测试。
 
-## Forbidden Patterns
+## 评审问题
 
-- Do not hand-edit files under `generated/nexuscontracts/`.
-- Do not edit generated `contracts/jsonschema/*.json`, event schemas, or OpenAPI output without updating `scripts/generate-contracts.py` when the generator owns the shape.
-- Do not introduce plaintext secrets into tests, docs, fixtures, logs, or responses.
-- Do not bypass service-layer validation by writing directly through repositories from HTTP handlers.
-- Do not add shell execution or arbitrary command payloads to the device control plane; commands must remain typed and policy-checked.
-- Do not add frontend API assumptions that are absent from `contracts/` or the existing API helpers.
-
-## Testing Expectations
-
-- Domain services need unit tests for validation, state transitions, and idempotency.
-- SQLite repositories need tests for persistence, optimistic locking, and conflict behavior.
-- Cross-domain flows belong under `tests/<domain>/` when they exercise multiple packages.
-- Migration changes require migration tests or integration coverage that opens a fresh database and applies all migrations.
-- Security-sensitive changes need tests for unauthorized, forbidden, and revoked/expired cases.
-
-## Review Checklist
-
-- Does the change preserve `contracts/` as the single source of truth?
-- Are generated files either untouched or regenerated intentionally?
-- Are errors stable and non-secret?
-- Are database changes migration-backed and backward-compatible?
-- Are Makefile, README, Docker, and docs entrypoints still accurate?
+- 该功能是否直接服务个人多设备工作流？
+- 是否重复了 AgentDock Runtime 或外部 Agent 的职责？
+- 契约、真实路由、前端和部署是否一致？
+- 最终 diff 是否包含历史架构残留或无关样式？

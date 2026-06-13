@@ -12,7 +12,6 @@ Applies to Go code under `cmd/`, `internal/`, `migrations/`, `generated/`, `cont
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and ownership boundaries | Active |
 | [Database Guidelines](./database-guidelines.md) | SQLite, migrations, repositories, transactions | Active |
-| [Dashboard Compatibility APIs](./dashboard-compatibility-apis.md) | MemoryDock-compatible Nexus console JSON routes | Active |
 | [Error Handling](./error-handling.md) | Domain errors, API responses, validation boundaries | Active |
 | [Quality Guidelines](./quality-guidelines.md) | Required checks, generated-code rules, forbidden patterns | Active |
 | [Logging Guidelines](./logging-guidelines.md) | `slog` usage and secret-safe logging | Active |
@@ -21,7 +20,7 @@ Applies to Go code under `cmd/`, `internal/`, `migrations/`, `generated/`, `cont
 
 - Read [Directory Structure](./directory-structure.md) before adding or moving packages.
 - Read [Database Guidelines](./database-guidelines.md) before changing repositories, migrations, or SQLite behavior.
-- Read [Dashboard Compatibility APIs](./dashboard-compatibility-apis.md) before adding or changing `internal/httpx` routes consumed by the Nexus console.
+- Read the current OpenAPI and `internal/httpx/server.go` before changing routes consumed by the Nexus console.
 - Read [Error Handling](./error-handling.md) before adding service methods or HTTP handlers.
 - Read [Quality Guidelines](./quality-guidelines.md) before changing contracts, generated files, tests, or build scripts.
 - Read [Logging Guidelines](./logging-guidelines.md) before adding operational logs.

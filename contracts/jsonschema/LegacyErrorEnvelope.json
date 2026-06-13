@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/CommandProgress.json",
-  "title": "CommandProgress",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/LegacyErrorEnvelope.json",
+  "title": "LegacyErrorEnvelope",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -1122,47 +1122,35 @@
     }
   },
   "type": "object",
-  "description": "命令进度上报。",
+  "description": "Memory 与浏览器兼容接口使用的错误信封。",
   "additionalProperties": false,
   "properties": {
-    "command_id": {
-      "type": "string",
-      "description": "全局唯一标识符。",
-      "format": "uuid"
+    "ok": {
+      "type": "boolean",
+      "description": "固定为 false。"
     },
-    "lease_id": {
-      "type": "string",
-      "description": "全局唯一标识符。",
-      "format": "uuid"
-    },
-    "status": {
-      "type": "string",
-      "description": "执行中状态。",
-      "enum": [
-        "leased",
-        "running"
+    "error": {
+      "type": "object",
+      "description": "错误详情。",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "稳定错误码。"
+        },
+        "message": {
+          "type": "string",
+          "description": "可读错误说明。"
+        }
+      },
+      "required": [
+        "code",
+        "message"
       ]
-    },
-    "percent": {
-      "type": "integer",
-      "description": "完成百分比。",
-      "minimum": 0,
-      "maximum": 100
-    },
-    "message": {
-      "type": "string",
-      "description": "进度说明。"
-    },
-    "reported_at": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
     }
   },
   "required": [
-    "command_id",
-    "lease_id",
-    "status",
-    "reported_at"
+    "ok",
+    "error"
   ]
 }

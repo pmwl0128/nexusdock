@@ -1,22 +1,17 @@
-# ADR-0002：兼容性与版本策略
+# ADR-0002：当前契约兼容与版本策略
 
 - 状态：Accepted
 - 日期：2026-06-05
-- Owner：T0
+- 更新：2026-06-14
 
 ## 决策
 
-公共 API 当前版本为 `v1`，遵循以下规则：
+1. 当前公共 API 使用 `/v1`。
+2. 设备注册、心跳、租约、命令结果和 Artifact 传输等跨设备协议，变更前必须验证 AgentDock 消费者。
+3. 可增加 optional 字段；不得静默改变既有字段语义、收紧约束或移除节点仍使用的枚举值。
+4. Breaking Change 必须同时更新 Nexus、AgentDock 节点、生成客户端和部署验证。
+5. 写操作使用幂等键或领域状态机防止重复副作用。
+6. RFC 3339 用于时间字段，持续时间字段名必须带单位。
+7. `scripts/check-contracts.py` 检查当前必需路径、禁止路径、禁止模型、引用完整性和生成漂移；不再用旧产品模型作为兼容基线。
 
-1. 冻结后可新增 optional 字段。
-2. 不得删除字段、收紧已有字段约束、修改字段含义或修改既有枚举值。
-3. 新增枚举值属于潜在兼容风险，必须明确消费者的 unknown-value 行为并通过 T0 审核。
-4. Breaking Change 必须发布新 API/Schema major 版本。
-5. 所有写接口支持 `Idempotency-Key`；同一 actor、operation 与 key 必须返回同一逻辑结果。
-6. 资源更新使用 `version` 做乐观并发控制，冲突返回 `VERSION_CONFLICT`。
-7. `contracts/compatibility/v1-baseline.json` 保存冻结签名；`scripts/check-contracts.py` 检查删除、必填项增加、类型变化和枚举收窄。
-
-## 时间格式
-
-所有时间字段使用 RFC 3339 UTC 字符串。持续时间统一使用整数秒或毫秒，字段名必须带单位。
-
+历史 Task、Run、Skill Catalog 等契约不构成当前兼容承诺，只由 Git 历史保存。

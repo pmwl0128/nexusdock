@@ -19,6 +19,6 @@ docker compose up -d memorydock
 
 ## 验收
 
-验证 `/health`、认证后的 `/v1/system/status`、`/v1/devices`、`/v1/artifacts`、`/v1/artifact-fetches`、`/v1/schedules`，并执行 SQLite `quick_check`、`integrity_check`、`foreign_key_check`。
+验证 `/health`、认证后的 `/v1/system/status`、`/v1/devices`、`/v1/artifacts`、`/v1/artifact-fetches`、`/v1/backup/status`，并执行 SQLite `quick_check`、`integrity_check`、`foreign_key_check`。
 
 回退时恢复上一个已验证镜像和部署前数据库快照；数据库异常时禁止反复重启容器。
