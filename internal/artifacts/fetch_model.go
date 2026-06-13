@@ -32,8 +32,8 @@ type FetchJob struct {
 	StoragePath            string       `json:"-"`
 	ReceiverPublicKey      string       `json:"-"`
 	EphemeralPublicKey     string       `json:"ephemeral_public_key,omitempty"`
-	WrappedKey             string       `json:"-"`
-	WrapNonce              string       `json:"-"`
+	WrappedKey             string       `json:"wrapped_key,omitempty"`
+	WrapNonce              string       `json:"wrap_nonce,omitempty"`
 	PlainSize              int64        `json:"plain_size"`
 	PlainSHA256            string       `json:"plain_sha256,omitempty"`
 	CipherSize             int64        `json:"cipher_size"`

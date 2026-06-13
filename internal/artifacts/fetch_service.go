@@ -328,8 +328,6 @@ func validBase64Size(value string, size int) bool {
 
 func publicFetch(job FetchJob) FetchJob {
 	job.ReceiverPublicKey = ""
-	job.WrappedKey = ""
-	job.WrapNonce = ""
 	job.UploadTokenDigest = ""
 	job.DownloadTokenDigest = ""
 	job.UploadTokenExpiresAt = time.Time{}
