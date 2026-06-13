@@ -45,7 +45,7 @@ func newArtifactTestFixture(t *testing.T) artifactTestFixture {
 		db.Close()
 		t.Fatal(err)
 	}
-	policy := devices.Policy{AllowedCommandTypes: []string{"artifact.pull"}, MaxRisk: devices.RiskMedium, ReleaseChannel: devices.ChannelStable}
+	policy := devices.Policy{AllowedCommandTypes: []string{"artifact.pull", "artifact.fetch"}, MaxRisk: devices.RiskHigh, ReleaseChannel: devices.ChannelStable}
 	token, err := deviceService.CreateEnrollmentToken(ctx, "test", time.Hour, policy)
 	if err != nil {
 		db.Close()
@@ -68,7 +68,7 @@ func newArtifactTestFixture(t *testing.T) artifactTestFixture {
 	publicKey := base64.RawURLEncoding.EncodeToString(key)
 	_, err = deviceService.Heartbeat(ctx, enrolled.Device.ID, enrolled.DeviceToken, devices.Heartbeat{
 		DeviceID: enrolled.Device.ID, SentAt: time.Now().UTC(), UptimeSeconds: 10, AgentDockVersion: "test",
-		Capabilities: []devices.Capability{{Name: "artifact-relay", Version: "ADR1", Enabled: true, Metadata: map[string]string{"x25519_public_key": publicKey}}},
+		Capabilities: []devices.Capability{{Name: "artifact-relay", Version: "ADR1", Enabled: true, Metadata: map[string]string{"x25519_public_key": publicKey, "fetch_enabled": "true"}}},
 	})
 	if err != nil {
 		db.Close()

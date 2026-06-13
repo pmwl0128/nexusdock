@@ -108,6 +108,7 @@ COMMAND_TYPES = [
     "agentdock.reload",
     "env.manage",
     "artifact.pull",
+    "artifact.fetch",
 ]
 
 EVOLUTION_TRIGGERS = [

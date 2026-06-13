@@ -18,6 +18,10 @@ const (
 	ErrTooLarge               ErrorCode = "ARTIFACT_TOO_LARGE"
 	ErrTargetKeyUnavailable   ErrorCode = "ARTIFACT_TARGET_KEY_UNAVAILABLE"
 	ErrConflict               ErrorCode = "ARTIFACT_CONFLICT"
+	ErrFetchNotFound          ErrorCode = "ARTIFACT_FETCH_NOT_FOUND"
+	ErrFetchTokenInvalid      ErrorCode = "ARTIFACT_FETCH_TOKEN_INVALID"
+	ErrFetchTokenExpired      ErrorCode = "ARTIFACT_FETCH_TOKEN_EXPIRED"
+	ErrFetchDeviceMismatch    ErrorCode = "ARTIFACT_FETCH_DEVICE_MISMATCH"
 )
 
 type Error struct {

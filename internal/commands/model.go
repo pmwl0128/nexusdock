@@ -21,13 +21,14 @@ const (
 	TypeAgentDockReload    Type = "agentdock.reload"
 	TypeEnvManage          Type = "env.manage"
 	TypeArtifactPull       Type = "artifact.pull"
+	TypeArtifactFetch      Type = "artifact.fetch"
 )
 
 var allowedTypes = map[Type]struct{}{
 	TypeHealthCheck: {}, TypeSkillInstall: {}, TypeSkillRun: {},
 	TypeSkillRollback: {}, TypeMemorySync: {}, TypeServiceInspect: {},
 	TypeServiceRestart: {}, TypeDiagnosticsCollect: {}, TypeAgentDockReload: {},
-	TypeEnvManage: {}, TypeArtifactPull: {},
+	TypeEnvManage: {}, TypeArtifactPull: {}, TypeArtifactFetch: {},
 }
 
 func (t Type) Valid() bool {

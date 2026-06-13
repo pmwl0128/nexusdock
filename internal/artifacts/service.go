@@ -37,6 +37,7 @@ func (systemClock) Now() time.Time { return time.Now().UTC() }
 
 type Service struct {
 	repository Repository
+	fetches    FetchRepository
 	devices    DeviceService
 	commands   CommandService
 	root       string
@@ -63,7 +64,11 @@ func NewService(repository Repository, deviceService DeviceService, commandServi
 	if err != nil || strings.TrimSpace(root) == "" {
 		return nil, domainError(ErrValidation, "artifact root is invalid")
 	}
-	service := &Service{repository: repository, devices: deviceService, commands: commandService, root: absolute, maxBytes: DefaultMaxCipherBytes, clock: systemClock{}}
+	fetches, ok := repository.(FetchRepository)
+	if !ok {
+		return nil, domainError(ErrValidation, "repository does not support artifact fetch")
+	}
+	service := &Service{repository: repository, fetches: fetches, devices: deviceService, commands: commandService, root: absolute, maxBytes: DefaultMaxCipherBytes, clock: systemClock{}}
 	for _, option := range options {
 		option(service)
 	}
@@ -412,7 +417,11 @@ func (s *Service) CleanupExpired(ctx context.Context) (int, error) {
 			_ = os.Remove(filepath.Dir(path))
 		}
 	}
-	return len(items), nil
+	fetchCount, err := s.cleanupExpiredFetches(ctx)
+	if err != nil {
+		return len(items), err
+	}
+	return len(items) + fetchCount, nil
 }
 
 func (s *Service) RunCleanup(ctx context.Context, interval time.Duration) {

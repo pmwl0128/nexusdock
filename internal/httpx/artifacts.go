@@ -227,13 +227,13 @@ func writeArtifactError(w http.ResponseWriter, err error) {
 		switch artifactError.Code {
 		case artifacts.ErrValidation:
 			status = http.StatusBadRequest
-		case artifacts.ErrNotFound, artifacts.ErrDeliveryNotFound:
+		case artifacts.ErrNotFound, artifacts.ErrDeliveryNotFound, artifacts.ErrFetchNotFound:
 			status = http.StatusNotFound
-		case artifacts.ErrUploadTokenInvalid, artifacts.ErrDeliveryTokenInvalid:
+		case artifacts.ErrUploadTokenInvalid, artifacts.ErrDeliveryTokenInvalid, artifacts.ErrFetchTokenInvalid:
 			status = http.StatusUnauthorized
-		case artifacts.ErrDeliveryDeviceMismatch, artifacts.ErrTargetKeyUnavailable:
+		case artifacts.ErrDeliveryDeviceMismatch, artifacts.ErrTargetKeyUnavailable, artifacts.ErrFetchDeviceMismatch:
 			status = http.StatusForbidden
-		case artifacts.ErrUploadTokenExpired, artifacts.ErrDeliveryTokenExpired:
+		case artifacts.ErrUploadTokenExpired, artifacts.ErrDeliveryTokenExpired, artifacts.ErrFetchTokenExpired:
 			status = http.StatusGone
 		case artifacts.ErrTooLarge:
 			status = http.StatusRequestEntityTooLarge

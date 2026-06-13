@@ -28,8 +28,8 @@ func TestMigrationRunnerIsIdempotentAndPersistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version != 100 {
-		t.Fatalf("version = %d, want 100", version)
+	if version != 101 {
+		t.Fatalf("version = %d, want 101", version)
 	}
 	var controlPlaneTable string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='device_commands_v1'`).Scan(&controlPlaneTable); err != nil {

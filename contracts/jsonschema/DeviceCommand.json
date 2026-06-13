@@ -398,7 +398,8 @@
               "diagnostics.collect",
               "agentdock.reload",
               "env.manage",
-              "artifact.pull"
+              "artifact.pull",
+              "artifact.fetch"
             ]
           }
         },
@@ -509,7 +510,8 @@
             "diagnostics.collect",
             "agentdock.reload",
             "env.manage",
-            "artifact.pull"
+            "artifact.pull",
+            "artifact.fetch"
           ]
         },
         "payload": {
@@ -805,7 +807,8 @@
             "diagnostics.collect",
             "agentdock.reload",
             "env.manage",
-            "artifact.pull"
+            "artifact.pull",
+            "artifact.fetch"
           ]
         },
         "status": {
@@ -2874,7 +2877,8 @@
         "diagnostics.collect",
         "agentdock.reload",
         "env.manage",
-        "artifact.pull"
+        "artifact.pull",
+        "artifact.fetch"
       ]
     },
     "status": {

@@ -55,7 +55,7 @@ func newArtifactHTTPFixture(t *testing.T) artifactHTTPFixture {
 		db.Close()
 		t.Fatal(err)
 	}
-	policy := devices.Policy{AllowedCommandTypes: []string{"artifact.pull"}, MaxRisk: devices.RiskMedium, ReleaseChannel: devices.ChannelStable}
+	policy := devices.Policy{AllowedCommandTypes: []string{"artifact.pull", "artifact.fetch"}, MaxRisk: devices.RiskHigh, ReleaseChannel: devices.ChannelStable}
 	token, err := deviceService.CreateEnrollmentToken(ctx, "test", time.Hour, policy)
 	if err != nil {
 		db.Close()
@@ -74,7 +74,7 @@ func newArtifactHTTPFixture(t *testing.T) artifactHTTPFixture {
 	_, _ = rand.Read(publicKey)
 	_, err = deviceService.Heartbeat(ctx, enrolled.Device.ID, enrolled.DeviceToken, devices.Heartbeat{
 		DeviceID: enrolled.Device.ID, SentAt: time.Now().UTC(), UptimeSeconds: 1, AgentDockVersion: "test",
-		Capabilities: []devices.Capability{{Name: "artifact-relay", Version: "ADR1", Enabled: true, Metadata: map[string]string{"x25519_public_key": base64.RawURLEncoding.EncodeToString(publicKey)}}},
+		Capabilities: []devices.Capability{{Name: "artifact-relay", Version: "ADR1", Enabled: true, Metadata: map[string]string{"x25519_public_key": base64.RawURLEncoding.EncodeToString(publicKey), "fetch_enabled": "true"}}},
 	})
 	if err != nil {
 		db.Close()
@@ -227,4 +227,42 @@ func randomBytes(t *testing.T, size int) []byte {
 		t.Fatal(err)
 	}
 	return value
+}
+
+func TestArtifactFetchHTTPAuthorization(t *testing.T) {
+	fixture := newArtifactHTTPFixture(t)
+	defer fixture.close()
+	key := randomBytes(t, 32)
+	body, _ := json.Marshal(artifacts.CreateFetchRequest{
+		SourceDeviceID:    fixture.deviceID,
+		SourcePath:        "/tmp/report.txt",
+		ReceiverPublicKey: base64.RawURLEncoding.EncodeToString(key),
+		RetentionSeconds:  3600,
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/devices/"+fixture.deviceID+"/artifact-fetches", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+fixture.deviceToken)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("create=%d body=%s", response.Code, response.Body.String())
+	}
+	created := decodeResponse[artifacts.CreateFetchResult](t, response)
+
+	missing := httptest.NewRequest(http.MethodGet, "/v1/devices/"+fixture.deviceID+"/artifact-fetches/"+created.Fetch.ID, nil)
+	missing.Header.Set("Authorization", "Bearer "+fixture.deviceToken)
+	missingResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(missingResponse, missing)
+	if missingResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("missing fetch credential=%d", missingResponse.Code)
+	}
+
+	valid := httptest.NewRequest(http.MethodGet, "/v1/devices/"+fixture.deviceID+"/artifact-fetches/"+created.Fetch.ID, nil)
+	valid.Header.Set("Authorization", "Bearer "+fixture.deviceToken)
+	valid.Header.Set("X-Artifact-Fetch-Token", created.DownloadToken)
+	validResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(validResponse, valid)
+	if validResponse.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", validResponse.Code, validResponse.Body.String())
+	}
 }

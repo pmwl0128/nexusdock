@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	if s.artifacts != nil && s.devices != nil && s.commands != nil {
 		s.registerArtifactRoutes(mux)
+		s.registerArtifactFetchRoutes(mux)
 	}
 	return logRequests(mux, s.logger)
 }
