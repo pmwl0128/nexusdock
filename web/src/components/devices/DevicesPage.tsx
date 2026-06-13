@@ -12,6 +12,7 @@ import type {
 import { useCommandPolling } from '../../hooks/useCommandPolling';
 import { useDevices } from '../../hooks/useDevices';
 import Dialog from './Dialog';
+import EnvManagerPage from '../env/EnvManagerPage';
 import { CommandStatusBadge, DeviceStatusBadge } from './StatusBadge';
 import {
   buildCommandPayload, COMMAND_LABELS, COMMAND_TYPES, createIdempotencyKey,
@@ -123,9 +124,13 @@ function DeviceDetails({ snapshot, onClose, onAction }: {
 }) {
   const { device, heartbeat } = snapshot;
   const capabilities = heartbeat?.capabilities ?? device.capabilities ?? [];
+  const skills = Array.isArray(heartbeat?.skills) ? heartbeat.skills : [];
+  const [tab, setTab] = useState<'overview' | 'env'>('overview');
   const metrics = heartbeat?.metrics;
   const hasReportedMetrics = Boolean(metrics && (metrics.cpu_percent > 0 || metrics.memory_percent > 0 || metrics.disk_percent > 0));
   return <Dialog title={device.name} description={device.id} onClose={onClose} wide>
+    <div className="nx-device-detail-tabs"><button type="button" className={tab === 'overview' ? 'is-active' : ''} onClick={() => setTab('overview')}>概览与能力</button><button type="button" className={tab === 'env' ? 'is-active' : ''} onClick={() => setTab('env')}>环境变量</button></div>
+    {tab === 'env' ? <EnvManagerPage fixedDeviceId={device.id} /> : <>
     <div className="nx-detail-header"><DeviceStatusBadge status={device.status} /><span>更新于 {formatTime(device.updated_at)}</span></div>
     <div className="nx-detail-grid">
       <Detail label="平台 / 架构" value={`${device.platform} / ${device.arch}`} />
@@ -137,6 +142,8 @@ function DeviceDetails({ snapshot, onClose, onAction }: {
     </div>
     <h3 className="nx-subtitle">能力</h3>
     <div className="nx-capability-table">{capabilities.length ? capabilities.map((item) => <div key={item.name}><span className={item.enabled ? 'nx-dot is-on' : 'nx-dot'} /><strong>{item.name}</strong><span>{item.version || '无版本'}</span><span>{item.enabled ? '已启用' : '未启用'}</span></div>) : <p className="nx-muted">尚未上报能力。</p>}</div>
+    <h3 className="nx-subtitle">Skills</h3>
+    <div className="nx-capability-table">{skills.length ? skills.map((item) => <div key={item.name}><span className={item.active ? 'nx-dot is-on' : 'nx-dot'} /><strong>{item.name}</strong><span>{item.version || '无版本'}</span><span>{item.active ? `已启用${item.channel ? ` · ${item.channel}` : ''}` : '未启用'}</span></div>) : <p className="nx-muted">尚未上报 Skill。</p>}</div>
     {heartbeat && <><h3 className="nx-subtitle">资源指标</h3><div className="nx-metrics"><Metric label="CPU" value={hasReportedMetrics ? metrics?.cpu_percent : undefined} /><Metric label="内存" value={hasReportedMetrics ? metrics?.memory_percent : undefined} /><Metric label="磁盘" value={hasReportedMetrics ? metrics?.disk_percent : undefined} /></div></>}
     <h3 className="nx-subtitle">策略</h3>
     <div className="nx-policy-box"><span>最大风险：{device.policy.max_risk}</span><span>发布通道：{device.policy.release_channel}</span><span>命令：{device.policy.allowed_command_types.join('、') || '无'}</span></div>
@@ -146,6 +153,7 @@ function DeviceDetails({ snapshot, onClose, onAction }: {
       <button type="button" className="nx-button is-secondary" onClick={() => onAction('history')}>命令历史</button>
       {device.status !== 'revoked' && <button type="button" className="nx-button is-danger" onClick={() => onAction('revoke')}>撤销设备</button>}
     </div>
+    </>}
   </Dialog>;
 }
 

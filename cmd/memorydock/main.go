@@ -118,6 +118,7 @@ func main() {
 		store,
 		syncManager,
 		logger,
+		httpx.WithSystemDatabase(controlDB),
 		httpx.WithControlPlane(deviceService, commandService),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithArtifactRelay(artifactService),

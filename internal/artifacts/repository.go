@@ -7,6 +7,7 @@ import (
 
 type Repository interface {
 	Create(context.Context, Artifact, []Delivery) error
+	ListArtifacts(context.Context, int) ([]Artifact, error)
 	GetArtifact(context.Context, string) (Artifact, error)
 	ListDeliveries(context.Context, string) ([]Delivery, error)
 	GetDelivery(context.Context, string) (Delivery, error)

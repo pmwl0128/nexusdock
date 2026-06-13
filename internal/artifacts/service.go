@@ -85,6 +85,7 @@ func NewService(repository Repository, deviceService DeviceService, commandServi
 }
 
 func (s *Service) MaxCipherBytes() int64 { return s.maxBytes }
+func (s *Service) Root() string          { return s.root }
 
 func (s *Service) CreateUpload(ctx context.Context, sourceKind, sourceID string, request CreateUploadRequest) (CreateUploadResult, error) {
 	now := s.clock.Now().UTC()
@@ -404,6 +405,26 @@ func (s *Service) Get(ctx context.Context, artifactID string) (UploadCompletion,
 		return UploadCompletion{}, err
 	}
 	return UploadCompletion{Artifact: artifact, Deliveries: deliveries}, nil
+}
+
+func (s *Service) ListRecent(ctx context.Context, limit int) ([]Detail, error) {
+	items, err := s.repository.ListArtifacts(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Detail, 0, len(items))
+	for _, artifact := range items {
+		deliveries, err := s.repository.ListDeliveries(ctx, artifact.ID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, Detail{Artifact: artifact, Deliveries: deliveries})
+	}
+	return result, nil
+}
+
+func (s *Service) ListRecentFetches(ctx context.Context, limit int) ([]FetchJob, error) {
+	return s.fetches.ListFetches(ctx, limit)
 }
 
 func (s *Service) CleanupExpired(ctx context.Context) (int, error) {

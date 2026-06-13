@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -22,6 +23,7 @@ import (
 type Server struct {
 	mu        sync.RWMutex
 	cfg       config.Config
+	db        *sql.DB
 	store     *memory.Store
 	syncer    *syncer.Manager
 	logger    *slog.Logger
@@ -32,6 +34,10 @@ type Server struct {
 }
 
 type ServerOption func(*Server)
+
+func WithSystemDatabase(db *sql.DB) ServerOption {
+	return func(server *Server) { server.db = db }
+}
 
 func WithWebAuthentication(authService *auth.Service) ServerOption {
 	return func(server *Server) { server.auth = authService }
@@ -63,12 +69,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	s.registerWebAuthRoutes(mux)
-	mux.HandleFunc("GET /v1/nexus/overview", protected(s.nexusOverview))
-	mux.HandleFunc("GET /api/v1/nexus/overview", protected(s.nexusOverview))
-	mux.HandleFunc("GET /v1/tasks", protected(s.listDashboardTasks))
-	mux.HandleFunc("GET /api/v1/tasks", protected(s.listDashboardTasks))
-	mux.HandleFunc("GET /api/tasks", protected(s.listDashboardTasks))
 	mux.HandleFunc("GET /v1/schedules", protected(s.listSchedules))
 	mux.HandleFunc("GET /v1/schedules/", protected(s.getSchedule))
 	mux.HandleFunc("GET /api/v1/schedules", protected(s.listSchedules))

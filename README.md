@@ -1,233 +1,30 @@
 # AgentDock Nexus
 
-AgentDock Nexus 是 AgentDock 的统一控制面，用于集中管理多设备、长期记忆、Skill、运行记录、任务收件箱和 Skill Evolution。
+AgentDock Nexus 是面向个人多设备环境的 AgentDock 控制台，集中管理长期记忆、设备、加密文件中继、备份状态和基础账号安全。
 
-仓库地址：
+## 产品边界
 
-```text
-https://github.com/uvwt/agentdock-nexus
-```
+一级入口只有五个：总览、设备、记忆、文件、设置。
 
-```text
-AgentDock       = 节点侧工具运行、Skill Runtime 与离线命令执行
-AgentDock Nexus = 控制面、Memory、Devices、Skills、Runs、Tasks、Evolution 与 Web UI
-Git             = Memory 的可审计持久化与同步后端
-```
+- 总览：设备异常、近期文件传输和备份状态。
+- 设备：注册、审批、心跳、能力与 Skill 上报、Env、命令和历史。
+- 记忆：Markdown 记忆库、Git 变更审阅和同步。
+- 文件：Artifact 发送、Delivery 落盘和反向 Fetch 状态。
+- 设置：管理员账号、浏览器会话、SQLite 健康和备份信息。
 
-## 核心能力
+独立 Task/Inbox、Run Registry、Run Evidence、Context Pack、Skill Evolution、独立 Worker、独立 Nexus Server 和 Agent/System Token 管理 UI 不属于当前产品。
 
-- Nexus Core：SQLite、迁移、认证、审计、事件与 Run Registry。
-- Devices：设备注册、心跳、能力上报、Token 轮换、撤销与命令生命周期。
-- Memory：Markdown 存储、搜索、Context Pack、冲突、提案、审批与 Git Sync。
-- Skills：Catalog、导入、扫描、Provenance、导出与版本化发布。
-- Evolution：Observation 聚合、候选评分、Proposal、Review 与状态机。
-- Agent Inbox：统一聚合设备异常、Memory 冲突、Skill 失败和 Evolution Proposal。
-- Web UI：Home、Inbox、Devices、Memory、Skills、Runs、Settings，支持移动端。
-- 公共契约：OpenAPI、JSON Schema、事件 Schema 与生成 Go 类型。
-
-## 仓库结构
+## 运行结构
 
 ```text
-cmd/
-  memorydock/       # 兼容旧 MemoryDock 的 Memory/API/Web 服务入口
-  nexus-server/     # Nexus 控制面服务
-  nexus-worker/     # 后台任务 Worker
-contracts/          # OpenAPI、JSON Schema、事件和错误码
-internal/
-  core/             # 数据库、配置、事件总线、迁移
-  auth/ audit/ runs/
-  devices/ commands/
-  memory/ syncer/
-  skills/ evolution/ tasks/
-  httpx/            # HTTP API 与嵌入式 Web 资源
-web/                # React/Vite 前端
-migrations/         # Nexus SQLite migrations
-deploy/             # 迁移、回退和部署验收文档
+cmd/memorydock      唯一生产服务入口
+internal/memory     记忆文件与 Git 同步
+internal/devices    设备注册、心跳与策略
+internal/commands   设备命令队列
+internal/artifacts  ADR1 加密 Artifact Relay / Fetch
+internal/auth       浏览器会话与设备鉴权
+internal/httpx      HTTP API 与嵌入式 Web UI
+web                 React 前端
 ```
 
-## 本地开发
-
-要求：
-
-- Go 1.26 或更高版本
-- Node.js 18 或更高版本
-- npm
-
-后端验证：
-
-```bash
-go test ./...
-go vet ./...
-go build ./...
-python3 scripts/check-contracts.py
-```
-
-前端构建：
-
-```bash
-cd web
-npm ci
-npm run build
-```
-
-前端产物写入并提交到：
-
-```text
-internal/httpx/web_dist/
-```
-
-## 启动服务
-
-### Memory 兼容入口
-
-现有 MemoryDock 部署可继续使用原环境变量与入口：
-
-```bash
-MEMORYDOCK_HOST=127.0.0.1 \
-MEMORYDOCK_PORT=18777 \
-MEMORYDOCK_STORE_DIR=memory \
-go run ./cmd/memorydock
-```
-
-健康检查：
-
-```bash
-curl -fsS http://127.0.0.1:18777/health
-```
-
-Web UI：
-
-```text
-http://127.0.0.1:18777/ui/
-```
-
-### Nexus 控制面
-
-```bash
-go run ./cmd/nexus-server
-```
-
-Nexus Server 的数据库、监听地址和认证配置以 `internal/core/config.go` 及部署环境为准。生产部署前必须使用非默认凭据，并确认数据库与 Memory 数据已备份。
-
-## Memory 兼容与迁移
-
-AgentDock Nexus 保留旧 MemoryDock 的 Memory API、目录结构、Web 工作区和环境变量，以便原地升级。
-
-标准 Memory 目录：
-
-```text
-memory/
-  profile.md
-  devices/
-    <device>.md
-  projects/
-    <project>/
-      project.md
-      environment.md
-      runbooks/
-        <runbook>.md
-  ops/
-    <runbook-or-operation>.md
-  inbox/
-    <temporary-note>.md
-```
-
-迁移前创建备份并校验：
-
-```bash
-python3 deploy/memory_migration.py backup /path/to/memory /path/to/backups
-python3 deploy/memory_migration.py verify /path/to/backups/memorydock-YYYYmmddTHHMMSSZ
-```
-
-完整迁移与回退流程见 [`deploy/README.md`](deploy/README.md)。
-
-## 认证与安全
-
-浏览器 UI 使用服务端 Session Cookie 登录；Agent、设备和脚本继续使用 Bearer Token：
-
-```http
-Authorization: Bearer <MEMORYDOCK_AUTH_TOKEN>
-```
-
-生产环境至少配置：
-
-```text
-MEMORYDOCK_REQUIRE_AUTH=true
-MEMORYDOCK_AUTH_TOKEN=<strong-random-token>
-NEXUS_TRUSTED_PROXIES=127.0.0.1,::1,<reverse-proxy-address>
-```
-
-从旧版升级时，`MEMORYDOCK_USERNAME` 与 `MEMORYDOCK_PASSWORD` 只在数据库尚未初始化时迁移一次。迁移完成后 SQLite 中的管理员凭据是唯一权威，旧环境变量不会在重启时覆盖新密码。迁移账号首次登录必须修改密码。
-
-没有可迁移账号时，只能在部署主机本地初始化，不开放公网注册页：
-
-```bash
-docker compose exec memorydock memorydock admin init <username>
-```
-
-忘记密码时在部署主机本地恢复；命令会隐藏输入并撤销全部浏览器会话：
-
-```bash
-docker compose exec memorydock memorydock admin recover [username]
-```
-
-浏览器会话使用 Host-only、HttpOnly、SameSite=Strict Cookie。生产登录要求 HTTPS；只有显式设置 `NEXUS_AUTH_ALLOW_INSECURE_HTTP=true` 时才允许本地 HTTP 开发登录。所有基于 Cookie 的写请求同时校验同源 `Origin` 与 `X-CSRF-Token`。
-
-安全规则：
-
-- 写入 `inbox/` 之外必须显式确认。
-- 移动和删除必须显式确认。
-- 拒绝绝对路径、路径穿越、隐藏目录和 `.git` 路径。
-- Skill 导入必须经过 Manifest、Digest、路径和敏感信息检查。
-- 设备命令、Skill Run 和写操作必须留下状态、证据与审计记录。
-- 不把 Token、密码、私钥或真实私有路径写入公开文档和导出包。
-
-## 公共契约
-
-`contracts/` 是 Nexus Server、Web、AgentDock 节点与外部集成的唯一公共协议来源。
-
-```bash
-python3 scripts/generate-contracts.py
-python3 scripts/check-contracts.py
-go test ./generated/nexuscontracts ./internal/api/dto
-```
-
-生成文件不得手工修改。契约变更必须重新生成并通过兼容性检查。
-
-AgentDock 消费端的生成类型必须与本仓库保持一致：
-
-```text
-agentdock/generated/nexuscontracts/types.gen.go
-```
-
-## 开发文档
-
-- [项目整体开发文档](docs/agentdock-nexus-development-guide.md)
-- [设备管理前端闭环开发文档](docs/agentdock-nexus-devices-frontend-closure.md)
-
-## 部署验收
-
-每次部署或升级至少执行：
-
-```bash
-go test ./...
-go vet ./...
-go build ./...
-python3 scripts/check-contracts.py
-cd web && npm ci && npm run build
-curl -fsS http://127.0.0.1:18777/health
-```
-
-生产验收还必须覆盖：
-
-- 数据库 migration 与备份回退。
-- 旧 Memory 数据无损读取。
-- 设备注册、心跳、离线 Outbox 和命令状态闭环。
-- Skill 导入、安装、执行、验证、Canary 与回退。
-- Evolution Proposal 到 Agent Inbox Review 的闭环。
-- Secret 脱敏、Audit Event 和 Run Evidence。
-
-## 相关仓库
-
-- AgentDock：<https://github.com/uvwt/agentdock>
-- AgentDock Nexus：<https://github.com/uvwt/agentdock-nexus>
+生产数据库仍保留历史表以避免破坏性迁移；未使用表不再由产品代码读写。

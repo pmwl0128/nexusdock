@@ -20,6 +20,8 @@ const maxArtifactManifestBytes = 1 << 20
 
 func (s *Server) registerArtifactRoutes(mux *http.ServeMux) {
 	admin := func(next http.HandlerFunc) http.HandlerFunc { return s.withAPIAccess(next) }
+	mux.HandleFunc("GET /v1/artifacts", admin(s.listArtifacts))
+	mux.HandleFunc("GET /v1/artifact-fetches", admin(s.listArtifactFetches))
 	mux.HandleFunc("POST /v1/artifacts/uploads", admin(s.createArtifactUpload))
 	mux.HandleFunc("GET /v1/artifacts/{artifactId}", admin(s.getArtifact))
 	mux.HandleFunc("POST /v1/artifacts/{artifactId}/dispatch", admin(s.dispatchArtifact))
@@ -27,6 +29,24 @@ func (s *Server) registerArtifactRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/devices/{deviceId}/artifacts/uploads", s.createDeviceArtifactUpload)
 	mux.HandleFunc("GET /v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/content", s.downloadArtifactContent)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/result", s.completeArtifactDelivery)
+}
+
+func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
+	items, err := s.artifacts.ListRecent(r.Context(), queryInt(r, "limit", 50))
+	if err != nil {
+		writeArtifactError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) listArtifactFetches(w http.ResponseWriter, r *http.Request) {
+	items, err := s.artifacts.ListRecentFetches(r.Context(), queryInt(r, "limit", 50))
+	if err != nil {
+		writeArtifactError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func (s *Server) createArtifactUpload(w http.ResponseWriter, r *http.Request) {

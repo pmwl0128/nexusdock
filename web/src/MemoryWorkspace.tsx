@@ -28,7 +28,7 @@ import {
 import { api } from './api/client';
 import { clearMemoryDraft, loadMemoryDraft, saveMemoryDraft } from './lib/drafts';
 
-type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
+type Tab = 'memories' | 'git' | 'sync';
 type EntryType = 'file' | 'directory';
 
 type MemoryEntry = {
@@ -104,7 +104,6 @@ const TEXT_EXTENSIONS = /\.(md|markdown|txt)$/i;
 const MARKDOWN_EXTENSIONS = /\.(md|markdown)$/i;
 
 const MEMORY_NAV: Array<{ id: Tab; label: string; title: string; icon: typeof Home }> = [
-  { id: 'dashboard', label: '工作台', title: '今日状态、最近记忆、同步健康和快速入口', icon: Home },
   { id: 'memories', label: '记忆库', title: '浏览、整理、编辑和审阅你的记忆文件', icon: Archive },
   { id: 'git', label: '变更审阅', title: '查看和处理本地记忆变更', icon: GitBranch },
   { id: 'sync', label: '同步中心', title: '查看同步状态并手动保存到远程', icon: Settings },
@@ -135,8 +134,7 @@ function routeBase(): string {
 function routeFromLocation(): { tab: Tab; path: string; prefix: string; search: string } {
   const params = new URLSearchParams(window.location.search);
   const rawTab = params.get('tab') || '';
-  const hasMemoryDeepLink = params.has('path') || params.has('prefix') || params.has('q');
-  const tab: Tab = rawTab === 'dashboard' || rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : hasMemoryDeepLink ? 'memories' : 'dashboard';
+  const tab: Tab = rawTab === 'git' || rawTab === 'sync' || rawTab === 'memories' ? rawTab : 'memories';
   return {
     tab,
     path: normalizePath(params.get('path') || ''),
@@ -561,11 +559,6 @@ export default function App() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    if (tab === 'dashboard') {
-      void loadGitDiff().catch(() => undefined);
-      void loadGitLog().catch(() => undefined);
-      void loadSyncStatus().catch(() => undefined);
-    }
     if (tab === 'git') void loadGitPanel();
     if (tab === 'sync') {
       void loadSyncStatus();
@@ -800,19 +793,6 @@ export default function App() {
       <AppSidebar collapsed={sidebarCollapsed} tab={tab} setTab={selectTab} onToggle={() => setSidebarCollapsed((v) => !v)} mobileCompact={mobileNavCompact} onCompactOpen={() => setMobileNavCompact(false)} currentPath={current?.path || routePath} prefix={prefix} search={search} />
       <section className="workspace">
         <Topbar tab={tab} current={current} fileCount={fileCount} dirCount={dirCount} onCommand={() => setCommandOpen(true)} />
-        {tab === 'dashboard' && (
-          <Dashboard
-            entries={entries}
-            current={current}
-            diff={gitDiff}
-            commits={commits}
-            syncStatus={syncStatus}
-            onNew={() => { selectTab('memories'); newMemory(); }}
-            onOpen={(path) => { selectTab('memories'); void loadMemory(path).catch((e) => show(e.message, true)); }}
-            onReview={() => selectTab('git')}
-            onSync={() => selectTab('sync')}
-          />
-        )}
         {tab === 'memories' && (
           <section className="memory-layout">
             <Explorer
@@ -880,68 +860,6 @@ export default function App() {
 }
 
 
-function recentFiles(entries: MemoryEntry[], limit = 8): MemoryEntry[] {
-  return entries.filter((entry) => entry.type === 'file').slice(0, limit);
-}
-
-function Dashboard({ entries, current, diff, commits, syncStatus, onNew, onOpen, onReview, onSync }: {
-  entries: MemoryEntry[];
-  current: Memory | null;
-  diff: GitDiff | null;
-  commits: GitCommit[];
-  syncStatus: SyncStatus | null;
-  onNew: () => void;
-  onOpen: (path: string) => void;
-  onReview: () => void;
-  onSync: () => void;
-}) {
-  const files = entries.filter((entry) => entry.type === 'file');
-  const dirs = entries.filter((entry) => entry.type === 'directory');
-  const recent = recentFiles(entries);
-  return (
-    <section className="dashboard-grid">
-      <div className="dashboard-hero panel-card">
-        <div>
-          <span className="eyebrow">{PRODUCT_COPY.brand}</span>
-          <h2>{PRODUCT_COPY.heroTitle}</h2>
-          <p>{PRODUCT_COPY.heroBody}</p>
-        </div>
-        <div className="hero-actions">
-          <button className="primary" onClick={onNew}><Plus size={16} />新建记忆</button>
-          <button onClick={onReview}><GitBranch size={16} />审阅变更</button>
-          <button onClick={onSync}><RefreshCw size={16} />同步中心</button>
-        </div>
-      </div>
-      <div className="metric-card panel-card"><span>记忆文件</span><strong>{files.length}</strong><p>可搜索的知识资产</p></div>
-      <div className="metric-card panel-card"><span>目录</span><strong>{dirs.length}</strong><p>按项目和主题整理</p></div>
-      <div className="metric-card panel-card"><span>本地变更</span><strong>{diff?.dirty ? '待审阅' : '干净'}</strong><p>{diff?.dirty ? '先检查再保存' : '没有未保存更改'}</p></div>
-      <div className="panel-card dashboard-section">
-        <div className="card-head compact"><div><h3>最近记忆</h3><p>快速回到最近的文件</p></div><FileText size={18} /></div>
-        <div className="recent-list">
-          {recent.length ? recent.map((entry) => <button key={entry.path} onClick={() => onOpen(entry.path)}><FileText size={15} /><span>{entry.path}</span><small>{formatBytes(entry.size_bytes)}</small></button>) : <div className="empty-state">暂无文件</div>}
-        </div>
-      </div>
-      <div className="panel-card dashboard-section">
-        <div className="card-head compact"><div><h3>同步健康</h3><p>一眼判断是否安全</p></div><Settings size={18} /></div>
-        <SyncHealth status={syncStatus} diff={diff} />
-      </div>
-      <div className="panel-card dashboard-section wide">
-        <div className="card-head compact"><div><h3>版本历史</h3><p>最近保存到远程的记录</p></div><Clock3 size={18} /></div>
-        <div className="commit-list compact-list">
-          {commits.slice(0, 5).map((commit) => <div className="commit" key={commit.hash}><div><strong>{commit.subject || '(no subject)'}</strong><span>{commit.short_hash}</span></div><p>{[commit.author, commit.date].filter(Boolean).join(' · ')}</p></div>)}
-          {!commits.length && <div className="empty-state">暂无版本历史</div>}
-        </div>
-      </div>
-      {current && <div className="panel-card dashboard-section wide"><div className="card-head compact"><div><h3>当前打开</h3><p>{current.path}</p></div></div><article className="mini-preview" dangerouslySetInnerHTML={{ __html: MARKDOWN_EXTENSIONS.test(current.path) ? markdownToHtml(current.content) : escapeHtml(current.content) }} /></div>}
-    </section>
-  );
-}
-
-function SyncHealth({ status, diff }: { status: SyncStatus | null; diff: GitDiff | null }) {
-  const items = syncHealthItems(status, diff);
-  return <div className="health-grid">{items.map((item) => <div className={`health-item ${item.tone}`} key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>;
-}
-
 
 function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSync }: {
   entries: MemoryEntry[];
@@ -968,7 +886,6 @@ function CommandPalette({ entries, current, onClose, onNew, onOpen, onTab, onSyn
     .filter((entry) => !normalized || entry.path.toLowerCase().includes(normalized))
     .slice(0, 8);
   const actions = [
-    { label: '打开工作台', hint: '查看状态', icon: <Home size={16} />, run: () => onTab('dashboard') },
     { label: '新建记忆', hint: '创建笔记', icon: <Plus size={16} />, run: onNew },
     { label: '打开记忆库', hint: '浏览文件', icon: <Archive size={16} />, run: () => onTab('memories') },
     { label: '打开变更审阅', hint: '审阅本地变更', icon: <GitBranch size={16} />, run: () => onTab('git') },

@@ -82,6 +82,26 @@ func (r *SQLiteRepository) CreateFetch(ctx context.Context, item FetchJob) error
 	return nil
 }
 
+func (r *SQLiteRepository) ListFetches(ctx context.Context, limit int) ([]FetchJob, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT `+fetchColumns+` FROM artifact_fetch_jobs ORDER BY created_at DESC,id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FetchJob{}
+	for rows.Next() {
+		item, err := scanFetch(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r *SQLiteRepository) GetFetch(ctx context.Context, id string) (FetchJob, error) {
 	item, err := scanFetch(r.db.QueryRowContext(ctx, `SELECT `+fetchColumns+` FROM artifact_fetch_jobs WHERE id=?`, id))
 	if errors.Is(err, sql.ErrNoRows) {

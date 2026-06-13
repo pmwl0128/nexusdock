@@ -131,20 +131,6 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		t.Fatalf("heartbeat status=%d body=%s", response.Code, response.Body.String())
 	}
 
-	response = controlPlaneRequest(t, handler, http.MethodGet, "/api/v1/skills", "admin-token", nil)
-	if response.Code != http.StatusOK {
-		t.Fatalf("list skills status=%d body=%s", response.Code, response.Body.String())
-	}
-	var skills struct {
-		Items []skillListItem `json:"items"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &skills); err != nil {
-		t.Fatalf("skills response is not json: %v body=%s", err, response.Body.String())
-	}
-	if len(skills.Items) != 1 || skills.Items[0].Name != "memory" || skills.Items[0].Installations != 1 {
-		t.Fatalf("unexpected skills response: %#v", skills.Items)
-	}
-
 	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands", "admin-token", contracts.DeviceCommandCreateRequest{
 		Type:           "health.check",
 		Payload:        json.RawMessage(`{"scope":"local"}`),
@@ -159,20 +145,6 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		t.Fatalf("create command status=%d body=%s", response.Code, response.Body.String())
 	}
 	created := decodeResponse[contracts.DeviceCommand](t, response)
-
-	response = controlPlaneRequest(t, handler, http.MethodGet, "/api/v1/runs", "admin-token", nil)
-	if response.Code != http.StatusOK {
-		t.Fatalf("list runs status=%d body=%s", response.Code, response.Body.String())
-	}
-	var runs struct {
-		Items []runListItem `json:"items"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &runs); err != nil {
-		t.Fatalf("runs response is not json: %v body=%s", err, response.Body.String())
-	}
-	if len(runs.Items) != 1 || runs.Items[0].ID != created.Id || runs.Items[0].Status != string(commands.StatusQueued) {
-		t.Fatalf("unexpected runs response: %#v", runs.Items)
-	}
 
 	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands/lease", enrolled.DeviceToken, nil)
 	if response.Code != http.StatusOK {
@@ -333,137 +305,4 @@ func TestEnvManagePayloadIsRedactedInControlPlaneResponses(t *testing.T) {
 		t.Fatalf("get response leaked secret: %s", response.Body.String())
 	}
 
-}
-
-func TestDashboardOverviewAndTasksUseLiveControlPlaneData(t *testing.T) {
-	t.Setenv("NEXUS_SCHEDULE_STATUS_DIR", t.TempDir())
-	handler, commandService := newControlPlaneTestHandler(t)
-	now := time.Now().UTC().Truncate(time.Second)
-
-	response := controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/enrollment-tokens", "admin-token", contracts.EnrollmentTokenCreateRequest{
-		CreatedBy:           "test-admin",
-		TtlSeconds:          3600,
-		AllowedCommandTypes: []string{"health.check", "diagnostics.collect"},
-		MaxRisk:             "low",
-	})
-	if response.Code != http.StatusCreated {
-		t.Fatalf("create enrollment token status=%d body=%s", response.Code, response.Body.String())
-	}
-	enrollmentToken := decodeResponse[contracts.EnrollmentTokenCreateResponse](t, response)
-
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/enroll", "", contracts.DeviceEnrollmentRequest{
-		EnrollmentToken:  enrollmentToken.Token,
-		Name:             "DockMini",
-		Platform:         "darwin",
-		Arch:             "arm64",
-		AgentdockVersion: "test",
-		PublicKey:        "test-public-key",
-	})
-	if response.Code != http.StatusCreated {
-		t.Fatalf("enroll status=%d body=%s", response.Code, response.Body.String())
-	}
-	enrolled := decodeResponse[contracts.DeviceEnrollmentResponse](t, response)
-
-	for _, path := range []string{"/v1/tasks", "/api/v1/tasks", "/api/tasks"} {
-		response = controlPlaneRequest(t, handler, http.MethodGet, path, "admin-token", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("list tasks %s status=%d body=%s", path, response.Code, response.Body.String())
-		}
-		var tasks struct {
-			Items []dashboardTask `json:"items"`
-		}
-		if err := json.Unmarshal(response.Body.Bytes(), &tasks); err != nil {
-			t.Fatalf("tasks %s response is not json: %v body=%s", path, err, response.Body.String())
-		}
-		if len(tasks.Items) != 1 || tasks.Items[0].Source != "device_approval" || tasks.Items[0].Type != "needs_user" {
-			t.Fatalf("unexpected pending device tasks from %s: %#v", path, tasks.Items)
-		}
-	}
-
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/approve", "admin-token", nil)
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("approve status=%d body=%s", response.Code, response.Body.String())
-	}
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/heartbeat", enrolled.DeviceToken, contracts.DeviceHeartbeat{
-		DeviceId:          enrolled.DeviceId,
-		SentAt:            now.Format(time.RFC3339),
-		UptimeSeconds:     10,
-		AgentdockVersion:  "test",
-		Metrics:           json.RawMessage(`{"cpu_percent":1,"memory_percent":2,"disk_percent":3}`),
-		Capabilities:      []contracts.DeviceCapability{{Name: "browser", Version: "v1", Enabled: false}},
-		MemorySyncSummary: json.RawMessage(`{"pending":0,"conflicts":2}`),
-	})
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("heartbeat status=%d body=%s", response.Code, response.Body.String())
-	}
-
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands", "admin-token", contracts.DeviceCommandCreateRequest{
-		Type:           "health.check",
-		Payload:        json.RawMessage(`{"scope":"local"}`),
-		Risk:           "low",
-		IdempotencyKey: "health-check-0002",
-		Priority:       10,
-		MaxAttempts:    1,
-		NotBefore:      now.Add(-time.Second).Format(time.RFC3339),
-		ExpiresAt:      now.Add(time.Minute).Format(time.RFC3339),
-	})
-	if response.Code != http.StatusCreated {
-		t.Fatalf("create command status=%d body=%s", response.Code, response.Body.String())
-	}
-	created := decodeResponse[contracts.DeviceCommand](t, response)
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/devices/"+enrolled.DeviceId+"/commands/lease", enrolled.DeviceToken, nil)
-	if response.Code != http.StatusOK {
-		t.Fatalf("lease status=%d body=%s", response.Code, response.Body.String())
-	}
-	lease := decodeResponse[contracts.CommandLease](t, response)
-	response = controlPlaneRequest(t, handler, http.MethodPost, "/v1/commands/"+created.Id+"/result", enrolled.DeviceToken, contracts.CommandResult{
-		CommandId:   created.Id,
-		LeaseId:     lease.LeaseId,
-		Status:      "failed",
-		StartedAt:   now.Format(time.RFC3339),
-		CompletedAt: now.Add(time.Second).Format(time.RFC3339),
-		Error:       &contracts.ErrorResponse{Code: "HEALTH_FAILED", Message: "health check failed", RequestId: "local"},
-	})
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("complete failed command status=%d body=%s", response.Code, response.Body.String())
-	}
-	completed, err := commandService.Get(t.Context(), created.Id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if completed.Status != commands.StatusFailed {
-		t.Fatalf("command status=%s want failed", completed.Status)
-	}
-
-	response = controlPlaneRequest(t, handler, http.MethodGet, "/api/v1/tasks", "admin-token", nil)
-	if response.Code != http.StatusOK {
-		t.Fatalf("list aggregated tasks status=%d body=%s", response.Code, response.Body.String())
-	}
-	var aggregatedTasks struct {
-		Items []dashboardTask `json:"items"`
-	}
-	if err := json.Unmarshal(response.Body.Bytes(), &aggregatedTasks); err != nil {
-		t.Fatalf("aggregated tasks response is not json: %v body=%s", err, response.Body.String())
-	}
-	sources := map[string]bool{}
-	for _, task := range aggregatedTasks.Items {
-		sources[task.Source] = true
-	}
-	if !sources["memory_conflict"] || !sources["run_failure"] {
-		t.Fatalf("aggregated tasks missing live sources: %#v", aggregatedTasks.Items)
-	}
-
-	for _, path := range []string{"/api/v1/nexus/overview", "/v1/nexus/overview"} {
-		response = controlPlaneRequest(t, handler, http.MethodGet, path, "admin-token", nil)
-		if response.Code != http.StatusOK {
-			t.Fatalf("overview %s status=%d body=%s", path, response.Code, response.Body.String())
-		}
-		var overview dashboardOverview
-		if err := json.Unmarshal(response.Body.Bytes(), &overview); err != nil {
-			t.Fatalf("overview %s response is not json: %v body=%s", path, err, response.Body.String())
-		}
-		if overview.AgentTasks < 1 || overview.UserTasks != 1 || overview.MemoryConflicts != 2 || overview.RecentFailures != 1 || overview.SkillCandidates != 1 {
-			t.Fatalf("unexpected overview from %s: %#v", path, overview)
-		}
-	}
 }

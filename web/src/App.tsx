@@ -1,70 +1,25 @@
-import { Children, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
-  Activity,
-  BellRing,
-  Bot,
-  Boxes,
-  CalendarClock,
-  ChevronRight,
-  CircleAlert,
-  CircleCheck,
-  Database,
-  Home,
-  KeyRound,
-  Menu,
-  PlayCircle,
-  RefreshCw,
-  Search,
-  Server,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  X,
+  Activity, ArrowDownToLine, ArrowUpFromLine, CalendarClock, ChevronRight,
+  CircleAlert, Database, FileArchive, HardDrive, Home, Menu, RefreshCw,
+  Server, Settings, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
 import MemoryWorkspace from './MemoryWorkspace';
 import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
-import EnvManagerPage from './components/env/EnvManagerPage';
 import './nexus.css';
 
-type Section = 'home' | 'inbox' | 'devices' | 'memory' | 'skills' | 'runs' | 'schedules' | 'settings';
+type Section = 'home' | 'devices' | 'memory' | 'files' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
-type Overview = {
-  agent_tasks: number;
-  user_tasks: number;
-  device_alerts: number;
-  skill_candidates: number;
-  memory_conflicts: number;
-  recent_failures: number;
-};
-
-type Task = {
+type NexusDeviceSummary = {
   id: string;
-  title: string;
-  type: string;
-  status: string;
-  source?: string;
-  updated_at?: string;
-};
-
-type Skill = {
-  id: string;
-  name: string;
-  version?: string;
-  trust?: string;
-  maturity?: string;
-  installations?: number;
-};
-
-type Run = {
-  id: string;
-  title?: string;
-  status: string;
-  device?: string;
-  skill?: string;
-  started_at?: string;
+  name?: string;
+  platform?: string;
+  arch?: string;
+  agentdock_version?: string;
+  status?: string;
 };
 
 type ScheduleHistory = {
@@ -86,7 +41,6 @@ type Schedule = {
   device: string;
   enabled: boolean;
   schedule: string;
-  schedule_type: string;
   state: string;
   last_started_at?: string;
   last_completed_at?: string;
@@ -99,48 +53,72 @@ type Schedule = {
   history?: ScheduleHistory[];
 };
 
-type NexusDeviceSummary = {
+type Artifact = {
   id: string;
-  name?: string;
-  platform?: string;
-  arch?: string;
-  agentdock_version?: string;
-  status?: string;
+  source_kind: string;
+  source_id?: string;
+  filename: string;
+  content_type: string;
+  status: string;
+  cipher_size: number;
+  plain_size: number;
+  plain_sha256?: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type Delivery = {
+  id: string;
+  artifact_id: string;
+  target_device_id: string;
+  status: string;
+  local_path?: string;
+  error_code?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+};
+
+type ArtifactDetail = { artifact: Artifact; deliveries: Delivery[] };
+
+type FetchJob = {
+  id: string;
+  requester_device_id: string;
+  source_device_id: string;
+  source_path: string;
+  archive_requested: boolean;
+  status: string;
+  filename?: string;
+  plain_size: number;
+  plain_sha256?: string;
+  error_code?: string;
+  error_message?: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+  mounted_at?: string;
+};
+
+type SystemStatus = {
+  ok: boolean;
+  service: string;
+  database: string;
+  schema_version: number;
+  memory_root: string;
+  artifact_root: string;
 };
 
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
-type SearchResult = { id: string; label: string; description: string; target: Section; source: 'section' | 'device' | 'schedule' };
 
 const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
-  { id: 'inbox', label: '待办', icon: BellRing },
   { id: 'devices', label: '设备', icon: Server },
   { id: 'memory', label: '记忆', icon: Database },
-  { id: 'skills', label: '能力', icon: Boxes },
-  { id: 'runs', label: '运行', icon: PlayCircle },
-  { id: 'schedules', label: '计划任务', icon: CalendarClock },
+  { id: 'files', label: '文件', icon: FileArchive },
   { id: 'settings', label: '设置', icon: Settings },
 ];
-
-const SEARCH_HINTS: Record<Section, string[]> = {
-  home: ['overview', 'dashboard', '总览', '首页', '态势'],
-  inbox: ['task', 'todo', 'agent', '待办', '任务', 'review'],
-  devices: ['device', 'node', 'control plane', '设备', '节点', '命令', '注册'],
-  memory: ['memory', 'memories', 'note', '记忆', '文件', '同步'],
-  skills: ['skill', 'catalog', '插件', '能力', '安装'],
-  runs: ['run', 'evidence', 'history', '运行', '证据', '失败'],
-  schedules: ['schedule', 'backup', 'launchd', '计划', '定时', '备份', '天翼云盘'],
-  settings: ['setting', 'auth', 'token', '设置', '认证', '权限'],
-};
-
-const EMPTY_OVERVIEW: Overview = {
-  agent_tasks: 0,
-  user_tasks: 0,
-  device_alerts: 0,
-  skill_candidates: 0,
-  memory_conflicts: 0,
-  recent_failures: 0,
-};
 
 function sectionFromHash(): Section {
   const value = window.location.hash.replace(/^#\/?/, '').split('/')[0] as Section;
@@ -155,96 +133,24 @@ function unpackAPI<T>(body: unknown): T {
   return (value?.data ?? value?.items ?? body) as T;
 }
 
-function isCompatibilityMiss(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 404 || error.status === 405 || error.code === 'INVALID_JSON');
-}
-
 function messageOf(error: unknown): string {
-  if (error instanceof ApiError && error.status === 401) return 'API 鉴权未通过，请刷新页面并确认浏览器已通过 Basic Auth。';
-  if (error instanceof ApiError && error.status === 403) return '当前账号没有访问这个 Nexus API 的权限。';
+  if (error instanceof ApiError && error.status === 401) return '登录会话已失效，请重新登录。';
+  if (error instanceof ApiError && error.status === 403) return '当前账号没有访问权限。';
   return error instanceof Error ? error.message : '读取 Nexus 数据失败';
 }
 
-function useResource<T>(paths: string[], fallback: T, refreshToken: number): Resource<T> {
+function useResource<T>(path: string, fallback: T, refreshToken: number): Resource<T> {
   const [state, setState] = useState<Resource<T>>({ data: fallback, live: false, loading: true });
-  const key = paths.join('|');
-
   useEffect(() => {
     let cancelled = false;
     setState((current) => ({ ...current, loading: true }));
-    void (async () => {
-      let lastError: unknown;
-      for (const path of paths) {
-        try {
-          const body = await api<unknown>(path);
-          if (!cancelled) setState({ data: unpackAPI<T>(body), live: true, loading: false });
-          return;
-        } catch (error) {
-          lastError = error;
-          if (isCompatibilityMiss(error)) continue;
-          break;
-        }
-      }
-      if (!cancelled) {
-        setState({
-          data: fallback,
-          live: false,
-          loading: false,
-          error: lastError && !isCompatibilityMiss(lastError) ? messageOf(lastError) : undefined,
-        });
-      }
-    })();
+    api<unknown>(path).then((body) => {
+      if (!cancelled) setState({ data: unpackAPI<T>(body), live: true, loading: false });
+    }).catch((error) => {
+      if (!cancelled) setState({ data: fallback, live: false, loading: false, error: messageOf(error) });
+    });
     return () => { cancelled = true; };
-  }, [key, refreshToken]);
-
-  return state;
-}
-
-function useOverview(refreshToken: number): Resource<Overview> {
-  const [state, setState] = useState<Resource<Overview>>({ data: EMPTY_OVERVIEW, live: false, loading: true });
-
-  useEffect(() => {
-    let cancelled = false;
-    setState((current) => ({ ...current, loading: true }));
-    void (async () => {
-      for (const path of ['/api/v1/nexus/overview', '/v1/nexus/overview']) {
-        try {
-          const body = await api<unknown>(path);
-          if (!cancelled) setState({ data: { ...EMPTY_OVERVIEW, ...unpackAPI<Overview>(body) }, live: true, loading: false });
-          return;
-        } catch (error) {
-          if (!isCompatibilityMiss(error)) {
-            if (!cancelled) setState({ data: EMPTY_OVERVIEW, live: false, loading: false, error: messageOf(error) });
-            return;
-          }
-        }
-      }
-
-      const [devicesResult, schedulesResult] = await Promise.allSettled([
-        api<{ items: NexusDeviceSummary[] }>('/v1/devices'),
-        api<{ items: Schedule[] }>('/v1/schedules'),
-      ]);
-      if (cancelled) return;
-
-      const firstFailure = [devicesResult, schedulesResult].find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined;
-      const hardFailure = firstFailure && !isCompatibilityMiss(firstFailure.reason);
-      if (hardFailure) {
-        setState({ data: EMPTY_OVERVIEW, live: false, loading: false, error: messageOf(firstFailure.reason) });
-        return;
-      }
-
-      const devices = devicesResult.status === 'fulfilled' ? devicesResult.value.items ?? [] : [];
-      const schedules = schedulesResult.status === 'fulfilled' ? schedulesResult.value.items ?? [] : [];
-      const overview: Overview = {
-        ...EMPTY_OVERVIEW,
-        device_alerts: devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || '')).length,
-        recent_failures: schedules.filter((schedule) => toneForStatus(schedule.state) === 'danger').length,
-      };
-      setState({ data: overview, live: devicesResult.status === 'fulfilled' || schedulesResult.status === 'fulfilled', loading: false });
-    })();
-    return () => { cancelled = true; };
-  }, [refreshToken]);
-
+  }, [path, refreshToken]);
   return state;
 }
 
@@ -255,95 +161,30 @@ function formatTime(value?: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
+function formatBytes(value?: number): string {
+  if (value === undefined || value < 0) return '暂无';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+}
+
 function toneForStatus(status?: string): Tone {
   if (!status) return 'muted';
-  if (['online', 'healthy', 'success', 'succeeded', 'completed', 'stable', 'active', 'ready'].includes(status)) return 'ok';
-  if (['failed', 'offline', 'blocked', 'revoked', 'conflicted'].includes(status)) return 'danger';
-  if (['degraded', 'pending', 'running', 'queued', 'candidate', 'canary'].includes(status)) return 'warn';
+  if (['online', 'healthy', 'success', 'succeeded', 'completed', 'ready', 'mounted', 'listed'].includes(status)) return 'ok';
+  if (['failed', 'offline', 'blocked', 'revoked', 'expired'].includes(status)) return 'danger';
+  if (['degraded', 'pending', 'running', 'queued', 'uploading', 'downloading', 'listing'].includes(status)) return 'warn';
   return 'muted';
-}
-
-function matchesQuery(query: string, values: Array<string | undefined>): boolean {
-  return values.filter(Boolean).join(' ').toLowerCase().includes(query);
-}
-
-function searchSections(query: string): SearchResult[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return [];
-  return NAV
-    .map((item) => ({
-      id: `section:${item.id}`,
-      label: item.label,
-      description: SEARCH_HINTS[item.id].slice(-3).join(' / '),
-      target: item.id,
-      source: 'section' as const,
-      haystack: [item.id, item.label, ...SEARCH_HINTS[item.id]].join(' ').toLowerCase(),
-    }))
-    .filter((item) => item.haystack.includes(normalized))
-    .slice(0, 6);
-}
-
-function useLiveSearch(query: string): Resource<SearchResult[]> {
-  const [state, setState] = useState<Resource<SearchResult[]>>({ data: [], live: false, loading: false });
-  const normalized = query.trim().toLowerCase();
-
-  useEffect(() => {
-    if (!normalized) {
-      setState({ data: [], live: false, loading: false });
-      return;
-    }
-    let cancelled = false;
-    setState((current) => ({ ...current, loading: true }));
-    void (async () => {
-      const [devicesResult, schedulesResult] = await Promise.allSettled([
-        api<{ items: NexusDeviceSummary[] }>('/v1/devices'),
-        api<{ items: Schedule[] }>('/v1/schedules'),
-      ]);
-      if (cancelled) return;
-
-      const firstFailure = [devicesResult, schedulesResult].find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined;
-      const hardFailure = firstFailure && !isCompatibilityMiss(firstFailure.reason);
-      const devices = devicesResult.status === 'fulfilled' ? devicesResult.value.items ?? [] : [];
-      const schedules = schedulesResult.status === 'fulfilled' ? schedulesResult.value.items ?? [] : [];
-      const results: SearchResult[] = [
-        ...devices
-          .filter((device) => matchesQuery(normalized, [device.name, device.id, device.platform, device.arch, device.agentdock_version, device.status]))
-          .map((device) => ({
-            id: `device:${device.id}`,
-            label: device.name || device.id,
-            description: `${device.status || 'unknown'} / ${device.platform || 'unknown'} / ${device.arch || 'unknown'}`,
-            target: 'devices' as Section,
-            source: 'device' as const,
-          })),
-        ...schedules
-          .filter((schedule) => matchesQuery(normalized, [schedule.title, schedule.id, schedule.device, schedule.provider, schedule.state, schedule.message]))
-          .map((schedule) => ({
-            id: `schedule:${schedule.id}`,
-            label: schedule.title,
-            description: `${schedule.state || 'unknown'} / ${schedule.device} / ${schedule.schedule}`,
-            target: 'schedules' as Section,
-            source: 'schedule' as const,
-          })),
-      ].slice(0, 8);
-
-      setState({
-        data: results,
-        live: devicesResult.status === 'fulfilled' || schedulesResult.status === 'fulfilled',
-        loading: false,
-        error: hardFailure ? messageOf(firstFailure.reason) : undefined,
-      });
-    })();
-    return () => { cancelled = true; };
-  }, [normalized]);
-
-  return state;
 }
 
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
-  const [globalQuery, setGlobalQuery] = useState('');
   const [sessionExpired, setSessionExpired] = useState(false);
   const [session, setSession] = useState<WebSession | null>(null);
 
@@ -378,23 +219,6 @@ export default function App() {
     window.location.hash = next;
     setSection(next);
     setMenuOpen(false);
-    setGlobalQuery('');
-  }
-
-  const sectionResults = useMemo(() => searchSections(globalQuery), [globalQuery]);
-  const liveSearch = useLiveSearch(globalQuery);
-  const searchResults = useMemo(() => {
-    const seen = new Set<string>();
-    return [...liveSearch.data, ...sectionResults].filter((result) => {
-      if (seen.has(result.id)) return false;
-      seen.add(result.id);
-      return true;
-    }).slice(0, 8);
-  }, [liveSearch.data, sectionResults]);
-
-  function submitSearch(event: FormEvent) {
-    event.preventDefault();
-    if (searchResults[0]) navigate(searchResults[0].target);
   }
 
   if (section === 'memory') {
@@ -420,14 +244,10 @@ export default function App() {
         <nav aria-label="主导航">
           {NAV.map((item) => {
             const Icon = item.icon;
-            return (
-              <button key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}>
-                <Icon size={18} /><span>{item.label}</span>
-              </button>
-            );
+            return <button key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
           })}
         </nav>
-        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>控制面</span></div>
+        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>个人控制台</span></div>
       </aside>
       {menuOpen && <button className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
       <main className="nexus-main">
@@ -435,31 +255,15 @@ export default function App() {
           <button className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
           <div><span className="nexus-eyebrow">AgentDock Nexus</span><h1>{active.label}</h1></div>
           <div className="nexus-top-actions">
-            <form className="nexus-search-wrap" onSubmit={submitSearch}>
-              <label className="nexus-search"><Search size={16} /><input value={globalQuery} onChange={(event) => setGlobalQuery(event.target.value)} placeholder="搜索设备、Skill、Run" aria-label="全局搜索" /></label>
-              {globalQuery.trim() && (
-                <div className="nexus-search-popover">
-                  {searchResults.length ? searchResults.map((result) => (
-                    <button type="button" key={result.id} onClick={() => navigate(result.target)}>
-                      <strong>{result.label}</strong><span>{result.source === 'section' ? '入口' : result.source === 'device' ? '设备' : '计划任务'} / {result.description}</span>
-                    </button>
-                  )) : liveSearch.loading ? <p>正在搜索真实 Nexus 数据…</p> : <p>没有匹配的控制面入口或真实对象</p>}
-                  {liveSearch.error && <small>{liveSearch.error}</small>}
-                </div>
-              )}
-            </form>
             <button className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
             <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
           </div>
         </header>
         <div className="nexus-content">
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
-          {section === 'inbox' && <InboxPage refreshToken={refreshToken} />}
-          {section === 'devices' && <DevicesPage refreshToken={refreshToken} />}
-          {section === 'skills' && <SkillsPage refreshToken={refreshToken} />}
-          {section === 'runs' && <RunsPage refreshToken={refreshToken} />}
-          {section === 'schedules' && <SchedulesPage refreshToken={refreshToken} />}
-          {section === 'settings' && <SettingsPage />}
+          {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
+          {section === 'files' && <FilesPage refreshToken={refreshToken} />}
+          {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
       </main>
       {sessionExpired && <SessionExpiredDialog />}
@@ -472,222 +276,138 @@ function SessionExpiredDialog() {
     const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     window.location.assign(`/login?return_to=${encodeURIComponent(returnTo)}`);
   }
-  return <div className="session-expired-overlay" role="presentation"><section className="session-expired-dialog" role="dialog" aria-modal="true" aria-labelledby="session-expired-title"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。重新登录后将返回这里。</p><button onClick={signInAgain}>重新登录</button></section></div>;
+  return <div className="session-expired-overlay" role="presentation"><section className="session-expired-dialog" role="dialog" aria-modal="true" aria-labelledby="session-expired-title"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。</p><button onClick={signInAgain}>重新登录</button></section></div>;
 }
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
-  const resource = useOverview(refreshToken);
-  const devicesResource = useResource<NexusDeviceSummary[]>(['/v1/devices'], [], refreshToken);
-  const schedulesResource = useResource<Schedule[]>(['/api/v1/schedules', '/v1/schedules'], [], refreshToken);
-  const overview = { ...EMPTY_OVERVIEW, ...resource.data };
-  const devices = Array.isArray(devicesResource.data) ? devicesResource.data : [];
-  const schedules = Array.isArray(schedulesResource.data) ? schedulesResource.data : [];
+  const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
+  const schedulesResource = useResource<Schedule[]>('/v1/schedules', [], refreshToken);
+  const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
+  const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=8', [], refreshToken);
+  const devices = devicesResource.data ?? [];
+  const schedules = schedulesResource.data ?? [];
+  const artifacts = artifactsResource.data ?? [];
+  const fetches = fetchesResource.data ?? [];
+  const backup = schedules[0];
   const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
-  const activeSchedules = schedules.filter((schedule) => schedule.enabled);
-  const failedSchedules = schedules.filter((schedule) => toneForStatus(schedule.state) === 'danger');
-  const attentionItems = [
-    ...unhealthyDevices.slice(0, 3).map((device) => ({
-      id: `device:${device.id}`,
-      title: device.name || device.id,
-      detail: `${device.status || 'unknown'} / ${device.platform || 'unknown'} / ${device.arch || 'unknown'}`,
-      tone: toneForStatus(device.status),
-      target: 'devices' as Section,
-    })),
-    ...failedSchedules.slice(0, 3).map((schedule) => ({
-      id: `schedule:${schedule.id}`,
-      title: schedule.title,
-      detail: `${schedule.state || 'unknown'} / ${formatTime(schedule.last_completed_at || schedule.last_started_at)}`,
-      tone: toneForStatus(schedule.state),
-      target: 'schedules' as Section,
-    })),
-  ].slice(0, 5);
-  const cards = useMemo(() => [
-    ['Agent 待办', overview.agent_tasks, Bot, 'inbox' as Section, 'warn' as Tone],
-    ['用户待办', overview.user_tasks, BellRing, 'inbox' as Section, 'warn' as Tone],
-    ['设备异常', overview.device_alerts, Server, 'devices' as Section, 'danger' as Tone],
-    ['Skill 候选', overview.skill_candidates, Sparkles, 'skills' as Section, 'ok' as Tone],
-    ['记忆冲突', overview.memory_conflicts, Database, 'memory' as Section, 'danger' as Tone],
-    ['最近失败', overview.recent_failures, CircleAlert, 'runs' as Section, 'danger' as Tone],
-  ] as const, [overview.agent_tasks, overview.user_tasks, overview.device_alerts, overview.skill_candidates, overview.memory_conflicts, overview.recent_failures]);
+  const failedTransfers = artifacts.filter((item) => item.deliveries.some((delivery) => delivery.status === 'failed')).length
+    + fetches.filter((item) => item.status === 'failed').length;
+  const recentTransferCount = artifacts.length + fetches.length;
+  const errors = [devicesResource.error, schedulesResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
 
-  return (
-    <>
-      <section className="nexus-hero nexus-workbench-hero">
-        <div>
-          <span className="nexus-kicker">控制工作台</span>
-          <h2>今天先看异常、待办和可执行入口</h2>
-          <p>把设备心跳、计划任务、记忆和 Env 管理放在同一张工作台里，优先暴露需要处理的对象。</p>
-        </div>
-        <div className="hero-health-stack">
-          <StatusBadge tone={resource.error ? 'danger' : resource.live ? 'ok' : 'warn'}>{resource.error ? 'API 访问受限' : resource.live ? '概览实时' : '兼容模式'}</StatusBadge>
-          <span>{devicesResource.live ? `${devices.length} 台设备` : '设备数据待接入'}</span>
-          <span>{schedulesResource.live ? `${activeSchedules.length} 个启用计划` : '计划任务待接入'}</span>
-        </div>
-      </section>
-      {resource.error && <InlineAlert tone="danger" title="概览数据读取失败" message={resource.error} />}
-      <section className="metric-grid">
-        {cards.map(([label, value, Icon, target, tone]) => (
-          <button className="metric-card" key={label} onClick={() => navigate(target)}>
-            <span className={`metric-icon tone-${tone}`}><Icon size={20} /></span>
-            <span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" />
-          </button>
-        ))}
-      </section>
+  return <>
+    <section className="nexus-hero nexus-workbench-hero">
+      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、文件和备份集中管理</h2><p>只展示当前真实运行链路，不再保留未接入生产的 Task、Run 和 Evolution 概念。</p></div>
+      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{recentTransferCount} 条近期传输</span></div>
+    </section>
+    {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
-      <section className="action-grid" aria-label="常用操作">
-        <ActionTile icon={<Server size={18} />} title="管理设备" detail="注册、审批、命令历史" onClick={() => navigate('devices')} />
-        <ActionTile icon={<KeyRound size={18} />} title="配置 Env" detail="按设备下发 env.manage" onClick={() => navigate('settings')} />
-        <ActionTile icon={<Database size={18} />} title="打开记忆" detail="查看、编辑、同步记忆仓库" onClick={() => navigate('memory')} />
-        <ActionTile icon={<CalendarClock size={18} />} title="检查计划任务" detail="备份归档与最近执行证据" onClick={() => navigate('schedules')} />
-      </section>
+    <section className="metric-grid compact-metrics">
+      <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
+      <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
+      <MetricButton label="近期文件" value={recentTransferCount} tone="ok" onClick={() => navigate('files')} />
+      <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
+    </section>
 
-      <section className="dashboard-grid-nexus">
-        <Panel title="设备控制面" subtitle={devicesResource.live ? `${devices.length} 台真实设备` : '等待设备 API 数据'}>
-          <SummaryStat label="在线" value={String(devices.filter((device) => toneForStatus(device.status) === 'ok').length)} tone="ok" />
-          <SummaryStat label="需关注" value={String(unhealthyDevices.length || overview.device_alerts)} tone={unhealthyDevices.length || overview.device_alerts ? 'danger' : 'muted'} />
-          <SummaryList empty="暂无设备异常。">{devices.slice(0, 4).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
-        </Panel>
+    <section className="action-grid" aria-label="常用操作">
+      <ActionTile icon={<Server size={18} />} title="管理设备" detail="注册、审批、能力、Env 和命令历史" onClick={() => navigate('devices')} />
+      <ActionTile icon={<Database size={18} />} title="打开记忆" detail="查看、编辑、审阅和同步记忆仓库" onClick={() => navigate('memory')} />
+      <ActionTile icon={<FileArchive size={18} />} title="查看文件" detail="Artifact 发送、Delivery 与 Fetch 状态" onClick={() => navigate('files')} />
+      <ActionTile icon={<Settings size={18} />} title="系统设置" detail="账号、会话、数据库和备份状态" onClick={() => navigate('settings')} />
+    </section>
 
-        <Panel title="计划任务" subtitle={schedulesResource.live ? `${activeSchedules.length} 个启用，${failedSchedules.length} 个失败` : '等待计划任务 API 数据'}>
-          <SummaryStat label="启用" value={String(activeSchedules.length)} tone="ok" />
-          <SummaryStat label="失败" value={String(failedSchedules.length || overview.recent_failures)} tone={failedSchedules.length || overview.recent_failures ? 'danger' : 'muted'} />
-          <SummaryList empty="暂无计划任务记录。">{schedules.slice(0, 4).map((schedule) => <ObjectRow key={schedule.id} title={schedule.title} detail={`${schedule.state || 'unknown'} / ${formatTime(schedule.last_completed_at || schedule.last_started_at)}`} tone={toneForStatus(schedule.state)} />)}</SummaryList>
-        </Panel>
-
-        <Panel title="需要关注" subtitle="来自设备和计划任务的合并队列">
-          {attentionItems.length ? attentionItems.map((item) => (
-            <button type="button" className="attention-row" key={item.id} onClick={() => navigate(item.target)}>
-              <StatusBadge tone={item.tone}>{item.tone}</StatusBadge>
-              <span><strong>{item.title}</strong><small>{item.detail}</small></span>
-              <ChevronRight size={16} />
-            </button>
-          )) : <EmptyMini text="当前没有需要立刻处理的设备或计划任务。" />}
-        </Panel>
-      </section>
-    </>
-  );
+    <section className="dashboard-grid-nexus">
+      <Panel title="设备状态" subtitle={`${devices.length} 台已注册设备`}>
+        <SummaryStat label="在线" value={String(devices.filter((device) => device.status === 'online').length)} tone="ok" />
+        <SummaryStat label="需关注" value={String(unhealthyDevices.length)} tone={unhealthyDevices.length ? 'danger' : 'muted'} />
+        <SummaryList empty="暂无设备。">{devices.slice(0, 5).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
+      </Panel>
+      <BackupPanel schedule={backup} />
+      <Panel title="需要处理" subtitle="只聚合真实设备、备份和文件异常">
+        {unhealthyDevices.length === 0 && backup?.state !== 'failed' && failedTransfers === 0 ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
+          {unhealthyDevices.slice(0, 4).map((device) => <button type="button" className="attention-row" key={device.id} onClick={() => navigate('devices')}><StatusBadge tone={toneForStatus(device.status)}>{device.status}</StatusBadge><span><strong>{device.name || device.id}</strong><small>{device.platform || 'unknown'} / {device.arch || 'unknown'}</small></span><ChevronRight size={16} /></button>)}
+          {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
+          {failedTransfers > 0 && <button type="button" className="attention-row" onClick={() => navigate('files')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>{failedTransfers} 条文件传输失败</strong><small>打开文件页面查看错误和目标设备</small></span><ChevronRight size={16} /></button>}
+        </>}
+      </Panel>
+    </section>
+  </>;
 }
 
-function InboxPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Task[]>(['/v1/tasks', '/api/v1/tasks', '/api/tasks'], [], refreshToken);
-  const tasks = Array.isArray(resource.data) ? resource.data : [];
-  return (
-    <CollectionPage title="Agent 待办" description="统一处理 needs_agent、needs_user、review 与 automatic 任务。" live={resource.live} loading={resource.loading} error={resource.error} count={tasks.length} empty="暂无任务。设备告警、Skill 失败、记忆冲突和 Evolution Proposal 会自动进入这里。">
-      {tasks.map((task) => <ListCard key={task.id} title={task.title} meta={`${task.type} · ${task.source || 'unknown source'}`} trailing={<><StatusBadge tone={toneForStatus(task.status)}>{task.status}</StatusBadge><small>{formatTime(task.updated_at)}</small></>} />)}
-    </CollectionPage>
-  );
+function FilesPage({ refreshToken }: { refreshToken: number }) {
+  const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=100', [], refreshToken);
+  const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=100', [], refreshToken);
+  const artifacts = artifactsResource.data ?? [];
+  const fetches = fetchesResource.data ?? [];
+  const error = artifactsResource.error || fetchesResource.error;
+  return <section>
+    <div className="section-heading"><div><h2>文件传输</h2><p>查看真实 Artifact 发送、Delivery 落盘和反向 Fetch 状态。Nexus 只保存密文。</p></div><StatusBadge tone={error ? 'danger' : 'ok'}>{error ? '读取失败' : '实时 API'}</StatusBadge></div>
+    {error && <InlineAlert tone="danger" title="文件记录读取失败" message={error} />}
+    <div className="file-summary-grid">
+      <SummaryCard icon={<ArrowUpFromLine size={18} />} label="发送记录" value={artifacts.length} />
+      <SummaryCard icon={<ArrowDownToLine size={18} />} label="Fetch 记录" value={fetches.length} />
+      <SummaryCard icon={<HardDrive size={18} />} label="已完成 Delivery" value={artifacts.flatMap((item) => item.deliveries).filter((item) => item.status === 'completed').length} />
+    </div>
+    <section className="file-section">
+      <h3>发送与 Delivery</h3>
+      {artifactsResource.loading ? <EmptyState text="正在读取 Artifact 记录…" /> : artifacts.length === 0 ? <EmptyState text="暂无 Artifact 发送记录。" /> : <div className="file-record-list">{artifacts.map((detail) => <ArtifactCard key={detail.artifact.id} detail={detail} />)}</div>}
+    </section>
+    <section className="file-section">
+      <h3>反向 Fetch</h3>
+      {fetchesResource.loading ? <EmptyState text="正在读取 Fetch 记录…" /> : fetches.length === 0 ? <EmptyState text="暂无反向 Fetch 记录。" /> : <div className="file-record-list">{fetches.map((fetch) => <FetchCard key={fetch.id} fetch={fetch} />)}</div>}
+    </section>
+  </section>;
 }
 
-function DevicesPage({ refreshToken }: { refreshToken: number }) {
-  return <DevicesManagementPage refreshToken={refreshToken} />;
+function ArtifactCard({ detail }: { detail: ArtifactDetail }) {
+  const { artifact, deliveries } = detail;
+  return <article className="file-record-card"><header><span className="file-record-icon"><ArrowUpFromLine size={17} /></span><div><h4>{artifact.filename}</h4><code>{artifact.id}</code></div><StatusBadge tone={toneForStatus(artifact.status)}>{artifact.status}</StatusBadge></header><dl><div><dt>来源</dt><dd>{artifact.source_kind}{artifact.source_id ? ` / ${artifact.source_id}` : ''}</dd></div><div><dt>大小</dt><dd>{formatBytes(artifact.plain_size)}</dd></div><div><dt>创建</dt><dd>{formatTime(artifact.created_at)}</dd></div><div><dt>过期</dt><dd>{formatTime(artifact.expires_at)}</dd></div></dl>{artifact.plain_sha256 && <div className="file-digest"><span>SHA256</span><code>{artifact.plain_sha256}</code></div>}<div className="delivery-list">{deliveries.map((delivery) => <div key={delivery.id}><StatusBadge tone={toneForStatus(delivery.status)}>{delivery.status}</StatusBadge><span><strong>{delivery.target_device_id}</strong><small>{delivery.local_path || delivery.error_message || delivery.id}</small></span><time>{formatTime(delivery.completed_at || delivery.updated_at)}</time></div>)}</div></article>;
 }
 
-function SkillsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Skill[]>(['/api/v1/skills', '/api/skills'], [], refreshToken);
-  const skills = Array.isArray(resource.data) ? resource.data : [];
-  return (
-    <CollectionPage title="能力目录" description="查看规范、Operations、安装设备、Runs、Evolution 与版本。" live={resource.live} loading={resource.loading} error={resource.error} count={skills.length} empty="目录为空。导入外部 Skill 后将显示 provenance、trust、maturity 和 release。">
-      <div className="card-grid">{skills.map((skill) => <EntityCard key={skill.id} icon={<Boxes size={20} />} title={skill.name} status={skill.maturity || 'draft'} detail={`v${skill.version || '0.0.0'} · trust: ${skill.trust || 'unverified'}`} leftLabel="安装设备" leftValue={String(skill.installations ?? 0)} rightLabel="Release" rightValue={skill.version || '无'} />)}</div>
-    </CollectionPage>
-  );
+function FetchCard({ fetch }: { fetch: FetchJob }) {
+  return <article className="file-record-card"><header><span className="file-record-icon"><ArrowDownToLine size={17} /></span><div><h4>{fetch.filename || fetch.source_path}</h4><code>{fetch.id}</code></div><StatusBadge tone={toneForStatus(fetch.status)}>{fetch.status}</StatusBadge></header><dl><div><dt>源设备</dt><dd>{fetch.source_device_id}</dd></div><div><dt>请求设备</dt><dd>{fetch.requester_device_id}</dd></div><div><dt>大小</dt><dd>{formatBytes(fetch.plain_size)}</dd></div><div><dt>创建</dt><dd>{formatTime(fetch.created_at)}</dd></div></dl><div className="file-digest"><span>源路径</span><code>{fetch.source_path}</code></div>{fetch.plain_sha256 && <div className="file-digest"><span>SHA256</span><code>{fetch.plain_sha256}</code></div>}{fetch.error_message && <div className="nx-alert is-error">{fetch.error_code || 'FETCH_FAILED'}：{fetch.error_message}</div>}</article>;
 }
 
-function RunsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Run[]>(['/api/v1/runs', '/api/runs'], [], refreshToken);
-  const runs = Array.isArray(resource.data) ? resource.data : [];
-  return (
-    <CollectionPage title="运行与证据" description="统一查看步骤、证据、验证结果和失败层级。" live={resource.live} loading={resource.loading} error={resource.error} count={runs.length} empty="暂无运行记录。Skill 执行或设备命令完成后会记录到统一运行注册表。">
-      {runs.map((run) => <ListCard key={run.id} title={run.title || run.skill || run.id} meta={`${run.device || '未知设备'} · ${formatTime(run.started_at)}`} trailing={<StatusBadge tone={toneForStatus(run.status)}>{run.status}</StatusBadge>} />)}
-    </CollectionPage>
-  );
+function SettingsPage({ refreshToken }: { refreshToken: number }) {
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'memorydock', database: 'unknown', schema_version: 0, memory_root: '', artifact_root: '' }, refreshToken);
+  const schedules = useResource<Schedule[]>('/v1/schedules', [], refreshToken);
+  return <>
+    <AccountSecurity />
+    <section className="settings-grid compact-settings">
+      <Panel title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
+        <SettingValue label="服务" value={system.data.service || 'memorydock'} tone={system.data.ok ? 'ok' : 'danger'} />
+        <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
+        <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
+        <SettingValue label="记忆仓库" value={system.data.memory_root || '暂无'} mono />
+        <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
+      </Panel>
+      <BackupPanel schedule={schedules.data?.[0]} />
+    </section>
+  </>;
 }
 
-function formatBytes(value?: number): string {
-  if (!value || value < 0) return '暂无';
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit += 1;
-  }
-  return `${size.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+function BackupPanel({ schedule }: { schedule?: Schedule }) {
+  return <Panel title="备份状态" subtitle={schedule ? `${schedule.device} · ${schedule.schedule}` : '等待备份状态'}>
+    {schedule ? <>
+      <SettingValue label="状态" value={schedule.state || 'unknown'} tone={toneForStatus(schedule.state)} />
+      <SettingValue label="最近完成" value={formatTime(schedule.last_completed_at)} />
+      <SettingValue label="下次运行" value={formatTime(schedule.next_run_at)} />
+      <SettingValue label="归档大小" value={formatBytes(schedule.archive_size)} />
+      <SettingValue label="远端路径" value={schedule.remote_path || '暂无'} mono />
+      <SettingValue label="SHA256" value={schedule.sha256 || '暂无'} mono />
+    </> : <EmptyMini text="暂无备份状态。" />}
+  </Panel>;
 }
 
-function SchedulesPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useResource<Schedule[]>(['/api/v1/schedules', '/v1/schedules'], [], refreshToken);
-  const schedules = Array.isArray(resource.data) ? resource.data : [];
-  return (
-    <CollectionPage title="计划任务" description="查看 DockMini 的真实定时计划、最近执行证据与云端归档历史。" live={resource.live} loading={resource.loading} error={resource.error} count={schedules.length} empty="暂无计划任务。">
-      {schedules.map((schedule) => (
-        <article className="schedule-card" key={schedule.id}>
-          <header className="schedule-card-head">
-            <div>
-              <div className="schedule-title-row"><h3>{schedule.title}</h3><StatusBadge tone={schedule.enabled ? 'ok' : 'muted'}>{schedule.enabled ? '已启用' : '已停用'}</StatusBadge></div>
-              <p>{schedule.description}</p>
-            </div>
-            <StatusBadge tone={toneForStatus(schedule.state)}>{schedule.state || 'unknown'}</StatusBadge>
-          </header>
-          <dl className="schedule-detail-grid">
-            <div><dt>执行计划</dt><dd>{schedule.schedule}</dd></div>
-            <div><dt>设备 / Provider</dt><dd>{schedule.device} · {schedule.provider}</dd></div>
-            <div><dt>最近开始</dt><dd>{formatTime(schedule.last_started_at)}</dd></div>
-            <div><dt>最近完成</dt><dd>{formatTime(schedule.last_completed_at)}</dd></div>
-            <div><dt>下次运行</dt><dd>{formatTime(schedule.next_run_at)}</dd></div>
-            <div><dt>归档大小</dt><dd>{formatBytes(schedule.archive_size)}</dd></div>
-          </dl>
-          <div className="schedule-evidence">
-            <div><span>归档名称</span><code>{schedule.archive || '暂无'}</code></div>
-            <div><span>SHA256</span><code>{schedule.sha256 || '暂无'}</code></div>
-            <div><span>远端路径</span><code>{schedule.remote_path || '暂无'}</code></div>
-            {schedule.message && <div><span>状态消息</span><p>{schedule.message}</p></div>}
-          </div>
-          <section className="schedule-history">
-            <h4>最近历史记录</h4>
-            {(schedule.history || []).length > 0 ? (schedule.history || []).slice().reverse().slice(0, 10).map((entry, index) => (
-              <div className="schedule-history-row" key={`${entry.completed_at || entry.started_at || index}-${index}`}>
-                <StatusBadge tone={toneForStatus(entry.state)}>{entry.state || 'unknown'}</StatusBadge>
-                <div><strong>{formatTime(entry.completed_at || entry.started_at)}</strong><small>{entry.archive || entry.message || '无归档信息'}</small></div>
-                <span>{formatBytes(entry.archive_size)}</span>
-              </div>
-            )) : <p className="schedule-history-empty">暂无历史记录</p>}
-          </section>
-        </article>
-      ))}
-    </CollectionPage>
-  );
-}
-
-function SettingsPage() {
-  return (
-    <>
-      <AccountSecurity />
-      <EnvManagerPage />
-      <section className="settings-grid">
-        <Panel title="认证与访问" subtitle="用户、Agent 与设备身份"><SettingRow label="User Session" detail="浏览器登录与会话管理" /><SettingRow label="Agent Token" detail="Scope 限制与撤销" /><SettingRow label="Device Token" detail="Enrollment 后独立轮换" /></Panel>
-        <Panel title="发布策略" subtitle="Skill 与设备控制"><SettingRow label="默认 Channel" detail="stable" /><SettingRow label="Canary 验证" detail="发布前必须有 Verification Result" /><SettingRow label="自动回退" detail="验证失败时保持旧版本" /></Panel>
-        <Panel title="审计与保留" subtitle="所有写操作均可追踪"><SettingRow label="Audit Event" detail="actor / action / object / result / risk" /><SettingRow label="Evidence" detail="保留脱敏后的运行证据" /><SettingRow label="Export" detail="禁止携带私有路径和 Secret" /></Panel>
-      </section>
-    </>
-  );
-}
-
-function CollectionPage({ title, description, live, loading, error, count, empty, children }: { title: string; description: string; live: boolean; loading: boolean; error?: string; count: number; empty: string; children: ReactNode }) {
-  return <section><div className="section-heading"><div><h2>{title}</h2><p>{description}</p></div><StatusBadge tone={error ? 'danger' : live ? 'ok' : 'warn'}>{error ? 'API 访问受限' : live ? '实时 API' : '兼容模式'}</StatusBadge></div>{loading ? <EmptyState text="正在读取 Nexus 数据…" /> : error ? <ErrorState text={error} /> : count > 0 && children ? <div className="collection-stack">{children}</div> : <EmptyState text={empty} />}</section>;
-}
-
+function MetricButton({ label, value, tone, onClick }: { label: string; value: number; tone: Tone; onClick: () => void }) { return <button className="metric-card" onClick={onClick}><span className={`metric-icon tone-${tone}`}><Activity size={20} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
+function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) { return <article className="file-summary-card"><span>{icon}</span><div><strong>{value}</strong><small>{label}</small></div></article>; }
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
-function TimelineItem({ icon, title, detail, tone }: { icon: ReactNode; title: string; detail: string; tone: Tone }) { return <div className="timeline-item"><span className={`timeline-icon tone-${tone}`}>{icon}</span><div><strong>{title}</strong><p>{detail}</p></div></div>; }
-function ProgressRow({ name, value }: { name: string; value: number }) { return <div className="progress-row"><div><span>{name}</span><strong>{value}%</strong></div><div className="progress-track"><span style={{ width: `${value}%` }} /></div></div>; }
-function ListCard({ title, meta, trailing }: { title: string; meta: string; trailing: ReactNode }) { return <article className="list-card"><div><h3>{title}</h3><p>{meta}</p></div><div className="list-trailing">{trailing}</div></article>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }
 function EmptyState({ text }: { text: string }) { return <div className="empty-state"><span><Activity size={24} /></span><h3>等待数据</h3><p>{text}</p></div>; }
-function ErrorState({ text }: { text: string }) { return <div className="empty-state error-state"><span><CircleAlert size={24} /></span><h3>数据读取失败</h3><p>{text}</p></div>; }
-function SettingRow({ label, detail }: { label: string; detail: string }) { return <div className="setting-row"><div><strong>{label}</strong><p>{detail}</p></div><ChevronRight size={17} /></div>; }
-function EntityCard({ icon, title, status, detail, leftLabel, leftValue, rightLabel, rightValue }: { icon: ReactNode; title: string; status: string; detail: string; leftLabel: string; leftValue: string; rightLabel: string; rightValue: string }) { return <article className="entity-card"><div className="entity-head"><span className="entity-avatar">{icon}</span><StatusBadge tone={toneForStatus(status)}>{status}</StatusBadge></div><h3>{title}</h3><p>{detail}</p><dl><div><dt>{leftLabel}</dt><dd>{leftValue}</dd></div><div><dt>{rightLabel}</dt><dd>{rightValue}</dd></div></dl></article>; }
 function ActionTile({ icon, title, detail, onClick }: { icon: ReactNode; title: string; detail: string; onClick: () => void }) { return <button type="button" className="action-tile" onClick={onClick}><span>{icon}</span><strong>{title}</strong><small>{detail}</small><ChevronRight size={16} /></button>; }
 function SummaryStat({ label, value, tone }: { label: string; value: string; tone: Tone }) { return <div className="summary-stat"><span className={`metric-icon tone-${tone}`}><Activity size={15} /></span><div><strong>{value}</strong><small>{label}</small></div></div>; }
 function SummaryList({ empty, children }: { empty: string; children: ReactNode }) { return <div className="summary-list">{Children.count(children) ? children : <EmptyMini text={empty} />}</div>; }
 function ObjectRow({ title, detail, tone }: { title: string; detail: string; tone: Tone }) { return <div className="object-row"><StatusBadge tone={tone}>{tone}</StatusBadge><span><strong>{title}</strong><small>{detail}</small></span></div>; }
 function EmptyMini({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }
+function SettingValue({ label, value, tone = 'muted', mono = false }: { label: string; value: string; tone?: Tone; mono?: boolean }) { return <div className="setting-value"><span>{label}</span><div>{tone !== 'muted' && <StatusBadge tone={tone}>{value}</StatusBadge>}{tone === 'muted' && <strong className={mono ? 'nx-mono' : ''}>{value}</strong>}</div></div>; }

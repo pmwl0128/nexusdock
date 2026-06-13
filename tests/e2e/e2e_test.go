@@ -93,12 +93,12 @@ func TestBuiltFrontendContainsNexusSectionsAndResponsiveRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk frontend dist: %v", err)
 	}
-	for _, label := range []string{"AgentDock", "Nexus", "总览", "待办", "设备", "记忆", "能力", "运行", "设置", "计划任务", "API 访问受限", "全局搜索", "真实 Nexus 数据", "拒绝跨源 API 请求", "INVALID_JSON"} {
+	for _, label := range []string{"AgentDock", "Nexus", "总览", "设备", "记忆", "文件", "设置", "个人控制台", "文件传输", "数据库", "拒绝跨源 API 请求", "INVALID_JSON"} {
 		if !strings.Contains(javascript.String(), label) {
 			t.Errorf("frontend bundle missing section label %q", label)
 		}
 	}
-	for _, rule := range []string{"nexus-sidebar.is-open", "grid-template-columns:1fr", "nexus-mobile-menu", "nexus-scrim", "nexus-search-popover", "error-state"} {
+	for _, rule := range []string{"nexus-sidebar.is-open", "grid-template-columns:1fr", "nexus-mobile-menu", "nexus-scrim", "file-record-card", "nx-device-detail-tabs"} {
 		if !strings.Contains(styles.String(), rule) {
 			t.Errorf("frontend stylesheet missing responsive rule %q", rule)
 		}

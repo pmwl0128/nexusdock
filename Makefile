@@ -1,4 +1,4 @@
-.PHONY: fmt test vet contracts web-build build build-nexus build-memorydock run run-nexus run-memorydock clean
+.PHONY: fmt test vet contracts web-build build build-memorydock run run-memorydock clean
 
 fmt:
 	gofmt -w .
@@ -15,22 +15,13 @@ contracts:
 web-build:
 	cd web && npm run build
 
-build:
-	$(MAKE) build-nexus
-	$(MAKE) build-memorydock
-
-build-nexus:
-	go build -o bin/nexus-server ./cmd/nexus-server
-	go build -o bin/nexus-worker ./cmd/nexus-worker
+build: web-build test vet contracts build-memorydock
 
 build-memorydock:
+	mkdir -p bin
 	go build -o bin/memorydock ./cmd/memorydock
 
-run:
-	$(MAKE) run-nexus
-
-run-nexus:
-	go run ./cmd/nexus-server
+run: run-memorydock
 
 run-memorydock:
 	go run ./cmd/memorydock

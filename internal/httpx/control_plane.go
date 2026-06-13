@@ -17,12 +17,6 @@ func (s *Server) registerControlPlaneRoutes(mux *http.ServeMux) {
 	admin := func(next http.HandlerFunc) http.HandlerFunc { return s.withAPIAccess(next) }
 	mux.HandleFunc("GET /v1/devices", admin(s.listDevices))
 	mux.HandleFunc("GET /v1/devices/{deviceId}", admin(s.getDevice))
-	mux.HandleFunc("GET /v1/skills", admin(s.listSkills))
-	mux.HandleFunc("GET /api/v1/skills", admin(s.listSkills))
-	mux.HandleFunc("GET /api/skills", admin(s.listSkills))
-	mux.HandleFunc("GET /v1/runs", admin(s.listRuns))
-	mux.HandleFunc("GET /api/v1/runs", admin(s.listRuns))
-	mux.HandleFunc("GET /api/runs", admin(s.listRuns))
 	mux.HandleFunc("POST /v1/devices/enrollment-tokens", admin(s.createEnrollmentToken))
 	mux.HandleFunc("POST /v1/devices/enroll", s.enrollDevice)
 	mux.HandleFunc("POST /v1/devices/{deviceId}/approve", admin(s.approveDevice))

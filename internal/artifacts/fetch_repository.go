@@ -7,6 +7,7 @@ import (
 
 type FetchRepository interface {
 	CreateFetch(context.Context, FetchJob) error
+	ListFetches(context.Context, int) ([]FetchJob, error)
 	GetFetch(context.Context, string) (FetchJob, error)
 	SetFetchCommand(context.Context, string, string, FetchStatus, time.Time) (FetchJob, error)
 	ClaimFetchUpload(context.Context, string, string, string, time.Time) (FetchJob, error)

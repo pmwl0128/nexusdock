@@ -44,9 +44,9 @@ const DEFAULT_NAMES: Record<string, string[]> = {
   'xiaohongshu-mcp': ['XIAOHONGSHU_CHROME_BIN', 'XIAOHONGSHU_COOKIE_FILE', 'XIAOHONGSHU_LAUNCH_AGENT', 'XIAOHONGSHU_MCP_URL'],
 };
 
-export default function EnvManagerPage() {
+export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: string }) {
   const { devices, loading, error, refresh } = useDevices(0);
-  const [deviceId, setDeviceId] = useState('');
+  const [deviceId, setDeviceId] = useState(fixedDeviceId || '');
   const [commands, setCommands] = useState<DeviceCommand[]>([]);
   const [selectedCommandId, setSelectedCommandId] = useState('');
   const [commandsLoading, setCommandsLoading] = useState(false);
@@ -59,8 +59,12 @@ export default function EnvManagerPage() {
   const summaries = envSummaries(output);
 
   useEffect(() => {
+    if (fixedDeviceId) {
+      setDeviceId(fixedDeviceId);
+      return;
+    }
     if (!deviceId && devices.length > 0) setDeviceId(devices[0].device.id);
-  }, [devices, deviceId]);
+  }, [devices, deviceId, fixedDeviceId]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -117,7 +121,7 @@ export default function EnvManagerPage() {
         <article className="nexus-panel env-control-panel">
           <header><div><h3>控制</h3><p>选择节点并下发 env.manage 命令。</p></div></header>
           <div className="panel-body env-form-stack">
-            <label><span>目标设备</span><select value={deviceId} onChange={(event) => setDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>
+            {fixedDeviceId ? <div className="env-fixed-device"><span>目标设备</span><strong>{selectedDevice?.device.name || fixedDeviceId}</strong></div> : <label><span>目标设备</span><select value={deviceId} onChange={(event) => setDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>}
             {selectedDevice && <div className="env-policy-line"><span className={canManageEnv ? 'is-ok' : 'is-bad'}>{canManageEnv ? '允许 env.manage' : '未允许 env.manage'}</span><span className={riskOK ? 'is-ok' : 'is-bad'}>{riskOK ? 'medium 风险可用' : '风险等级不足'}</span></div>}
             {selectedDevice && (!canManageEnv || !riskOK) && <div className="nx-alert is-warning"><ShieldAlert size={17} />设备策略需要允许 env.manage 且 max_risk 至少为 medium。</div>}
             <EnvActions disabled={!deviceId || !canManageEnv || !riskOK} onSubmit={submit} />

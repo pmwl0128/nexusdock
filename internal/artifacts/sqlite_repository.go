@@ -119,6 +119,26 @@ func (r *SQLiteRepository) Create(ctx context.Context, artifact Artifact, delive
 	return tx.Commit()
 }
 
+func (r *SQLiteRepository) ListArtifacts(ctx context.Context, limit int) ([]Artifact, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT `+artifactColumns+` FROM artifact_records ORDER BY created_at DESC,id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Artifact{}
+	for rows.Next() {
+		item, err := scanArtifact(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r *SQLiteRepository) GetArtifact(ctx context.Context, id string) (Artifact, error) {
 	item, err := scanArtifact(r.db.QueryRowContext(ctx, `SELECT `+artifactColumns+` FROM artifact_records WHERE id=?`, id))
 	if errors.Is(err, sql.ErrNoRows) {

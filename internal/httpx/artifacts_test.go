@@ -90,7 +90,7 @@ func newArtifactHTTPFixture(t *testing.T) artifactHTTPFixture {
 		db.Close()
 		t.Fatal(err)
 	}
-	handler := NewServer(config.Config{StoreDir: store.Root(), AuthToken: "admin-token"}, store, mgr, slog.Default(), WithControlPlane(deviceService, commandService), WithArtifactRelay(artifactService)).Handler()
+	handler := NewServer(config.Config{StoreDir: store.Root(), AuthToken: "admin-token"}, store, mgr, slog.Default(), WithSystemDatabase(db), WithControlPlane(deviceService, commandService), WithArtifactRelay(artifactService)).Handler()
 	return artifactHTTPFixture{handler: handler, commands: commandService, deviceID: enrolled.Device.ID, deviceToken: enrolled.DeviceToken, close: func() { _ = db.Close() }}
 }
 
@@ -126,6 +126,20 @@ func TestArtifactHTTPUploadAndDualAuthenticatedDownload(t *testing.T) {
 	completion := decodeResponse[artifacts.UploadCompletion](t, upload)
 	if completion.Artifact.Status != artifacts.ArtifactUploaded || completion.Deliveries[0].Status != artifacts.DeliveryQueued {
 		t.Fatalf("unexpected completion %#v", completion)
+	}
+
+	listedResponse := controlPlaneRequest(t, fixture.handler, http.MethodGet, "/v1/artifacts?limit=10", "admin-token", nil)
+	if listedResponse.Code != http.StatusOK {
+		t.Fatalf("list artifacts status=%d body=%s", listedResponse.Code, listedResponse.Body.String())
+	}
+	var listed struct {
+		Items []artifacts.Detail `json:"items"`
+	}
+	if err := json.Unmarshal(listedResponse.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Items) != 1 || listed.Items[0].Artifact.ID != created.Artifact.ID || len(listed.Items[0].Deliveries) != 1 {
+		t.Fatalf("unexpected artifact list %#v", listed.Items)
 	}
 	reused := artifactMultipartRequest(t, fixture.handler, created.UploadPath, created.UploadToken, manifest, ciphertext)
 	if reused.Code != http.StatusConflict {
@@ -249,6 +263,20 @@ func TestArtifactFetchHTTPAuthorization(t *testing.T) {
 	}
 	created := decodeResponse[artifacts.CreateFetchResult](t, response)
 
+	listedResponse := controlPlaneRequest(t, fixture.handler, http.MethodGet, "/v1/artifact-fetches?limit=10", "admin-token", nil)
+	if listedResponse.Code != http.StatusOK {
+		t.Fatalf("list fetches status=%d body=%s", listedResponse.Code, listedResponse.Body.String())
+	}
+	var listed struct {
+		Items []artifacts.FetchJob `json:"items"`
+	}
+	if err := json.Unmarshal(listedResponse.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Items) != 1 || listed.Items[0].ID != created.Fetch.ID {
+		t.Fatalf("unexpected fetch list %#v", listed.Items)
+	}
+
 	missing := httptest.NewRequest(http.MethodGet, "/v1/devices/"+fixture.deviceID+"/artifact-fetches/"+created.Fetch.ID, nil)
 	missing.Header.Set("Authorization", "Bearer "+fixture.deviceToken)
 	missingResponse := httptest.NewRecorder()
@@ -264,5 +292,27 @@ func TestArtifactFetchHTTPAuthorization(t *testing.T) {
 	fixture.handler.ServeHTTP(validResponse, valid)
 	if validResponse.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", validResponse.Code, validResponse.Body.String())
+	}
+}
+
+func TestPersonalControlPlaneSystemStatus(t *testing.T) {
+	fixture := newArtifactHTTPFixture(t)
+	defer fixture.close()
+	response := controlPlaneRequest(t, fixture.handler, http.MethodGet, "/v1/system/status", "admin-token", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("system status=%d body=%s", response.Code, response.Body.String())
+	}
+	var status struct {
+		OK            bool   `json:"ok"`
+		Database      string `json:"database"`
+		SchemaVersion int    `json:"schema_version"`
+		MemoryRoot    string `json:"memory_root"`
+		ArtifactRoot  string `json:"artifact_root"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if !status.OK || status.Database != "ok" || status.SchemaVersion == 0 || status.MemoryRoot == "" || status.ArtifactRoot == "" {
+		t.Fatalf("unexpected system status %#v", status)
 	}
 }
