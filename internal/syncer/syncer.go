@@ -143,6 +143,10 @@ func (m *Manager) MarkChanged(ctx context.Context) {
 	_ = ctx
 }
 
+func memoryGitArgs(args ...string) []string {
+	return append(args, "--", ".", ":(exclude).nexus/**")
+}
+
 func (m *Manager) Status(ctx context.Context) Status {
 	m.mu.Lock()
 	status := Status{
@@ -162,7 +166,7 @@ func (m *Manager) Status(ctx context.Context) Status {
 	m.mu.Unlock()
 
 	if status.GitRepo {
-		if out, err := m.git(ctx, "status", "--porcelain"); err == nil {
+		if out, err := m.git(ctx, memoryGitArgs("status", "--porcelain")...); err == nil {
 			status.Dirty = strings.TrimSpace(out) != ""
 		}
 		if out, err := m.git(ctx, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"); err == nil {
@@ -181,20 +185,20 @@ func (m *Manager) Diff(ctx context.Context) (Diff, error) {
 	if !resp.GitRepo {
 		return resp, nil
 	}
-	status, err := m.git(ctx, "status", "--short", "--untracked-files=all")
+	status, err := m.git(ctx, memoryGitArgs("status", "--short", "--untracked-files=all")...)
 	if err != nil {
 		return resp, err
 	}
 	resp.Status = status
 	resp.Dirty = strings.TrimSpace(status) != ""
 	resp.Files = parseChangedFiles(status)
-	if stat, err := m.git(ctx, "diff", "--stat"); err == nil {
+	if stat, err := m.git(ctx, memoryGitArgs("diff", "--stat")...); err == nil {
 		resp.Stat = stat
 	}
-	if cachedDiff, err := m.git(ctx, "diff", "--cached", "--no-ext-diff", "--"); err == nil {
+	if cachedDiff, err := m.git(ctx, memoryGitArgs("diff", "--cached", "--no-ext-diff")...); err == nil {
 		resp.CachedDiff = cachedDiff
 	}
-	if diff, err := m.git(ctx, "diff", "--no-ext-diff", "--"); err == nil {
+	if diff, err := m.git(ctx, memoryGitArgs("diff", "--no-ext-diff")...); err == nil {
 		resp.Diff = diff
 	}
 	return resp, nil
@@ -251,10 +255,10 @@ func (m *Manager) Discard(ctx context.Context, path string, confirmed bool) (Sta
 			return m.Status(ctx), err
 		}
 	} else {
-		if _, err := m.git(ctx, "restore", "--staged", "--worktree", "."); err != nil {
+		if _, err := m.git(ctx, memoryGitArgs("restore", "--staged", "--worktree")...); err != nil {
 			return m.Status(ctx), err
 		}
-		if _, err := m.git(ctx, "clean", "-fd", "--", "."); err != nil {
+		if _, err := m.git(ctx, "clean", "-fd", "-e", ".nexus/", "--", "."); err != nil {
 			return m.Status(ctx), err
 		}
 	}
@@ -391,7 +395,7 @@ func (m *Manager) Push(ctx context.Context) error {
 		m.mu.Unlock()
 		return nil
 	}
-	if _, err := m.git(ctx, "add", "-A"); err != nil {
+	if _, err := m.git(ctx, memoryGitArgs("add", "-A")...); err != nil {
 		m.setError(err)
 		return err
 	}
@@ -438,7 +442,7 @@ func (m *Manager) isGitRepoLocked() bool {
 }
 
 func (m *Manager) isDirty(ctx context.Context) (bool, error) {
-	out, err := m.git(ctx, "status", "--porcelain")
+	out, err := m.git(ctx, memoryGitArgs("status", "--porcelain")...)
 	if err != nil {
 		return false, err
 	}
