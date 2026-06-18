@@ -38,6 +38,8 @@ func TestAllowedMemoryPaths(t *testing.T) {
 		"projects/agentdock/project.md",
 		"projects/agentdock/environment.md",
 		"projects/agentdock/runbooks/deploy.md",
+		"notes/github-learning/index.md",
+		"notes/github-learning/projects/owner__repo/architecture.md",
 		"inbox/20260531-note.md",
 	}
 	for _, path := range allowed {
@@ -45,11 +47,22 @@ func TestAllowedMemoryPaths(t *testing.T) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
-	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md"}
+	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md", "notes/.hidden.md", "notes/github-learning/raw.bin"}
 	for _, path := range rejected {
 		if IsAllowedMemoryPath(path) {
 			t.Fatalf("expected %q to be rejected", path)
 		}
+	}
+}
+
+func TestWriteNotesInfersNotesScope(t *testing.T) {
+	store := newTestStore(t)
+	mem, err := store.Write(WriteRequest{Path: "notes/github-learning/topics/agent.md", Content: "# Agent", Confirmed: true})
+	if err != nil {
+		t.Fatalf("write notes: %v", err)
+	}
+	if mem.Frontmatter["scope"] != string(ScopeNotes) {
+		t.Fatalf("expected notes scope, got %#v", mem.Frontmatter)
 	}
 }
 
