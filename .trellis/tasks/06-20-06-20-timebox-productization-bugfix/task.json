@@ -15,12 +15,12 @@
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "8160674",
   "pr_url": null,
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "60 分钟时间盒完成；验证、提交、部署见 notes.md。",
+  "notes": "60 分钟时间盒完成；提交 8160674 已推送，release 已切换到 8160674，memorydock 容器已重建并通过本地 health/UI asset 验证。",
   "meta": {}
 }
