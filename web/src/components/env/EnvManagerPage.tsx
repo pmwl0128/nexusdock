@@ -40,6 +40,7 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
   const [commands, setCommands] = useState<DeviceCommand[]>([]);
   const [selectedCommandId, setSelectedCommandId] = useState('');
   const [commandsLoading, setCommandsLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [actionError, setActionError] = useState('');
   const selectedDevice = devices.find(({ device }) => device.id === deviceId);
@@ -79,8 +80,9 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
     }
   }
 
-  async function submit(request: EnvActionRequest) {
-    if (!deviceId) return;
+  async function submit(request: EnvActionRequest): Promise<boolean> {
+    if (!deviceId || actionBusy) return false;
+    setActionBusy(request.action);
     setNotice('');
     setActionError('');
     try {
@@ -88,8 +90,12 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
       setNotice(`命令 ${command.id} 已排队`);
       setSelectedCommandId(command.id);
       await loadCommands(deviceId);
+      return true;
     } catch (cause) {
       setActionError(messageOf(cause));
+      return false;
+    } finally {
+      setActionBusy('');
     }
   }
 
@@ -114,14 +120,14 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
             {fixedDeviceId ? <div className="env-fixed-device"><span>目标设备</span><strong>{selectedDevice?.device.name || fixedDeviceId}</strong></div> : <label><span>目标设备</span><select value={deviceId} onChange={(event) => setDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>}
             {selectedDevice && <div className="env-policy-line"><span className={canManageEnv ? 'is-ok' : 'is-bad'}>{canManageEnv ? '允许 env.manage' : '未允许 env.manage'}</span><span className={riskOK ? 'is-ok' : 'is-bad'}>{riskOK ? 'medium 风险可用' : '风险等级不足'}</span></div>}
             {selectedDevice && (!canManageEnv || !riskOK) && <div className="nx-alert is-warning"><ShieldAlert size={17} />设备策略需要允许 env.manage 且 max_risk 至少为 medium。</div>}
-            <EnvActions summaries={summaries} disabled={!deviceId || !canManageEnv || !riskOK} onSubmit={submit} />
+            <EnvActions summaries={summaries} disabled={!deviceId || !canManageEnv || !riskOK || Boolean(actionBusy)} onSubmit={submit} />
           </div>
         </article>
 
         <article className="nexus-panel env-state-panel">
           <header><div><h3>变量状态</h3><p>{polledCommand ? `${polledCommand.type} · ${formatTime(polledCommand.created_at)}` : '尚无 env.manage 输出'}</p></div>{polledCommand && <CommandStatusBadge status={polledCommand.status} />}</header>
           <div className="panel-body">
-            {polling || commandsLoading ? <p className="nx-muted">正在读取 Env 状态…</p> : summaries.length > 0 ? <EnvSummaryList summaries={summaries} /> : <EnvEmpty onRefresh={() => submit({ action: 'list' })} disabled={!deviceId || !canManageEnv || !riskOK} />}
+            {polling || commandsLoading ? <p className="nx-muted">正在读取 Env 状态…</p> : summaries.length > 0 ? <EnvSummaryList summaries={summaries} /> : <EnvEmpty onRefresh={() => void submit({ action: 'list' })} disabled={!deviceId || !canManageEnv || !riskOK || Boolean(actionBusy)} />}
             {output?.message && <div className={`nx-alert ${output.ok === false ? 'is-error' : 'is-success'}`}>{output.message}</div>}
           </div>
         </article>
@@ -145,7 +151,7 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
 function EnvActions({ summaries, disabled, onSubmit }: {
   summaries: EnvSkillSummary[];
   disabled: boolean;
-  onSubmit: (request: EnvActionRequest) => Promise<void>;
+  onSubmit: (request: EnvActionRequest) => Promise<boolean>;
 }) {
   const skills = summaries.map((item) => item.skill).filter(Boolean);
   const [skill, setSkill] = useState('');
@@ -180,8 +186,8 @@ function EnvActions({ summaries, disabled, onSubmit }: {
 
   async function setVariable(event: FormEvent) {
     event.preventDefault();
-    await onSubmit({ action: 'set', skill, name, kind, value });
-    setValue('');
+    const ok = await onSubmit({ action: 'set', skill, name, kind, value });
+    if (ok) setValue('');
   }
 
   const registryUnavailable = summaries.length === 0;
@@ -189,10 +195,10 @@ function EnvActions({ summaries, disabled, onSubmit }: {
     <div className="env-actions">
       {registryUnavailable && <div className="nx-alert is-info">先读取设备 Env Registry，再从 Runtime 上报的 Skill 和变量定义中选择。</div>}
       <div className="env-action-row">
-        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'list' })}><Search size={15} />读取 Registry</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'inspect', skill })}>查看 Skill</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => onSubmit({ action: 'verify', skill, operation })}><Play size={15} />验证</button>
-        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => onSubmit({ action: 'migrate-from-agentdock-env' })}>迁移旧配置</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => void onSubmit({ action: 'list' })}><Search size={15} />读取 Registry</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => void onSubmit({ action: 'inspect', skill })}>查看 Skill</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled || !skill} onClick={() => void onSubmit({ action: 'verify', skill, operation })}><Play size={15} />验证</button>
+        <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => void onSubmit({ action: 'migrate-from-agentdock-env' })}>迁移旧配置</button>
       </div>
       <form className="env-set-form" onSubmit={setVariable}>
         <label><span>Skill</span><select value={skill} onChange={(event) => setSkill(event.target.value)} disabled={registryUnavailable}>{skills.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -202,7 +208,7 @@ function EnvActions({ summaries, disabled, onSubmit }: {
         <label className="env-value-field"><span>值</span><input type={kind === 'secret' ? 'password' : 'text'} value={value} onChange={(event) => setValue(event.target.value)} autoComplete="off" disabled={!name} /></label>
         <div className="env-action-row">
           <button type="submit" className="nx-button" disabled={disabled || !skill || !name || value === ''}><KeyRound size={15} />保存</button>
-          <button type="button" className="nx-button is-danger" disabled={disabled || !skill || !name} onClick={() => onSubmit({ action: 'delete', skill, name })}><Trash2 size={15} />删除</button>
+          <button type="button" className="nx-button is-danger" disabled={disabled || !skill || !name} onClick={() => void onSubmit({ action: 'delete', skill, name })}><Trash2 size={15} />删除</button>
         </div>
       </form>
     </div>

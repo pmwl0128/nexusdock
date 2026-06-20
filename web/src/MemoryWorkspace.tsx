@@ -4,6 +4,7 @@ import {
   RefreshCw, Save, Search, Trash2, UploadCloud,
 } from 'lucide-react';
 import { api } from './api/client';
+import Dialog from './components/Dialog';
 import { clearMemoryDraft, loadMemoryDraft, saveMemoryDraft } from './lib/drafts';
 
 type EntryType = 'file' | 'directory';
@@ -119,20 +120,6 @@ export default function MemoryWorkspace() {
     const timer = window.setTimeout(() => setNotice(null), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
-
-  useEffect(() => {
-    if (!pendingAction) return;
-    // 对话框期间锁定页面滚动，并允许 Escape 关闭，保持和 Nexus 其他弹层一致。
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) setPendingAction(null);
-    };
-    document.addEventListener('keydown', onKey);
-    document.body.classList.add('nexus-modal-open');
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.classList.remove('nexus-modal-open');
-    };
-  }, [pendingAction, busy]);
 
   async function refreshAll(path = current?.path || '') {
     setLoading(true);
@@ -349,49 +336,38 @@ export default function MemoryWorkspace() {
       {notice && <div className={`mem-lite-notice ${notice.danger ? 'danger' : ''}`}>{notice.danger ? null : <Check size={16} />}{notice.text}</div>}
       {draftAvailable && !editing && <div className="mem-lite-notice"><span>检测到未提交草稿。</span><button onClick={restoreDraft}>恢复草稿</button><button onClick={() => { clearMemoryDraft(); setDraftAvailable(false); }}>丢弃</button></div>}
       {pendingAction && (
-        <div
-          className="mem-lite-dialog-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.currentTarget === event.target && !busy) setPendingAction(null);
-          }}
+        <Dialog
+          title={pendingAction.kind === 'move' ? '移动记忆' : '删除记忆'}
+          description={pendingAction.kind === 'move' ? '修改路径后会保留文件内容，并刷新当前打开的记忆。' : '删除后会产生本地 Git 变更，需要同步后才会进入远端。'}
+          onClose={() => { if (!busy) setPendingAction(null); }}
         >
-          <section className="mem-lite-dialog" role="dialog" aria-modal="true" aria-labelledby="memory-action-title">
-            <header>
-              <div>
-                <h2 id="memory-action-title">{pendingAction.kind === 'move' ? '移动记忆' : '删除记忆'}</h2>
-                <p>{pendingAction.kind === 'move' ? '修改路径后会保留文件内容，并刷新当前打开的记忆。' : '删除后会产生本地 Git 变更，需要同步后才会进入远端。'}</p>
+          <div className="mem-lite-dialog-body">
+            {pendingAction.kind === 'move' ? (
+              <label>
+                <span>新的记忆路径</span>
+                <input
+                  value={pendingAction.nextPath}
+                  onChange={(event) => setPendingAction({ ...pendingAction, nextPath: event.target.value, error: undefined })}
+                  autoFocus
+                />
+              </label>
+            ) : (
+              <div className="mem-lite-danger-box">
+                <strong>确认删除这条记忆？</strong>
+                <code>{pendingAction.path}</code>
               </div>
-              <button type="button" onClick={() => setPendingAction(null)} disabled={busy}>关闭</button>
-            </header>
-            <div className="mem-lite-dialog-body">
+            )}
+            {'error' in pendingAction && pendingAction.error && <p className="mem-lite-dialog-error">{pendingAction.error}</p>}
+            <div className="mem-lite-dialog-actions">
+              <button type="button" onClick={() => setPendingAction(null)} disabled={busy}>取消</button>
               {pendingAction.kind === 'move' ? (
-                <label>
-                  <span>新的记忆路径</span>
-                  <input
-                    value={pendingAction.nextPath}
-                    onChange={(event) => setPendingAction({ ...pendingAction, nextPath: event.target.value, error: undefined })}
-                    autoFocus
-                  />
-                </label>
+                <button className="primary" type="button" onClick={() => void confirmMove()} disabled={busy}>确认移动</button>
               ) : (
-                <div className="mem-lite-danger-box">
-                  <strong>确认删除这条记忆？</strong>
-                  <code>{pendingAction.path}</code>
-                </div>
+                <button className="danger" type="button" onClick={() => void confirmDelete()} disabled={busy}>确认删除</button>
               )}
-              {'error' in pendingAction && pendingAction.error && <p className="mem-lite-dialog-error">{pendingAction.error}</p>}
-              <div className="mem-lite-dialog-actions">
-                <button type="button" onClick={() => setPendingAction(null)} disabled={busy}>取消</button>
-                {pendingAction.kind === 'move' ? (
-                  <button className="primary" type="button" onClick={() => void confirmMove()} disabled={busy}>确认移动</button>
-                ) : (
-                  <button className="danger" type="button" onClick={() => void confirmDelete()} disabled={busy}>确认删除</button>
-                )}
-              </div>
             </div>
-          </section>
-        </div>
+          </div>
+        </Dialog>
       )}
 
       <section className="mem-lite-stats">

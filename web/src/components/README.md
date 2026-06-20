@@ -4,13 +4,18 @@
 
 当前入口位于 `web/src/App.tsx`，`MemoryWorkspace.tsx` 保留旧 MemoryDock 工作区兼容能力。新增页面和交互应优先按领域拆分为可复用组件，避免继续扩大入口文件。
 
-建议的组件边界：
+当前产品一级入口固定为：
 
-- Dashboard / Overview
-- Inbox
-- Devices
-- Skills
-- Runs
-- Memory Explorer / Editor / Diff / Timeline
-- Git Sync
-- Access Settings
+- 总览 / Dashboard
+- 设备 / Devices
+- 记忆 / Memory
+- 文件 / Files
+- 设置 / Settings
+
+组件边界建议：
+
+- `components/Dialog.tsx`：跨页面复用的站内模态框，避免回退到浏览器原生 `prompt` / `confirm`。
+- `components/devices/`：设备注册、审批、心跳、能力、命令和设备内 Env 状态。
+- `components/env/`：设备内 Env Registry 的脱敏状态、写入和验证入口。
+- Memory Explorer / Editor / Diff / Timeline 后续应从 `MemoryWorkspace.tsx` 继续拆分，但不新增独立 Inbox 或 Task 产品入口。
+- Files / Backup / Access Settings 后续按领域拆分；不要重新引入独立 Run、Skill Catalog、Worker 或 Context Pack 页面。

@@ -11,7 +11,7 @@ import type {
 } from '../../api/types';
 import { useCommandPolling } from '../../hooks/useCommandPolling';
 import { useDevices } from '../../hooks/useDevices';
-import Dialog from './Dialog';
+import Dialog from '../Dialog';
 import EnvManagerPage from '../env/EnvManagerPage';
 import { CommandStatusBadge, DeviceStatusBadge } from './StatusBadge';
 import {
@@ -162,6 +162,7 @@ function EnrollmentDialog({ onClose, onComplete }: { onClose: () => void; onComp
   const [result, setResult] = useState<EnrollmentTokenCreateResponse>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [copyError, setCopyError] = useState('');
   const [copied, setCopied] = useState(false);
 
   function close() {
@@ -180,14 +181,20 @@ function EnrollmentDialog({ onClose, onComplete }: { onClose: () => void; onComp
 
   async function copy() {
     if (!result) return;
-    await navigator.clipboard.writeText(result.token);
-    setCopied(true);
+    setCopyError('');
+    try {
+      await navigator.clipboard.writeText(result.token);
+      setCopied(true);
+    } catch {
+      setCopyError('浏览器拒绝访问剪贴板，请手动复制 Token。');
+    }
   }
 
   return <Dialog title="创建一次性注册 Token" description="明文 Token 仅在本对话框中显示一次，关闭后立即清除。" onClose={close}>
     {result ? <div className="nx-token-result">
       <div className="nx-alert is-warning"><ShieldAlert size={17} />请立即复制。关闭后无法恢复此 Token。</div>
       <label><span>注册 Token</span><div className="nx-copy-field"><code>{result.token}</code><button type="button" className="nx-icon-button" onClick={copy} aria-label="复制 Token">{copied ? <Check size={18} /> : <Clipboard size={18} />}</button></div></label>
+      {copyError && <div className="nx-alert is-error">{copyError}</div>}
       <p>过期时间：{formatTime(result.expires_at)}</p>
       <div className="nx-dialog-actions"><button type="button" className="nx-button" onClick={() => { onComplete(); setResult(undefined); }}>完成</button></div>
     </div> : <form onSubmit={submit} className="nx-form">
@@ -264,8 +271,30 @@ function CommandFields({ type, fields, setFields }: { type: CommandType; fields:
 }
 
 function CommandHistoryDialog({ snapshot, onClose, onCreate }: { snapshot: DeviceSnapshot; onClose: () => void; onCreate: () => void }) {
-  const [commands, setCommands] = useState<DeviceCommand[]>([]); const [selected, setSelected] = useState<DeviceCommand>(); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [refreshToken, setRefreshToken] = useState(0);
-  useEffect(() => { const controller = new AbortController(); setLoading(true); listDeviceCommands(snapshot.device.id, controller.signal).then(({ items }) => { setCommands([...items].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))); if (!selected && items.length) setSelected(items[0]); }).catch((cause) => { if (!controller.signal.aborted) setError(messageOf(cause)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort(); }, [snapshot.device.id, refreshToken]);
+  const [commands, setCommands] = useState<DeviceCommand[]>([]);
+  const [selected, setSelected] = useState<DeviceCommand>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    listDeviceCommands(snapshot.device.id, controller.signal)
+      .then(({ items }) => {
+        const nextCommands = [...items].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+        setCommands(nextCommands);
+        setSelected((current) => current && nextCommands.some((item) => item.id === current.id) ? current : nextCommands[0]);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) setError(messageOf(cause));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [snapshot.device.id, refreshToken]);
   return <Dialog title={`${snapshot.device.name} · 命令历史`} description="查看设备操作的状态、结果和错误。" onClose={onClose} wide>
     <div className="nx-history-toolbar"><button type="button" className="nx-button" onClick={onCreate}><Play size={15} />下发命令</button><button type="button" className="nx-button is-secondary" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={15} />刷新</button></div>
     {error && <div className="nx-alert is-error">{error}</div>}
