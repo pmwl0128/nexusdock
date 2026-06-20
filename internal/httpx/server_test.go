@@ -134,3 +134,15 @@ func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 		t.Fatalf("search status=%d body=%s", res.Code, res.Body.String())
 	}
 }
+
+func TestEmbeddingStatusIsGracefullyDisabled(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/v1/embeddings/status", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("embedding status code=%d body=%s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), `"enabled":false`) {
+		t.Fatalf("embedding status should be disabled: %s", res.Body.String())
+	}
+}

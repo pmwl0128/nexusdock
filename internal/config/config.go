@@ -33,6 +33,11 @@ type Config struct {
 	PushDebounce          time.Duration
 	CommitMessage         string
 	LogLevelName          string
+	EmbeddingEnabled      bool
+	EmbeddingEndpoint     string
+	EmbeddingModel        string
+	EmbeddingIndexFile    string
+	EmbeddingTimeout      time.Duration
 }
 
 func FromEnv() Config {
@@ -54,6 +59,11 @@ func FromEnv() Config {
 		PushDebounce:          time.Duration(getenvInt("MEMORYDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
 		CommitMessage:         getenv("MEMORYDOCK_COMMIT_MESSAGE", "memory: 自动同步记忆"),
 		LogLevelName:          getenv("MEMORYDOCK_LOG_LEVEL", "info"),
+		EmbeddingEnabled:      getenvBool("MEMORYDOCK_EMBEDDING_ENABLED", false),
+		EmbeddingEndpoint:     strings.TrimSpace(os.Getenv("MEMORYDOCK_EMBEDDING_ENDPOINT")),
+		EmbeddingModel:        getenv("MEMORYDOCK_EMBEDDING_MODEL", "BAAI/bge-m3"),
+		EmbeddingIndexFile:    getenv("MEMORYDOCK_EMBEDDING_INDEX_FILE", filepath.Join(storeDir, ".memorydock", "embedding-index.json")),
+		EmbeddingTimeout:      time.Duration(getenvInt("MEMORYDOCK_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
 	_ = cfg.LoadAccessFile()
 	return cfg

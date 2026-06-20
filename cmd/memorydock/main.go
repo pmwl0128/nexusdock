@@ -113,6 +113,11 @@ func main() {
 	}
 	go artifactService.RunCleanup(ctx, time.Hour)
 
+	embeddingService := memory.NewEmbeddingService(store, memory.EmbeddingConfig{
+		Enabled: cfg.EmbeddingEnabled, Endpoint: cfg.EmbeddingEndpoint, Model: cfg.EmbeddingModel,
+		IndexPath: cfg.EmbeddingIndexFile, Timeout: cfg.EmbeddingTimeout,
+	})
+
 	server := httpx.NewServer(
 		cfg,
 		store,
@@ -122,6 +127,7 @@ func main() {
 		httpx.WithControlPlane(deviceService, commandService),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithArtifactRelay(artifactService),
+		httpx.WithEmbeddingService(embeddingService),
 	)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr(),
@@ -130,7 +136,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("memorydock starting", "addr", cfg.Addr(), "store_dir", cfg.StoreDir, "auto_sync", cfg.AutoSync)
+		logger.Info("memorydock starting", "addr", cfg.Addr(), "store_dir", cfg.StoreDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", "error", err)
 			cancel()

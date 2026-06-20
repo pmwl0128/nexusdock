@@ -31,6 +31,7 @@ type Server struct {
 	commands  *commands.Service
 	auth      *auth.Service
 	artifacts *artifacts.Service
+	embedding *memory.EmbeddingService
 }
 
 type ServerOption func(*Server)
@@ -45,6 +46,10 @@ func WithWebAuthentication(authService *auth.Service) ServerOption {
 
 func WithArtifactRelay(service *artifacts.Service) ServerOption {
 	return func(server *Server) { server.artifacts = service }
+}
+
+func WithEmbeddingService(service *memory.EmbeddingService) ServerOption {
+	return func(server *Server) { server.embedding = service }
 }
 
 func WithControlPlane(deviceService *devices.Service, commandService *commands.Service) ServerOption {
@@ -89,6 +94,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/cards", protected(s.writeCard))
 	mux.HandleFunc("POST /v1/cards/capture", protected(s.captureCard))
 	mux.HandleFunc("POST /v1/cards/search", protected(s.searchCards))
+	mux.HandleFunc("GET /v1/embeddings/status", protected(s.embeddingStatus))
+	mux.HandleFunc("POST /v1/embeddings/reindex", protected(s.reindexEmbeddings))
+	mux.HandleFunc("POST /v1/embeddings/search", protected(s.searchEmbeddings))
 	mux.HandleFunc("POST /v1/notes/append", protected(s.appendNote))
 	mux.HandleFunc("GET /v1/memories/", protected(s.readMemory))
 	mux.HandleFunc("PATCH /v1/memories/", protected(s.patchMemory))
@@ -371,6 +379,48 @@ func (s *Server) searchCards(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "query": req.Query, "results": results, "count": len(results), "prefix": "cards"})
+}
+
+func (s *Server) embeddingStatus(w http.ResponseWriter, r *http.Request) {
+	if s.embedding == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": false, "configured": false, "reason": "embedding service is not configured"})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.embedding.Status(r.Context()))
+}
+
+func (s *Server) reindexEmbeddings(w http.ResponseWriter, r *http.Request) {
+	if s.embedding == nil {
+		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
+		return
+	}
+	var req memory.EmbeddingReindexRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := s.embedding.Reindex(r.Context(), req)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_REINDEX_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
+	if s.embedding == nil {
+		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
+		return
+	}
+	var req memory.EmbeddingSearchRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := s.embedding.Search(r.Context(), req)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_SEARCH_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {

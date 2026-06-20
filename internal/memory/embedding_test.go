@@ -1,0 +1,86 @@
+package memory
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestEmbeddingServiceDisabledStatus(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewEmbeddingService(store, EmbeddingConfig{})
+	status := svc.Status(context.Background())
+	if status["enabled"] != false || status["model"] != DefaultEmbeddingModel {
+		t.Fatalf("unexpected disabled status: %#v", status)
+	}
+}
+
+func TestEmbeddingReindexAndSearchWithOpenAICompatibleEndpoint(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.WriteCard(CardRequest{Title: "Deploy verification", Content: "Deployment should verify the final web endpoint.", Type: CardDeployNote, Scope: ScopeProject, Project: "chatdock", Status: StatusInbox, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.WriteCard(CardRequest{Title: "Database backup", Content: "Before database migration, create and verify a backup snapshot.", Type: CardRunbook, Scope: ScopeProject, Project: "vitapulse", Status: StatusInbox, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/embeddings" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		var req struct {
+			Model string   `json:"model"`
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.Model != DefaultEmbeddingModel {
+			t.Fatalf("unexpected model %q", req.Model)
+		}
+		data := []map[string]any{}
+		for i, text := range req.Input {
+			data = append(data, map[string]any{"index": i, "embedding": fakeEmbeddingVector(text)})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer server.Close()
+
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
+	indexed, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{Prefix: "cards"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if indexed.Count != 2 || indexed.Model != DefaultEmbeddingModel || indexed.Dimension != 2 {
+		t.Fatalf("unexpected reindex result: %#v", indexed)
+	}
+	result, err := svc.Search(context.Background(), EmbeddingSearchRequest{Query: "deploy endpoint", Prefix: "cards", MaxResults: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Count == 0 || !strings.Contains(result.Results[0].Path, "deploy-verification") {
+		t.Fatalf("expected deploy card first: %#v", result)
+	}
+}
+
+func TestParseSimpleEmbeddingResponse(t *testing.T) {
+	vectors, err := parseEmbeddingResponse([]byte(`{"embeddings":[[1,0],[0,1]]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vectors) != 2 || vectors[0][0] != 1 || vectors[1][1] != 1 {
+		t.Fatalf("unexpected vectors: %#v", vectors)
+	}
+}
+
+func fakeEmbeddingVector(text string) []float64 {
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "deploy") || strings.Contains(lower, "endpoint") {
+		return []float64{1, 0}
+	}
+	return []float64{0, 1}
+}
