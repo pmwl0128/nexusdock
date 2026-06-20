@@ -20,7 +20,7 @@ var (
 	ErrConfirmationNeeded = errors.New("writing outside inbox requires confirmed=true")
 	ErrFileExists         = errors.New("memory file exists; set overwrite=true to replace")
 	ErrUnsupportedFile    = errors.New("memory path must be markdown or text")
-	ErrDisallowedPath     = errors.New("memory path is outside allowed roots: profile.md, inbox/, notes/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
+	ErrDisallowedPath     = errors.New("memory path is outside allowed roots: profile.md, inbox/, notes/, cards/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
 )
 
 type Store struct {
@@ -443,6 +443,10 @@ func IsAllowedMemoryPath(path string) bool {
 		// notes 是用户确认的个人知识库根目录，允许多级 Markdown/Text 笔记，
 		// 但仍然只开放 notes/ 这一棵受控子树，不能绕过隐藏路径和扩展名校验。
 		return IsTextFile(path)
+	}
+	if strings.HasPrefix(path, "cards/") {
+		parts := strings.Split(path, "/")
+		return len(parts) == 5 && parts[1] != "" && parts[2] != "" && parts[3] != "" && IsTextFile(path)
 	}
 	if strings.HasPrefix(path, "devices/") {
 		parts := strings.Split(path, "/")

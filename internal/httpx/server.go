@@ -85,6 +85,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/memories/move", protected(s.moveMemory))
 	mux.HandleFunc("POST /v1/memories/search", protected(s.searchMemories))
 	mux.HandleFunc("POST /v1/memories/pack", protected(s.packMemories))
+	mux.HandleFunc("GET /v1/cards", protected(s.listCards))
+	mux.HandleFunc("POST /v1/cards", protected(s.writeCard))
+	mux.HandleFunc("POST /v1/cards/capture", protected(s.captureCard))
+	mux.HandleFunc("POST /v1/cards/search", protected(s.searchCards))
 	mux.HandleFunc("POST /v1/notes/append", protected(s.appendNote))
 	mux.HandleFunc("GET /v1/memories/", protected(s.readMemory))
 	mux.HandleFunc("PATCH /v1/memories/", protected(s.patchMemory))
@@ -311,6 +315,62 @@ func (s *Server) packMemories(w http.ResponseWriter, r *http.Request) {
 		runbookIndex = nil
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": req.Project, "sections": sections, "count": len(sections), "bytes": bytes, "runbook_index": runbookIndex, "runbook_index_count": len(runbookIndex)})
+}
+
+func (s *Server) listCards(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.store.List("cards", queryInt(r, "max_entries", 200))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "LIST_CARDS_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "count": len(entries), "prefix": "cards"})
+}
+
+func (s *Server) captureCard(w http.ResponseWriter, r *http.Request) {
+	var req memory.CardRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := s.store.CaptureCard(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "CAPTURE_CARD_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) writeCard(w http.ResponseWriter, r *http.Request) {
+	var req memory.CardRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := s.store.WriteCard(req)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, memory.ErrFileExists) {
+			status = http.StatusConflict
+		}
+		writeError(w, status, "WRITE_CARD_FAILED", err.Error())
+		return
+	}
+	s.syncer.MarkChanged(r.Context())
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) searchCards(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query      string `json:"query"`
+		MaxResults int    `json:"max_results"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	results, err := s.store.Search(req.Query, "cards", req.MaxResults)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "SEARCH_CARDS_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "query": req.Query, "results": results, "count": len(results), "prefix": "cards"})
 }
 
 func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {

@@ -40,6 +40,7 @@ func TestAllowedMemoryPaths(t *testing.T) {
 		"projects/agentdock/runbooks/deploy.md",
 		"notes/github-learning/index.md",
 		"notes/github-learning/projects/owner__repo/architecture.md",
+		"cards/chatdock/inbox/project_trap/deploy-check.md",
 		"inbox/20260531-note.md",
 	}
 	for _, path := range allowed {
@@ -47,7 +48,7 @@ func TestAllowedMemoryPaths(t *testing.T) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
-	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md", "notes/.hidden.md", "notes/github-learning/raw.bin"}
+	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md", "cards/chatdock/inbox/project_trap/nested/deploy.md", "notes/.hidden.md", "notes/github-learning/raw.bin"}
 	for _, path := range rejected {
 		if IsAllowedMemoryPath(path) {
 			t.Fatalf("expected %q to be rejected", path)

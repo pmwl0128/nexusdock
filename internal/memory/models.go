@@ -16,13 +16,14 @@ const (
 	ScopeDevice  Scope = "device"
 	ScopeAgent   Scope = "agent"
 	ScopeOps     Scope = "ops"
+	ScopeDomain  Scope = "domain"
 	ScopeNotes   Scope = "notes"
 	ScopeInbox   Scope = "inbox"
 )
 
 func (s Scope) Valid() bool {
 	switch s {
-	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeNotes, ScopeInbox:
+	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeDomain, ScopeNotes, ScopeInbox:
 		return true
 	default:
 		return false
@@ -32,8 +33,12 @@ func (s Scope) Valid() bool {
 type Status string
 
 const (
+	StatusInbox      Status = "inbox"
 	StatusActive     Status = "active"
+	StatusVerified   Status = "verified"
 	StatusStale      Status = "stale"
+	StatusArchived   Status = "archived"
+	StatusRejected   Status = "rejected"
 	StatusConflicted Status = "conflicted"
 	StatusUnverified Status = "unverified"
 	StatusDeprecated Status = "deprecated"
@@ -41,7 +46,7 @@ const (
 
 func (s Status) Valid() bool {
 	switch s {
-	case StatusActive, StatusStale, StatusConflicted, StatusUnverified, StatusDeprecated:
+	case StatusInbox, StatusActive, StatusVerified, StatusStale, StatusArchived, StatusRejected, StatusConflicted, StatusUnverified, StatusDeprecated:
 		return true
 	default:
 		return false
@@ -214,6 +219,8 @@ func inferScope(path string) Scope {
 		return ScopeDevice
 	case strings.HasPrefix(path, "ops/"):
 		return ScopeOps
+	case strings.HasPrefix(path, "cards/"):
+		return ScopeProject
 	case strings.HasPrefix(path, "notes/"):
 		return ScopeNotes
 	case strings.HasPrefix(path, "inbox/"):

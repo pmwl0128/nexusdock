@@ -108,3 +108,29 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 		t.Fatalf("delete without confirmation status=%d body=%s", res.Code, res.Body.String())
 	}
 }
+
+func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	captureBody := `{"title":"Deploy check","content":"Deployment must verify the final service endpoint instead of only source files.","type":"project_trap","scope":"project","project":"chatdock","status":"inbox","confidence":"high"}`
+	res := doJSON(t, h, http.MethodPost, "/v1/cards/capture", captureBody)
+	if res.Code != http.StatusOK {
+		t.Fatalf("capture status=%d body=%s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "capture_plan") || !strings.Contains(res.Body.String(), "auto_write") {
+		t.Fatalf("capture response missing plan: %s", res.Body.String())
+	}
+
+	writeBody := `{"title":"Deploy check","content":"Deployment must verify the final service endpoint instead of only source files.","type":"project_trap","scope":"project","project":"chatdock","status":"inbox","confidence":"high","confirmed":true}`
+	res = doJSON(t, h, http.MethodPost, "/v1/cards", writeBody)
+	if res.Code != http.StatusOK {
+		t.Fatalf("write status=%d body=%s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "cards/chatdock/inbox/project_trap/") {
+		t.Fatalf("write response missing card path: %s", res.Body.String())
+	}
+
+	res = doJSON(t, h, http.MethodPost, "/v1/cards/search", `{"query":"service endpoint","max_results":5}`)
+	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Deploy check") {
+		t.Fatalf("search status=%d body=%s", res.Code, res.Body.String())
+	}
+}
