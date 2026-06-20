@@ -40,6 +40,11 @@ func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 	}
 	info, err := fs.Stat(dist, assetPath)
 	if err != nil || info.IsDir() {
+		// 静态构建资源缺失必须明确 404，避免浏览器把 index.html 当 JS/CSS 执行后掩盖发布问题。
+		if strings.HasPrefix(assetPath, "assets/") {
+			http.NotFound(w, r)
+			return
+		}
 		serveEmbeddedAsset(w, dist, "index.html")
 		return
 	}

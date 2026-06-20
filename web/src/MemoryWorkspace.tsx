@@ -17,6 +17,10 @@ type SyncStatus = Record<string, unknown> & {
   pending_push?: boolean; branch?: string; remote?: string;
 };
 type Notice = { text: string; danger?: boolean } | null;
+type PendingMemoryAction =
+  | { kind: 'move'; path: string; nextPath: string; error?: string }
+  | { kind: 'delete'; path: string; error?: string }
+  | null;
 
 const NEW_MEMORY_TEMPLATE = `---
 type: note
@@ -84,6 +88,7 @@ export default function MemoryWorkspace() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [draftAvailable, setDraftAvailable] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingMemoryAction>(null);
 
   const fileEntries = useMemo(
     () => entries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
@@ -114,6 +119,20 @@ export default function MemoryWorkspace() {
     const timer = window.setTimeout(() => setNotice(null), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!pendingAction) return;
+    // 对话框期间锁定页面滚动，并允许 Escape 关闭，保持和 Nexus 其他弹层一致。
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) setPendingAction(null);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('nexus-modal-open');
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('nexus-modal-open');
+    };
+  }, [pendingAction, busy]);
 
   async function refreshAll(path = current?.path || '') {
     setLoading(true);
@@ -225,37 +244,50 @@ export default function MemoryWorkspace() {
     }
   }
 
-  async function renameCurrent() {
+  function requestMove() {
     if (!current?.path) return;
-    const next = window.prompt('新的记忆路径', current.path);
-    if (!next) return;
-    const normalized = normalizePath(next);
-    if (!normalized || normalized === current.path) return;
+    setPendingAction({ kind: 'move', path: current.path, nextPath: current.path });
+  }
+
+  async function confirmMove() {
+    if (!pendingAction || pendingAction.kind !== 'move') return;
+    const normalized = normalizePath(pendingAction.nextPath);
+    if (!normalized || normalized === pendingAction.path) {
+      setPendingAction({ ...pendingAction, error: '请输入新的记忆路径。' });
+      return;
+    }
     if (!/\.(md|markdown|txt)$/i.test(normalized)) {
-      setNotice({ text: '目标路径必须是 Markdown 或文本文件', danger: true });
+      setPendingAction({ ...pendingAction, error: '目标路径必须是 Markdown 或文本文件。' });
       return;
     }
     setBusy(true);
     try {
       const response = await api<{ memory: Memory }>('/v1/memories/move', {
         method: 'POST',
-        body: JSON.stringify({ from_path: current.path, to_path: normalized, confirmed: true, overwrite: false }),
+        body: JSON.stringify({ from_path: pendingAction.path, to_path: normalized, confirmed: true, overwrite: false }),
       });
+      setPendingAction(null);
       await loadList();
       await openMemory(response.memory.path);
       setNotice({ text: '记忆已移动' });
     } catch (reason) {
-      setNotice({ text: messageOf(reason), danger: true });
+      setPendingAction({ ...pendingAction, error: messageOf(reason) });
     } finally {
       setBusy(false);
     }
   }
 
-  async function deleteCurrent() {
-    if (!current?.path || !window.confirm(`确认删除 ${current.path}？`)) return;
+  function requestDelete() {
+    if (!current?.path) return;
+    setPendingAction({ kind: 'delete', path: current.path });
+  }
+
+  async function confirmDelete() {
+    if (!pendingAction || pendingAction.kind !== 'delete') return;
     setBusy(true);
     try {
-      await api(`/v1/memories/${encodeURIComponent(current.path)}?confirmed=true`, { method: 'DELETE' });
+      await api(`/v1/memories/${encodeURIComponent(pendingAction.path)}?confirmed=true`, { method: 'DELETE' });
+      setPendingAction(null);
       setCurrent(null);
       setDraftPath('');
       setDraftContent('');
@@ -264,7 +296,7 @@ export default function MemoryWorkspace() {
       await Promise.all([loadList(), loadSyncState(), loadHistory()]);
       setNotice({ text: '记忆已删除' });
     } catch (reason) {
-      setNotice({ text: messageOf(reason), danger: true });
+      setPendingAction({ ...pendingAction, error: messageOf(reason) });
     } finally {
       setBusy(false);
     }
@@ -316,6 +348,51 @@ export default function MemoryWorkspace() {
 
       {notice && <div className={`mem-lite-notice ${notice.danger ? 'danger' : ''}`}>{notice.danger ? null : <Check size={16} />}{notice.text}</div>}
       {draftAvailable && !editing && <div className="mem-lite-notice"><span>检测到未提交草稿。</span><button onClick={restoreDraft}>恢复草稿</button><button onClick={() => { clearMemoryDraft(); setDraftAvailable(false); }}>丢弃</button></div>}
+      {pendingAction && (
+        <div
+          className="mem-lite-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target && !busy) setPendingAction(null);
+          }}
+        >
+          <section className="mem-lite-dialog" role="dialog" aria-modal="true" aria-labelledby="memory-action-title">
+            <header>
+              <div>
+                <h2 id="memory-action-title">{pendingAction.kind === 'move' ? '移动记忆' : '删除记忆'}</h2>
+                <p>{pendingAction.kind === 'move' ? '修改路径后会保留文件内容，并刷新当前打开的记忆。' : '删除后会产生本地 Git 变更，需要同步后才会进入远端。'}</p>
+              </div>
+              <button type="button" onClick={() => setPendingAction(null)} disabled={busy}>关闭</button>
+            </header>
+            <div className="mem-lite-dialog-body">
+              {pendingAction.kind === 'move' ? (
+                <label>
+                  <span>新的记忆路径</span>
+                  <input
+                    value={pendingAction.nextPath}
+                    onChange={(event) => setPendingAction({ ...pendingAction, nextPath: event.target.value, error: undefined })}
+                    autoFocus
+                  />
+                </label>
+              ) : (
+                <div className="mem-lite-danger-box">
+                  <strong>确认删除这条记忆？</strong>
+                  <code>{pendingAction.path}</code>
+                </div>
+              )}
+              {'error' in pendingAction && pendingAction.error && <p className="mem-lite-dialog-error">{pendingAction.error}</p>}
+              <div className="mem-lite-dialog-actions">
+                <button type="button" onClick={() => setPendingAction(null)} disabled={busy}>取消</button>
+                {pendingAction.kind === 'move' ? (
+                  <button className="primary" type="button" onClick={() => void confirmMove()} disabled={busy}>确认移动</button>
+                ) : (
+                  <button className="danger" type="button" onClick={() => void confirmDelete()} disabled={busy}>确认删除</button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       <section className="mem-lite-stats">
         <div><Archive size={18} /><span>文件</span><strong>{fileEntries.length}</strong></div>
@@ -351,8 +428,8 @@ export default function MemoryWorkspace() {
             <div><h2>{editing ? creating ? '新建记忆' : '编辑记忆' : current ? nameOf(current.path) : '选择一条记忆'}</h2><p>{editing ? draftPath : current?.path || '从左侧文件列表打开，或新建一条记忆。'}</p></div>
             <div className="mem-lite-editor-actions">
               {!editing && current && <button onClick={startEdit}><Pencil size={15} />编辑</button>}
-              {!editing && current && <button onClick={() => void renameCurrent()}>移动</button>}
-              {!editing && current && <button className="danger" onClick={() => void deleteCurrent()}><Trash2 size={15} />删除</button>}
+              {!editing && current && <button onClick={requestMove}>移动</button>}
+              {!editing && current && <button className="danger" onClick={requestDelete}><Trash2 size={15} />删除</button>}
               {editing && <button onClick={cancelEdit}>取消</button>}
               {editing && <button className="primary" onClick={() => void saveMemory()} disabled={busy || !hasUnsavedChanges}><Save size={15} />保存</button>}
             </div>

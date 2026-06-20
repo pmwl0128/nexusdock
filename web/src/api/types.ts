@@ -1,4 +1,3 @@
-export type Tab = 'dashboard' | 'memories' | 'git' | 'sync';
 export type EntryType = 'file' | 'directory';
 
 export type MemoryEntry = {
@@ -37,31 +36,11 @@ export type GitCommit = {
   subject: string;
 };
 
-export type CommitFile = {
-  status: string;
-  path: string;
-};
-
-export type CommitDetail = {
-  ok: boolean;
-  git_repo: boolean;
-  commit: GitCommit;
-  files: CommitFile[];
-  stat: string;
-  diff: string;
-};
-
 export type SyncStatus = Record<string, unknown> & {
   dirty?: boolean;
   ahead?: string;
   behind?: string;
   pending_push?: boolean;
-};
-
-export type AccessConfig = {
-  ok: boolean;
-  enabled: boolean;
-  username: string;
 };
 
 export type DeviceStatus = 'pending' | 'online' | 'degraded' | 'offline' | 'revoked';

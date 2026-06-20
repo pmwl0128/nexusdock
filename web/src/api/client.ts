@@ -66,7 +66,12 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   const externalSignal = options.signal;
   const abort = () => controller.abort();
-  externalSignal?.addEventListener('abort', abort, { once: true });
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    // 调用方可能在请求创建前已经取消，必须同步接住，避免过期页面继续发起 API 请求。
+    externalSignal?.addEventListener('abort', abort, { once: true });
+  }
 
   try {
     const headers = new Headers(options.headers);

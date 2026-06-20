@@ -62,6 +62,25 @@ func TestV1BearerTokenOnly(t *testing.T) {
 	}
 }
 
+func TestUIAssetMissDoesNotFallbackToIndex(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+
+	missingAsset := httptest.NewRecorder()
+	h.ServeHTTP(missingAsset, httptest.NewRequest(http.MethodGet, "/ui/assets/missing.js", nil))
+	if missingAsset.Code != http.StatusNotFound {
+		t.Fatalf("missing asset status=%d body=%s", missingAsset.Code, missingAsset.Body.String())
+	}
+
+	spaRoute := httptest.NewRecorder()
+	h.ServeHTTP(spaRoute, httptest.NewRequest(http.MethodGet, "/ui/devices/unknown", nil))
+	if spaRoute.Code != http.StatusOK {
+		t.Fatalf("spa route status=%d body=%s", spaRoute.Code, spaRoute.Body.String())
+	}
+	if !strings.Contains(spaRoute.Body.String(), `id="root"`) {
+		t.Fatalf("spa route did not serve index.html: %s", spaRoute.Body.String())
+	}
+}
+
 func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
 	res := doJSON(t, h, http.MethodPost, "/v1/memories", `{"path":"profile.md","content":"# Profile"}`)
