@@ -18,7 +18,7 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/core"
 	"github.com/uvwt/agentdock-nexus/internal/devices"
 	"github.com/uvwt/agentdock-nexus/internal/httpx"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
@@ -39,7 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := memory.NewStore(cfg.StoreDir)
+	store, err := recall.NewStore(cfg.StoreDir)
 	if err != nil {
 		logger.Error("failed to initialize store", "error", err)
 		os.Exit(1)
@@ -113,7 +113,7 @@ func main() {
 	}
 	go artifactService.RunCleanup(ctx, time.Hour)
 
-	embeddingService := memory.NewEmbeddingService(store, memory.EmbeddingConfig{
+	embeddingService := recall.NewEmbeddingService(store, recall.EmbeddingConfig{
 		Enabled: cfg.EmbeddingEnabled, Endpoint: cfg.EmbeddingEndpoint, Model: cfg.EmbeddingModel,
 		IndexPath: cfg.EmbeddingIndexFile, Timeout: cfg.EmbeddingTimeout,
 	})

@@ -3977,7 +3977,7 @@
         },
         "parameters": [
           {
-            "$ref": "#/components/parameters/MemoryPath"
+            "$ref": "#/components/parameters/RecallPath"
           }
         ]
       },
@@ -4093,7 +4093,7 @@
         },
         "parameters": [
           {
-            "$ref": "#/components/parameters/MemoryPath"
+            "$ref": "#/components/parameters/RecallPath"
           }
         ]
       },
@@ -4199,7 +4199,7 @@
         },
         "parameters": [
           {
-            "$ref": "#/components/parameters/MemoryPath"
+            "$ref": "#/components/parameters/RecallPath"
           }
         ]
       }
@@ -4731,7 +4731,7 @@
     },
     "/v1/sync/pull": {
       "post": {
-        "operationId": "pullMemory",
+        "operationId": "pullRecall",
         "summary": "从远端更新召回仓库",
         "responses": {
           "200": {
@@ -4844,7 +4844,7 @@
     },
     "/v1/sync/push": {
       "post": {
-        "operationId": "pushMemory",
+        "operationId": "pushRecall",
         "summary": "保存召回仓库到远端",
         "responses": {
           "200": {
@@ -4957,7 +4957,7 @@
     },
     "/v1/sync/now": {
       "post": {
-        "operationId": "syncMemoryNow",
+        "operationId": "syncRecallNow",
         "summary": "立即双向同步召回仓库",
         "responses": {
           "200": {
@@ -6846,7 +6846,7 @@
           "type": "string"
         }
       },
-      "MemoryPath": {
+      "RecallPath": {
         "name": "path",
         "in": "path",
         "required": true,
@@ -6919,7 +6919,7 @@
       },
       "LegacyErrorEnvelope": {
         "type": "object",
-        "description": "Memory 与浏览器兼容接口使用的错误信封。",
+        "description": "RecallDock 与浏览器接口使用的错误信封。",
         "additionalProperties": false,
         "properties": {
           "ok": {

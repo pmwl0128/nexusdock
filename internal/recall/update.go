@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"crypto/sha256"
@@ -122,7 +122,7 @@ func validateProposal(req ProposeUpdateRequest) error {
 	if strings.TrimSpace(req.Path) == "" || strings.TrimSpace(req.Content) == "" {
 		return errors.New("path and content are required")
 	}
-	if !IsAllowedMemoryPath(req.Path) {
+	if !IsAllowedRecallPath(req.Path) {
 		return ErrDisallowedPath
 	}
 	meta := Metadata{

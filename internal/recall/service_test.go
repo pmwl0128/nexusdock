@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"context"
@@ -65,7 +65,7 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 	}
 	for _, section := range pack.Sections {
 		if section.Path == "ops/old.md" {
-			t.Fatal("deprecated memory entered context")
+			t.Fatal("deprecated recall entered context")
 		}
 	}
 }
@@ -73,9 +73,9 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 	store := newTestStore(t)
 	writeFixture(t, store, "devices/dockmini.md", "# Device\nport: 18766\n")
-	repo := NewInMemoryConflictRepository()
+	repo := NewInRecallConflictRepository()
 	svc, _ := NewService(store, WithConflictRepository(repo))
-	fact := ObservedFact{MemoryPath: "devices/dockmini.md", Key: "port", MemoryValue: "18766", ObservedValue: "18767", Source: ConflictSourceDeviceSnapshot, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
+	fact := ObservedFact{RecallPath: "devices/dockmini.md", Key: "port", RecallValue: "18766", ObservedValue: "18767", Source: ConflictSourceDeviceSnapshot, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
 	first, err := svc.DetectConflict(context.Background(), DetectConflictRequest{Facts: []ObservedFact{fact}})
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first=%#v err=%v", first, err)
@@ -133,7 +133,7 @@ func TestTemporaryLogRejectedOutsideInbox(t *testing.T) {
 	svc, _ := NewService(store)
 	_, err := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "ops/log.md", Content: "temporary", Scope: ScopeOps, Status: StatusActive, Source: "diagnostic-log", Confidence: ConfidenceLow})
 	if err == nil {
-		t.Fatal("temporary log entered long-term memory")
+		t.Fatal("temporary log entered long-term recall")
 	}
 	if !errors.Is(err, ErrDisallowedPath) && !strings.Contains(err.Error(), "temporary logs") {
 		t.Fatalf("unexpected error: %v", err)

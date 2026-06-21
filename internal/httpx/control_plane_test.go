@@ -13,13 +13,13 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
 	"github.com/uvwt/agentdock-nexus/internal/devices"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 func newControlPlaneTestHandler(t *testing.T) (http.Handler, *commands.Service) {
 	t.Helper()
-	store, err := memory.NewStore(t.TempDir())
+	store, err := recall.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestDeviceCommandHTTPFlow(t *testing.T) {
 		UptimeSeconds:    10,
 		AgentdockVersion: "test",
 		Metrics:          json.RawMessage(`{"cpu_percent":1,"memory_percent":2,"disk_percent":3}`),
-		Capabilities:     []contracts.DeviceCapability{{Name: "memory", Version: "v1", Enabled: true}},
+		Capabilities:     []contracts.DeviceCapability{{Name: "recall", Version: "v1", Enabled: true}},
 	})
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("heartbeat status=%d body=%s", response.Code, response.Body.String())

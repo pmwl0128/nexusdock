@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 )
 
 func TestMemoryStoreRejectsTraversalAndHiddenPaths(t *testing.T) {
-	store, err := memory.NewStore(t.TempDir())
+	store, err := recall.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestMemoryStoreRejectsTraversalAndHiddenPaths(t *testing.T) {
 	}
 	for _, path := range paths {
 		t.Run(strings.ReplaceAll(path, "/", "_"), func(t *testing.T) {
-			_, err := store.Write(memory.WriteRequest{Path: path, Content: "unsafe", Confirmed: true})
+			_, err := store.Write(recall.WriteRequest{Path: path, Content: "unsafe", Confirmed: true})
 			if err == nil {
 				t.Fatalf("unsafe path was accepted: %q", path)
 			}

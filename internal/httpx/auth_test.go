@@ -16,11 +16,11 @@ func TestSafeReturnToRejectsExternalAndControlValues(t *testing.T) {
 		want  string
 	}{
 		{name: "empty", value: "", want: "/ui/"},
-		{name: "relative path", value: "/ui/#memory", want: "/ui/#memory"},
+		{name: "relative path", value: "/ui/#recall", want: "/ui/#recall"},
 		{name: "absolute URL", value: "https://evil.example/ui/", want: "/ui/"},
 		{name: "protocol relative", value: "//evil.example/ui/", want: "/ui/"},
 		{name: "newline injection", value: "/ui/\r\nSet-Cookie: bad=1", want: "/ui/"},
-		{name: "missing slash", value: "ui/#memory", want: "/ui/"},
+		{name: "missing slash", value: "ui/#recall", want: "/ui/"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

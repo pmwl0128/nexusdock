@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"context"
@@ -57,9 +57,9 @@ type Service struct {
 
 func NewService(store *Store, opts ...ServiceOption) (*Service, error) {
 	if store == nil {
-		return nil, errors.New("memory store is required")
+		return nil, errors.New("recall store is required")
 	}
-	svc := &Service{store: store, conflicts: NewInMemoryConflictRepository(), now: func() time.Time { return time.Now().UTC() }}
+	svc := &Service{store: store, conflicts: NewInRecallConflictRepository(), now: func() time.Time { return time.Now().UTC() }}
 	for _, opt := range opts {
 		opt(svc)
 	}
@@ -71,7 +71,7 @@ func (s *Service) Read(_ context.Context, path string) (Record, error) {
 	if err != nil {
 		return Record{}, err
 	}
-	return recordFromMemory(mem), nil
+	return recordFromRecall(mem), nil
 }
 
 func (s *Service) Search(ctx context.Context, req SearchRequest) ([]Record, error) {
@@ -190,15 +190,15 @@ func (s *Service) BuildContextPack(ctx context.Context, req ContextPackRequest) 
 	return pack, nil
 }
 
-func (s *Service) DetectConflict(ctx context.Context, req DetectConflictRequest) ([]MemoryConflict, error) {
-	out := make([]MemoryConflict, 0, len(req.Facts))
+func (s *Service) DetectConflict(ctx context.Context, req DetectConflictRequest) ([]RecallConflict, error) {
+	out := make([]RecallConflict, 0, len(req.Facts))
 	now := s.now()
 	for _, fact := range req.Facts {
 		conflict, ok := conflictFromFact(fact, now)
 		if !ok {
 			continue
 		}
-		if _, err := s.store.Read(conflict.MemoryPath); err != nil {
+		if _, err := s.store.Read(conflict.RecallPath); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
@@ -216,7 +216,7 @@ func (s *Service) ProposeUpdate(_ context.Context, req ProposeUpdateRequest) (Up
 	if err := validateProposal(req); err != nil {
 		return UpdateProposal{}, err
 	}
-	var existing Memory
+	var existing Recall
 	var previous string
 	mem, err := s.store.Read(req.Path)
 	if err == nil {
@@ -244,24 +244,24 @@ func (s *Service) ProposeUpdate(_ context.Context, req ProposeUpdateRequest) (Up
 
 func (s *Service) ApplyUpdate(ctx context.Context, req ApplyUpdateRequest) (Record, error) {
 	if !req.Approved {
-		return Record{}, errors.New("memory update requires explicit approval")
+		return Record{}, errors.New("recall update requires explicit approval")
 	}
 	proposal := req.Proposal
 	if proposal.ID == "" || proposal.ID != proposalID(proposal.Path, proposal.ProposedDigest) {
-		return Record{}, errors.New("invalid memory proposal id")
+		return Record{}, errors.New("invalid recall proposal id")
 	}
 	if digestString(proposal.ProposedContent) != proposal.ProposedDigest {
-		return Record{}, errors.New("memory proposal content digest mismatch")
+		return Record{}, errors.New("recall proposal content digest mismatch")
 	}
 	current, err := s.store.Read(proposal.Path)
 	if err == nil {
 		if proposal.PreviousDigest == "" || digestString(current.Content) != proposal.PreviousDigest {
-			return Record{}, errors.New("memory changed since proposal was created")
+			return Record{}, errors.New("recall changed since proposal was created")
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return Record{}, err
 	} else if proposal.PreviousDigest != "" {
-		return Record{}, errors.New("memory disappeared since proposal was created")
+		return Record{}, errors.New("recall disappeared since proposal was created")
 	}
 	mem, err := s.store.Write(WriteRequest{
 		Path: proposal.Path, Content: proposal.ProposedContent, Confirmed: true, Overwrite: true,
@@ -274,17 +274,17 @@ func (s *Service) ApplyUpdate(ctx context.Context, req ApplyUpdateRequest) (Reco
 	}
 	if s.observer != nil {
 		if err := s.observer.RecordMemoryMutation(ctx, MutationEvent{
-			Action: "memory.update.applied", Path: proposal.Path, Source: proposal.Metadata.Source,
+			Action: "recall.update.applied", Path: proposal.Path, Source: proposal.Metadata.Source,
 			RunID: proposal.Metadata.Verification.VerificationRunID, Occurred: s.now(),
 		}); err != nil {
-			return Record{}, fmt.Errorf("record memory mutation: %w", err)
+			return Record{}, fmt.Errorf("record recall mutation: %w", err)
 		}
 	}
-	return recordFromMemory(mem), nil
+	return recordFromRecall(mem), nil
 }
 
-func recordFromMemory(mem Memory) Record {
-	return Record{Memory: mem, Metadata: MetadataFromMemory(mem)}
+func recordFromRecall(mem Recall) Record {
+	return Record{Recall: mem, Metadata: MetadataFromRecall(mem)}
 }
 
 type contextCandidate struct {
@@ -344,7 +344,7 @@ func truncateUTF8(value string, maxBytes int) string {
 	return value[:cut]
 }
 
-// ValidateRepository confirms that every visible memory can be read without
+// ValidateRepository confirms that every visible recall entry can be read without
 // mutating it. Migration uses this before and after copying an old repository.
 func ValidateRepository(store *Store) error {
 	entries, err := store.List("", 1000)

@@ -8,7 +8,7 @@
 
 ## 数据保护
 
-持久化 `/memory`、`/memory/.nexus/control-plane.db` 和 `/memory/.nexus/artifacts`。部署前停止写入并备份 SQLite 主文件、WAL 和 SHM。
+持久化 `/recall`、`/recall/.nexus/control-plane.db` 和 `/recall/.nexus/artifacts`。部署前停止写入并备份 SQLite 主文件、WAL 和 SHM。
 
 ## Compose
 

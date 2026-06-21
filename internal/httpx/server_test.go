@@ -10,13 +10,13 @@ import (
 	"testing"
 
 	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	t.Helper()
-	store, err := memory.NewStore(t.TempDir())
+	store, err := recall.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}

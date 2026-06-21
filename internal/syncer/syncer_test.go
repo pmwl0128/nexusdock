@@ -34,7 +34,7 @@ func initRepo(t *testing.T) string {
 	runGit(t, dir, "init", "-b", "main")
 	runGit(t, dir, "config", "user.email", "recalldock@example.invalid")
 	runGit(t, dir, "config", "user.name", "RecallDock Test")
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Memory\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Recall\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	runGit(t, dir, "add", "README.md")
@@ -66,7 +66,7 @@ func TestStatusAndDiffOnNonGitRepo(t *testing.T) {
 
 func TestPushCommitsDirtyRepoAndDiscardPath(t *testing.T) {
 	dir := initRepo(t)
-	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "memory: test sync"}, slog.Default())
+	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: test sync"}, slog.Default())
 	ctx := context.Background()
 	if err := os.WriteFile(filepath.Join(dir, "profile.md"), []byte("# Profile\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestPushCommitsDirtyRepoAndDiscardPath(t *testing.T) {
 	if err := mgr.Push(ctx); err != nil {
 		t.Fatalf("Push: %v", err)
 	}
-	if got := runGit(t, dir, "log", "-1", "--pretty=%s"); got != "memory: test sync" {
+	if got := runGit(t, dir, "log", "-1", "--pretty=%s"); got != "recall: test sync" {
 		t.Fatalf("unexpected commit subject: %q", got)
 	}
 	status = mgr.Status(ctx)
@@ -145,10 +145,10 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "memory: safe sync"}, slog.Default())
+	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: safe sync"}, slog.Default())
 	status := mgr.Status(ctx)
 	if !status.Dirty {
-		t.Fatalf("expected memory document change to be dirty: %#v", status)
+		t.Fatalf("expected recall document change to be dirty: %#v", status)
 	}
 	diff, err := mgr.Diff(ctx)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 		t.Fatalf("Discard: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "inbox.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected memory draft to be discarded, stat err=%v", err)
+		t.Fatalf("expected recall draft to be discarded, stat err=%v", err)
 	}
 	if _, err := os.Stat(databasePath); err != nil {
 		t.Fatalf("runtime database was removed: %v", err)
@@ -182,6 +182,6 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 		t.Fatalf("runtime artifact was removed: %v", err)
 	}
 	if status := mgr.Status(ctx); status.Dirty {
-		t.Fatalf("runtime-only changes must not mark memory dirty: %#v", status)
+		t.Fatalf("runtime-only changes must not mark recall dirty: %#v", status)
 	}
 }

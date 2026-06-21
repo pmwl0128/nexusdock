@@ -26,7 +26,6 @@ FORBIDDEN_PATH_PREFIXES = (
     "/v1/runs",
     "/v1/skills",
     "/v1/skill-runs",
-    "/v1/memory/context",
     "/v1/events",
     "/v1/schedules",
 )
@@ -39,7 +38,7 @@ FORBIDDEN_SCHEMAS = {
     "RunStep",
     "RunEvidence",
     "VerificationResult",
-    "MemoryContextPack",
+    "RecallContextPack",
     "Observation",
     "EvolutionCandidate",
     "EvolutionProposal",

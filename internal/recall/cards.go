@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"errors"
@@ -79,7 +79,7 @@ type CardWriteResult struct {
 	OK          bool     `json:"ok"`
 	Card        Card     `json:"card"`
 	Warnings    []string `json:"warnings,omitempty"`
-	Memory      Memory   `json:"memory"`
+	Recall      Recall   `json:"recall"`
 	IndexPolicy string   `json:"index_policy"`
 }
 
@@ -134,7 +134,7 @@ func (s *Store) WriteCard(req CardRequest) (CardWriteResult, error) {
 	if err != nil {
 		return CardWriteResult{}, err
 	}
-	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Memory: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from cards/"}, nil
+	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Recall: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from cards/"}, nil
 }
 
 func normalizeCard(req CardRequest) (Card, []string, error) {
@@ -195,7 +195,7 @@ func normalizeCard(req CardRequest) (Card, []string, error) {
 	if card.Path == "" {
 		card.Path = defaultCardPath(card)
 	}
-	if !IsAllowedMemoryPath(card.Path) || !strings.HasPrefix(card.Path, "cards/") {
+	if !IsAllowedRecallPath(card.Path) || !strings.HasPrefix(card.Path, "cards/") {
 		return Card{}, nil, ErrDisallowedPath
 	}
 	warnings := cardWarnings(card)
@@ -244,7 +244,7 @@ func defaultCardPath(card Card) string {
 func renderCardMarkdown(card Card) string {
 	var b strings.Builder
 	b.WriteString("---\n")
-	b.WriteString("type: memory-card\n")
+	b.WriteString("type: recall-card\n")
 	b.WriteString("card_type: " + string(card.Type) + "\n")
 	b.WriteString("scope: " + string(card.Scope) + "\n")
 	b.WriteString("project: " + card.Project + "\n")

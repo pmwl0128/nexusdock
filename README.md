@@ -18,7 +18,7 @@ AgentDock Nexus 是面向个人多设备环境的 AgentDock 控制台，集中�
 
 ```text
 cmd/recalldock      唯一生产服务入口
-internal/memory     召回文件与 Git 同步（保留包名兼容）
+internal/recall     召回文件与 Git 同步（内部包名，非公开 API）
 internal/devices    设备注册、心跳与策略
 internal/commands   设备命令队列
 internal/artifacts  ADR1 加密 Artifact Relay / Fetch

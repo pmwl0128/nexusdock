@@ -1,13 +1,13 @@
 export type EntryType = 'file' | 'directory';
 
-export type MemoryEntry = {
+export type RecallEntry = {
   path: string;
   name: string;
   type: EntryType;
   size_bytes?: number;
 };
 
-export type Memory = {
+export type Recall = {
   path: string;
   content: string;
 };
@@ -72,7 +72,7 @@ export type DeviceSkillSummary = {
   active: boolean;
 };
 
-export type DeviceMemorySyncSummary = {
+export type DeviceRecallSyncSummary = {
   last_success_at?: string;
   pending: number;
   conflicts: number;
@@ -115,7 +115,7 @@ export type DeviceHeartbeat = {
   metrics: { cpu_percent: number; memory_percent: number; disk_percent: number };
   capabilities: DeviceCapability[];
   skills?: DeviceSkillSummary[] | null;
-  memory_sync: DeviceMemorySyncSummary;
+  recall_sync: DeviceRecallSyncSummary;
 };
 
 export type DeviceSnapshot = { device: NexusDevice; heartbeat?: DeviceHeartbeat };

@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"bytes"
@@ -400,7 +400,7 @@ func (s *EmbeddingService) writeIndex(idx embeddingIndex) error {
 	return atomicWriteFile(s.cfg.IndexPath, append(data, '\n'), 0o600)
 }
 
-func embeddingText(mem Memory) string {
+func embeddingText(mem Recall) string {
 	parts := []string{mem.Path, firstMarkdownTitle(mem.Body), frontmatterText(mem.Frontmatter), mem.Body}
 	text := strings.TrimSpace(strings.Join(parts, "\n"))
 	if len(text) > 8000 {

@@ -122,7 +122,7 @@ type SkillSummary struct {
 	Active  bool   `json:"active"`
 }
 
-type MemorySyncSummary struct {
+type RecallSyncSummary struct {
 	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
 	Pending       int        `json:"pending"`
 	Conflicts     int        `json:"conflicts"`
@@ -138,7 +138,7 @@ type Heartbeat struct {
 	Metrics          Metrics           `json:"metrics"`
 	Capabilities     []Capability      `json:"capabilities"`
 	Skills           []SkillSummary    `json:"skills"`
-	MemorySync       MemorySyncSummary `json:"memory_sync"`
+	RecallSync       RecallSyncSummary `json:"recall_sync"`
 }
 
 type Device struct {

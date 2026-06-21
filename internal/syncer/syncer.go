@@ -101,7 +101,7 @@ func NewManager(cfg Config, logger *slog.Logger) *Manager {
 		cfg.PushDebounce = 10 * time.Second
 	}
 	if strings.TrimSpace(cfg.CommitMessage) == "" {
-		cfg.CommitMessage = "memory: 自动同步记忆"
+		cfg.CommitMessage = "recall: 自动同步召回库"
 	}
 	return &Manager{cfg: cfg, logger: logger}
 }

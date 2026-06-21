@@ -82,7 +82,7 @@ check_auth_policy() {
   if [ "$require" = "true" ]; then
     if [ -z "$token" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 RECALLDOCK_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
     if [ -z "$user" ] && [ -z "${RECALLDOCK_PASSWORD_HASH:-}" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
-    if [ "$user" = "admin" ] && { [ "$pass" = "recalldock" ] || [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/recalldock 或 admin/recalldock'; fi
+    if [ "$user" = "admin" ] && { [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/recalldock'; fi
   elif [ "$host" != "127.0.0.1" ] && [ "$host" != "localhost" ]; then
     warn "RECALLDOCK_HOST=$host 不是 localhost，建议设置 RECALLDOCK_REQUIRE_AUTH=true"
   else
@@ -90,14 +90,11 @@ check_auth_policy() {
   fi
 }
 
-check_memory_repo() {
-  local dir="${RECALLDOCK_STORE_DIR:-memory}"
-  if [ ! -d "$dir" ] && [ "$dir" = "memory" ] && [ -d ../memory ]; then
-    dir="../memory"
-  fi
-  if [ -d "$dir" ]; then ok "记忆目录存在：$dir"; else warn "记忆目录不存在：$dir"; fi
+check_recall_repo() {
+  local dir="${RECALLDOCK_STORE_DIR:-recall}"
+  if [ -d "$dir" ]; then ok "召回目录存在：$dir"; else warn "召回目录不存在：$dir"; fi
   if [ -d "$dir/.git" ]; then
-    ok "记忆目录是 Git 仓库：$dir"
+    ok "召回目录是 Git 仓库：$dir"
     if git -C "$dir" status --short --branch >/tmp/recalldock-doctor-git-status 2>&1; then
       sed 's/^/[GIT] /' /tmp/recalldock-doctor-git-status
     else
@@ -106,7 +103,7 @@ check_memory_repo() {
     if git -C "$dir" remote -v | grep -q .; then ok 'Git remote 已配置'; else warn '记忆 Git remote 未配置'; fi
     if git -C "$dir" fetch --dry-run >/tmp/recalldock-doctor-fetch 2>&1; then ok 'Git remote 可 fetch'; else warn "Git remote fetch 失败：$(tr '\n' ' ' </tmp/recalldock-doctor-fetch | cut -c1-240)"; fi
   else
-    warn "记忆目录不是 Git 仓库：$dir"
+    warn "召回目录不是 Git 仓库：$dir"
   fi
 }
 
@@ -135,7 +132,7 @@ check_assets() {
 load_env
 check_compose
 check_auth_policy
-check_memory_repo
+check_recall_repo
 check_ports_and_health
 check_assets
 

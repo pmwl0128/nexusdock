@@ -10,14 +10,14 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 )
 
-func TestLegacyMemoryDockDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
+func TestExistingRecallDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 	root := t.TempDir()
 	fixtures := map[string]string{
 		"profile.md":                       "---\ntype: profile\nscope: profile\n---\n\n# 用户档案\n\n保留原内容。\n",
-		"projects/demo/project.md":         "---\ntype: project-summary\nscope: project\nproject: demo\n---\n\n# Demo\n\n迁移兼容。\n",
+		"projects/demo/project.md":         "---\ntype: project-summary\nscope: project\nproject: demo\n---\n\n# Demo\n\n召回数据。\n",
 		"projects/demo/runbooks/deploy.md": "# 部署\n\n执行 health 检查。\n",
 		"devices/DockMini.md":              "# DockMini\n\n状态：active。\n",
 		"ops/reverse-proxy.md":             "# 反代\n\n保留路径。\n",
@@ -33,7 +33,7 @@ func TestLegacyMemoryDockDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 	}
 
 	before := snapshot(t, root)
-	store, err := memory.NewStore(root)
+	store, err := recall.NewStore(root)
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestLegacyMemoryDockDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 			t.Fatalf("content changed for %s", path)
 		}
 	}
-	results, err := store.Search("迁移兼容", "projects/demo", 10)
+	results, err := store.Search("召回数据", "projects/demo", 10)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestLegacyMemoryDockDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 	}
 	after := snapshot(t, root)
 	if !reflect.DeepEqual(before, after) {
-		t.Fatalf("opening legacy data mutated files\nbefore=%v\nafter=%v", before, after)
+		t.Fatalf("opening recall data mutated files\nbefore=%v\nafter=%v", before, after)
 	}
 }
 

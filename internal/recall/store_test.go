@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"errors"
@@ -25,12 +25,12 @@ func TestResolveRejectsTraversalAbsoluteAndGitPaths(t *testing.T) {
 			t.Fatalf("resolve(%q) unexpectedly succeeded", path)
 		}
 	}
-	if IsAllowedMemoryPath(".git/config") {
+	if IsAllowedRecallPath(".git/config") {
 		t.Fatalf(".git/config must not be allowed")
 	}
 }
 
-func TestAllowedMemoryPaths(t *testing.T) {
+func TestAllowedRecallPaths(t *testing.T) {
 	allowed := []string{
 		"profile.md",
 		"devices/codingmini.md",
@@ -44,13 +44,13 @@ func TestAllowedMemoryPaths(t *testing.T) {
 		"inbox/20260531-note.md",
 	}
 	for _, path := range allowed {
-		if !IsAllowedMemoryPath(path) {
+		if !IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
 	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md", "cards/chatdock/inbox/project_trap/nested/deploy.md", "notes/.hidden.md", "notes/github-learning/raw.bin"}
 	for _, path := range rejected {
-		if IsAllowedMemoryPath(path) {
+		if IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be rejected", path)
 		}
 	}

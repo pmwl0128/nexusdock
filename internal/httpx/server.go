@@ -16,7 +16,7 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
 	"github.com/uvwt/agentdock-nexus/internal/devices"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
@@ -24,14 +24,14 @@ type Server struct {
 	mu        sync.RWMutex
 	cfg       config.Config
 	db        *sql.DB
-	store     *memory.Store
+	store     *recall.Store
 	syncer    *syncer.Manager
 	logger    *slog.Logger
 	devices   *devices.Service
 	commands  *commands.Service
 	auth      *auth.Service
 	artifacts *artifacts.Service
-	embedding *memory.EmbeddingService
+	embedding *recall.EmbeddingService
 }
 
 type ServerOption func(*Server)
@@ -48,7 +48,7 @@ func WithArtifactRelay(service *artifacts.Service) ServerOption {
 	return func(server *Server) { server.artifacts = service }
 }
 
-func WithEmbeddingService(service *memory.EmbeddingService) ServerOption {
+func WithEmbeddingService(service *recall.EmbeddingService) ServerOption {
 	return func(server *Server) { server.embedding = service }
 }
 
@@ -59,7 +59,7 @@ func WithControlPlane(deviceService *devices.Service, commandService *commands.S
 	}
 }
 
-func NewServer(cfg config.Config, store *memory.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
+func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
 	server := &Server{cfg: cfg, store: store, syncer: syncer, logger: logger}
 	for _, option := range options {
 		option(server)
@@ -86,8 +86,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/sync/push", protected(s.syncPush))
 	mux.HandleFunc("POST /v1/sync/now", protected(s.syncNow))
 	mux.HandleFunc("GET /v1/recall", protected(s.listMemories))
-	mux.HandleFunc("POST /v1/recall", protected(s.writeMemory))
-	mux.HandleFunc("POST /v1/recall/move", protected(s.moveMemory))
+	mux.HandleFunc("POST /v1/recall", protected(s.writeRecall))
+	mux.HandleFunc("POST /v1/recall/move", protected(s.moveRecall))
 	mux.HandleFunc("POST /v1/recall/search", protected(s.searchMemories))
 	mux.HandleFunc("POST /v1/recall/pack", protected(s.packMemories))
 	mux.HandleFunc("GET /v1/recall/cards", protected(s.listCards))
@@ -98,9 +98,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/embeddings/reindex", protected(s.reindexEmbeddings))
 	mux.HandleFunc("POST /v1/embeddings/search", protected(s.searchEmbeddings))
 	mux.HandleFunc("POST /v1/recall/notes/append", protected(s.appendNote))
-	mux.HandleFunc("GET /v1/recall/", protected(s.readMemory))
-	mux.HandleFunc("PATCH /v1/recall/", protected(s.patchMemory))
-	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteMemory))
+	mux.HandleFunc("GET /v1/recall/", protected(s.readRecall))
+	mux.HandleFunc("PATCH /v1/recall/", protected(s.patchRecall))
+	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteRecall))
 	if s.devices != nil && s.commands != nil {
 		s.registerControlPlaneRoutes(mux)
 	}
@@ -197,7 +197,7 @@ func (s *Server) listMemories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "count": len(entries), "root": s.store.Root()})
 }
 
-func (s *Server) readMemory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) readRecall(w http.ResponseWriter, r *http.Request) {
 	path, err := memoryPath(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_PATH", err.Error())
@@ -208,34 +208,34 @@ func (s *Server) readMemory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "READ_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
-func (s *Server) writeMemory(w http.ResponseWriter, r *http.Request) {
-	var req memory.WriteRequest
+func (s *Server) writeRecall(w http.ResponseWriter, r *http.Request) {
+	var req recall.WriteRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
 	mem, err := s.store.Write(req)
 	if err != nil {
 		status := http.StatusBadRequest
-		if errors.Is(err, memory.ErrFileExists) {
+		if errors.Is(err, recall.ErrFileExists) {
 			status = http.StatusConflict
 		}
 		writeError(w, status, "WRITE_FAILED", err.Error())
 		return
 	}
 	s.syncer.MarkChanged(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
-func (s *Server) patchMemory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) patchRecall(w http.ResponseWriter, r *http.Request) {
 	path, err := memoryPath(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_PATH", err.Error())
 		return
 	}
-	var req memory.WriteRequest
+	var req recall.WriteRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -247,10 +247,10 @@ func (s *Server) patchMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.syncer.MarkChanged(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
-func (s *Server) moveMemory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) moveRecall(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FromPath  string `json:"from_path"`
 		ToPath    string `json:"to_path"`
@@ -263,17 +263,17 @@ func (s *Server) moveMemory(w http.ResponseWriter, r *http.Request) {
 	mem, err := s.store.Move(req.FromPath, req.ToPath, req.Confirmed, req.Overwrite)
 	if err != nil {
 		status := http.StatusBadRequest
-		if errors.Is(err, memory.ErrFileExists) {
+		if errors.Is(err, recall.ErrFileExists) {
 			status = http.StatusConflict
 		}
 		writeError(w, status, "MOVE_FAILED", err.Error())
 		return
 	}
 	s.syncer.MarkChanged(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
-func (s *Server) deleteMemory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteRecall(w http.ResponseWriter, r *http.Request) {
 	path, err := memoryPath(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_PATH", err.Error())
@@ -335,7 +335,7 @@ func (s *Server) listCards(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) captureCard(w http.ResponseWriter, r *http.Request) {
-	var req memory.CardRequest
+	var req recall.CardRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -348,14 +348,14 @@ func (s *Server) captureCard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writeCard(w http.ResponseWriter, r *http.Request) {
-	var req memory.CardRequest
+	var req recall.CardRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
 	result, err := s.store.WriteCard(req)
 	if err != nil {
 		status := http.StatusBadRequest
-		if errors.Is(err, memory.ErrFileExists) {
+		if errors.Is(err, recall.ErrFileExists) {
 			status = http.StatusConflict
 		}
 		writeError(w, status, "WRITE_CARD_FAILED", err.Error())
@@ -394,7 +394,7 @@ func (s *Server) reindexEmbeddings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
 		return
 	}
-	var req memory.EmbeddingReindexRequest
+	var req recall.EmbeddingReindexRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -411,7 +411,7 @@ func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
 		return
 	}
-	var req memory.EmbeddingSearchRequest
+	var req recall.EmbeddingSearchRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -424,7 +424,7 @@ func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
-	var req memory.NoteRequest
+	var req recall.NoteRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
@@ -434,7 +434,7 @@ func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.syncer.MarkChanged(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "memory": mem})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
 func memoryPath(r *http.Request) (string, error) {

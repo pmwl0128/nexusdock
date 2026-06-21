@@ -1,7 +1,7 @@
-// Package memorysync preserves RecallDock's Git synchronization behind the
+// Package recallsync preserves RecallDock's Git synchronization behind the
 // AgentDock Nexus module path. It is a compatibility facade, not a second sync
 // implementation.
-package memorysync
+package recallsync
 
 import (
 	"log/slog"

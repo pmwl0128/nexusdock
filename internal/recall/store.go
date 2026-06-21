@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"errors"
@@ -16,11 +16,11 @@ import (
 const MaxFileBytes = 512 * 1024
 
 var (
-	ErrInvalidPath        = errors.New("memory path must stay inside store directory")
+	ErrInvalidPath        = errors.New("recall path must stay inside store directory")
 	ErrConfirmationNeeded = errors.New("writing outside inbox requires confirmed=true")
-	ErrFileExists         = errors.New("memory file exists; set overwrite=true to replace")
-	ErrUnsupportedFile    = errors.New("memory path must be markdown or text")
-	ErrDisallowedPath     = errors.New("memory path is outside allowed roots: profile.md, inbox/, notes/, cards/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
+	ErrFileExists         = errors.New("recall file exists; set overwrite=true to replace")
+	ErrUnsupportedFile    = errors.New("recall path must be markdown or text")
+	ErrDisallowedPath     = errors.New("recall path is outside allowed roots: profile.md, inbox/, notes/, cards/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
 )
 
 type Store struct {
@@ -36,7 +36,7 @@ type Entry struct {
 	Modified  string `json:"modified,omitempty"`
 }
 
-type Memory struct {
+type Recall struct {
 	Path        string            `json:"path"`
 	Content     string            `json:"content"`
 	Body        string            `json:"body"`
@@ -53,7 +53,7 @@ type SearchResult struct {
 	MatchedFields []string          `json:"matched_fields,omitempty"`
 }
 
-type MemoryIndex struct {
+type RecallIndex struct {
 	Path        string            `json:"path"`
 	Title       string            `json:"title,omitempty"`
 	Frontmatter map[string]string `json:"frontmatter,omitempty"`
@@ -91,7 +91,7 @@ type NoteRequest struct {
 
 func NewStore(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" {
-		root = "memory"
+		root = "recall"
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -160,25 +160,25 @@ func (s *Store) List(prefix string, maxEntries int) ([]Entry, error) {
 	return entries, nil
 }
 
-func (s *Store) Read(path string) (Memory, error) {
+func (s *Store) Read(path string) (Recall, error) {
 	abs, err := s.resolve(path)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if len(data) > MaxFileBytes {
-		return Memory{}, fmt.Errorf("file too large: %d bytes", len(data))
+		return Recall{}, fmt.Errorf("file too large: %d bytes", len(data))
 	}
 	if !utf8.Valid(data) {
-		return Memory{}, errors.New("memory file must be utf-8 text")
+		return Recall{}, errors.New("recall file must be utf-8 text")
 	}
 	rel, _ := filepath.Rel(s.root, abs)
 	content := string(data)
 	frontmatter, body := SplitFrontmatter(content)
-	return Memory{Path: filepath.ToSlash(rel), Content: content, Body: body, Frontmatter: frontmatter, SizeBytes: len(data)}, nil
+	return Recall{Path: filepath.ToSlash(rel), Content: content, Body: body, Frontmatter: frontmatter, SizeBytes: len(data)}, nil
 }
 
 func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, error) {
@@ -356,30 +356,30 @@ func (s *Store) listUnderAny(maxEntries int, bases ...string) []string {
 	return out
 }
 
-func (s *Store) RunbookIndex(project string, maxEntries int) ([]MemoryIndex, error) {
+func (s *Store) RunbookIndex(project string, maxEntries int) ([]RecallIndex, error) {
 	if maxEntries <= 0 || maxEntries > 200 {
 		maxEntries = 50
 	}
 	if strings.TrimSpace(project) == "" {
-		return []MemoryIndex{}, nil
+		return []RecallIndex{}, nil
 	}
 	projectSegment := SafeSegment(project)
 	paths := s.listUnderAny(maxEntries,
 		"projects/"+projectSegment+"/runbooks",
 		"shared/projects/"+projectSegment+"/runbooks",
 	)
-	indexes := make([]MemoryIndex, 0, len(paths))
+	indexes := make([]RecallIndex, 0, len(paths))
 	for _, rel := range paths {
 		mem, err := s.Read(rel)
 		if err != nil {
 			continue
 		}
-		indexes = append(indexes, MemoryIndex{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Frontmatter: mem.Frontmatter, Aliases: frontmatterList(mem.Frontmatter, "aliases"), Keywords: frontmatterList(mem.Frontmatter, "keywords"), SizeBytes: mem.SizeBytes})
+		indexes = append(indexes, RecallIndex{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Frontmatter: mem.Frontmatter, Aliases: frontmatterList(mem.Frontmatter, "aliases"), Keywords: frontmatterList(mem.Frontmatter, "keywords"), SizeBytes: mem.SizeBytes})
 	}
 	return indexes, nil
 }
 
-func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
+func (s *Store) Pack(project string, maxBytes int) ([]Recall, int, error) {
 	if maxBytes <= 0 || maxBytes > 512000 {
 		maxBytes = 120000
 	}
@@ -398,7 +398,7 @@ func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
 		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/decisions", oldBase+"/decisions")...)
 		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/runbooks", oldBase+"/runbooks")...)
 	}
-	sections := []Memory{}
+	sections := []Recall{}
 	total := 0
 	seen := map[string]bool{}
 	for _, rel := range paths {
@@ -406,21 +406,21 @@ func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
 			continue
 		}
 		seen[rel] = true
-		memory, err := s.Read(rel)
+		section, err := s.Read(rel)
 		if err != nil {
 			continue
 		}
-		if total+len(memory.Content) > maxBytes {
+		if total+len(section.Content) > maxBytes {
 			remaining := maxBytes - total
 			if remaining <= 0 {
 				break
 			}
-			memory.Content = memory.Content[:remaining]
-			memory.Frontmatter, memory.Body = SplitFrontmatter(memory.Content)
-			memory.SizeBytes = len(memory.Content)
+			section.Content = section.Content[:remaining]
+			section.Frontmatter, section.Body = SplitFrontmatter(section.Content)
+			section.SizeBytes = len(section.Content)
 		}
-		sections = append(sections, memory)
-		total += len(memory.Content)
+		sections = append(sections, section)
+		total += len(section.Content)
 		if total >= maxBytes {
 			break
 		}
@@ -428,7 +428,7 @@ func (s *Store) Pack(project string, maxBytes int) ([]Memory, int, error) {
 	return sections, total, nil
 }
 
-func IsAllowedMemoryPath(path string) bool {
+func IsAllowedRecallPath(path string) bool {
 	path = filepath.ToSlash(strings.TrimSpace(path))
 	if hasHiddenSegment(path) {
 		return false
@@ -469,69 +469,69 @@ func IsAllowedMemoryPath(path string) bool {
 	return false
 }
 
-func (s *Store) Write(req WriteRequest) (Memory, error) {
+func (s *Store) Write(req WriteRequest) (Recall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
-		return Memory{}, errors.New("content is required")
+		return Recall{}, errors.New("content is required")
 	}
 	path := filepath.ToSlash(strings.TrimSpace(req.Path))
 	if path == "" {
 		path = DefaultPath(req)
 	}
 	if !strings.HasPrefix(path, "inbox/") && !req.Confirmed {
-		return Memory{}, ErrConfirmationNeeded
+		return Recall{}, ErrConfirmationNeeded
 	}
 	if !IsTextFile(path) {
-		return Memory{}, ErrUnsupportedFile
+		return Recall{}, ErrUnsupportedFile
 	}
-	if !IsAllowedMemoryPath(path) {
-		return Memory{}, ErrDisallowedPath
+	if !IsAllowedRecallPath(path) {
+		return Recall{}, ErrDisallowedPath
 	}
 	if raw := strings.TrimSpace(req.Scope); raw != "" && !Scope(strings.ToLower(raw)).Valid() {
-		return Memory{}, fmt.Errorf("invalid memory scope %q", raw)
+		return Recall{}, fmt.Errorf("invalid recall scope %q", raw)
 	}
 	if raw := strings.TrimSpace(req.Status); raw != "" && !Status(strings.ToLower(raw)).Valid() {
-		return Memory{}, fmt.Errorf("invalid memory status %q", raw)
+		return Recall{}, fmt.Errorf("invalid recall status %q", raw)
 	}
 	if raw := strings.TrimSpace(req.Confidence); raw != "" && !Confidence(strings.ToLower(raw)).Valid() {
-		return Memory{}, fmt.Errorf("invalid memory confidence %q", raw)
+		return Recall{}, fmt.Errorf("invalid recall confidence %q", raw)
 	}
 	abs, err := s.resolve(path)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if _, err := os.Stat(abs); err == nil && !req.Overwrite {
-		return Memory{}, ErrFileExists
+		return Recall{}, ErrFileExists
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if !strings.HasPrefix(content, "---\n") {
 		content = BuildFrontmatter(req) + "\n" + content + "\n"
 	}
 	if err := atomicWriteFile(abs, []byte(content), 0o644); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	return s.Read(path)
 }
 
-func (s *Store) AppendNote(req NoteRequest) (Memory, error) {
+func (s *Store) AppendNote(req NoteRequest) (Recall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
-		return Memory{}, errors.New("content is required")
+		return Recall{}, errors.New("content is required")
 	}
 	scope := SafeSegment(req.Scope)
 	if scope == "" {
 		scope = "inbox"
 	}
 	if scope != "inbox" {
-		return Memory{}, errors.New("append_note only writes to inbox; use memory_write with an explicit allowed path for long-term memory")
+		return Recall{}, errors.New("append_note only writes to inbox; use recall_write with an explicit allowed path for long-term recall")
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
@@ -541,31 +541,31 @@ func (s *Store) AppendNote(req NoteRequest) (Memory, error) {
 	path := filepath.ToSlash(filepath.Join(scope, name))
 	abs, err := s.resolve(path)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	entry := fmt.Sprintf("---\ntype: note\nscope: %s\nsource: user-confirmed\ncreated_at: %s\nupdated_at: %s\n---\n\n%s\n", scope, now(), now(), content)
 	if _, err := os.Stat(abs); err == nil {
 		entry = "\n\n---\n\n" + content + "\n"
 		file, err := os.OpenFile(abs, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
-			return Memory{}, err
+			return Recall{}, err
 		}
 		defer file.Close()
 		if _, err := file.WriteString(entry); err != nil {
-			return Memory{}, err
+			return Recall{}, err
 		}
 	} else if err := os.WriteFile(abs, []byte(entry), 0o644); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	return s.Read(path)
 }
 
-func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Memory, error) {
+func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Recall, error) {
 	if !confirmed {
-		return Memory{}, ErrConfirmationNeeded
+		return Recall{}, ErrConfirmationNeeded
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -573,58 +573,58 @@ func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Memory
 	fromPath = filepath.ToSlash(strings.TrimSpace(fromPath))
 	toPath = filepath.ToSlash(strings.TrimSpace(toPath))
 	if fromPath == "" || toPath == "" {
-		return Memory{}, errors.New("from_path and to_path are required")
+		return Recall{}, errors.New("from_path and to_path are required")
 	}
 	if hasHiddenSegment(fromPath) || hasHiddenSegment(toPath) {
-		return Memory{}, ErrInvalidPath
+		return Recall{}, ErrInvalidPath
 	}
-	if !IsAllowedMemoryPath(toPath) {
-		return Memory{}, ErrDisallowedPath
+	if !IsAllowedRecallPath(toPath) {
+		return Recall{}, ErrDisallowedPath
 	}
 	fromAbs, err := s.resolve(fromPath)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	toAbs, err := s.resolve(toPath)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if fromAbs == toAbs {
 		rel, _ := filepath.Rel(s.root, toAbs)
-		return Memory{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
+		return Recall{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
 	}
 	info, err := os.Stat(fromAbs)
 	if err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if info.IsDir() {
 		if strings.HasPrefix(toAbs, fromAbs+string(filepath.Separator)) {
-			return Memory{}, errors.New("cannot move a directory inside itself")
+			return Recall{}, errors.New("cannot move a directory inside itself")
 		}
 		if _, err := os.Stat(toAbs); err == nil {
-			return Memory{}, ErrFileExists
+			return Recall{}, ErrFileExists
 		}
 		if err := os.MkdirAll(filepath.Dir(toAbs), 0o755); err != nil {
-			return Memory{}, err
+			return Recall{}, err
 		}
 		if err := os.Rename(fromAbs, toAbs); err != nil {
-			return Memory{}, err
+			return Recall{}, err
 		}
 		removeEmptyParents(filepath.Dir(fromAbs), s.root)
 		rel, _ := filepath.Rel(s.root, toAbs)
-		return Memory{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
+		return Recall{Path: filepath.ToSlash(rel), Frontmatter: map[string]string{}}, nil
 	}
 	if !IsTextFile(fromPath) || !IsTextFile(toPath) {
-		return Memory{}, ErrUnsupportedFile
+		return Recall{}, ErrUnsupportedFile
 	}
 	if _, err := os.Stat(toAbs); err == nil && !overwrite {
-		return Memory{}, ErrFileExists
+		return Recall{}, ErrFileExists
 	}
 	if err := os.MkdirAll(filepath.Dir(toAbs), 0o755); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	if err := os.Rename(fromAbs, toAbs); err != nil {
-		return Memory{}, err
+		return Recall{}, err
 	}
 	removeEmptyParents(filepath.Dir(fromAbs), s.root)
 	return s.Read(toPath)
@@ -898,7 +898,7 @@ func SplitFrontmatter(content string) (map[string]string, string) {
 func BuildFrontmatter(req WriteRequest) string {
 	typeName := strings.TrimSpace(req.Type)
 	if typeName == "" {
-		typeName = "memory"
+		typeName = "recall"
 	}
 	scope := SafeSegment(req.Scope)
 	if scope == "" {
@@ -959,7 +959,7 @@ func BuildFrontmatter(req WriteRequest) string {
 func DefaultPath(req WriteRequest) string {
 	typeName := SafeSegment(req.Type)
 	if typeName == "" {
-		typeName = "memory"
+		typeName = "recall"
 	}
 	stamp := time.Now().Format("20060102-150405")
 	return filepath.ToSlash(filepath.Join("inbox", stamp+"-"+typeName+".md"))

@@ -132,7 +132,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ("code", "message", "request_id"),
     )
     schemas["LegacyErrorEnvelope"] = obj(
-        "Memory 与浏览器兼容接口使用的错误信封。",
+        "RecallDock 与浏览器接口使用的错误信封。",
         {
             "ok": scalar("boolean", "固定为 false。"),
             "error": obj(
@@ -413,7 +413,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "DeliveryId": path_param("deliveryId", "Delivery UUID。"),
         "FetchId": path_param("fetchId", "Artifact Fetch UUID。"),
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
-        "MemoryPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
+        "RecallPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
     }
 
     def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
@@ -492,18 +492,18 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/recall/pack": {"post": operation("packRecall", "打包召回条目", request=body())},
         "/v1/recall/notes/append": {"post": operation("appendRecallNote", "追加召回笔记", request=body())},
         "/v1/recall/{path}": {
-            "get": operation("readRecall", "读取召回条目", params=[p("MemoryPath")], success=ok(ref("RecallEntry"))),
-            "patch": operation("patchRecall", "修改召回条目", params=[p("MemoryPath")], request=body()),
-            "delete": operation("deleteRecall", "删除召回条目", params=[p("MemoryPath")]),
+            "get": operation("readRecall", "读取召回条目", params=[p("RecallPath")], success=ok(ref("RecallEntry"))),
+            "patch": operation("patchRecall", "修改召回条目", params=[p("RecallPath")], request=body()),
+            "delete": operation("deleteRecall", "删除召回条目", params=[p("RecallPath")]),
         },
         "/v1/sync/status": {"get": operation("getSyncStatus", "读取召回 Git 同步状态")},
         "/v1/git/diff": {"get": operation("getGitDiff", "读取召回仓库变更")},
         "/v1/git/discard": {"post": operation("discardGitChanges", "丢弃召回仓库本地变更", request=body())},
         "/v1/git/log": {"get": operation("getGitLog", "读取召回仓库提交历史")},
         "/v1/git/commit": {"get": operation("getGitCommit", "读取召回仓库提交详情")},
-        "/v1/sync/pull": {"post": operation("pullMemory", "从远端更新召回仓库", request=body())},
-        "/v1/sync/push": {"post": operation("pushMemory", "保存召回仓库到远端", request=body())},
-        "/v1/sync/now": {"post": operation("syncMemoryNow", "立即双向同步召回仓库", request=body())},
+        "/v1/sync/pull": {"post": operation("pullRecall", "从远端更新召回仓库", request=body())},
+        "/v1/sync/push": {"post": operation("pushRecall", "保存召回仓库到远端", request=body())},
+        "/v1/sync/now": {"post": operation("syncRecallNow", "立即双向同步召回仓库", request=body())},
         "/v1/artifacts": {"get": operation("listArtifacts", "列出最近加密文件发送记录")},
         "/v1/artifact-fetches": {"get": operation("listArtifactFetches", "列出最近反向文件接收记录")},
         "/v1/artifacts/uploads": {"post": operation("createArtifactUpload", "创建管理员文件上传", request=body(), success_code="201")},

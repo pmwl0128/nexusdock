@@ -1,4 +1,4 @@
-package memory_test
+package recall_test
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	memory "github.com/uvwt/agentdock-nexus/internal/memory"
-	memorysync "github.com/uvwt/agentdock-nexus/internal/sync/memory"
+	recall "github.com/uvwt/agentdock-nexus/internal/recall"
+	recallsync "github.com/uvwt/agentdock-nexus/internal/sync/recall"
 )
 
 func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
@@ -34,16 +34,16 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 		}
 	}
 
-	dry, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: source, TargetRoot: target, DryRun: true})
+	dry, err := recall.MigrateRepository(recall.MigrationRequest{SourceRoot: source, TargetRoot: target, DryRun: true})
 	if err != nil || dry.FileCount != len(fixtures) || dry.Verified {
 		t.Fatalf("dry=%#v err=%v", dry, err)
 	}
-	report, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: source, TargetRoot: target})
+	report, err := recall.MigrateRepository(recall.MigrationRequest{SourceRoot: source, TargetRoot: target})
 	if err != nil || !report.Verified {
 		t.Fatalf("report=%#v err=%v", report, err)
 	}
-	before, _ := memory.SnapshotFiles(source)
-	after, _ := memory.SnapshotFiles(target)
+	before, _ := recall.SnapshotFiles(source)
+	after, _ := recall.SnapshotFiles(target)
 	if len(before) != len(after) {
 		t.Fatalf("snapshot length changed: %d %d", len(before), len(after))
 	}
@@ -53,12 +53,12 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 		}
 	}
 
-	store, err := memory.NewStore(target)
+	store, err := recall.NewStore(target)
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc, _ := memory.NewService(store)
-	pack, err := svc.Bootstrap(context.Background(), memory.BootstrapRequest{Project: "agentdock", MaxBytes: 4096})
+	svc, _ := recall.NewService(store)
+	pack, err := svc.Bootstrap(context.Background(), recall.BootstrapRequest{Project: "agentdock", MaxBytes: 4096})
 	if err != nil || len(pack.Sections) < 2 {
 		t.Fatalf("bootstrap regressed: %#v err=%v", pack, err)
 	}
@@ -67,15 +67,15 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 	runGit(t, target, "config", "user.email", "nexus@example.invalid")
 	runGit(t, target, "config", "user.name", "Nexus Test")
 	runGit(t, target, "add", ".")
-	runGit(t, target, "commit", "-m", "legacy import")
-	proposal, err := svc.ProposeUpdate(context.Background(), memory.ProposeUpdateRequest{Path: "projects/agentdock/project.md", Content: "# AgentDock\nupdated", Scope: memory.ScopeProject, Status: memory.StatusActive, Project: "agentdock", Source: "user_edit", Confidence: memory.ConfidenceHigh})
+	runGit(t, target, "commit", "-m", "recall import")
+	proposal, err := svc.ProposeUpdate(context.Background(), recall.ProposeUpdateRequest{Path: "projects/agentdock/project.md", Content: "# AgentDock\nupdated", Scope: recall.ScopeProject, Status: recall.StatusActive, Project: "agentdock", Source: "user_edit", Confidence: recall.ConfidenceHigh})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.ApplyUpdate(context.Background(), memory.ApplyUpdateRequest{Proposal: proposal, Approved: true}); err != nil {
+	if _, err := svc.ApplyUpdate(context.Background(), recall.ApplyUpdateRequest{Proposal: proposal, Approved: true}); err != nil {
 		t.Fatal(err)
 	}
-	manager := memorysync.NewManager(memorysync.Config{RepoDir: target}, slog.Default())
+	manager := recallsync.NewManager(recallsync.Config{RepoDir: target}, slog.Default())
 	diff, err := manager.Diff(context.Background())
 	if err != nil || !diff.Dirty || !strings.Contains(diff.Diff, "updated") {
 		t.Fatalf("git diff missing: %#v err=%v", diff, err)
@@ -91,23 +91,23 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
-func TestLiveLegacyRepositoryValidation(t *testing.T) {
-	root := strings.TrimSpace(os.Getenv("MEMORYDOCK_LIVE_STORE"))
+func TestLiveRecallRepositoryValidation(t *testing.T) {
+	root := strings.TrimSpace(os.Getenv("RECALLDOCK_LIVE_STORE"))
 	if root == "" {
-		t.Skip("MEMORYDOCK_LIVE_STORE is not set")
+		t.Skip("RECALLDOCK_LIVE_STORE is not set")
 	}
-	before, err := memory.SnapshotFiles(root)
+	before, err := recall.SnapshotFiles(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := memory.MigrateRepository(memory.MigrationRequest{SourceRoot: root, TargetRoot: root})
+	report, err := recall.MigrateRepository(recall.MigrationRequest{SourceRoot: root, TargetRoot: root})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !report.InPlace || !report.Verified {
-		t.Fatalf("live repository not verified: %#v", report)
+		t.Fatalf("live recall repository not verified: %#v", report)
 	}
-	after, err := memory.SnapshotFiles(root)
+	after, err := recall.SnapshotFiles(root)
 	if err != nil {
 		t.Fatal(err)
 	}

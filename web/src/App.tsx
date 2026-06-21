@@ -4,13 +4,13 @@ import {
   CircleAlert, Database, FileArchive, HardDrive, Home, Menu, RefreshCw,
   Server, Settings, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
-import RecallWorkspace from './MemoryWorkspace';
+import RecallWorkspace from './RecallWorkspace';
 import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import './nexus.css';
 
-type Section = 'home' | 'devices' | 'memory' | 'files' | 'settings';
+type Section = 'home' | 'devices' | 'recall' | 'files' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -115,7 +115,7 @@ type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
-  { id: 'memory', label: '召回', icon: Database },
+  { id: 'recall', label: '召回', icon: Database },
   { id: 'files', label: '文件', icon: FileArchive },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -124,7 +124,7 @@ function sectionFromHash(): Section {
   const value = window.location.hash.replace(/^#\/?/, '').split('/')[0] as Section;
   if (NAV.some((item) => item.id === value)) return value;
   const params = new URLSearchParams(window.location.search);
-  if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'memory';
+  if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
   return 'home';
 }
 
@@ -221,10 +221,10 @@ export default function App() {
     setMenuOpen(false);
   }
 
-  if (section === 'memory') {
+  if (section === 'recall') {
     return (
-      <div className="nexus-memory-mode">
-        <button className="nexus-memory-return" onClick={() => navigate('home')}>
+      <div className="nexus-recall-mode">
+        <button className="nexus-recall-return" onClick={() => navigate('home')}>
           <ChevronRight size={15} /> 返回 Nexus
         </button>
         <RecallWorkspace />

@@ -28,7 +28,7 @@ type ErrorResponse struct {
 	Details []ErrorDetail `json:"details,omitempty"`
 }
 
-// LegacyErrorEnvelope Memory 与浏览器兼容接口使用的错误信封。
+// LegacyErrorEnvelope RecallDock 与浏览器接口使用的错误信封。
 type LegacyErrorEnvelope struct {
 	// Ok 固定为 false。
 	Ok bool `json:"ok"`

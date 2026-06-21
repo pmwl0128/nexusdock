@@ -21,7 +21,7 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/config"
 	"github.com/uvwt/agentdock-nexus/internal/core"
 	"github.com/uvwt/agentdock-nexus/internal/devices"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
@@ -37,7 +37,7 @@ func newArtifactHTTPFixture(t *testing.T) artifactHTTPFixture {
 	t.Helper()
 	ctx := context.Background()
 	root := t.TempDir()
-	store, err := memory.NewStore(filepath.Join(root, "memory"))
+	store, err := recall.NewStore(filepath.Join(root, "recall"))
 	if err != nil {
 		t.Fatal(err)
 	}

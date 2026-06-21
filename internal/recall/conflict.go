@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"context"
@@ -39,9 +39,9 @@ const (
 )
 
 type ObservedFact struct {
-	MemoryPath    string         `json:"memory_path"`
+	RecallPath    string         `json:"recall_path"`
 	Key           string         `json:"key"`
-	MemoryValue   string         `json:"memory_value"`
+	RecallValue   string         `json:"recall_value"`
 	ObservedValue string         `json:"observed_value"`
 	Source        ConflictSource `json:"source"`
 	SourceID      string         `json:"source_id,omitempty"`
@@ -56,11 +56,11 @@ type DetectConflictRequest struct {
 	Facts []ObservedFact `json:"facts"`
 }
 
-type MemoryConflict struct {
+type RecallConflict struct {
 	ID            string         `json:"id"`
-	MemoryPath    string         `json:"memory_path"`
+	RecallPath    string         `json:"recall_path"`
 	Key           string         `json:"key"`
-	MemoryValue   string         `json:"memory_value"`
+	RecallValue   string         `json:"recall_value"`
 	ObservedValue string         `json:"observed_value"`
 	Source        ConflictSource `json:"source"`
 	SourceID      string         `json:"source_id,omitempty"`
@@ -74,21 +74,21 @@ type MemoryConflict struct {
 }
 
 type ConflictRepository interface {
-	Upsert(context.Context, MemoryConflict) error
-	ListOpen(context.Context, ContextPackRequest) ([]MemoryConflict, error)
+	Upsert(context.Context, RecallConflict) error
+	ListOpen(context.Context, ContextPackRequest) ([]RecallConflict, error)
 	Resolve(context.Context, string, ConflictStatus) error
 }
 
-type InMemoryConflictRepository struct {
+type InRecallConflictRepository struct {
 	mu    sync.RWMutex
-	items map[string]MemoryConflict
+	items map[string]RecallConflict
 }
 
-func NewInMemoryConflictRepository() *InMemoryConflictRepository {
-	return &InMemoryConflictRepository{items: map[string]MemoryConflict{}}
+func NewInRecallConflictRepository() *InRecallConflictRepository {
+	return &InRecallConflictRepository{items: map[string]RecallConflict{}}
 }
 
-func (r *InMemoryConflictRepository) Upsert(_ context.Context, conflict MemoryConflict) error {
+func (r *InRecallConflictRepository) Upsert(_ context.Context, conflict RecallConflict) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if existing, ok := r.items[conflict.ID]; ok && existing.Status == ConflictResolved {
@@ -98,10 +98,10 @@ func (r *InMemoryConflictRepository) Upsert(_ context.Context, conflict MemoryCo
 	return nil
 }
 
-func (r *InMemoryConflictRepository) ListOpen(_ context.Context, req ContextPackRequest) ([]MemoryConflict, error) {
+func (r *InRecallConflictRepository) ListOpen(_ context.Context, req ContextPackRequest) ([]RecallConflict, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]MemoryConflict, 0, len(r.items))
+	out := make([]RecallConflict, 0, len(r.items))
 	for _, item := range r.items {
 		if item.Status != ConflictOpen {
 			continue
@@ -123,7 +123,7 @@ func (r *InMemoryConflictRepository) ListOpen(_ context.Context, req ContextPack
 	return out, nil
 }
 
-func (r *InMemoryConflictRepository) Resolve(_ context.Context, id string, status ConflictStatus) error {
+func (r *InRecallConflictRepository) Resolve(_ context.Context, id string, status ConflictStatus) error {
 	if status != ConflictResolved && status != ConflictIgnored {
 		return errors.New("conflict can only be resolved or ignored")
 	}
@@ -131,7 +131,7 @@ func (r *InMemoryConflictRepository) Resolve(_ context.Context, id string, statu
 	defer r.mu.Unlock()
 	item, ok := r.items[id]
 	if !ok {
-		return errors.New("memory conflict not found")
+		return errors.New("recall conflict not found")
 	}
 	now := time.Now().UTC()
 	item.Status = status
@@ -140,30 +140,30 @@ func (r *InMemoryConflictRepository) Resolve(_ context.Context, id string, statu
 	return nil
 }
 
-func conflictFromFact(fact ObservedFact, now time.Time) (MemoryConflict, bool) {
-	if strings.TrimSpace(fact.MemoryPath) == "" || strings.TrimSpace(fact.Key) == "" || !fact.Source.Valid() {
-		return MemoryConflict{}, false
+func conflictFromFact(fact ObservedFact, now time.Time) (RecallConflict, bool) {
+	if strings.TrimSpace(fact.RecallPath) == "" || strings.TrimSpace(fact.Key) == "" || !fact.Source.Valid() {
+		return RecallConflict{}, false
 	}
 	if fact.Confidence == "" {
 		fact.Confidence = ConfidenceMedium
 	}
 	if !fact.Confidence.Valid() || fact.Confidence == ConfidenceLow || fact.Confidence == ConfidenceUnknown {
-		return MemoryConflict{}, false
+		return RecallConflict{}, false
 	}
-	if normalizeFactValue(fact.MemoryValue) == normalizeFactValue(fact.ObservedValue) {
-		return MemoryConflict{}, false
+	if normalizeFactValue(fact.RecallValue) == normalizeFactValue(fact.ObservedValue) {
+		return RecallConflict{}, false
 	}
 	if fact.ObservedAt.IsZero() {
 		fact.ObservedAt = now
 	}
 	fingerprint := strings.Join([]string{
-		strings.TrimSpace(fact.MemoryPath), strings.TrimSpace(fact.Key), normalizeFactValue(fact.MemoryValue),
+		strings.TrimSpace(fact.RecallPath), strings.TrimSpace(fact.Key), normalizeFactValue(fact.RecallValue),
 		normalizeFactValue(fact.ObservedValue), string(fact.Source), strings.TrimSpace(fact.SourceID),
 	}, "\x00")
 	sum := sha256.Sum256([]byte(fingerprint))
-	return MemoryConflict{
-		ID: "mc_" + hex.EncodeToString(sum[:12]), MemoryPath: fact.MemoryPath, Key: fact.Key,
-		MemoryValue: fact.MemoryValue, ObservedValue: fact.ObservedValue, Source: fact.Source,
+	return RecallConflict{
+		ID: "mc_" + hex.EncodeToString(sum[:12]), RecallPath: fact.RecallPath, Key: fact.Key,
+		RecallValue: fact.RecallValue, ObservedValue: fact.ObservedValue, Source: fact.Source,
 		SourceID: fact.SourceID, Device: fact.Device, Agent: fact.Agent, RunID: fact.RunID,
 		Confidence: fact.Confidence, Status: ConflictOpen, DetectedAt: fact.ObservedAt.UTC(),
 	}, true

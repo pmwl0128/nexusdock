@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { CredentialUpdatePage, LoginPage } from './Auth';
 import './styles.css';
-import './memory-nexus.css';
+import './recall-nexus.css';
 
 const page = window.location.pathname === '/login'
   ? <LoginPage />

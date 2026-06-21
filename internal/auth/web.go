@@ -31,7 +31,7 @@ const (
 
 var commonWeakPasswords = map[string]struct{}{
 	"123456789012": {}, "password1234": {}, "qwerty123456": {},
-	"admin12345678": {}, "letmein123456": {}, "memorydock": {}, "recalldock": {},
+	"admin12345678": {}, "letmein123456": {}, "recalldock": {},
 }
 
 type WebSession struct {
@@ -97,13 +97,13 @@ func verifyArgon2(secret, encoded string) bool {
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" {
 		return false
 	}
-	var memory uint32
+	var memCost uint32
 	var iterations uint32
 	var parallelism uint8
-	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism); err != nil {
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memCost, &iterations, &parallelism); err != nil {
 		return false
 	}
-	if memory < 8*1024 || memory > 1024*1024 || iterations < 1 || iterations > 20 || parallelism < 1 || parallelism > 32 {
+	if memCost < 8*1024 || memCost > 1024*1024 || iterations < 1 || iterations > 20 || parallelism < 1 || parallelism > 32 {
 		return false
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
@@ -114,7 +114,7 @@ func verifyArgon2(secret, encoded string) bool {
 	if err != nil || len(want) < 16 || len(want) > 64 {
 		return false
 	}
-	got := argon2.IDKey([]byte(secret), salt, iterations, memory, parallelism, uint32(len(want)))
+	got := argon2.IDKey([]byte(secret), salt, iterations, memCost, parallelism, uint32(len(want)))
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
@@ -160,7 +160,7 @@ func (s *Service) EnsureLegacyAdmin(ctx context.Context, username, password, pas
 	if username == "" || (password == "" && passwordHash == "") {
 		return false, nil
 	}
-	if username == "admin" && (password == "memorydock" || password == "recalldock") && passwordHash == "" {
+	if username == "admin" && (password == "recalldock") && passwordHash == "" {
 		return false, nil
 	}
 	algorithm := "argon2id"

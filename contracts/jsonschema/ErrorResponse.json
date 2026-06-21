@@ -65,7 +65,7 @@
     },
     "LegacyErrorEnvelope": {
       "type": "object",
-      "description": "Memory 与浏览器兼容接口使用的错误信封。",
+      "description": "RecallDock 与浏览器接口使用的错误信封。",
       "additionalProperties": false,
       "properties": {
         "ok": {

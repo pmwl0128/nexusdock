@@ -12,14 +12,14 @@ import (
 
 	"github.com/uvwt/agentdock-nexus/internal/config"
 	"github.com/uvwt/agentdock-nexus/internal/httpx"
-	"github.com/uvwt/agentdock-nexus/internal/memory"
+	"github.com/uvwt/agentdock-nexus/internal/recall"
 	"github.com/uvwt/agentdock-nexus/internal/syncer"
 )
 
 func newHandler(t *testing.T) http.Handler {
 	t.Helper()
 	root := t.TempDir()
-	store, err := memory.NewStore(root)
+	store, err := recall.NewStore(root)
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}

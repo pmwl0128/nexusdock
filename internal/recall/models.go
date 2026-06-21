@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"context"
@@ -91,7 +91,7 @@ type Metadata struct {
 }
 
 type Record struct {
-	Memory
+	Recall
 	Metadata Metadata `json:"metadata"`
 }
 
@@ -151,7 +151,7 @@ type ContextPack struct {
 	Agent      string           `json:"agent,omitempty"`
 	Skill      string           `json:"skill,omitempty"`
 	Sections   []ContextSection `json:"sections"`
-	Conflicts  []MemoryConflict `json:"conflicts,omitempty"`
+	Conflicts  []RecallConflict `json:"conflicts,omitempty"`
 	TotalBytes int              `json:"total_bytes"`
 	MaxBytes   int              `json:"max_bytes"`
 	Truncated  bool             `json:"truncated"`
@@ -163,12 +163,12 @@ type MemoryService interface {
 	List(context.Context, ListRequest) ([]Record, error)
 	Bootstrap(context.Context, BootstrapRequest) (ContextPack, error)
 	BuildContextPack(context.Context, ContextPackRequest) (ContextPack, error)
-	DetectConflict(context.Context, DetectConflictRequest) ([]MemoryConflict, error)
+	DetectConflict(context.Context, DetectConflictRequest) ([]RecallConflict, error)
 	ProposeUpdate(context.Context, ProposeUpdateRequest) (UpdateProposal, error)
 	ApplyUpdate(context.Context, ApplyUpdateRequest) (Record, error)
 }
 
-func MetadataFromMemory(mem Memory) Metadata {
+func MetadataFromRecall(mem Recall) Metadata {
 	fm := mem.Frontmatter
 	scope := Scope(strings.ToLower(strings.TrimSpace(fm["scope"])))
 	if !scope.Valid() {
@@ -232,13 +232,13 @@ func inferScope(path string) Scope {
 
 func validateMetadata(meta Metadata) error {
 	if !meta.Scope.Valid() {
-		return fmt.Errorf("invalid memory scope %q", meta.Scope)
+		return fmt.Errorf("invalid recall scope %q", meta.Scope)
 	}
 	if !meta.Status.Valid() {
-		return fmt.Errorf("invalid memory status %q", meta.Status)
+		return fmt.Errorf("invalid recall status %q", meta.Status)
 	}
 	if c := meta.Verification.Confidence; c != "" && !c.Valid() {
-		return fmt.Errorf("invalid memory confidence %q", c)
+		return fmt.Errorf("invalid recall confidence %q", c)
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"errors"
@@ -45,7 +45,7 @@ func MigrateRepository(req MigrationRequest) (MigrationReport, error) {
 		return report, err
 	}
 	if !info.IsDir() {
-		return report, errors.New("memory migration source must be a directory")
+		return report, errors.New("recall migration source must be a directory")
 	}
 
 	files, total, err := migrationInventory(source)
@@ -92,11 +92,11 @@ func MigrateRepository(req MigrationRequest) (MigrationReport, error) {
 		return report, err
 	}
 	if len(sourceSnapshot) != len(targetSnapshot) {
-		return report, errors.New("memory migration verification failed: file count changed")
+		return report, errors.New("recall migration verification failed: file count changed")
 	}
 	for path, digest := range sourceSnapshot {
 		if targetSnapshot[path] != digest {
-			return report, fmt.Errorf("memory migration verification failed: digest mismatch for %s", path)
+			return report, fmt.Errorf("recall migration verification failed: digest mismatch for %s", path)
 		}
 	}
 	store, err := NewStore(target)
@@ -127,7 +127,7 @@ func migrationInventory(root string) ([]string, int64, error) {
 			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("symlink is not allowed in memory repository: %s", path)
+			return fmt.Errorf("symlink is not allowed in recall repository: %s", path)
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
@@ -154,7 +154,7 @@ func ensureMigrationTargetEmpty(target string) error {
 		return err
 	}
 	if len(entries) != 0 {
-		return errors.New("memory migration target must be empty")
+		return errors.New("recall migration target must be empty")
 	}
 	return nil
 }

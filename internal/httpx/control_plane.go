@@ -202,7 +202,7 @@ func (s *Server) reportDeviceHeartbeat(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(request.SkillSummary, &heartbeat.Skills)
 	}
 	if len(request.RecallSyncSummary) > 0 {
-		_ = json.Unmarshal(request.RecallSyncSummary, &heartbeat.MemorySync)
+		_ = json.Unmarshal(request.RecallSyncSummary, &heartbeat.RecallSync)
 	}
 	if _, err := s.devices.Heartbeat(r.Context(), deviceID, bearerToken(r), heartbeat); err != nil {
 		writeControlPlaneError(w, err)

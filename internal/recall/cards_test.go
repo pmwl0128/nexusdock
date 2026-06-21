@@ -1,4 +1,4 @@
-package memory
+package recall
 
 import (
 	"strings"
@@ -62,7 +62,7 @@ func TestCardWriteUsesCardsPathAndReviewGate(t *testing.T) {
 		Project:    "rss-monitor",
 		Status:     StatusInbox,
 		Confidence: string(ConfidenceHigh),
-		Tags:       []string{"debugging", "memory"},
+		Tags:       []string{"debugging", "recall"},
 		Confirmed:  true,
 	})
 	if err != nil {
@@ -71,9 +71,9 @@ func TestCardWriteUsesCardsPathAndReviewGate(t *testing.T) {
 	if !strings.HasPrefix(result.Card.Path, "cards/rss-monitor/inbox/runbook/") {
 		t.Fatalf("unexpected path: %s", result.Card.Path)
 	}
-	for _, want := range []string{"type: memory-card", "card_type: runbook", "project: rss-monitor", "status: inbox"} {
-		if !strings.Contains(result.Memory.Content, want) {
-			t.Fatalf("written card missing %q: %s", want, result.Memory.Content)
+	for _, want := range []string{"type: recall-card", "card_type: runbook", "project: rss-monitor", "status: inbox"} {
+		if !strings.Contains(result.Recall.Content, want) {
+			t.Fatalf("written card missing %q: %s", want, result.Recall.Content)
 		}
 	}
 }
