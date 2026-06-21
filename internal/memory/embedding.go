@@ -102,7 +102,7 @@ type embeddingDocument struct {
 
 func NewEmbeddingService(store *Store, cfg EmbeddingConfig) *EmbeddingService {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
-		cfg.Endpoint = strings.TrimSpace(os.Getenv("MEMORYDOCK_EMBEDDING_ENDPOINT"))
+		cfg.Endpoint = strings.TrimSpace(os.Getenv("RECALLDOCK_EMBEDDING_ENDPOINT"))
 	}
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		cfg.Endpoint = DefaultEmbeddingEndpoint
@@ -114,7 +114,7 @@ func NewEmbeddingService(store *Store, cfg EmbeddingConfig) *EmbeddingService {
 		cfg.Timeout = 30 * time.Second
 	}
 	if strings.TrimSpace(cfg.IndexPath) == "" && store != nil {
-		cfg.IndexPath = filepath.Join(store.Root(), ".memorydock", "embedding-index.json")
+		cfg.IndexPath = filepath.Join(store.Root(), ".recalldock", "embedding-index.json")
 	}
 	return &EmbeddingService{store: store, cfg: cfg, client: &http.Client{Timeout: cfg.Timeout}}
 }
@@ -153,7 +153,7 @@ func (s *EmbeddingService) Status(ctx context.Context) map[string]any {
 			status["reachable"] = true
 		}
 	} else {
-		status["reason"] = "set MEMORYDOCK_EMBEDDING_ENABLED=true and MEMORYDOCK_EMBEDDING_ENDPOINT to enable BGE-M3 indexing"
+		status["reason"] = "set RECALLDOCK_EMBEDDING_ENABLED=true and RECALLDOCK_EMBEDDING_ENDPOINT to enable BGE-M3 indexing"
 	}
 	return status
 }

@@ -28,7 +28,7 @@ func TestAccessFileRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{Username: "admin", PasswordHash: hash, AccessFile: filepath.Join(dir, ".memorydock", "access.json")}
+	cfg := Config{Username: "admin", PasswordHash: hash, AccessFile: filepath.Join(dir, ".recalldock", "access.json")}
 	if err := cfg.SaveAccessFile(); err != nil {
 		t.Fatalf("SaveAccessFile: %v", err)
 	}

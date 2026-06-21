@@ -17,7 +17,7 @@ REQUIRED_PATHS = {
     "/v1/system/status",
     "/v1/backup/status",
     "/v1/devices",
-    "/v1/memories",
+    "/v1/recall",
     "/v1/artifacts",
     "/v1/artifact-fetches",
 }

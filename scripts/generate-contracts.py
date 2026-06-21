@@ -100,7 +100,6 @@ COMMAND_TYPES = [
     "skill.run",
     "skill.rollback",
     "recall.sync",
-    "memory.sync",
     "service.inspect",
     "service.restart",
     "diagnostics.collect",
@@ -163,10 +162,9 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "database": scalar("string", "SQLite 健康状态。"),
             "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
             "recall_root": scalar("string", "RecallDock 召回仓库路径。"),
-            "memory_root": scalar("string", "旧字段：RecallDock 召回仓库路径。"),
-            "artifact_root": scalar("string", "Artifact 密文存储路径。"),
+                        "artifact_root": scalar("string", "Artifact 密文存储路径。"),
         },
-        ("ok", "service", "database", "schema_version", "recall_root", "memory_root", "artifact_root"),
+        ("ok", "service", "database", "schema_version", "recall_root", "artifact_root"),
     )
     schemas["BackupHistory"] = obj(
         "一次备份执行的脱敏结果。",
@@ -312,7 +310,6 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "capabilities": array("设备能力。", ref("DeviceCapability")),
             "skill_summary": obj("设备 Runtime 上报的 Skill 状态摘要。", {}, additional=True),
             "recall_sync_summary": obj("Recall 同步摘要。", {}, additional=True),
-            "memory_sync_summary": obj("旧字段：Recall 同步摘要。", {}, additional=True),
         },
         ("device_id", "sent_at", "uptime_seconds", "agentdock_version", "metrics", "capabilities"),
     )
@@ -383,10 +380,10 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("command_id", "lease_id", "status", "started_at", "completed_at", "output"),
     )
-    schemas["MemoryEntry"] = obj(
-        "Markdown 记忆条目。",
+    schemas["RecallEntry"] = obj(
+        "Markdown 召回条目。",
         {
-            "path": scalar("string", "记忆相对路径。"),
+            "path": scalar("string", "召回相对路径。"),
             "content": scalar("string", "Markdown 或文本内容。"),
             "size_bytes": scalar("integer", "内容字节数。", minimum=0),
             "modified_at": TIMESTAMP,
@@ -416,7 +413,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "DeliveryId": path_param("deliveryId", "Delivery UUID。"),
         "FetchId": path_param("fetchId", "Artifact Fetch UUID。"),
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
-        "MemoryPath": path_param("path", "URL 编码后的记忆相对路径。", uuid=False),
+        "MemoryPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
     }
 
     def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
@@ -486,27 +483,27 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/commands/{commandId}/renew": {"post": operation("renewCommandLease", "续租设备命令", params=[p("CommandId")], request=body(ref("CommandLeaseAction")), success=ok(ref("CommandLease")))},
         "/v1/commands/{commandId}/progress": {"post": operation("reportCommandProgress", "上报设备命令进度", params=[p("CommandId")], request=body(ref("CommandProgress")), success=no_content, success_code="204")},
         "/v1/commands/{commandId}/result": {"post": operation("completeCommand", "上报设备命令结果", params=[p("CommandId")], request=body(ref("CommandResult")), success=no_content, success_code="204")},
-        "/v1/memories": {
-            "get": operation("listMemories", "列出记忆条目"),
-            "post": operation("writeMemory", "创建记忆条目", request=body(ref("MemoryEntry"))),
+        "/v1/recall": {
+            "get": operation("listRecall", "列出召回条目"),
+            "post": operation("writeRecall", "创建召回条目", request=body(ref("RecallEntry"))),
         },
-        "/v1/memories/move": {"post": operation("moveMemory", "移动记忆条目", request=body())},
-        "/v1/memories/search": {"post": operation("searchMemories", "搜索记忆内容", request=body())},
-        "/v1/memories/pack": {"post": operation("packMemories", "打包记忆条目", request=body())},
-        "/v1/notes/append": {"post": operation("appendNote", "追加记忆笔记", request=body())},
-        "/v1/memories/{path}": {
-            "get": operation("readMemory", "读取记忆条目", params=[p("MemoryPath")], success=ok(ref("MemoryEntry"))),
-            "patch": operation("patchMemory", "修改记忆条目", params=[p("MemoryPath")], request=body()),
-            "delete": operation("deleteMemory", "删除记忆条目", params=[p("MemoryPath")]),
+        "/v1/recall/move": {"post": operation("moveRecall", "移动召回条目", request=body())},
+        "/v1/recall/search": {"post": operation("searchRecall", "搜索召回内容", request=body())},
+        "/v1/recall/pack": {"post": operation("packRecall", "打包召回条目", request=body())},
+        "/v1/recall/notes/append": {"post": operation("appendRecallNote", "追加召回笔记", request=body())},
+        "/v1/recall/{path}": {
+            "get": operation("readRecall", "读取召回条目", params=[p("MemoryPath")], success=ok(ref("RecallEntry"))),
+            "patch": operation("patchRecall", "修改召回条目", params=[p("MemoryPath")], request=body()),
+            "delete": operation("deleteRecall", "删除召回条目", params=[p("MemoryPath")]),
         },
-        "/v1/sync/status": {"get": operation("getSyncStatus", "读取记忆 Git 同步状态")},
-        "/v1/git/diff": {"get": operation("getGitDiff", "读取记忆仓库变更")},
-        "/v1/git/discard": {"post": operation("discardGitChanges", "丢弃记忆仓库本地变更", request=body())},
-        "/v1/git/log": {"get": operation("getGitLog", "读取记忆仓库提交历史")},
-        "/v1/git/commit": {"get": operation("getGitCommit", "读取记忆仓库提交详情")},
-        "/v1/sync/pull": {"post": operation("pullMemory", "从远端更新记忆仓库", request=body())},
-        "/v1/sync/push": {"post": operation("pushMemory", "保存记忆仓库到远端", request=body())},
-        "/v1/sync/now": {"post": operation("syncMemoryNow", "立即双向同步记忆仓库", request=body())},
+        "/v1/sync/status": {"get": operation("getSyncStatus", "读取召回 Git 同步状态")},
+        "/v1/git/diff": {"get": operation("getGitDiff", "读取召回仓库变更")},
+        "/v1/git/discard": {"post": operation("discardGitChanges", "丢弃召回仓库本地变更", request=body())},
+        "/v1/git/log": {"get": operation("getGitLog", "读取召回仓库提交历史")},
+        "/v1/git/commit": {"get": operation("getGitCommit", "读取召回仓库提交详情")},
+        "/v1/sync/pull": {"post": operation("pullMemory", "从远端更新召回仓库", request=body())},
+        "/v1/sync/push": {"post": operation("pushMemory", "保存召回仓库到远端", request=body())},
+        "/v1/sync/now": {"post": operation("syncMemoryNow", "立即双向同步召回仓库", request=body())},
         "/v1/artifacts": {"get": operation("listArtifacts", "列出最近加密文件发送记录")},
         "/v1/artifact-fetches": {"get": operation("listArtifactFetches", "列出最近反向文件接收记录")},
         "/v1/artifacts/uploads": {"post": operation("createArtifactUpload", "创建管理员文件上传", request=body(), success_code="201")},
@@ -531,7 +528,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "info": {
             "title": "AgentDock Nexus API",
             "version": "1.0.0",
-            "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、记忆、加密文件、备份状态和账号会话。",
+            "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、召回、加密文件、备份状态和账号会话。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,

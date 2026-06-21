@@ -47,7 +47,7 @@ read_env_file() {
       value="${value:1:${#value}-2}"
     fi
     case "$key" in
-      MEMORYDOCK_*) export "$key=$value" ;;
+      RECALLDOCK_*) export "$key=$value" ;;
     esac
   done < "$file"
 }
@@ -74,24 +74,24 @@ check_compose() {
 }
 
 check_auth_policy() {
-  local host="${MEMORYDOCK_HOST:-127.0.0.1}"
-  local require="${MEMORYDOCK_REQUIRE_AUTH:-false}"
-  local user="${MEMORYDOCK_USERNAME:-}"
-  local pass="${MEMORYDOCK_PASSWORD:-}"
-  local token="${MEMORYDOCK_AUTH_TOKEN:-}"
+  local host="${RECALLDOCK_HOST:-127.0.0.1}"
+  local require="${RECALLDOCK_REQUIRE_AUTH:-false}"
+  local user="${RECALLDOCK_USERNAME:-}"
+  local pass="${RECALLDOCK_PASSWORD:-}"
+  local token="${RECALLDOCK_AUTH_TOKEN:-}"
   if [ "$require" = "true" ]; then
-    if [ -z "$token" ]; then fail 'MEMORYDOCK_REQUIRE_AUTH=true 但 MEMORYDOCK_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
-    if [ -z "$user" ] && [ -z "${MEMORYDOCK_PASSWORD_HASH:-}" ]; then fail 'MEMORYDOCK_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
-    if [ "$user" = "admin" ] && { [ "$pass" = "memorydock" ] || [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/memorydock 或 admin/recalldock'; fi
+    if [ -z "$token" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 RECALLDOCK_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
+    if [ -z "$user" ] && [ -z "${RECALLDOCK_PASSWORD_HASH:-}" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
+    if [ "$user" = "admin" ] && { [ "$pass" = "recalldock" ] || [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/recalldock 或 admin/recalldock'; fi
   elif [ "$host" != "127.0.0.1" ] && [ "$host" != "localhost" ]; then
-    warn "MEMORYDOCK_HOST=$host 不是 localhost，建议设置 MEMORYDOCK_REQUIRE_AUTH=true"
+    warn "RECALLDOCK_HOST=$host 不是 localhost，建议设置 RECALLDOCK_REQUIRE_AUTH=true"
   else
     ok '认证策略检查通过'
   fi
 }
 
 check_memory_repo() {
-  local dir="${MEMORYDOCK_STORE_DIR:-memory}"
+  local dir="${RECALLDOCK_STORE_DIR:-memory}"
   if [ ! -d "$dir" ] && [ "$dir" = "memory" ] && [ -d ../memory ]; then
     dir="../memory"
   fi
@@ -111,7 +111,7 @@ check_memory_repo() {
 }
 
 check_ports_and_health() {
-  local port="${MEMORYDOCK_PORT:-18777}"
+  local port="${RECALLDOCK_PORT:-18777}"
   if command -v lsof >/dev/null 2>&1; then
     if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then ok "端口 $port 正在监听"; else warn "端口 $port 未监听"; fi
   else
@@ -122,8 +122,8 @@ check_ports_and_health() {
   else
     warn "本地 health 失败：http://127.0.0.1:${port}/health"
   fi
-  if [ -n "${MEMORYDOCK_PUBLIC_HEALTH_URL:-}" ]; then
-    if curl -fsS "$MEMORYDOCK_PUBLIC_HEALTH_URL" >/tmp/recalldock-doctor-public-health 2>&1; then ok "公网 health 通过：$MEMORYDOCK_PUBLIC_HEALTH_URL"; else warn "公网 health 失败：$MEMORYDOCK_PUBLIC_HEALTH_URL"; fi
+  if [ -n "${RECALLDOCK_PUBLIC_HEALTH_URL:-}" ]; then
+    if curl -fsS "$RECALLDOCK_PUBLIC_HEALTH_URL" >/tmp/recalldock-doctor-public-health 2>&1; then ok "公网 health 通过：$RECALLDOCK_PUBLIC_HEALTH_URL"; else warn "公网 health 失败：$RECALLDOCK_PUBLIC_HEALTH_URL"; fi
   fi
 }
 

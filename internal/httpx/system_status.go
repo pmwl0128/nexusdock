@@ -11,7 +11,6 @@ func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 		"database":       "unavailable",
 		"schema_version": 0,
 		"recall_root":    s.store.Root(),
-		"memory_root":    s.store.Root(), // legacy compatibility field
 		"artifact_root":  "",
 	}
 	if s.artifacts != nil {

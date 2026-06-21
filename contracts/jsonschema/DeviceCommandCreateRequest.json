@@ -142,10 +142,6 @@
           "type": "string",
           "description": "RecallDock 召回仓库路径。"
         },
-        "memory_root": {
-          "type": "string",
-          "description": "旧字段：RecallDock 召回仓库路径。"
-        },
         "artifact_root": {
           "type": "string",
           "description": "Artifact 密文存储路径。"
@@ -157,7 +153,6 @@
         "database",
         "schema_version",
         "recall_root",
-        "memory_root",
         "artifact_root"
       ]
     },
@@ -482,7 +477,6 @@
               "skill.run",
               "skill.rollback",
               "recall.sync",
-              "memory.sync",
               "service.inspect",
               "service.restart",
               "diagnostics.collect",
@@ -595,7 +589,6 @@
             "skill.run",
             "skill.rollback",
             "recall.sync",
-            "memory.sync",
             "service.inspect",
             "service.restart",
             "diagnostics.collect",
@@ -773,12 +766,6 @@
           "description": "Recall 同步摘要。",
           "additionalProperties": true,
           "properties": {}
-        },
-        "memory_sync_summary": {
-          "type": "object",
-          "description": "旧字段：Recall 同步摘要。",
-          "additionalProperties": true,
-          "properties": {}
         }
       },
       "required": [
@@ -875,7 +862,6 @@
             "skill.run",
             "skill.rollback",
             "recall.sync",
-            "memory.sync",
             "service.inspect",
             "service.restart",
             "diagnostics.collect",
@@ -1106,14 +1092,14 @@
         "output"
       ]
     },
-    "MemoryEntry": {
+    "RecallEntry": {
       "type": "object",
-      "description": "Markdown 记忆条目。",
+      "description": "Markdown 召回条目。",
       "additionalProperties": false,
       "properties": {
         "path": {
           "type": "string",
-          "description": "记忆相对路径。"
+          "description": "召回相对路径。"
         },
         "content": {
           "type": "string",
@@ -1148,7 +1134,6 @@
         "skill.run",
         "skill.rollback",
         "recall.sync",
-        "memory.sync",
         "service.inspect",
         "service.restart",
         "diagnostics.collect",

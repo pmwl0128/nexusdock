@@ -306,13 +306,13 @@ func TestPersonalControlPlaneSystemStatus(t *testing.T) {
 		OK            bool   `json:"ok"`
 		Database      string `json:"database"`
 		SchemaVersion int    `json:"schema_version"`
-		MemoryRoot    string `json:"memory_root"`
+		RecallRoot    string `json:"recall_root"`
 		ArtifactRoot  string `json:"artifact_root"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
 		t.Fatal(err)
 	}
-	if !status.OK || status.Database != "ok" || status.SchemaVersion == 0 || status.MemoryRoot == "" || status.ArtifactRoot == "" {
+	if !status.OK || status.Database != "ok" || status.SchemaVersion == 0 || status.RecallRoot == "" || status.ArtifactRoot == "" {
 		t.Fatalf("unexpected system status %#v", status)
 	}
 }

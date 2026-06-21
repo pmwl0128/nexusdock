@@ -41,39 +41,31 @@ type Config struct {
 }
 
 func FromEnv() Config {
-	storeDir := getenvAny("RECALLDOCK_STORE_DIR", "MEMORYDOCK_STORE_DIR", "memory")
+	storeDir := getenv("RECALLDOCK_STORE_DIR", "recall")
 	defaultAccessFile := filepath.Join(storeDir, ".recalldock", "access.json")
-	legacyAccessFile := filepath.Join(storeDir, ".memorydock", "access.json")
-	if _, err := os.Stat(legacyAccessFile); err == nil {
-		defaultAccessFile = legacyAccessFile
-	}
 	defaultEmbeddingIndexFile := filepath.Join(storeDir, ".recalldock", "embedding-index.json")
-	legacyEmbeddingIndexFile := filepath.Join(storeDir, ".memorydock", "embedding-index.json")
-	if _, err := os.Stat(legacyEmbeddingIndexFile); err == nil {
-		defaultEmbeddingIndexFile = legacyEmbeddingIndexFile
-	}
 	cfg := Config{
-		Host:                  getenvAny("RECALLDOCK_HOST", "MEMORYDOCK_HOST", "127.0.0.1"),
-		Port:                  getenvIntAny("RECALLDOCK_PORT", "MEMORYDOCK_PORT", 18777),
+		Host:                  getenv("RECALLDOCK_HOST", "127.0.0.1"),
+		Port:                  getenvInt("RECALLDOCK_PORT", 18777),
 		StoreDir:              storeDir,
-		AuthToken:             firstNonEmpty(os.Getenv("RECALLDOCK_AUTH_TOKEN"), os.Getenv("MEMORYDOCK_AUTH_TOKEN")),
-		Username:              firstNonEmpty(os.Getenv("RECALLDOCK_USERNAME"), os.Getenv("MEMORYDOCK_USERNAME")),
-		Password:              firstNonEmpty(os.Getenv("RECALLDOCK_PASSWORD"), os.Getenv("MEMORYDOCK_PASSWORD")),
-		PasswordHash:          firstNonEmpty(os.Getenv("RECALLDOCK_PASSWORD_HASH"), os.Getenv("MEMORYDOCK_PASSWORD_HASH")),
-		AccessFile:            getenvAny("RECALLDOCK_ACCESS_FILE", "MEMORYDOCK_ACCESS_FILE", defaultAccessFile),
-		RequireAuth:           getenvBoolAny("RECALLDOCK_REQUIRE_AUTH", "MEMORYDOCK_REQUIRE_AUTH", false),
+		AuthToken:             os.Getenv("RECALLDOCK_AUTH_TOKEN"),
+		Username:              strings.TrimSpace(os.Getenv("RECALLDOCK_USERNAME")),
+		Password:              os.Getenv("RECALLDOCK_PASSWORD"),
+		PasswordHash:          strings.TrimSpace(os.Getenv("RECALLDOCK_PASSWORD_HASH")),
+		AccessFile:            getenv("RECALLDOCK_ACCESS_FILE", defaultAccessFile),
+		RequireAuth:           getenvBool("RECALLDOCK_REQUIRE_AUTH", false),
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
-		AutoSync:              getenvBoolAny("RECALLDOCK_AUTO_SYNC", "MEMORYDOCK_AUTO_SYNC", false),
-		PullInterval:          time.Duration(getenvIntAny("RECALLDOCK_PULL_INTERVAL_SECONDS", "MEMORYDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
-		PushDebounce:          time.Duration(getenvIntAny("RECALLDOCK_PUSH_DEBOUNCE_SECONDS", "MEMORYDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
-		CommitMessage:         getenvAny("RECALLDOCK_COMMIT_MESSAGE", "MEMORYDOCK_COMMIT_MESSAGE", "recall: 自动同步召回库"),
-		LogLevelName:          getenvAny("RECALLDOCK_LOG_LEVEL", "MEMORYDOCK_LOG_LEVEL", "info"),
-		EmbeddingEnabled:      getenvBoolAny("RECALLDOCK_EMBEDDING_ENABLED", "MEMORYDOCK_EMBEDDING_ENABLED", false),
-		EmbeddingEndpoint:     firstNonEmpty(os.Getenv("RECALLDOCK_EMBEDDING_ENDPOINT"), os.Getenv("MEMORYDOCK_EMBEDDING_ENDPOINT")),
-		EmbeddingModel:        getenvAny("RECALLDOCK_EMBEDDING_MODEL", "MEMORYDOCK_EMBEDDING_MODEL", "BAAI/bge-m3"),
-		EmbeddingIndexFile:    getenvAny("RECALLDOCK_EMBEDDING_INDEX_FILE", "MEMORYDOCK_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
-		EmbeddingTimeout:      time.Duration(getenvIntAny("RECALLDOCK_EMBEDDING_TIMEOUT_SECONDS", "MEMORYDOCK_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
+		AutoSync:              getenvBool("RECALLDOCK_AUTO_SYNC", false),
+		PullInterval:          time.Duration(getenvInt("RECALLDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
+		PushDebounce:          time.Duration(getenvInt("RECALLDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
+		CommitMessage:         getenv("RECALLDOCK_COMMIT_MESSAGE", "recall: 自动同步召回库"),
+		LogLevelName:          getenv("RECALLDOCK_LOG_LEVEL", "info"),
+		EmbeddingEnabled:      getenvBool("RECALLDOCK_EMBEDDING_ENABLED", false),
+		EmbeddingEndpoint:     strings.TrimSpace(os.Getenv("RECALLDOCK_EMBEDDING_ENDPOINT")),
+		EmbeddingModel:        getenv("RECALLDOCK_EMBEDDING_MODEL", "BAAI/bge-m3"),
+		EmbeddingIndexFile:    getenv("RECALLDOCK_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
+		EmbeddingTimeout:      time.Duration(getenvInt("RECALLDOCK_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
 	_ = cfg.LoadAccessFile()
 	return cfg
@@ -312,7 +304,7 @@ func (c Config) ValidateStartup() error {
 		return nil
 	}
 	if strings.TrimSpace(c.AuthToken) == "" {
-		return errors.New("MEMORYDOCK_REQUIRE_AUTH=true requires MEMORYDOCK_AUTH_TOKEN for programmatic API access")
+		return errors.New("RECALLDOCK_REQUIRE_AUTH=true requires RECALLDOCK_AUTH_TOKEN for programmatic API access")
 	}
 	return nil
 }

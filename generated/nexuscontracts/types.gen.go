@@ -56,8 +56,6 @@ type SystemStatus struct {
 	SchemaVersion int64 `json:"schema_version"`
 	// RecallRoot RecallDock 召回仓库路径。
 	RecallRoot string `json:"recall_root"`
-	// MemoryRoot 旧字段：RecallDock 召回仓库路径。
-	MemoryRoot string `json:"memory_root"`
 	// ArtifactRoot Artifact 密文存储路径。
 	ArtifactRoot string `json:"artifact_root"`
 }
@@ -266,8 +264,6 @@ type DeviceHeartbeat struct {
 	SkillSummary json.RawMessage `json:"skill_summary,omitempty"`
 	// RecallSyncSummary Recall 同步摘要。
 	RecallSyncSummary json.RawMessage `json:"recall_sync_summary,omitempty"`
-	// MemorySyncSummary 旧字段：Recall 同步摘要。
-	MemorySyncSummary json.RawMessage `json:"memory_sync_summary,omitempty"`
 }
 
 // DeviceStatus 设备控制面状态。
@@ -364,9 +360,9 @@ type CommandResult struct {
 	RunId *string `json:"run_id,omitempty"`
 }
 
-// MemoryEntry Markdown 记忆条目。
-type MemoryEntry struct {
-	// Path 记忆相对路径。
+// RecallEntry Markdown 召回条目。
+type RecallEntry struct {
+	// Path 召回相对路径。
 	Path string `json:"path"`
 	// Content Markdown 或文本内容。
 	Content *string `json:"content,omitempty"`

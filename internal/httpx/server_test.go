@@ -48,12 +48,12 @@ func TestHealthDoesNotRequireAuth(t *testing.T) {
 func TestV1BearerTokenOnly(t *testing.T) {
 	h := newTestHandler(t, config.Config{AuthToken: "token", Username: "admin", Password: "secret"})
 
-	res := doJSON(t, h, http.MethodGet, "/v1/memories", "")
+	res := doJSON(t, h, http.MethodGet, "/v1/recall", "")
 	if res.Code != http.StatusUnauthorized {
 		t.Fatalf("missing credentials status = %d", res.Code)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/memories", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/recall", nil)
 	req.Header.Set("Authorization", "Bearer token")
 	res = httptest.NewRecorder()
 	h.ServeHTTP(res, req)
@@ -83,7 +83,7 @@ func TestUIAssetMissDoesNotFallbackToIndex(t *testing.T) {
 
 func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
-	res := doJSON(t, h, http.MethodPost, "/v1/memories", `{"path":"profile.md","content":"# Profile"}`)
+	res := doJSON(t, h, http.MethodPost, "/v1/recall", `{"path":"profile.md","content":"# Profile"}`)
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("write without confirmation status=%d body=%s", res.Code, res.Body.String())
 	}
@@ -95,15 +95,15 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 		t.Fatalf("unexpected error shape: %#v", payload)
 	}
 
-	res = doJSON(t, h, http.MethodPost, "/v1/memories", `{"path":"profile.md","content":"# Profile","confirmed":true}`)
+	res = doJSON(t, h, http.MethodPost, "/v1/recall", `{"path":"profile.md","content":"# Profile","confirmed":true}`)
 	if res.Code != http.StatusOK {
 		t.Fatalf("confirmed write status=%d body=%s", res.Code, res.Body.String())
 	}
-	res = doJSON(t, h, http.MethodPost, "/v1/memories/move", `{"from_path":"profile.md","to_path":"projects/demo/project.md"}`)
+	res = doJSON(t, h, http.MethodPost, "/v1/recall/move", `{"from_path":"profile.md","to_path":"projects/demo/project.md"}`)
 	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), "confirmed") {
 		t.Fatalf("move without confirmation status=%d body=%s", res.Code, res.Body.String())
 	}
-	res = doJSON(t, h, http.MethodDelete, "/v1/memories/profile.md", "")
+	res = doJSON(t, h, http.MethodDelete, "/v1/recall/profile.md", "")
 	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), "confirmed") {
 		t.Fatalf("delete without confirmation status=%d body=%s", res.Code, res.Body.String())
 	}
@@ -112,7 +112,7 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
 	captureBody := `{"title":"Deploy check","content":"Deployment must verify the final service endpoint instead of only source files.","type":"project_trap","scope":"project","project":"chatdock","status":"inbox","confidence":"high"}`
-	res := doJSON(t, h, http.MethodPost, "/v1/cards/capture", captureBody)
+	res := doJSON(t, h, http.MethodPost, "/v1/recall/cards/capture", captureBody)
 	if res.Code != http.StatusOK {
 		t.Fatalf("capture status=%d body=%s", res.Code, res.Body.String())
 	}
@@ -121,7 +121,7 @@ func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 	}
 
 	writeBody := `{"title":"Deploy check","content":"Deployment must verify the final service endpoint instead of only source files.","type":"project_trap","scope":"project","project":"chatdock","status":"inbox","confidence":"high","confirmed":true}`
-	res = doJSON(t, h, http.MethodPost, "/v1/cards", writeBody)
+	res = doJSON(t, h, http.MethodPost, "/v1/recall/cards", writeBody)
 	if res.Code != http.StatusOK {
 		t.Fatalf("write status=%d body=%s", res.Code, res.Body.String())
 	}
@@ -129,7 +129,7 @@ func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 		t.Fatalf("write response missing card path: %s", res.Body.String())
 	}
 
-	res = doJSON(t, h, http.MethodPost, "/v1/cards/search", `{"query":"service endpoint","max_results":5}`)
+	res = doJSON(t, h, http.MethodPost, "/v1/recall/cards/search", `{"query":"service endpoint","max_results":5}`)
 	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Deploy check") {
 		t.Fatalf("search status=%d body=%s", res.Code, res.Body.String())
 	}

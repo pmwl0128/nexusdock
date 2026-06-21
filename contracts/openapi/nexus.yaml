@@ -3,7 +3,7 @@
   "info": {
     "title": "AgentDock Nexus API",
     "version": "1.0.0",
-    "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、记忆、加密文件、备份状态和账号会话。"
+    "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、召回、加密文件、备份状态和账号会话。"
   },
   "servers": [
     {
@@ -3208,10 +3208,10 @@
         ]
       }
     },
-    "/v1/memories": {
+    "/v1/recall": {
       "get": {
-        "operationId": "listMemories",
-        "summary": "列出记忆条目",
+        "operationId": "listRecall",
+        "summary": "列出召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3311,8 +3311,8 @@
         }
       },
       "post": {
-        "operationId": "writeMemory",
-        "summary": "创建记忆条目",
+        "operationId": "writeRecall",
+        "summary": "创建召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3415,17 +3415,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MemoryEntry"
+                "$ref": "#/components/schemas/RecallEntry"
               }
             }
           }
         }
       }
     },
-    "/v1/memories/move": {
+    "/v1/recall/move": {
       "post": {
-        "operationId": "moveMemory",
-        "summary": "移动记忆条目",
+        "operationId": "moveRecall",
+        "summary": "移动召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3535,10 +3535,10 @@
         }
       }
     },
-    "/v1/memories/search": {
+    "/v1/recall/search": {
       "post": {
-        "operationId": "searchMemories",
-        "summary": "搜索记忆内容",
+        "operationId": "searchRecall",
+        "summary": "搜索召回内容",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3648,10 +3648,10 @@
         }
       }
     },
-    "/v1/memories/pack": {
+    "/v1/recall/pack": {
       "post": {
-        "operationId": "packMemories",
-        "summary": "打包记忆条目",
+        "operationId": "packRecall",
+        "summary": "打包召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3761,10 +3761,10 @@
         }
       }
     },
-    "/v1/notes/append": {
+    "/v1/recall/notes/append": {
       "post": {
-        "operationId": "appendNote",
-        "summary": "追加记忆笔记",
+        "operationId": "appendRecallNote",
+        "summary": "追加召回笔记",
         "responses": {
           "200": {
             "description": "成功。",
@@ -3874,17 +3874,17 @@
         }
       }
     },
-    "/v1/memories/{path}": {
+    "/v1/recall/{path}": {
       "get": {
-        "operationId": "readMemory",
-        "summary": "读取记忆条目",
+        "operationId": "readRecall",
+        "summary": "读取召回条目",
         "responses": {
           "200": {
             "description": "成功。",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemoryEntry"
+                  "$ref": "#/components/schemas/RecallEntry"
                 }
               }
             }
@@ -3982,8 +3982,8 @@
         ]
       },
       "patch": {
-        "operationId": "patchMemory",
-        "summary": "修改记忆条目",
+        "operationId": "patchRecall",
+        "summary": "修改召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4098,8 +4098,8 @@
         ]
       },
       "delete": {
-        "operationId": "deleteMemory",
-        "summary": "删除记忆条目",
+        "operationId": "deleteRecall",
+        "summary": "删除召回条目",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4207,7 +4207,7 @@
     "/v1/sync/status": {
       "get": {
         "operationId": "getSyncStatus",
-        "summary": "读取记忆 Git 同步状态",
+        "summary": "读取召回 Git 同步状态",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4310,7 +4310,7 @@
     "/v1/git/diff": {
       "get": {
         "operationId": "getGitDiff",
-        "summary": "读取记忆仓库变更",
+        "summary": "读取召回仓库变更",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4413,7 +4413,7 @@
     "/v1/git/discard": {
       "post": {
         "operationId": "discardGitChanges",
-        "summary": "丢弃记忆仓库本地变更",
+        "summary": "丢弃召回仓库本地变更",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4526,7 +4526,7 @@
     "/v1/git/log": {
       "get": {
         "operationId": "getGitLog",
-        "summary": "读取记忆仓库提交历史",
+        "summary": "读取召回仓库提交历史",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4629,7 +4629,7 @@
     "/v1/git/commit": {
       "get": {
         "operationId": "getGitCommit",
-        "summary": "读取记忆仓库提交详情",
+        "summary": "读取召回仓库提交详情",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4732,7 +4732,7 @@
     "/v1/sync/pull": {
       "post": {
         "operationId": "pullMemory",
-        "summary": "从远端更新记忆仓库",
+        "summary": "从远端更新召回仓库",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4845,7 +4845,7 @@
     "/v1/sync/push": {
       "post": {
         "operationId": "pushMemory",
-        "summary": "保存记忆仓库到远端",
+        "summary": "保存召回仓库到远端",
         "responses": {
           "200": {
             "description": "成功。",
@@ -4958,7 +4958,7 @@
     "/v1/sync/now": {
       "post": {
         "operationId": "syncMemoryNow",
-        "summary": "立即双向同步记忆仓库",
+        "summary": "立即双向同步召回仓库",
         "responses": {
           "200": {
             "description": "成功。",
@@ -6850,7 +6850,7 @@
         "name": "path",
         "in": "path",
         "required": true,
-        "description": "URL 编码后的记忆相对路径。",
+        "description": "URL 编码后的召回相对路径。",
         "schema": {
           "type": "string"
         }
@@ -6996,10 +6996,6 @@
             "type": "string",
             "description": "RecallDock 召回仓库路径。"
           },
-          "memory_root": {
-            "type": "string",
-            "description": "旧字段：RecallDock 召回仓库路径。"
-          },
           "artifact_root": {
             "type": "string",
             "description": "Artifact 密文存储路径。"
@@ -7011,7 +7007,6 @@
           "database",
           "schema_version",
           "recall_root",
-          "memory_root",
           "artifact_root"
         ]
       },
@@ -7336,7 +7331,6 @@
                 "skill.run",
                 "skill.rollback",
                 "recall.sync",
-                "memory.sync",
                 "service.inspect",
                 "service.restart",
                 "diagnostics.collect",
@@ -7449,7 +7443,6 @@
               "skill.run",
               "skill.rollback",
               "recall.sync",
-              "memory.sync",
               "service.inspect",
               "service.restart",
               "diagnostics.collect",
@@ -7627,12 +7620,6 @@
             "description": "Recall 同步摘要。",
             "additionalProperties": true,
             "properties": {}
-          },
-          "memory_sync_summary": {
-            "type": "object",
-            "description": "旧字段：Recall 同步摘要。",
-            "additionalProperties": true,
-            "properties": {}
           }
         },
         "required": [
@@ -7729,7 +7716,6 @@
               "skill.run",
               "skill.rollback",
               "recall.sync",
-              "memory.sync",
               "service.inspect",
               "service.restart",
               "diagnostics.collect",
@@ -7960,14 +7946,14 @@
           "output"
         ]
       },
-      "MemoryEntry": {
+      "RecallEntry": {
         "type": "object",
-        "description": "Markdown 记忆条目。",
+        "description": "Markdown 召回条目。",
         "additionalProperties": false,
         "properties": {
           "path": {
             "type": "string",
-            "description": "记忆相对路径。"
+            "description": "召回相对路径。"
           },
           "content": {
             "type": "string",

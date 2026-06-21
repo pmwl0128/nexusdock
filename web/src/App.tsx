@@ -107,7 +107,6 @@ type SystemStatus = {
   database: string;
   schema_version: number;
   recall_root?: string;
-  memory_root?: string;
   artifact_root: string;
 };
 
@@ -362,7 +361,7 @@ function FetchCard({ fetch }: { fetch: FetchJob }) {
 }
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'recalldock', database: 'unknown', schema_version: 0, recall_root: '', memory_root: '', artifact_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'recalldock', database: 'unknown', schema_version: 0, recall_root: '', artifact_root: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
@@ -371,7 +370,7 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
         <SettingValue label="服务" value={system.data.service || 'recalldock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
-        <SettingValue label="召回仓库" value={(system.data.recall_root || system.data.memory_root) || '暂无'} mono />
+        <SettingValue label="召回仓库" value={system.data.recall_root || '暂无'} mono />
         <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup.data} />

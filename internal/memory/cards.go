@@ -113,7 +113,7 @@ func (s *Store) CaptureCard(req CardRequest) (CardCaptureResult, error) {
 		"auto_write":         false,
 		"needs_review":       true,
 		"target_path":        card.Path,
-		"write_endpoint":     "POST /v1/cards",
+		"write_endpoint":     "POST /v1/recall/cards",
 		"write_status":       string(card.Status),
 	}
 	return CardCaptureResult{OK: true, Card: card, Warnings: warnings, CapturePlan: plan, SimilarResults: similar, SimilarCount: len(similar)}, nil
@@ -134,7 +134,7 @@ func (s *Store) WriteCard(req CardRequest) (CardWriteResult, error) {
 	if err != nil {
 		return CardWriteResult{}, err
 	}
-	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Memory: mem, IndexPolicy: "cards are indexed through MemoryDock search over path, title, frontmatter and body; external embedding index may rebuild from cards/"}, nil
+	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Memory: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from cards/"}, nil
 }
 
 func normalizeCard(req CardRequest) (Card, []string, error) {

@@ -383,7 +383,7 @@ export default function RecallWorkspace() {
     }
     setBusy(true);
     try {
-      const result = await api<CardCaptureResult>('/v1/cards/capture', {
+      const result = await api<CardCaptureResult>('/v1/recall/cards/capture', {
         method: 'POST',
         body: JSON.stringify(cardPayload({ max_results: 6 })),
       });
@@ -409,7 +409,7 @@ export default function RecallWorkspace() {
     }
     setBusy(true);
     try {
-      const result = await api<CardWriteResult>('/v1/cards', {
+      const result = await api<CardWriteResult>('/v1/recall/cards', {
         method: 'POST',
         body: JSON.stringify(cardPayload({ confirmed: true, overwrite: false, allow_warnings: allowCardWarnings })),
       });
@@ -543,7 +543,7 @@ export default function RecallWorkspace() {
             <span className={`mem-lite-health ${cardCapture?.warnings?.length ? 'warn' : 'ok'}`}>{cardCapture ? '候选已生成' : '待捕获'}</span>
           </div>
           <form className="mem-card-form" onSubmit={(event) => void captureCard(event)}>
-            <label><span>标题</span><input value={cardTitle} onChange={(event) => setCardTitle(event.target.value)} placeholder="例如：MemoryDock BGE-M3 标准入口" /></label>
+            <label><span>标题</span><input value={cardTitle} onChange={(event) => setCardTitle(event.target.value)} placeholder="例如：RecallDock BGE-M3 标准入口" /></label>
             <label><span>项目</span><input value={cardProject} onChange={(event) => setCardProject(event.target.value)} /></label>
             <label><span>类型</span><select value={cardType} onChange={(event) => setCardType(event.target.value)}><option value="runbook">runbook</option><option value="bug_pattern">bug_pattern</option><option value="deploy_note">deploy_note</option><option value="project_trap">project_trap</option><option value="architecture">architecture</option><option value="decision">decision</option><option value="anti_pattern">anti_pattern</option><option value="preference">preference</option></select></label>
             <label><span>来源</span><input value={cardSource} onChange={(event) => setCardSource(event.target.value)} /></label>
