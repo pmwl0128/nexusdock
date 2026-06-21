@@ -4,7 +4,7 @@ import {
   CircleAlert, Database, FileArchive, HardDrive, Home, Menu, RefreshCw,
   Server, Settings, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
-import MemoryWorkspace from './MemoryWorkspace';
+import RecallWorkspace from './MemoryWorkspace';
 import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
@@ -106,7 +106,8 @@ type SystemStatus = {
   service: string;
   database: string;
   schema_version: number;
-  memory_root: string;
+  recall_root?: string;
+  memory_root?: string;
   artifact_root: string;
 };
 
@@ -115,7 +116,7 @@ type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
-  { id: 'memory', label: '记忆', icon: Database },
+  { id: 'memory', label: '召回', icon: Database },
   { id: 'files', label: '文件', icon: FileArchive },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -227,7 +228,7 @@ export default function App() {
         <button className="nexus-memory-return" onClick={() => navigate('home')}>
           <ChevronRight size={15} /> 返回 Nexus
         </button>
-        <MemoryWorkspace />
+        <RecallWorkspace />
         {sessionExpired && <SessionExpiredDialog />}
       </div>
     );
@@ -361,16 +362,16 @@ function FetchCard({ fetch }: { fetch: FetchJob }) {
 }
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'memorydock', database: 'unknown', schema_version: 0, memory_root: '', artifact_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'recalldock', database: 'unknown', schema_version: 0, recall_root: '', memory_root: '', artifact_root: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
       <Panel title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
-        <SettingValue label="服务" value={system.data.service || 'memorydock'} tone={system.data.ok ? 'ok' : 'danger'} />
+        <SettingValue label="服务" value={system.data.service || 'recalldock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
-        <SettingValue label="记忆仓库" value={system.data.memory_root || '暂无'} mono />
+        <SettingValue label="召回仓库" value={(system.data.recall_root || system.data.memory_root) || '暂无'} mono />
         <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup.data} />

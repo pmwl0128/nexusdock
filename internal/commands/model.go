@@ -14,7 +14,8 @@ const (
 	TypeSkillInstall       Type = "skill.install"
 	TypeSkillRun           Type = "skill.run"
 	TypeSkillRollback      Type = "skill.rollback"
-	TypeMemorySync         Type = "memory.sync"
+	TypeRecallSync         Type = "recall.sync"
+	TypeMemorySync         Type = "memory.sync" // legacy alias
 	TypeServiceInspect     Type = "service.inspect"
 	TypeServiceRestart     Type = "service.restart"
 	TypeDiagnosticsCollect Type = "diagnostics.collect"
@@ -26,7 +27,7 @@ const (
 
 var allowedTypes = map[Type]struct{}{
 	TypeHealthCheck: {}, TypeSkillInstall: {}, TypeSkillRun: {},
-	TypeSkillRollback: {}, TypeMemorySync: {}, TypeServiceInspect: {},
+	TypeSkillRollback: {}, TypeRecallSync: {}, TypeMemorySync: {}, TypeServiceInspect: {},
 	TypeServiceRestart: {}, TypeDiagnosticsCollect: {}, TypeAgentDockReload: {},
 	TypeEnvManage: {}, TypeArtifactPull: {}, TypeArtifactFetch: {},
 }

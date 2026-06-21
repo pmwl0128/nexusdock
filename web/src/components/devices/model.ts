@@ -1,7 +1,7 @@
 import type { CommandStatus, CommandType, DeviceStatus, RiskLevel } from '../../api/types';
 
 export const COMMAND_TYPES: CommandType[] = [
-  'health.check', 'memory.sync', 'service.inspect', 'service.restart',
+  'health.check', 'recall.sync', 'service.inspect', 'service.restart',
   'diagnostics.collect', 'agentdock.reload', 'env.manage',
 ];
 
@@ -20,7 +20,7 @@ export const COMMAND_LABELS: Record<CommandType, string> = {
   'skill.install': '安装 Skill',
   'skill.run': '运行 Skill',
   'skill.rollback': '回退 Skill',
-  'memory.sync': '同步 Memory',
+  'recall.sync': '同步 Recall',
   'service.inspect': '检查服务',
   'service.restart': '重启服务',
   'diagnostics.collect': '收集诊断',
@@ -33,7 +33,7 @@ export const DEFAULT_RISK: Record<CommandType, RiskLevel> = {
   'skill.install': 'medium',
   'skill.run': 'medium',
   'skill.rollback': 'medium',
-  'memory.sync': 'low',
+  'recall.sync': 'low',
   'service.inspect': 'low',
   'service.restart': 'high',
   'diagnostics.collect': 'low',
@@ -60,7 +60,7 @@ export function buildCommandPayload(type: CommandType, fields: Record<string, st
     case 'skill.run':
     case 'skill.rollback':
       throw new Error('Nexus 人工界面不提供 Skill 生命周期命令');
-    case 'memory.sync': return compact({ direction: fields.direction });
+    case 'recall.sync': return compact({ direction: fields.direction });
     case 'service.inspect':
     case 'service.restart': return compact({ service: fields.service });
     case 'diagnostics.collect': return compact({ scope: fields.scope, include_logs: fields.include_logs });

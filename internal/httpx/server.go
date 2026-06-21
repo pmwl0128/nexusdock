@@ -101,6 +101,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/memories/", protected(s.readMemory))
 	mux.HandleFunc("PATCH /v1/memories/", protected(s.patchMemory))
 	mux.HandleFunc("DELETE /v1/memories/", protected(s.deleteMemory))
+	// RecallDock canonical API aliases. Legacy /v1/memories and /v1/notes remain for AgentDock/backward compatibility.
+	mux.HandleFunc("GET /v1/recall", protected(s.listMemories))
+	mux.HandleFunc("POST /v1/recall", protected(s.writeMemory))
+	mux.HandleFunc("POST /v1/recall/move", protected(s.moveMemory))
+	mux.HandleFunc("POST /v1/recall/search", protected(s.searchMemories))
+	mux.HandleFunc("POST /v1/recall/pack", protected(s.packMemories))
+	mux.HandleFunc("POST /v1/recall/notes/append", protected(s.appendNote))
+	mux.HandleFunc("GET /v1/recall/", protected(s.readMemory))
+	mux.HandleFunc("PATCH /v1/recall/", protected(s.patchMemory))
+	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteMemory))
 	if s.devices != nil && s.commands != nil {
 		s.registerControlPlaneRoutes(mux)
 	}
@@ -114,7 +124,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "memorydock"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "recalldock"})
 }
 
 func (s *Server) syncStatus(w http.ResponseWriter, r *http.Request) {
@@ -439,12 +449,13 @@ func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
 
 func memoryPath(r *http.Request) (string, error) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/memories/")
+	path = strings.TrimPrefix(path, "/v1/recall/")
 	path, err := url.PathUnescape(path)
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(path) == "" {
-		return "", errors.New("memory path is required")
+		return "", errors.New("recall path is required")
 	}
 	return path, nil
 }

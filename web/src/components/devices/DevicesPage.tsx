@@ -264,7 +264,7 @@ function CommandCreateDialog({ snapshot, onClose, onComplete }: { snapshot: Devi
 function CommandFields({ type, fields, setFields }: { type: CommandType; fields: Record<string, string | boolean>; setFields: (value: Record<string, string | boolean>) => void }) {
   const field = (key: string, value: string | boolean) => setFields({ ...fields, [key]: value });
   if (type === 'health.check') return <p className="nx-muted">健康检查无需额外参数。</p>;
-  if (type === 'memory.sync') return <label><span>同步方向</span><select value={String(fields.direction ?? 'bidirectional')} onChange={(event) => field('direction', event.target.value)}><option value="bidirectional">双向</option><option value="pull">拉取</option><option value="push">推送</option></select></label>;
+  if (type === 'recall.sync') return <label><span>同步方向</span><select value={String(fields.direction ?? 'bidirectional')} onChange={(event) => field('direction', event.target.value)}><option value="bidirectional">双向</option><option value="pull">拉取</option><option value="push">推送</option></select></label>;
   if (type === 'service.inspect' || type === 'service.restart') return <TextField label="受控服务名" required value={String(fields.service ?? '')} onChange={(value) => field('service', value)} />;
   if (type === 'diagnostics.collect') return <div className="nx-form-grid"><TextField label="诊断范围" value={String(fields.scope ?? 'standard')} onChange={(value) => field('scope', value)} /><label className="nx-confirm-check"><input type="checkbox" checked={Boolean(fields.include_logs)} onChange={(event) => field('include_logs', event.target.checked)} />包含脱敏日志</label></div>;
   return <TextField label="重载原因" required value={String(fields.reason ?? '')} onChange={(value) => field('reason', value)} />;

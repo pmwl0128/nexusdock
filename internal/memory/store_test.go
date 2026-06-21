@@ -34,7 +34,7 @@ func TestAllowedMemoryPaths(t *testing.T) {
 	allowed := []string{
 		"profile.md",
 		"devices/codingmini.md",
-		"ops/memorydock.md",
+		"ops/recalldock.md",
 		"projects/agentdock/project.md",
 		"projects/agentdock/environment.md",
 		"projects/agentdock/runbooks/deploy.md",

@@ -50,7 +50,7 @@ export type CommandType =
   | 'skill.install'
   | 'skill.run'
   | 'skill.rollback'
-  | 'memory.sync'
+  | 'recall.sync'
   | 'service.inspect'
   | 'service.restart'
   | 'diagnostics.collect'

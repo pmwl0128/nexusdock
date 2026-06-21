@@ -138,9 +138,13 @@
           "description": "数据库 Schema 版本。",
           "minimum": 0
         },
+        "recall_root": {
+          "type": "string",
+          "description": "RecallDock 召回仓库路径。"
+        },
         "memory_root": {
           "type": "string",
-          "description": "记忆仓库路径。"
+          "description": "旧字段：RecallDock 召回仓库路径。"
         },
         "artifact_root": {
           "type": "string",
@@ -152,6 +156,7 @@
         "service",
         "database",
         "schema_version",
+        "recall_root",
         "memory_root",
         "artifact_root"
       ]
@@ -476,6 +481,7 @@
               "skill.install",
               "skill.run",
               "skill.rollback",
+              "recall.sync",
               "memory.sync",
               "service.inspect",
               "service.restart",
@@ -588,6 +594,7 @@
             "skill.install",
             "skill.run",
             "skill.rollback",
+            "recall.sync",
             "memory.sync",
             "service.inspect",
             "service.restart",
@@ -761,9 +768,15 @@
           "additionalProperties": true,
           "properties": {}
         },
+        "recall_sync_summary": {
+          "type": "object",
+          "description": "Recall 同步摘要。",
+          "additionalProperties": true,
+          "properties": {}
+        },
         "memory_sync_summary": {
           "type": "object",
-          "description": "Memory 同步摘要。",
+          "description": "旧字段：Recall 同步摘要。",
           "additionalProperties": true,
           "properties": {}
         }
@@ -861,6 +874,7 @@
             "skill.install",
             "skill.run",
             "skill.rollback",
+            "recall.sync",
             "memory.sync",
             "service.inspect",
             "service.restart",
@@ -1146,6 +1160,7 @@
           "skill.install",
           "skill.run",
           "skill.rollback",
+          "recall.sync",
           "memory.sync",
           "service.inspect",
           "service.restart",

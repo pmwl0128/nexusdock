@@ -1,6 +1,6 @@
 # AgentDock Nexus 当前公共契约
 
-`contracts/` 只描述 Nexus 当前生产服务 `cmd/memorydock` 的真实 HTTP 能力，是 Web、AgentDock 节点和外部集成的协议来源。
+`contracts/` 只描述 Nexus 当前生产服务 `cmd/recalldock` 的真实 HTTP 能力，是 Web、AgentDock 节点和外部集成的协议来源。
 
 ## 当前内容
 

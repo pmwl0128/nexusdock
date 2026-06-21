@@ -54,7 +54,9 @@ type SystemStatus struct {
 	Database string `json:"database"`
 	// SchemaVersion 数据库 Schema 版本。
 	SchemaVersion int64 `json:"schema_version"`
-	// MemoryRoot 记忆仓库路径。
+	// RecallRoot RecallDock 召回仓库路径。
+	RecallRoot string `json:"recall_root"`
+	// MemoryRoot 旧字段：RecallDock 召回仓库路径。
 	MemoryRoot string `json:"memory_root"`
 	// ArtifactRoot Artifact 密文存储路径。
 	ArtifactRoot string `json:"artifact_root"`
@@ -262,7 +264,9 @@ type DeviceHeartbeat struct {
 	Capabilities []DeviceCapability `json:"capabilities"`
 	// SkillSummary 设备 Runtime 上报的 Skill 状态摘要。
 	SkillSummary json.RawMessage `json:"skill_summary,omitempty"`
-	// MemorySyncSummary Memory 同步摘要。
+	// RecallSyncSummary Recall 同步摘要。
+	RecallSyncSummary json.RawMessage `json:"recall_sync_summary,omitempty"`
+	// MemorySyncSummary 旧字段：Recall 同步摘要。
 	MemorySyncSummary json.RawMessage `json:"memory_sync_summary,omitempty"`
 }
 

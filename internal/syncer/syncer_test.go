@@ -32,8 +32,8 @@ func initRepo(t *testing.T) string {
 	}
 	runGit(t, base, "init", "--bare", "remote.git")
 	runGit(t, dir, "init", "-b", "main")
-	runGit(t, dir, "config", "user.email", "memorydock@example.invalid")
-	runGit(t, dir, "config", "user.name", "MemoryDock Test")
+	runGit(t, dir, "config", "user.email", "recalldock@example.invalid")
+	runGit(t, dir, "config", "user.name", "RecallDock Test")
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Memory\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

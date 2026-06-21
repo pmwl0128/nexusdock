@@ -58,7 +58,7 @@ func runAdminCommand(ctx context.Context, cfg config.Config) error {
 		}
 		return service.RotateAdminCredential(ctx, username, secret)
 	default:
-		return errors.New("usage: memorydock admin <init|recover> [username]")
+		return errors.New("usage: recalldock admin <init|recover> [username]")
 	}
 }
 

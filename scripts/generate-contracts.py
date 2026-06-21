@@ -99,6 +99,7 @@ COMMAND_TYPES = [
     "skill.install",
     "skill.run",
     "skill.rollback",
+    "recall.sync",
     "memory.sync",
     "service.inspect",
     "service.restart",
@@ -161,10 +162,11 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "service": scalar("string", "服务名称。"),
             "database": scalar("string", "SQLite 健康状态。"),
             "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
-            "memory_root": scalar("string", "记忆仓库路径。"),
+            "recall_root": scalar("string", "RecallDock 召回仓库路径。"),
+            "memory_root": scalar("string", "旧字段：RecallDock 召回仓库路径。"),
             "artifact_root": scalar("string", "Artifact 密文存储路径。"),
         },
-        ("ok", "service", "database", "schema_version", "memory_root", "artifact_root"),
+        ("ok", "service", "database", "schema_version", "recall_root", "memory_root", "artifact_root"),
     )
     schemas["BackupHistory"] = obj(
         "一次备份执行的脱敏结果。",
@@ -309,7 +311,8 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "metrics": obj("基础资源指标。", {}, additional=True),
             "capabilities": array("设备能力。", ref("DeviceCapability")),
             "skill_summary": obj("设备 Runtime 上报的 Skill 状态摘要。", {}, additional=True),
-            "memory_sync_summary": obj("Memory 同步摘要。", {}, additional=True),
+            "recall_sync_summary": obj("Recall 同步摘要。", {}, additional=True),
+            "memory_sync_summary": obj("旧字段：Recall 同步摘要。", {}, additional=True),
         },
         ("device_id", "sent_at", "uptime_seconds", "agentdock_version", "metrics", "capabilities"),
     )

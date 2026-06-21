@@ -1,6 +1,6 @@
 # AgentDock Nexus 部署
 
-生产只部署 `cmd/memorydock`，不启动独立 Nexus Server 或 Worker。
+生产只部署 `cmd/recalldock`，不启动独立 Nexus Server 或 Worker。
 
 ## 构建
 
@@ -13,8 +13,8 @@
 ## Compose
 
 ```bash
-docker compose build memorydock
-docker compose up -d memorydock
+docker compose build recalldock
+docker compose up -d recalldock
 ```
 
 ## 验收

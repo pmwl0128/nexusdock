@@ -1,15 +1,19 @@
 services:
-  memorydock:
+  recalldock:
     build: .
-    container_name: memorydock
+    container_name: recalldock
     restart: unless-stopped
     ports:
       - "127.0.0.1:18777:18777"
     volumes:
       - ./memory:/memory
     environment:
+      RECALLDOCK_STORE_DIR: /memory
       MEMORYDOCK_STORE_DIR: /memory
+      RECALLDOCK_AUTO_SYNC: "false"
       MEMORYDOCK_AUTO_SYNC: "false"
+      RECALLDOCK_PULL_INTERVAL_SECONDS: "120"
       MEMORYDOCK_PULL_INTERVAL_SECONDS: "120"
+      RECALLDOCK_PUSH_DEBOUNCE_SECONDS: "10"
       MEMORYDOCK_PUSH_DEBOUNCE_SECONDS: "10"
 

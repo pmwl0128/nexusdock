@@ -201,7 +201,9 @@ func (s *Server) reportDeviceHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if len(request.SkillSummary) > 0 {
 		_ = json.Unmarshal(request.SkillSummary, &heartbeat.Skills)
 	}
-	if len(request.MemorySyncSummary) > 0 {
+	if len(request.RecallSyncSummary) > 0 {
+		_ = json.Unmarshal(request.RecallSyncSummary, &heartbeat.MemorySync)
+	} else if len(request.MemorySyncSummary) > 0 {
 		_ = json.Unmarshal(request.MemorySyncSummary, &heartbeat.MemorySync)
 	}
 	if _, err := s.devices.Heartbeat(r.Context(), deviceID, bearerToken(r), heartbeat); err != nil {

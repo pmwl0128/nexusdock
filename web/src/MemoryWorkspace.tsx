@@ -68,7 +68,7 @@ source: user-confirmed
 confidence: medium
 ---
 
-# 新记忆
+# 新召回条目
 
 `;
 
@@ -112,7 +112,7 @@ function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : '操作失败';
 }
 
-export default function MemoryWorkspace() {
+export default function RecallWorkspace() {
   const [entries, setEntries] = useState<MemoryEntry[]>([]);
   const [current, setCurrent] = useState<Memory | null>(null);
   const [draftPath, setDraftPath] = useState('');
@@ -133,7 +133,7 @@ export default function MemoryWorkspace() {
   const [cardProject, setCardProject] = useState('agentdock');
   const [cardType, setCardType] = useState('runbook');
   const [cardTags, setCardTags] = useState('');
-  const [cardSource, setCardSource] = useState('nexus-memory-ui');
+  const [cardSource, setCardSource] = useState('nexus-recall-ui');
   const [cardEvidence, setCardEvidence] = useState('');
   const [cardPath, setCardPath] = useState('');
   const [allowCardWarnings, setAllowCardWarnings] = useState(false);
@@ -185,7 +185,7 @@ export default function MemoryWorkspace() {
   }
 
   async function loadList() {
-    const response = await api<{ entries: MemoryEntry[] }>('/v1/memories?max_entries=500');
+    const response = await api<{ entries: MemoryEntry[] }>('/v1/recall?max_entries=500');
     setEntries(response.entries || []);
   }
 
@@ -196,7 +196,7 @@ export default function MemoryWorkspace() {
       updateRoute(current?.path || '', '');
       return;
     }
-    const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/memories/search', {
+    const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/recall/search', {
       method: 'POST',
       body: JSON.stringify({ query: query.trim(), prefix: '', max_results: 100 }),
     });
@@ -205,7 +205,7 @@ export default function MemoryWorkspace() {
   }
 
   async function openMemory(path: string) {
-    const response = await api<{ memory: Memory }>(`/v1/memories/${encodeURIComponent(path)}`);
+    const response = await api<{ memory: Memory }>(`/v1/recall/${encodeURIComponent(path)}`);
     setCurrent(response.memory);
     setDraftPath(response.memory.path);
     setDraftContent(response.memory.content);
@@ -259,13 +259,13 @@ export default function MemoryWorkspace() {
       return;
     }
     if (!/\.(md|markdown|txt)$/i.test(path)) {
-      setNotice({ text: '记忆文件必须使用 .md、.markdown 或 .txt 扩展名', danger: true });
+      setNotice({ text: '召回文件必须使用 .md、.markdown 或 .txt 扩展名', danger: true });
       return;
     }
     setBusy(true);
     try {
       const existing = Boolean(current?.path) && !creating;
-      const target = existing ? `/v1/memories/${encodeURIComponent(current!.path)}` : '/v1/memories';
+      const target = existing ? `/v1/recall/${encodeURIComponent(current!.path)}` : '/v1/recall';
       const response = await api<{ memory: Memory }>(target, {
         method: existing ? 'PATCH' : 'POST',
         body: JSON.stringify({ path: existing ? current!.path : path, content: draftContent, confirmed: true, overwrite: true }),
@@ -274,7 +274,7 @@ export default function MemoryWorkspace() {
       setDraftAvailable(false);
       await Promise.all([loadList(), loadSyncState(), loadHistory()]);
       await openMemory(response.memory.path);
-      setNotice({ text: '记忆已保存' });
+      setNotice({ text: '召回内容已保存' });
     } catch (reason) {
       setNotice({ text: messageOf(reason), danger: true });
     } finally {
@@ -300,14 +300,14 @@ export default function MemoryWorkspace() {
     }
     setBusy(true);
     try {
-      const response = await api<{ memory: Memory }>('/v1/memories/move', {
+      const response = await api<{ memory: Memory }>('/v1/recall/move', {
         method: 'POST',
         body: JSON.stringify({ from_path: pendingAction.path, to_path: normalized, confirmed: true, overwrite: false }),
       });
       setPendingAction(null);
       await loadList();
       await openMemory(response.memory.path);
-      setNotice({ text: '记忆已移动' });
+      setNotice({ text: '召回内容已移动' });
     } catch (reason) {
       setPendingAction({ ...pendingAction, error: messageOf(reason) });
     } finally {
@@ -324,7 +324,7 @@ export default function MemoryWorkspace() {
     if (!pendingAction || pendingAction.kind !== 'delete') return;
     setBusy(true);
     try {
-      await api(`/v1/memories/${encodeURIComponent(pendingAction.path)}?confirmed=true`, { method: 'DELETE' });
+      await api(`/v1/recall/${encodeURIComponent(pendingAction.path)}?confirmed=true`, { method: 'DELETE' });
       setPendingAction(null);
       setCurrent(null);
       setDraftPath('');
@@ -332,7 +332,7 @@ export default function MemoryWorkspace() {
       setEditing(false);
       updateRoute('', query.trim());
       await Promise.all([loadList(), loadSyncState(), loadHistory()]);
-      setNotice({ text: '记忆已删除' });
+      setNotice({ text: '召回内容已删除' });
     } catch (reason) {
       setPendingAction({ ...pendingAction, error: messageOf(reason) });
     } finally {
@@ -367,7 +367,7 @@ export default function MemoryWorkspace() {
       type: cardType,
       status: 'inbox',
       confidence: 'medium',
-      source: cardSource.trim() || 'nexus-memory-ui',
+      source: cardSource.trim() || 'nexus-recall-ui',
       evidence: cardEvidence.trim(),
       path: cardPath.trim(),
       tags: cardTags.split(',').map((tag) => tag.trim()).filter(Boolean),
@@ -469,7 +469,7 @@ export default function MemoryWorkspace() {
       setSyncStatus(response);
       await Promise.all([loadList(), loadSyncState(), loadHistory()]);
       if (current?.path) await openMemory(current.path).catch(() => setCurrent(null));
-      setNotice({ text: action === 'pull' ? '已从远端更新' : action === 'push' ? '已保存到远端' : '记忆已同步' });
+      setNotice({ text: action === 'pull' ? '已从远端更新' : action === 'push' ? '已保存到远端' : '召回库已同步' });
     } catch (reason) {
       setNotice({ text: messageOf(reason), danger: true });
     } finally {
@@ -481,9 +481,9 @@ export default function MemoryWorkspace() {
     <main className="mem-lite">
       <header className="mem-lite-header">
         <div>
-          <span className="mem-lite-kicker">NEXUS MEMORY</span>
-          <h1>记忆库</h1>
-          <p>浏览、编辑和同步 Markdown 记忆；复杂 Git 操作继续交给 Agent。</p>
+          <span className="mem-lite-kicker">NEXUS RECALL</span>
+          <h1>召回库</h1>
+          <p>浏览、编辑和同步 Markdown 召回内容；复杂 Git 操作继续交给 Agent。</p>
         </div>
         <div className="mem-lite-header-actions">
           <span className={`mem-lite-health ${dirty ? 'warn' : 'ok'}`}>{dirty ? `${changedCount} 项待同步` : '已同步'}</span>
@@ -496,7 +496,7 @@ export default function MemoryWorkspace() {
       {draftAvailable && !editing && <div className="mem-lite-notice"><span>检测到未提交草稿。</span><button onClick={restoreDraft}>恢复草稿</button><button onClick={() => { clearMemoryDraft(); setDraftAvailable(false); }}>丢弃</button></div>}
       {pendingAction && (
         <Dialog
-          title={pendingAction.kind === 'move' ? '移动记忆' : '删除记忆'}
+          title={pendingAction.kind === 'move' ? '移动召回内容' : '删除召回内容'}
           description={pendingAction.kind === 'move' ? '修改路径后会保留文件内容，并刷新当前打开的记忆。' : '删除后会产生本地 Git 变更，需要同步后才会进入远端。'}
           onClose={() => { if (!busy) setPendingAction(null); }}
         >
@@ -585,16 +585,16 @@ export default function MemoryWorkspace() {
       <section className="mem-lite-grid">
         <aside className="mem-lite-browser">
           <div className="mem-lite-panel-head">
-            <div><h2>文件</h2><p>{query ? '搜索结果' : '当前记忆仓库'}</p></div>
-            <button className="icon" onClick={startNew} title="新建记忆"><Plus size={17} /></button>
+            <div><h2>文件</h2><p>{query ? '搜索结果' : '当前召回仓库'}</p></div>
+            <button className="icon" onClick={startNew} title="新建召回条目"><Plus size={17} /></button>
           </div>
           <form className="mem-lite-search" onSubmit={(event) => void searchMemories(event)}>
             <Search size={15} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索记忆内容" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索召回内容" />
             <button type="submit">搜索</button>
           </form>
           <div className="mem-lite-files">
-            {loading ? <p className="mem-lite-empty">正在读取记忆…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的记忆文件。</p> : fileEntries.map((entry) => (
+            {loading ? <p className="mem-lite-empty">正在读取召回内容…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的召回文件。</p> : fileEntries.map((entry) => (
               <button key={entry.path} className={current?.path === entry.path ? 'active' : ''} onClick={() => void openMemory(entry.path)}>
                 <FileText size={16} />
                 <span><strong>{nameOf(entry.path)}</strong><small>{entry.path}</small></span>
@@ -606,7 +606,7 @@ export default function MemoryWorkspace() {
 
         <article className="mem-lite-editor">
           <div className="mem-lite-panel-head">
-            <div><h2>{editing ? creating ? '新建记忆' : '编辑记忆' : current ? nameOf(current.path) : '选择一条记忆'}</h2><p>{editing ? draftPath : current?.path || '从左侧文件列表打开，或新建一条记忆。'}</p></div>
+            <div><h2>{editing ? creating ? '新建召回条目' : '编辑召回条目' : current ? nameOf(current.path) : '选择一条召回内容'}</h2><p>{editing ? draftPath : current?.path || '从左侧文件列表打开，或新建一条记忆。'}</p></div>
             <div className="mem-lite-editor-actions">
               {!editing && current && <button onClick={startEdit}><Pencil size={15} />编辑</button>}
               {!editing && current && <button onClick={requestMove}>移动</button>}
@@ -624,7 +624,7 @@ export default function MemoryWorkspace() {
           ) : current ? (
             <pre className="mem-lite-preview">{current.content}</pre>
           ) : (
-            <div className="mem-lite-empty large"><FileText size={28} /><strong>没有打开的记忆</strong><span>选择文件或创建一条新记忆。</span><button className="primary" onClick={startNew}><Plus size={15} />新建记忆</button></div>
+            <div className="mem-lite-empty large"><FileText size={28} /><strong>没有打开的召回内容</strong><span>选择文件或创建一条新召回条目。</span><button className="primary" onClick={startNew}><Plus size={15} />新建召回条目</button></div>
           )}
         </article>
       </section>

@@ -1,14 +1,14 @@
 # AgentDock Nexus
 
-AgentDock Nexus 是面向个人多设备环境的 AgentDock 控制台，集中管理长期记忆、设备、加密文件中继、备份状态和基础账号安全。
+AgentDock Nexus 是面向个人多设备环境的 AgentDock 控制台，集中管理长期召回、设备、加密文件中继、备份状态和基础账号安全。
 
 ## 产品边界
 
-一级入口只有五个：总览、设备、记忆、文件、设置。
+一级入口只有五个：总览、设备、召回、文件、设置。
 
 - 总览：设备异常、近期文件传输和备份状态。
 - 设备：注册、审批、心跳、能力与 Skill 上报、Env、命令和历史。
-- 记忆：Markdown 记忆库、Git 变更审阅和同步。
+- 召回：Markdown 召回库、Git 变更审阅和同步。
 - 文件：Artifact 发送、Delivery 落盘和反向 Fetch 状态。
 - 设置：管理员账号、浏览器会话、SQLite 健康和备份信息。
 
@@ -17,8 +17,8 @@ AgentDock Nexus 是面向个人多设备环境的 AgentDock 控制台，集中�
 ## 运行结构
 
 ```text
-cmd/memorydock      唯一生产服务入口
-internal/memory     记忆文件与 Git 同步
+cmd/recalldock      唯一生产服务入口
+internal/memory     召回文件与 Git 同步（保留包名兼容）
 internal/devices    设备注册、心跳与策略
 internal/commands   设备命令队列
 internal/artifacts  ADR1 加密 Artifact Relay / Fetch

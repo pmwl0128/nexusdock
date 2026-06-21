@@ -136,7 +136,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("memorydock starting", "addr", cfg.Addr(), "store_dir", cfg.StoreDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
+		logger.Info("recalldock starting", "addr", cfg.Addr(), "store_dir", cfg.StoreDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", "error", err)
 			cancel()
@@ -147,5 +147,5 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
-	logger.Info("memorydock stopped")
+	logger.Info("recalldock stopped")
 }

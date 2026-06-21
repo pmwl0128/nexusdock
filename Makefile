@@ -1,4 +1,4 @@
-.PHONY: fmt test vet contracts web-build build build-memorydock run run-memorydock clean
+.PHONY: fmt test vet contracts web-build build build-recalldock build-memorydock run run-recalldock run-memorydock clean
 
 fmt:
 	gofmt -w .
@@ -15,16 +15,20 @@ contracts:
 web-build:
 	cd web && npm run build
 
-build: web-build test vet contracts build-memorydock
+build: web-build test vet contracts build-recalldock
 
-build-memorydock:
+build-recalldock:
 	mkdir -p bin
-	go build -o bin/memorydock ./cmd/memorydock
+	go build -o bin/recalldock ./cmd/recalldock
 
-run: run-memorydock
+build-memorydock: build-recalldock
 
-run-memorydock:
-	go run ./cmd/memorydock
+run: run-recalldock
+
+run-recalldock:
+	go run ./cmd/recalldock
+
+run-memorydock: run-recalldock
 
 clean:
 	rm -rf bin

@@ -7,10 +7,11 @@ import (
 func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]any{
 		"ok":             true,
-		"service":        "memorydock",
+		"service":        "recalldock",
 		"database":       "unavailable",
 		"schema_version": 0,
-		"memory_root":    s.store.Root(),
+		"recall_root":    s.store.Root(),
+		"memory_root":    s.store.Root(), // legacy compatibility field
 		"artifact_root":  "",
 	}
 	if s.artifacts != nil {
