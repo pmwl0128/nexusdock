@@ -19,6 +19,7 @@ import (
 )
 
 const DefaultEmbeddingModel = "BAAI/bge-m3"
+const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
 
 type EmbeddingConfig struct {
 	Enabled   bool
@@ -100,6 +101,12 @@ type embeddingDocument struct {
 }
 
 func NewEmbeddingService(store *Store, cfg EmbeddingConfig) *EmbeddingService {
+	if strings.TrimSpace(cfg.Endpoint) == "" {
+		cfg.Endpoint = strings.TrimSpace(os.Getenv("MEMORYDOCK_EMBEDDING_ENDPOINT"))
+	}
+	if strings.TrimSpace(cfg.Endpoint) == "" {
+		cfg.Endpoint = DefaultEmbeddingEndpoint
+	}
 	if strings.TrimSpace(cfg.Model) == "" {
 		cfg.Model = DefaultEmbeddingModel
 	}
