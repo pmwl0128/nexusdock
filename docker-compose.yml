@@ -7,6 +7,7 @@ services:
       - "127.0.0.1:18777:18777"
     volumes:
       - ./recall:/recall
+      - ${RECALLDOCK_GITHUB_CREDENTIALS:?set RECALLDOCK_GITHUB_CREDENTIALS to a git credential-store file}:/run/secrets/github_credentials:ro
     environment:
       RECALLDOCK_STORE_DIR: /recall
       RECALLDOCK_AUTO_SYNC: "false"

@@ -22,3 +22,5 @@ docker compose up -d recalldock
 验证 `/health`、认证后的 `/v1/system/status`、`/v1/devices`、`/v1/artifacts`、`/v1/artifact-fetches`、`/v1/backup/status`，并执行 SQLite `quick_check`、`integrity_check`、`foreign_key_check`。
 
 回退时恢复上一个已验证镜像和部署前数据库快照；数据库异常时禁止反复重启容器。
+
+> 私有 GitHub 仓库自动同步需要提供 git credential-store 文件，并通过 `RECALLDOCK_GITHUB_CREDENTIALS` 挂载到容器 `/run/secrets/github_credentials`。文件内容形如 Git credential-store URL，生产环境不要提交该文件。
