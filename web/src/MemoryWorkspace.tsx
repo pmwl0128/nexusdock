@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  Archive, Check, Clock3, FileText, Folder, GitBranch, Pencil, Plus,
-  RefreshCw, Save, Search, Trash2, UploadCloud,
+  Archive, Check, Clock3, Cpu, FileText, Folder, GitBranch, Pencil, Plus,
+  RefreshCw, Save, Search, Sparkles, Trash2, UploadCloud,
 } from 'lucide-react';
 import { api } from './api/client';
 import Dialog from './components/Dialog';
@@ -22,6 +22,44 @@ type PendingMemoryAction =
   | { kind: 'move'; path: string; nextPath: string; error?: string }
   | { kind: 'delete'; path: string; error?: string }
   | null;
+
+type MemoryCard = {
+  title: string;
+  content: string;
+  type: string;
+  project: string;
+  status: string;
+  confidence: string;
+  tags?: string[];
+  source: string;
+  evidence?: string;
+  path: string;
+};
+
+type CardSearchResult = { path: string; title?: string; score?: number; size_bytes?: number };
+type CardCaptureResult = {
+  ok: boolean;
+  card: MemoryCard;
+  warnings?: string[];
+  capture_plan?: Record<string, unknown>;
+  similar_results?: CardSearchResult[];
+  similar_count?: number;
+};
+type CardWriteResult = { ok: boolean; card: MemoryCard; memory: Memory; warnings?: string[]; index_policy?: string };
+type EmbeddingStatus = {
+  enabled?: boolean;
+  configured?: boolean;
+  reachable?: boolean;
+  model?: string;
+  endpoint?: string;
+  index_path?: string;
+  count?: number;
+  dimension?: number;
+  error?: string;
+  reason?: string;
+};
+type EmbeddingSearchResult = { path: string; title?: string; score: number };
+type EmbeddingSearchResponse = { ok?: boolean; count?: number; model?: string; index?: { count?: number; dimension?: number }; results?: EmbeddingSearchResult[] };
 
 const NEW_MEMORY_TEMPLATE = `---
 type: note
@@ -90,6 +128,19 @@ export default function MemoryWorkspace() {
   const [notice, setNotice] = useState<Notice>(null);
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingMemoryAction>(null);
+  const [cardTitle, setCardTitle] = useState('');
+  const [cardContent, setCardContent] = useState('');
+  const [cardProject, setCardProject] = useState('agentdock');
+  const [cardType, setCardType] = useState('runbook');
+  const [cardTags, setCardTags] = useState('');
+  const [cardSource, setCardSource] = useState('nexus-memory-ui');
+  const [cardEvidence, setCardEvidence] = useState('');
+  const [cardPath, setCardPath] = useState('');
+  const [allowCardWarnings, setAllowCardWarnings] = useState(false);
+  const [cardCapture, setCardCapture] = useState<CardCaptureResult | null>(null);
+  const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingStatus | null>(null);
+  const [embeddingQuery, setEmbeddingQuery] = useState('');
+  const [embeddingResults, setEmbeddingResults] = useState<EmbeddingSearchResult[]>([]);
 
   const fileEntries = useMemo(
     () => entries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
@@ -124,7 +175,7 @@ export default function MemoryWorkspace() {
   async function refreshAll(path = current?.path || '') {
     setLoading(true);
     try {
-      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      await Promise.all([loadList(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
       if (path) await openMemory(path);
     } catch (reason) {
       setNotice({ text: messageOf(reason), danger: true });
@@ -303,6 +354,114 @@ export default function MemoryWorkspace() {
     setCommits(response.commits || []);
   }
 
+  async function loadEmbeddingStatus() {
+    const response = await api<EmbeddingStatus>('/v1/embeddings/status');
+    setEmbeddingStatus(response);
+  }
+
+  function cardPayload(extra: Record<string, unknown> = {}) {
+    return {
+      title: cardTitle.trim(),
+      content: cardContent.trim(),
+      project: cardProject.trim() || 'agentdock',
+      type: cardType,
+      status: 'inbox',
+      confidence: 'medium',
+      source: cardSource.trim() || 'nexus-memory-ui',
+      evidence: cardEvidence.trim(),
+      path: cardPath.trim(),
+      tags: cardTags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      ...extra,
+    };
+  }
+
+  async function captureCard(event?: FormEvent) {
+    event?.preventDefault();
+    if (!cardTitle.trim() || !cardContent.trim()) {
+      setNotice({ text: '卡片标题和内容不能为空。', danger: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api<CardCaptureResult>('/v1/cards/capture', {
+        method: 'POST',
+        body: JSON.stringify(cardPayload({ max_results: 6 })),
+      });
+      setCardCapture(result);
+      setCardPath(result.card.path);
+      setAllowCardWarnings(false);
+      setNotice({ text: result.similar_count ? `已生成候选，发现 ${result.similar_count} 条相似卡片。` : '已生成候选卡片。' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function writeCard() {
+    if (!cardCapture) {
+      setNotice({ text: '请先生成候选卡片。', danger: true });
+      return;
+    }
+    if ((cardCapture.warnings?.length || 0) > 0 && !allowCardWarnings) {
+      setNotice({ text: '候选卡片有警告，请确认后再写入。', danger: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api<CardWriteResult>('/v1/cards', {
+        method: 'POST',
+        body: JSON.stringify(cardPayload({ confirmed: true, overwrite: false, allow_warnings: allowCardWarnings })),
+      });
+      await Promise.all([loadList(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
+      await openMemory(result.memory.path);
+      setCardCapture(null);
+      setNotice({ text: `卡片已写入：${result.card.path}` });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reindexCards() {
+    setBusy(true);
+    try {
+      await api('/v1/embeddings/reindex', {
+        method: 'POST',
+        body: JSON.stringify({ prefix: 'cards', max_entries: 1000 }),
+      });
+      await loadEmbeddingStatus();
+      setNotice({ text: 'cards 向量索引已重建。' });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function searchCardEmbeddings(event?: FormEvent) {
+    event?.preventDefault();
+    const text = embeddingQuery.trim() || query.trim();
+    if (!text) {
+      setNotice({ text: '请输入要搜索的经验问题。', danger: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await api<EmbeddingSearchResponse>('/v1/embeddings/search', {
+        method: 'POST',
+        body: JSON.stringify({ query: text, prefix: 'cards', max_results: 8 }),
+      });
+      setEmbeddingResults(response.results || []);
+      setNotice({ text: `向量搜索返回 ${response.count ?? response.results?.length ?? 0} 条结果。` });
+    } catch (reason) {
+      setNotice({ text: messageOf(reason), danger: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function syncNow(action: 'pull' | 'push' | 'now' = 'now') {
     setBusy(true);
     try {
@@ -375,6 +534,52 @@ export default function MemoryWorkspace() {
         <div><Folder size={18} /><span>目录</span><strong>{directoryCount}</strong></div>
         <div><GitBranch size={18} /><span>本地变更</span><strong>{changedCount}</strong></div>
         <div><Clock3 size={18} /><span>最近版本</span><strong>{commits.length}</strong></div>
+      </section>
+
+      <section className="mem-card-console">
+        <article className="mem-card-panel">
+          <div className="mem-lite-panel-head">
+            <div><h2>经验卡片</h2><p>先生成候选和相似检查，再确认写入 cards/。</p></div>
+            <span className={`mem-lite-health ${cardCapture?.warnings?.length ? 'warn' : 'ok'}`}>{cardCapture ? '候选已生成' : '待捕获'}</span>
+          </div>
+          <form className="mem-card-form" onSubmit={(event) => void captureCard(event)}>
+            <label><span>标题</span><input value={cardTitle} onChange={(event) => setCardTitle(event.target.value)} placeholder="例如：MemoryDock BGE-M3 标准入口" /></label>
+            <label><span>项目</span><input value={cardProject} onChange={(event) => setCardProject(event.target.value)} /></label>
+            <label><span>类型</span><select value={cardType} onChange={(event) => setCardType(event.target.value)}><option value="runbook">runbook</option><option value="bug_pattern">bug_pattern</option><option value="deploy_note">deploy_note</option><option value="project_trap">project_trap</option><option value="architecture">architecture</option><option value="decision">decision</option><option value="anti_pattern">anti_pattern</option><option value="preference">preference</option></select></label>
+            <label><span>来源</span><input value={cardSource} onChange={(event) => setCardSource(event.target.value)} /></label>
+            <label className="wide"><span>内容</span><textarea value={cardContent} onChange={(event) => setCardContent(event.target.value)} placeholder="写可复用结论，不写临时日志。" /></label>
+            <label><span>证据</span><input value={cardEvidence} onChange={(event) => setCardEvidence(event.target.value)} placeholder="命令、端点、commit 或验证结果" /></label>
+            <label><span>标签</span><input value={cardTags} onChange={(event) => setCardTags(event.target.value)} placeholder="逗号分隔" /></label>
+            <label className="wide"><span>目标路径</span><input value={cardPath} onChange={(event) => setCardPath(event.target.value)} placeholder="留空时自动生成 cards/<project>/inbox/<type>/..." /></label>
+            <div className="mem-card-actions">
+              <button type="submit" disabled={busy}><Sparkles size={15} />生成候选</button>
+              <button type="button" className="primary" onClick={() => void writeCard()} disabled={busy || !cardCapture}>确认写入</button>
+              {cardCapture?.warnings?.length ? <label className="mem-card-check"><input type="checkbox" checked={allowCardWarnings} onChange={(event) => setAllowCardWarnings(event.target.checked)} />已人工确认警告</label> : null}
+            </div>
+          </form>
+          {cardCapture && <div className="mem-card-review"><strong>{cardCapture.card.path}</strong>{cardCapture.warnings?.map((warning) => <p key={warning} className="warn">{warning}</p>)}{(cardCapture.similar_results || []).map((item) => <button key={item.path} type="button" onClick={() => void openMemory(item.path)}><FileText size={14} /><span>{item.title || nameOf(item.path)}</span><em>{item.path}</em></button>)}</div>}
+        </article>
+
+        <article className="mem-card-panel">
+          <div className="mem-lite-panel-head">
+            <div><h2>向量记忆</h2><p>只搜索 cards/，用于高信噪比经验召回。</p></div>
+            <span className={`mem-lite-health ${embeddingStatus?.reachable ? 'ok' : 'warn'}`}>{embeddingStatus?.reachable ? 'BGE-M3 可达' : '未就绪'}</span>
+          </div>
+          <div className="mem-card-embed-status">
+            <div><span>模型</span><strong>{embeddingStatus?.model || '未知'}</strong></div>
+            <div><span>维度</span><strong>{String(embeddingStatus?.dimension || '—')}</strong></div>
+            <div><span>索引</span><strong>{String(embeddingStatus?.count || '—')}</strong></div>
+          </div>
+          <form className="mem-card-search" onSubmit={(event) => void searchCardEmbeddings(event)}>
+            <Search size={15} />
+            <input value={embeddingQuery} onChange={(event) => setEmbeddingQuery(event.target.value)} placeholder="搜索经验卡片" />
+            <button type="submit" disabled={busy}>向量搜索</button>
+            <button type="button" onClick={() => void reindexCards()} disabled={busy}><Cpu size={15} />重建索引</button>
+          </form>
+          <div className="mem-card-results">
+            {embeddingResults.length === 0 ? <p className="mem-lite-empty">暂无向量搜索结果。</p> : embeddingResults.map((item) => <button key={item.path} type="button" onClick={() => void openMemory(item.path)}><strong>{item.title || nameOf(item.path)}</strong><small>{item.path}</small><em>{item.score.toFixed(4)}</em></button>)}
+          </div>
+        </article>
       </section>
 
       <section className="mem-lite-grid">
