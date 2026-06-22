@@ -609,3 +609,41 @@
 .mem-card-embed-status span,.mem-card-results small{display:block;color:#748096;font-size:11px}.mem-card-embed-status strong{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .mem-card-search{margin:12px 16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:center}
 @media(max-width:980px){.mem-card-console{grid-template-columns:1fr}}@media(max-width:640px){.mem-card-form,.mem-card-embed-status,.mem-card-search{grid-template-columns:1fr}}
+
+
+.mem-lite-mobile-back { display: none; }
+
+@media (max-width: 760px) {
+  .mem-lite { min-height: 100dvh; padding: 12px 12px calc(96px + env(safe-area-inset-bottom)); background: #f5f7fb; }
+  .mem-lite-header { min-height: 0; margin-bottom: 12px; padding: 18px; border-radius: 22px; display: grid; gap: 16px; }
+  .mem-lite-header h1 { margin: 8px 0; font-size: 32px; line-height: 1.08; }
+  .mem-lite-header p { max-width: 310px; font-size: 14px; line-height: 1.55; }
+  .mem-lite-header-actions { justify-content: stretch; display: grid; grid-template-columns: 1fr 1fr; }
+  .mem-lite-header-actions .mem-lite-health { grid-column: 1 / -1; justify-self: start; }
+  .mem-lite-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .mem-lite-stats > div { min-height: 86px; border-radius: 18px; background: #fff; }
+  .mem-card-console, .mem-lite-lower { display: none; }
+  .mem-lite-grid { display: block; }
+  .mem-lite-browser, .mem-lite-editor { border-radius: 20px; background: #fff; box-shadow: 0 10px 32px rgba(35, 50, 74, .06); }
+  .mem-lite-panel-head { min-height: 0; padding: 16px; align-items: center; }
+  .mem-lite-panel-head h2 { font-size: 20px; }
+  .mem-lite-panel-head p { font-size: 12px; }
+  .mem-lite-search { height: 46px; margin: 14px; border-radius: 15px; }
+  .mem-lite-search button { height: 44px; border-radius: 0 14px 14px 0; }
+  .mem-lite-files { max-height: none; padding: 0 12px 16px; }
+  .mem-lite-files > button { min-height: 66px; padding: 12px 10px; border-radius: 14px; grid-template-columns: 24px minmax(0, 1fr) auto; }
+  .mem-lite-files strong { font-size: 15px; }
+  .mem-lite-files small, .mem-lite-files em { font-size: 12px; }
+  .mem-lite:not(.is-detail-open) .mem-lite-editor { display: none; }
+  .mem-lite.is-detail-open { padding-top: 8px; }
+  .mem-lite.is-detail-open .mem-lite-header, .mem-lite.is-detail-open .mem-lite-stats, .mem-lite.is-detail-open .mem-lite-browser, .mem-lite.is-detail-open .mem-card-console, .mem-lite.is-detail-open .mem-lite-lower { display: none; }
+  .mem-lite.is-detail-open .mem-lite-grid { max-width: none; margin: 0; }
+  .mem-lite.is-detail-open .mem-lite-editor { min-height: calc(100dvh - 120px); display: flex; }
+  .mem-lite-mobile-back { display: inline-flex; flex: none; color: #34405a; background: #f7f9fd; }
+  .mem-lite-editor-actions { width: 100%; justify-content: stretch; }
+  .mem-lite-editor-actions button { flex: 1; }
+  .mem-lite-preview { min-height: calc(100dvh - 210px); padding: 16px 16px calc(112px + env(safe-area-inset-bottom)); background: #fff; color: #1f2937; font-size: 14px; line-height: 1.75; }
+  .mem-lite-edit-body { padding: 14px; }
+  .mem-lite-edit-body textarea { min-height: calc(100dvh - 310px); font-size: 13px; }
+  .mem-lite-notice { margin-bottom: 10px; border-radius: 14px; }
+}

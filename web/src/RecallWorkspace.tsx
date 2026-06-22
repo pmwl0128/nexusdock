@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Archive, Check, Clock3, Cpu, FileText, Folder, GitBranch, Pencil, Plus,
   RefreshCw, Save, Search, Sparkles, Trash2, UploadCloud,
@@ -112,6 +112,10 @@ function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : '操作失败';
 }
 
+function isCompactViewport(): boolean {
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
 export default function RecallWorkspace() {
   const [entries, setEntries] = useState<RecallEntry[]>([]);
   const [current, setCurrent] = useState<Recall | null>(null);
@@ -141,6 +145,7 @@ export default function RecallWorkspace() {
   const [embeddingStatus, setEmbeddingStatus] = useState<EmbeddingStatus | null>(null);
   const [embeddingQuery, setEmbeddingQuery] = useState('');
   const [embeddingResults, setEmbeddingResults] = useState<EmbeddingSearchResult[]>([]);
+  const editorRef = useRef<HTMLElement | null>(null);
 
   const fileEntries = useMemo(
     () => entries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
@@ -153,6 +158,7 @@ export default function RecallWorkspace() {
   const changedCount = gitDiff?.files?.length ?? 0;
   const dirty = Boolean(gitDiff?.dirty || syncStatus?.dirty || syncStatus?.pending_push);
   const hasUnsavedChanges = editing && (draftPath !== (current?.path || '') || draftContent !== (current?.content || ''));
+  const detailOpen = Boolean(current || editing);
 
   useEffect(() => {
     const saved = loadRecallDraft();
@@ -214,6 +220,9 @@ export default function RecallWorkspace() {
     clearRecallDraft();
     setDraftAvailable(false);
     updateRoute(response.recall.path, query.trim());
+    if (isCompactViewport()) {
+      window.setTimeout(() => editorRef.current?.scrollIntoView({ block: 'start' }), 0);
+    }
   }
 
   function startNew() {
@@ -222,6 +231,9 @@ export default function RecallWorkspace() {
     setDraftContent(NEW_RECALL_TEMPLATE);
     setEditing(true);
     setCreating(true);
+    if (isCompactViewport()) {
+      window.setTimeout(() => editorRef.current?.scrollIntoView({ block: 'start' }), 0);
+    }
   }
 
   function startEdit() {
@@ -239,6 +251,20 @@ export default function RecallWorkspace() {
     setCreating(false);
     clearRecallDraft();
     setDraftAvailable(false);
+  }
+
+  function backToFileList() {
+    if (hasUnsavedChanges) {
+      setNotice({ text: '请先保存或取消当前编辑。', danger: true });
+      return;
+    }
+    setCurrent(null);
+    setDraftPath('');
+    setDraftContent('');
+    setEditing(false);
+    setCreating(false);
+    updateRoute('', query.trim());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function restoreDraft() {
@@ -478,7 +504,7 @@ export default function RecallWorkspace() {
   }
 
   return (
-    <main className="mem-lite">
+    <main className={`mem-lite ${detailOpen ? 'is-detail-open' : ''}`}>
       <header className="mem-lite-header">
         <div>
           <span className="mem-lite-kicker">NEXUS RECALL</span>
@@ -604,9 +630,10 @@ export default function RecallWorkspace() {
           </div>
         </aside>
 
-        <article className="mem-lite-editor">
+        <article className="mem-lite-editor" ref={editorRef}>
           <div className="mem-lite-panel-head">
             <div><h2>{editing ? creating ? '新建召回条目' : '编辑召回条目' : current ? nameOf(current.path) : '选择一条召回内容'}</h2><p>{editing ? draftPath : current?.path || '从左侧文件列表打开，或新建一条召回内容。'}</p></div>
+            <button className="mem-lite-mobile-back" type="button" onClick={backToFileList}>返回文件</button>
             <div className="mem-lite-editor-actions">
               {!editing && current && <button onClick={startEdit}><Pencil size={15} />编辑</button>}
               {!editing && current && <button onClick={requestMove}>移动</button>}
