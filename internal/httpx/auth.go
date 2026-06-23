@@ -221,6 +221,10 @@ func (s *Server) withAPIAccess(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
+		if cfg.AuthToken == "" && s.isLocalAPIRequest(r) {
+			next(w, r)
+			return
+		}
 		if s.auth == nil {
 			if cfg.AuthToken == "" {
 				next(w, r)
@@ -318,6 +322,23 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 		}
 	}
 	return strings.EqualFold(parsed.Scheme, scheme) && strings.EqualFold(parsed.Host, host)
+}
+
+func (s *Server) isLocalAPIRequest(r *http.Request) bool {
+	return isLoopbackHostPort(r.RemoteAddr) || isLoopbackHostPort(r.Host)
+}
+
+func isLoopbackHostPort(value string) bool {
+	host, _, err := net.SplitHostPort(value)
+	if err != nil {
+		host = value
+	}
+	host = strings.Trim(strings.ToLower(strings.TrimSpace(host)), "[]")
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *Server) isTrustedProxy(r *http.Request) bool {

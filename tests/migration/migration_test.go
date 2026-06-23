@@ -16,11 +16,11 @@ import (
 func TestExistingRecallDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 	root := t.TempDir()
 	fixtures := map[string]string{
-		"profile.md":                       "---\ntype: profile\nscope: profile\n---\n\n# 用户档案\n\n保留原内容。\n",
-		"projects/demo/project.md":         "---\ntype: project-summary\nscope: project\nproject: demo\n---\n\n# Demo\n\n召回数据。\n",
-		"projects/demo/runbooks/deploy.md": "# 部署\n\n执行 health 检查。\n",
-		"devices/DockMini.md":              "# DockMini\n\n状态：active。\n",
-		"ops/reverse-proxy.md":             "# 反代\n\n保留路径。\n",
+		"profile.md":                                   "---\ntype: profile\nscope: profile\n---\n\n# 用户档案\n\n保留原内容。\n",
+		"recall/docs/projects/demo/project.md":         "---\ntype: project-summary\nscope: project\nproject: demo\n---\n\n# Demo\n\n召回数据。\n",
+		"recall/docs/projects/demo/runbooks/deploy.md": "# 部署\n\n执行 health 检查。\n",
+		"recall/docs/devices/DockMini.md":              "# DockMini\n\n状态：active。\n",
+		"recall/docs/ops/reverse-proxy.md":             "# 反代\n\n保留路径。\n",
 	}
 	for path, content := range fixtures {
 		absolute := filepath.Join(root, filepath.FromSlash(path))
@@ -53,11 +53,11 @@ func TestExistingRecallDataIsOpenedInPlaceWithoutMutation(t *testing.T) {
 			t.Fatalf("content changed for %s", path)
 		}
 	}
-	results, err := store.Search("召回数据", "projects/demo", 10)
+	results, err := store.Search("召回数据", "recall/docs/projects/demo", 10)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	if len(results) != 1 || results[0].Path != "projects/demo/project.md" {
+	if len(results) != 1 || results[0].Path != "recall/docs/projects/demo/project.md" {
 		t.Fatalf("unexpected search result: %#v", results)
 	}
 	after := snapshot(t, root)

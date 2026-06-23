@@ -93,7 +93,7 @@ func (s *Store) CaptureCard(req CardRequest) (CardCaptureResult, error) {
 		maxResults = 8
 	}
 	query := strings.Join(append([]string{card.Title, card.Content, card.Project, string(card.Type)}, card.Tags...), " ")
-	similar, searchErr := s.Search(query, "cards", maxResults)
+	similar, searchErr := s.Search(query, "recall/managed/cards", maxResults)
 	if searchErr != nil {
 		similar = []SearchResult{}
 	}
@@ -134,7 +134,7 @@ func (s *Store) WriteCard(req CardRequest) (CardWriteResult, error) {
 	if err != nil {
 		return CardWriteResult{}, err
 	}
-	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Recall: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from cards/"}, nil
+	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Recall: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from recall/managed/cards/"}, nil
 }
 
 func normalizeCard(req CardRequest) (Card, []string, error) {
@@ -195,7 +195,7 @@ func normalizeCard(req CardRequest) (Card, []string, error) {
 	if card.Path == "" {
 		card.Path = defaultCardPath(card)
 	}
-	if !IsAllowedRecallPath(card.Path) || !strings.HasPrefix(card.Path, "cards/") {
+	if !IsAllowedRecallPath(card.Path) || !strings.HasPrefix(card.Path, "recall/managed/cards/") {
 		return Card{}, nil, ErrDisallowedPath
 	}
 	warnings := cardWarnings(card)
@@ -238,7 +238,7 @@ func defaultCardPath(card Card) string {
 	if slug == "" {
 		slug = time.Now().Format("20060102-150405")
 	}
-	return filepath.ToSlash(filepath.Join("cards", card.Project, string(card.Status), string(card.Type), slug+".md"))
+	return filepath.ToSlash(filepath.Join("recall", "managed", "cards", card.Project, string(card.Status), string(card.Type), slug+".md"))
 }
 
 func renderCardMarkdown(card Card) string {

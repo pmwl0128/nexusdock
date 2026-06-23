@@ -19,7 +19,7 @@ func newTestStore(t *testing.T) *Store {
 
 func TestResolveRejectsTraversalAbsoluteAndGitPaths(t *testing.T) {
 	store := newTestStore(t)
-	bad := []string{"../x", "/abs", ".git/config", "projects/a/../../x.md"}
+	bad := []string{"../x", "/abs", ".git/config", "recall/docs/projects/a/../../x.md"}
 	for _, path := range bad {
 		if _, err := store.resolve(path); err == nil {
 			t.Fatalf("resolve(%q) unexpectedly succeeded", path)
@@ -28,27 +28,33 @@ func TestResolveRejectsTraversalAbsoluteAndGitPaths(t *testing.T) {
 	if IsAllowedRecallPath(".git/config") {
 		t.Fatalf(".git/config must not be allowed")
 	}
+
+	for _, path := range []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/recalldock.md", "inbox/old.md"} {
+		if _, err := store.resolve(path); !errors.Is(err, ErrDisallowedPath) {
+			t.Fatalf("expected legacy root %q to be disallowed, got %v", path, err)
+		}
+	}
 }
 
 func TestAllowedRecallPaths(t *testing.T) {
 	allowed := []string{
 		"profile.md",
-		"devices/codingmini.md",
-		"ops/recalldock.md",
-		"projects/agentdock/project.md",
-		"projects/agentdock/environment.md",
-		"projects/agentdock/runbooks/deploy.md",
-		"notes/github-learning/index.md",
-		"notes/github-learning/projects/owner__repo/architecture.md",
-		"cards/chatdock/inbox/project_trap/deploy-check.md",
-		"inbox/20260531-note.md",
+		"recall/docs/devices/codingmini.md",
+		"recall/docs/ops/recalldock.md",
+		"recall/docs/projects/agentdock/project.md",
+		"recall/docs/projects/agentdock/environment.md",
+		"recall/docs/projects/agentdock/runbooks/deploy.md",
+		"recall/managed/notes/github-learning/index.md",
+		"recall/managed/notes/github-learning/projects/owner__repo/architecture.md",
+		"recall/managed/cards/chatdock/inbox/project_trap/deploy-check.md",
+		"recall/docs/inbox/20260531-note.md",
 	}
 	for _, path := range allowed {
 		if !IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
-	rejected := []string{"shared/profile.md", "journal/today.md", "projects/agentdock/overview.md", "projects/agentdock/decisions/a.md", "projects/agentdock/runbooks/nested/a.md", "cards/chatdock/inbox/project_trap/nested/deploy.md", "notes/.hidden.md", "notes/github-learning/raw.bin"}
+	rejected := []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/recalldock.md", "inbox/old.md", "shared/profile.md", "journal/today.md", "recall/docs/projects/agentdock/overview.md", "recall/docs/projects/agentdock/decisions/a.md", "recall/docs/projects/agentdock/runbooks/nested/a.md", "recall/managed/cards/chatdock/inbox/project_trap/nested/deploy.md", "recall/managed/notes/.hidden.md", "recall/managed/notes/github-learning/raw.bin"}
 	for _, path := range rejected {
 		if IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be rejected", path)
@@ -58,7 +64,7 @@ func TestAllowedRecallPaths(t *testing.T) {
 
 func TestWriteNotesInfersNotesScope(t *testing.T) {
 	store := newTestStore(t)
-	mem, err := store.Write(WriteRequest{Path: "notes/github-learning/topics/agent.md", Content: "# Agent", Confirmed: true})
+	mem, err := store.Write(WriteRequest{Path: "recall/managed/notes/github-learning/topics/agent.md", Content: "# Agent", Confirmed: true})
 	if err != nil {
 		t.Fatalf("write notes: %v", err)
 	}
@@ -84,19 +90,19 @@ func TestWriteOutsideInboxRequiresConfirmation(t *testing.T) {
 
 func TestMoveAndDeleteProtection(t *testing.T) {
 	store := newTestStore(t)
-	if _, err := store.Write(WriteRequest{Path: "inbox/a.md", Content: "# A"}); err != nil {
+	if _, err := store.Write(WriteRequest{Path: "recall/docs/inbox/a.md", Content: "# A"}); err != nil {
 		t.Fatalf("write inbox: %v", err)
 	}
-	if _, err := store.Move("inbox/a.md", "projects/demo/project.md", false, false); !errors.Is(err, ErrConfirmationNeeded) {
+	if _, err := store.Move("recall/docs/inbox/a.md", "recall/docs/projects/demo/project.md", false, false); !errors.Is(err, ErrConfirmationNeeded) {
 		t.Fatalf("move without confirmation got %v", err)
 	}
-	if _, err := store.Move("inbox/a.md", "projects/demo/project.md", true, false); err != nil {
+	if _, err := store.Move("recall/docs/inbox/a.md", "recall/docs/projects/demo/project.md", true, false); err != nil {
 		t.Fatalf("move confirmed: %v", err)
 	}
-	if err := store.Delete("projects/demo/project.md", false); !errors.Is(err, ErrConfirmationNeeded) {
+	if err := store.Delete("recall/docs/projects/demo/project.md", false); !errors.Is(err, ErrConfirmationNeeded) {
 		t.Fatalf("delete without confirmation got %v", err)
 	}
-	if err := store.Delete("projects/demo/project.md", true); err != nil {
+	if err := store.Delete("recall/docs/projects/demo/project.md", true); err != nil {
 		t.Fatalf("delete confirmed: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(store.Root(), ".git"), 0o755); err != nil {
@@ -113,7 +119,7 @@ func TestFrontmatterAndDefaultPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("default write: %v", err)
 	}
-	if !strings.HasPrefix(mem.Path, "inbox/") || !strings.HasSuffix(mem.Path, "-note.md") {
+	if !strings.HasPrefix(mem.Path, "recall/docs/inbox/") || !strings.HasSuffix(mem.Path, "-note.md") {
 		t.Fatalf("unexpected default path: %s", mem.Path)
 	}
 	if mem.Frontmatter["type"] != "note" || mem.Frontmatter["project"] != "agentdock" {

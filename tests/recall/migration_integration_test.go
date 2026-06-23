@@ -20,9 +20,9 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixtures := map[string]string{
-		"profile.md":                            "# Profile\nlegacy profile\n",
-		"projects/agentdock/project.md":         "---\nscope: shared\nproject: agentdock\n---\n\n# AgentDock\nlegacy project\n",
-		"projects/agentdock/runbooks/deploy.md": "# Deploy\nlegacy steps\n",
+		"profile.md": "# Profile\nlegacy profile\n",
+		"recall/docs/projects/agentdock/project.md":         "---\nscope: shared\nproject: agentdock\n---\n\n# AgentDock\nlegacy project\n",
+		"recall/docs/projects/agentdock/runbooks/deploy.md": "# Deploy\nlegacy steps\n",
 	}
 	for path, content := range fixtures {
 		abs := filepath.Join(source, filepath.FromSlash(path))
@@ -68,7 +68,7 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 	runGit(t, target, "config", "user.name", "Nexus Test")
 	runGit(t, target, "add", ".")
 	runGit(t, target, "commit", "-m", "recall import")
-	proposal, err := svc.ProposeUpdate(context.Background(), recall.ProposeUpdateRequest{Path: "projects/agentdock/project.md", Content: "# AgentDock\nupdated", Scope: recall.ScopeProject, Status: recall.StatusActive, Project: "agentdock", Source: "user_edit", Confidence: recall.ConfidenceHigh})
+	proposal, err := svc.ProposeUpdate(context.Background(), recall.ProposeUpdateRequest{Path: "recall/docs/projects/agentdock/project.md", Content: "# AgentDock\nupdated", Scope: recall.ScopeProject, Status: recall.StatusActive, Project: "agentdock", Source: "user_edit", Confidence: recall.ConfidenceHigh})
 	if err != nil {
 		t.Fatal(err)
 	}

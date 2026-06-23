@@ -326,12 +326,12 @@ func (s *Server) packMemories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listCards(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.store.List("cards", queryInt(r, "max_entries", 200))
+	entries, err := s.store.List("recall/managed/cards", queryInt(r, "max_entries", 200))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "LIST_CARDS_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "count": len(entries), "prefix": "cards"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "count": len(entries), "prefix": "recall/managed/cards"})
 }
 
 func (s *Server) captureCard(w http.ResponseWriter, r *http.Request) {
@@ -373,12 +373,12 @@ func (s *Server) searchCards(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	results, err := s.store.Search(req.Query, "cards", req.MaxResults)
+	results, err := s.store.Search(req.Query, "recall/managed/cards", req.MaxResults)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "SEARCH_CARDS_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "query": req.Query, "results": results, "count": len(results), "prefix": "cards"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "query": req.Query, "results": results, "count": len(results), "prefix": "recall/managed/cards"})
 }
 
 func (s *Server) embeddingStatus(w http.ResponseWriter, r *http.Request) {

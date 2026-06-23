@@ -51,14 +51,14 @@ func TestEmbeddingReindexAndSearchWithOpenAICompatibleEndpoint(t *testing.T) {
 	defer server.Close()
 
 	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
-	indexed, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{Prefix: "cards"})
+	indexed, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{Prefix: "recall/managed/cards"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if indexed.Count != 2 || indexed.Model != DefaultEmbeddingModel || indexed.Dimension != 2 {
 		t.Fatalf("unexpected reindex result: %#v", indexed)
 	}
-	result, err := svc.Search(context.Background(), EmbeddingSearchRequest{Query: "deploy endpoint", Prefix: "cards", MaxResults: 2})
+	result, err := svc.Search(context.Background(), EmbeddingSearchRequest{Query: "deploy endpoint", Prefix: "recall/managed/cards", MaxResults: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

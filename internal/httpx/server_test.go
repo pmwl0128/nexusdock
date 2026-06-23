@@ -62,6 +62,18 @@ func TestV1BearerTokenOnly(t *testing.T) {
 	}
 }
 
+func TestV1LocalhostAPIAccessWhenTokenEmpty(t *testing.T) {
+	h := newTestHandler(t, config.Config{Username: "admin", Password: "secret"})
+
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/recall", nil)
+	req.RemoteAddr = "127.0.0.1:51234"
+	h.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("loopback API access status=%d body=%s", res.Code, res.Body.String())
+	}
+}
+
 func TestUIAssetMissDoesNotFallbackToIndex(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
 
@@ -99,7 +111,7 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("confirmed write status=%d body=%s", res.Code, res.Body.String())
 	}
-	res = doJSON(t, h, http.MethodPost, "/v1/recall/move", `{"from_path":"profile.md","to_path":"projects/demo/project.md"}`)
+	res = doJSON(t, h, http.MethodPost, "/v1/recall/move", `{"from_path":"profile.md","to_path":"recall/docs/projects/demo/project.md"}`)
 	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), "confirmed") {
 		t.Fatalf("move without confirmation status=%d body=%s", res.Code, res.Body.String())
 	}
@@ -125,7 +137,7 @@ func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatalf("write status=%d body=%s", res.Code, res.Body.String())
 	}
-	if !strings.Contains(res.Body.String(), "cards/chatdock/inbox/project_trap/") {
+	if !strings.Contains(res.Body.String(), "recall/managed/cards/chatdock/inbox/project_trap/") {
 		t.Fatalf("write response missing card path: %s", res.Body.String())
 	}
 

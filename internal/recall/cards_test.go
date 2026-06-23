@@ -21,7 +21,7 @@ func TestCardCaptureIsReviewOnlyAndFindsSimilar(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("write fixture card: %v", err)
 	}
-	before, _ := store.List("cards", 20)
+	before, _ := store.List("recall/managed/cards", 20)
 	capture, err := store.CaptureCard(CardRequest{
 		Title:   "ChatDock deploy check",
 		Content: "ChatDock deploy verification should check the final service page before considering the task done.",
@@ -33,7 +33,7 @@ func TestCardCaptureIsReviewOnlyAndFindsSimilar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, _ := store.List("cards", 20)
+	after, _ := store.List("recall/managed/cards", 20)
 	if len(after) != len(before) {
 		t.Fatalf("CaptureCard must not write: before=%d after=%d", len(before), len(after))
 	}
@@ -68,7 +68,7 @@ func TestCardWriteUsesCardsPathAndReviewGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(result.Card.Path, "cards/rss-monitor/inbox/runbook/") {
+	if !strings.HasPrefix(result.Card.Path, "recall/managed/cards/rss-monitor/inbox/runbook/") {
 		t.Fatalf("unexpected path: %s", result.Card.Path)
 	}
 	for _, want := range []string{"type: recall-card", "card_type: runbook", "project: rss-monitor", "status: inbox"} {

@@ -20,7 +20,7 @@ var (
 	ErrConfirmationNeeded = errors.New("writing outside inbox requires confirmed=true")
 	ErrFileExists         = errors.New("recall file exists; set overwrite=true to replace")
 	ErrUnsupportedFile    = errors.New("recall path must be markdown or text")
-	ErrDisallowedPath     = errors.New("recall path is outside allowed roots: profile.md, inbox/, notes/, cards/, projects/<project>/{project.md,environment.md,runbooks/}, devices/, ops/")
+	ErrDisallowedPath     = errors.New("recall path is outside allowed roots: profile.md, recall/docs/inbox/, recall/managed/notes/, recall/managed/cards/, recall/docs/projects/<project>/{project.md,environment.md,runbooks/}, recall/docs/devices/, recall/docs/ops/")
 )
 
 type Store struct {
@@ -365,8 +365,7 @@ func (s *Store) RunbookIndex(project string, maxEntries int) ([]RecallIndex, err
 	}
 	projectSegment := SafeSegment(project)
 	paths := s.listUnderAny(maxEntries,
-		"projects/"+projectSegment+"/runbooks",
-		"shared/projects/"+projectSegment+"/runbooks",
+		"recall/docs/projects/"+projectSegment+"/runbooks",
 	)
 	indexes := make([]RecallIndex, 0, len(paths))
 	for _, rel := range paths {
@@ -384,19 +383,18 @@ func (s *Store) Pack(project string, maxBytes int) ([]Recall, int, error) {
 		maxBytes = 120000
 	}
 	paths := []string{}
-	paths = appendUniquePaths(paths, s.firstExistingPath("profile.md", "shared/profile.md"))
+	paths = appendUniquePaths(paths, s.firstExistingPath("profile.md"))
 	if strings.TrimSpace(project) != "" {
 		projectSegment := SafeSegment(project)
-		newBase := "projects/" + projectSegment
-		oldBase := "shared/projects/" + projectSegment
+		newBase := "recall/docs/projects/" + projectSegment
 		paths = appendUniquePaths(paths,
-			s.firstExistingPath(newBase+"/project.md", oldBase+"/project.md", oldBase+"/overview.md"),
-			s.firstExistingPath(newBase+"/conventions.md", oldBase+"/conventions.md"),
-			s.firstExistingPath(newBase+"/environment.md", oldBase+"/environment.md"),
-			s.firstExistingPath(newBase+"/session-handoff.md", oldBase+"/session-handoff.md"),
+			s.firstExistingPath(newBase+"/project.md"),
+			s.firstExistingPath(newBase+"/conventions.md"),
+			s.firstExistingPath(newBase+"/environment.md"),
+			s.firstExistingPath(newBase+"/session-handoff.md"),
 		)
-		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/decisions", oldBase+"/decisions")...)
-		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/runbooks", oldBase+"/runbooks")...)
+		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/decisions")...)
+		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/runbooks")...)
 	}
 	sections := []Recall{}
 	total := 0
@@ -436,35 +434,35 @@ func IsAllowedRecallPath(path string) bool {
 	if path == "profile.md" {
 		return true
 	}
-	if strings.HasPrefix(path, "inbox/") {
+	if strings.HasPrefix(path, "recall/docs/inbox/") {
 		return IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "notes/") {
-		// notes 是用户确认的个人知识库根目录，允许多级 Markdown/Text 笔记，
-		// 但仍然只开放 notes/ 这一棵受控子树，不能绕过隐藏路径和扩展名校验。
+	if strings.HasPrefix(path, "recall/managed/notes/") {
+		// notes 是受控个人知识库根目录，允许多级 Markdown/Text 笔记；
+		// 后端只接受 recall/managed/notes/ 原生新路径，不再依赖旧根别名。
 		return IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "cards/") {
+	if strings.HasPrefix(path, "recall/managed/cards/") {
 		parts := strings.Split(path, "/")
-		return len(parts) == 5 && parts[1] != "" && parts[2] != "" && parts[3] != "" && IsTextFile(path)
+		return len(parts) == 7 && parts[3] != "" && parts[4] != "" && parts[5] != "" && IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "devices/") {
+	if strings.HasPrefix(path, "recall/docs/devices/") {
 		parts := strings.Split(path, "/")
-		return len(parts) == 2 && IsTextFile(path)
+		return len(parts) == 4 && IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "ops/") {
+	if strings.HasPrefix(path, "recall/docs/ops/") {
 		parts := strings.Split(path, "/")
-		return len(parts) == 2 && IsTextFile(path)
+		return len(parts) == 4 && IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "projects/") {
+	if strings.HasPrefix(path, "recall/docs/projects/") {
 		parts := strings.Split(path, "/")
-		if len(parts) < 3 || parts[1] == "" {
+		if len(parts) < 5 || parts[3] == "" {
 			return false
 		}
-		if len(parts) == 3 {
-			return (parts[2] == "project.md" || parts[2] == "environment.md") && IsTextFile(path)
+		if len(parts) == 5 {
+			return (parts[4] == "project.md" || parts[4] == "environment.md") && IsTextFile(path)
 		}
-		return len(parts) == 4 && parts[2] == "runbooks" && IsTextFile(path)
+		return len(parts) == 6 && parts[4] == "runbooks" && IsTextFile(path)
 	}
 	return false
 }
@@ -481,7 +479,7 @@ func (s *Store) Write(req WriteRequest) (Recall, error) {
 	if path == "" {
 		path = DefaultPath(req)
 	}
-	if !strings.HasPrefix(path, "inbox/") && !req.Confirmed {
+	if !strings.HasPrefix(path, "recall/docs/inbox/") && !req.Confirmed {
 		return Recall{}, ErrConfirmationNeeded
 	}
 	if !IsTextFile(path) {
@@ -538,7 +536,7 @@ func (s *Store) AppendNote(req NoteRequest) (Recall, error) {
 		name = time.Now().Format("20060102-150405") + "-note.md"
 	}
 	name = SafeFilename(name)
-	path := filepath.ToSlash(filepath.Join(scope, name))
+	path := filepath.ToSlash(filepath.Join("recall", "docs", scope, name))
 	abs, err := s.resolve(path)
 	if err != nil {
 		return Recall{}, err
@@ -706,11 +704,14 @@ func (s *Store) resolve(rel string) (string, error) {
 		return "", ErrInvalidPath
 	}
 	clean := filepath.Clean(converted)
-	if clean == "." || clean == "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	if clean == "." || clean == "" || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", ErrInvalidPath
 	}
 	if hasHiddenSegment(clean) {
 		return "", ErrInvalidPath
+	}
+	if isLegacyRecallRoot(filepath.ToSlash(clean)) {
+		return "", ErrDisallowedPath
 	}
 	abs := filepath.Clean(filepath.Join(s.root, clean))
 	rootWithSep := s.root + string(filepath.Separator)
@@ -718,6 +719,16 @@ func (s *Store) resolve(rel string) (string, error) {
 		return "", ErrInvalidPath
 	}
 	return abs, nil
+}
+
+func isLegacyRecallRoot(rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "/")))
+	for _, root := range []string{"cards", "notes", "projects", "devices", "ops", "inbox"} {
+		if rel == root || strings.HasPrefix(rel, root+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasParentSegment(rel string) bool {
@@ -962,7 +973,7 @@ func DefaultPath(req WriteRequest) string {
 		typeName = "recall"
 	}
 	stamp := time.Now().Format("20060102-150405")
-	return filepath.ToSlash(filepath.Join("inbox", stamp+"-"+typeName+".md"))
+	return filepath.ToSlash(filepath.Join("recall", "docs", "inbox", stamp+"-"+typeName+".md"))
 }
 
 func SafeSegment(value string) string {

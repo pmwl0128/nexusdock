@@ -53,7 +53,7 @@ func TestRecallAPIWorks(t *testing.T) {
 	handler := newHandler(t)
 
 	create := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/v1/recall", strings.NewReader(`{"path":"inbox/e2e.md","content":"# E2E\n\nRecall API is canonical."}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/recall", strings.NewReader(`{"path":"recall/docs/inbox/e2e.md","content":"# E2E\n\nRecall API is canonical."}`))
 	request.Header.Set("Content-Type", "application/json")
 	handler.ServeHTTP(create, request)
 	if create.Code != http.StatusOK {
@@ -61,7 +61,7 @@ func TestRecallAPIWorks(t *testing.T) {
 	}
 
 	read := httptest.NewRecorder()
-	handler.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/v1/recall/inbox/e2e.md", nil))
+	handler.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/v1/recall/recall/docs/inbox/e2e.md", nil))
 	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), "Recall API is canonical") {
 		t.Fatalf("read status=%d body=%s", read.Code, read.Body.String())
 	}

@@ -164,7 +164,7 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 	}
 	prefix := strings.TrimSpace(req.Prefix)
 	if prefix == "" {
-		prefix = "cards"
+		prefix = "recall/managed/cards"
 	}
 	maxEntries := req.MaxEntries
 	if maxEntries <= 0 || maxEntries > 2000 {

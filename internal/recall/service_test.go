@@ -23,9 +23,9 @@ func writeFixture(t *testing.T, store *Store, path, content string) {
 
 func TestMetadataScopesAndVerification(t *testing.T) {
 	store := newTestStore(t)
-	writeFixture(t, store, "devices/dockmini.md", "---\nscope: device\nstatus: active\nsource_device: DockMini\nsource_agent: agent-1\nconfidence: high\nverified_at: 2026-06-05T12:00:00Z\nverification_run_id: run-1\n---\n\n# DockMini\n")
+	writeFixture(t, store, "recall/docs/devices/dockmini.md", "---\nscope: device\nstatus: active\nsource_device: DockMini\nsource_agent: agent-1\nconfidence: high\nverified_at: 2026-06-05T12:00:00Z\nverification_run_id: run-1\n---\n\n# DockMini\n")
 	svc, _ := NewService(store)
-	record, err := svc.Read(context.Background(), "devices/dockmini.md")
+	record, err := svc.Read(context.Background(), "recall/docs/devices/dockmini.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +43,11 @@ func TestMetadataScopesAndVerification(t *testing.T) {
 func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 	store := newTestStore(t)
 	fixtures := map[string]string{
-		"profile.md":                        "---\nscope: profile\nstatus: active\n---\n\n# Profile\nowner\n",
-		"projects/nexus/project.md":         "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Nexus\nproject facts\n",
-		"projects/nexus/runbooks/deploy.md": "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Deploy\nsteps\n",
-		"devices/dockmini.md":               "---\nscope: device\nstatus: active\ndevice: dockmini\n---\n\n# Device\nstate\n",
-		"ops/old.md":                        "---\nscope: ops\nstatus: deprecated\n---\n\n# Old\nignore\n",
+		"profile.md":                                    "---\nscope: profile\nstatus: active\n---\n\n# Profile\nowner\n",
+		"recall/docs/projects/nexus/project.md":         "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Nexus\nproject facts\n",
+		"recall/docs/projects/nexus/runbooks/deploy.md": "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Deploy\nsteps\n",
+		"recall/docs/devices/dockmini.md":               "---\nscope: device\nstatus: active\ndevice: dockmini\n---\n\n# Device\nstate\n",
+		"recall/docs/ops/old.md":                        "---\nscope: ops\nstatus: deprecated\n---\n\n# Old\nignore\n",
 	}
 	for path, content := range fixtures {
 		writeFixture(t, store, path, content)
@@ -64,7 +64,7 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 		t.Fatalf("unexpected priority: %#v", pack.Sections)
 	}
 	for _, section := range pack.Sections {
-		if section.Path == "ops/old.md" {
+		if section.Path == "recall/docs/ops/old.md" {
 			t.Fatal("deprecated recall entered context")
 		}
 	}
@@ -72,10 +72,10 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 
 func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 	store := newTestStore(t)
-	writeFixture(t, store, "devices/dockmini.md", "# Device\nport: 18766\n")
+	writeFixture(t, store, "recall/docs/devices/dockmini.md", "# Device\nport: 18766\n")
 	repo := NewInRecallConflictRepository()
 	svc, _ := NewService(store, WithConflictRepository(repo))
-	fact := ObservedFact{RecallPath: "devices/dockmini.md", Key: "port", RecallValue: "18766", ObservedValue: "18767", Source: ConflictSourceDeviceSnapshot, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
+	fact := ObservedFact{RecallPath: "recall/docs/devices/dockmini.md", Key: "port", RecallValue: "18766", ObservedValue: "18767", Source: ConflictSourceDeviceSnapshot, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
 	first, err := svc.DetectConflict(context.Background(), DetectConflictRequest{Facts: []ObservedFact{fact}})
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first=%#v err=%v", first, err)
@@ -99,10 +99,10 @@ func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 
 func TestProposalApplyIsApprovedAndOptimistic(t *testing.T) {
 	store := newTestStore(t)
-	writeFixture(t, store, "projects/nexus/project.md", "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Old\n")
+	writeFixture(t, store, "recall/docs/projects/nexus/project.md", "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Old\n")
 	svc, _ := NewService(store)
 	verified := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
-	proposal, err := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "projects/nexus/project.md", Content: "# New", Scope: ScopeProject, Status: StatusActive, Project: "nexus", Source: "user_edit", VerifiedAt: &verified, VerificationRunID: "run-2", Confidence: ConfidenceHigh})
+	proposal, err := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "recall/docs/projects/nexus/project.md", Content: "# New", Scope: ScopeProject, Status: StatusActive, Project: "nexus", Source: "user_edit", VerifiedAt: &verified, VerificationRunID: "run-2", Confidence: ConfidenceHigh})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,8 +120,8 @@ func TestProposalApplyIsApprovedAndOptimistic(t *testing.T) {
 		t.Fatalf("bad applied record: %#v", result)
 	}
 
-	stale, _ := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "projects/nexus/project.md", Content: "# Later", Scope: ScopeProject, Status: StatusActive, Project: "nexus", Source: "user_edit", Confidence: ConfidenceMedium})
-	writeFixture(t, store, "projects/nexus/project.md", "# concurrent edit\n")
+	stale, _ := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "recall/docs/projects/nexus/project.md", Content: "# Later", Scope: ScopeProject, Status: StatusActive, Project: "nexus", Source: "user_edit", Confidence: ConfidenceMedium})
+	writeFixture(t, store, "recall/docs/projects/nexus/project.md", "# concurrent edit\n")
 	_, err = svc.ApplyUpdate(context.Background(), ApplyUpdateRequest{Proposal: stale, Approved: true})
 	if err == nil || !strings.Contains(err.Error(), "changed since") {
 		t.Fatalf("expected optimistic conflict, got %v", err)
@@ -131,7 +131,7 @@ func TestProposalApplyIsApprovedAndOptimistic(t *testing.T) {
 func TestTemporaryLogRejectedOutsideInbox(t *testing.T) {
 	store := newTestStore(t)
 	svc, _ := NewService(store)
-	_, err := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "ops/log.md", Content: "temporary", Scope: ScopeOps, Status: StatusActive, Source: "diagnostic-log", Confidence: ConfidenceLow})
+	_, err := svc.ProposeUpdate(context.Background(), ProposeUpdateRequest{Path: "recall/docs/ops/log.md", Content: "temporary", Scope: ScopeOps, Status: StatusActive, Source: "diagnostic-log", Confidence: ConfidenceLow})
 	if err == nil {
 		t.Fatal("temporary log entered long-term recall")
 	}

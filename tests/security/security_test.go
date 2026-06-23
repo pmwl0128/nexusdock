@@ -18,11 +18,11 @@ func TestMemoryStoreRejectsTraversalAndHiddenPaths(t *testing.T) {
 
 	paths := []string{
 		"../escape.md",
-		"inbox/../../escape.md",
+		"recall/docs/inbox/../../escape.md",
 		"/tmp/escape.md",
-		"inbox/.hidden.md",
-		"projects/demo/../environment.md",
-		"projects/demo/runbooks/../../escape.md",
+		"recall/docs/inbox/.hidden.md",
+		"recall/docs/projects/demo/../environment.md",
+		"recall/docs/projects/demo/runbooks/../../escape.md",
 	}
 	for _, path := range paths {
 		t.Run(strings.ReplaceAll(path, "/", "_"), func(t *testing.T) {

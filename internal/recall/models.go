@@ -192,11 +192,11 @@ func MetadataFromRecall(mem Recall) Metadata {
 	device := firstNonEmpty(fm["device"], fm["source_device"])
 	agent := firstNonEmpty(fm["agent"], fm["source_agent"])
 	parts := strings.Split(strings.Trim(mem.Path, "/"), "/")
-	if project == "" && len(parts) > 1 && parts[0] == "projects" {
-		project = parts[1]
+	if project == "" && len(parts) > 3 && parts[0] == "recall" && parts[1] == "docs" && parts[2] == "projects" {
+		project = parts[3]
 	}
-	if device == "" && len(parts) == 2 && parts[0] == "devices" {
-		device = strings.TrimSuffix(parts[1], ".md")
+	if device == "" && len(parts) == 4 && parts[0] == "recall" && parts[1] == "docs" && parts[2] == "devices" {
+		device = strings.TrimSuffix(parts[3], ".md")
 	}
 	return Metadata{
 		Scope: scope, Status: status, Project: project, Device: device, Agent: agent,
@@ -213,17 +213,17 @@ func inferScope(path string) Scope {
 	switch {
 	case path == "profile.md":
 		return ScopeProfile
-	case strings.HasPrefix(path, "projects/"):
+	case strings.HasPrefix(path, "recall/docs/projects/"):
 		return ScopeProject
-	case strings.HasPrefix(path, "devices/"):
+	case strings.HasPrefix(path, "recall/docs/devices/"):
 		return ScopeDevice
-	case strings.HasPrefix(path, "ops/"):
+	case strings.HasPrefix(path, "recall/docs/ops/"):
 		return ScopeOps
-	case strings.HasPrefix(path, "cards/"):
+	case strings.HasPrefix(path, "recall/managed/cards/"):
 		return ScopeProject
-	case strings.HasPrefix(path, "notes/"):
+	case strings.HasPrefix(path, "recall/managed/notes/"):
 		return ScopeNotes
-	case strings.HasPrefix(path, "inbox/"):
+	case strings.HasPrefix(path, "recall/docs/inbox/"):
 		return ScopeInbox
 	default:
 		return ScopeGlobal
