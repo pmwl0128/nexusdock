@@ -3,6 +3,7 @@ package syncer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -361,6 +362,80 @@ func (m *Manager) CommitDetail(ctx context.Context, hash string) (CommitDetail, 
 	return resp, nil
 }
 
+func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
+	out, err := m.git(ctx, "ls-files", "*.md")
+	if err != nil {
+		return err
+	}
+	zero := []string{}
+	for _, rel := range strings.Split(out, "\n") {
+		rel = strings.TrimSpace(rel)
+		if rel == "" {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(m.cfg.RepoDir, filepath.FromSlash(rel)))
+		if err != nil {
+			continue
+		}
+		if info.Mode().IsRegular() && info.Size() == 0 {
+			zero = append(zero, rel)
+			if len(zero) >= 20 {
+				break
+			}
+		}
+	}
+	if len(zero) > 0 {
+		return fmt.Errorf("refusing to sync zero-byte tracked markdown files: %s", strings.Join(zero, ", "))
+	}
+	return nil
+}
+
+func (m *Manager) guardSafeMarkdownStagedDiff(ctx context.Context) error {
+	out, err := m.git(ctx, "diff", "--cached", "--numstat", "--", "*.md")
+	if err != nil {
+		return err
+	}
+	changedFiles, additions, deletions := 0, 0, 0
+	deleteOnlyFiles := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		added, addErr := strconv.Atoi(fields[0])
+		deleted, delErr := strconv.Atoi(fields[1])
+		if addErr != nil || delErr != nil {
+			continue
+		}
+		changedFiles++
+		additions += added
+		deletions += deleted
+		if added == 0 && deleted > 0 {
+			deleteOnlyFiles = append(deleteOnlyFiles, strings.Join(fields[2:], " "))
+		}
+	}
+	if len(deleteOnlyFiles) >= 10 && deletions >= 100 {
+		return fmt.Errorf("refusing suspicious bulk markdown delete-only change: files=%d additions=%d deletions=%d examples=%s", changedFiles, additions, deletions, strings.Join(limitStrings(deleteOnlyFiles, 20), ", "))
+	}
+	if changedFiles >= 20 && deletions >= 300 && deletions > additions*3 {
+		return fmt.Errorf("refusing suspicious bulk markdown deletion: files=%d additions=%d deletions=%d", changedFiles, additions, deletions)
+	}
+	return nil
+}
+
+func limitStrings(values []string, max int) []string {
+	if len(values) <= max {
+		return values
+	}
+	limited := append([]string{}, values[:max]...)
+	limited = append(limited, fmt.Sprintf("...and %d more", len(values)-max))
+	return limited
+}
+
 func (m *Manager) Pull(ctx context.Context) error {
 	if !m.IsGitRepo() {
 		return nil
@@ -395,7 +470,15 @@ func (m *Manager) Push(ctx context.Context) error {
 		m.mu.Unlock()
 		return nil
 	}
+	if err := m.guardSafeMarkdownSync(ctx); err != nil {
+		m.setError(err)
+		return err
+	}
 	if _, err := m.git(ctx, memoryGitArgs("add", "-A")...); err != nil {
+		m.setError(err)
+		return err
+	}
+	if err := m.guardSafeMarkdownStagedDiff(ctx); err != nil {
 		m.setError(err)
 		return err
 	}

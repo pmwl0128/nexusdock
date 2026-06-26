@@ -2,6 +2,7 @@ package syncer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -183,5 +184,55 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 	}
 	if status := mgr.Status(ctx); status.Dirty {
 		t.Fatalf("runtime-only changes must not mark recall dirty: %#v", status)
+	}
+}
+
+func TestPushRejectsZeroByteTrackedMarkdown(t *testing.T) {
+	dir := initRepo(t)
+	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: unsafe sync"}, slog.Default())
+	ctx := context.Background()
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.Push(ctx); err == nil || !strings.Contains(err.Error(), "zero-byte tracked markdown") {
+		t.Fatalf("expected zero-byte markdown guard, got %v", err)
+	}
+	if got := runGit(t, dir, "log", "-1", "--pretty=%s"); got != "init" {
+		t.Fatalf("unsafe sync created a commit: %q", got)
+	}
+	if status := mgr.Status(ctx); !status.Dirty || !status.Conflict || status.LastError == "" {
+		t.Fatalf("expected dirty conflict status after rejected push: %#v", status)
+	}
+}
+
+func TestPushRejectsSuspiciousBulkMarkdownDeletion(t *testing.T) {
+	dir := initRepo(t)
+	ctx := context.Background()
+	for i := 0; i < 20; i++ {
+		path := filepath.Join(dir, "recall", "docs", "bulk", fmt.Sprintf("doc-%02d.md", i))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		content := strings.Repeat(fmt.Sprintf("line %02d\n", i), 20)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	runGit(t, dir, "add", "recall/docs/bulk")
+	runGit(t, dir, "commit", "-m", "seed docs")
+	runGit(t, dir, "push")
+
+	if err := os.RemoveAll(filepath.Join(dir, "recall", "docs", "bulk")); err != nil {
+		t.Fatal(err)
+	}
+	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: unsafe bulk sync"}, slog.Default())
+	if err := mgr.Push(ctx); err == nil || !strings.Contains(err.Error(), "bulk markdown") {
+		t.Fatalf("expected bulk markdown deletion guard, got %v", err)
+	}
+	if got := runGit(t, dir, "log", "-1", "--pretty=%s"); got != "seed docs" {
+		t.Fatalf("unsafe sync created a commit: %q", got)
+	}
+	if status := mgr.Status(ctx); !status.Dirty || !status.Conflict || status.LastError == "" {
+		t.Fatalf("expected dirty conflict status after rejected push: %#v", status)
 	}
 }
