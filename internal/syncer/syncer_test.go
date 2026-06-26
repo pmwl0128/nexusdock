@@ -187,6 +187,35 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 	}
 }
 
+func TestPushIgnoresIgnoredRuntimeDirectory(t *testing.T) {
+	dir := initRepo(t)
+	ctx := context.Background()
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".nexus/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", ".gitignore")
+	runGit(t, dir, "commit", "-m", "ignore runtime")
+	runGit(t, dir, "push")
+
+	if err := os.MkdirAll(filepath.Join(dir, ".nexus"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".nexus", "control-plane.db"), []byte("runtime"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "profile.md"), []byte("# Profile\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: sync doc only"}, slog.Default())
+	if err := mgr.Push(ctx); err != nil {
+		t.Fatalf("Push with ignored runtime directory: %v", err)
+	}
+	if files := runGit(t, dir, "show", "--pretty=", "--name-only", "HEAD"); files != "profile.md" {
+		t.Fatalf("unexpected files in sync commit: %q", files)
+	}
+}
+
 func TestPushRejectsZeroByteTrackedMarkdown(t *testing.T) {
 	dir := initRepo(t)
 	mgr := NewManager(Config{RepoDir: dir, CommitMessage: "recall: unsafe sync"}, slog.Default())

@@ -145,7 +145,7 @@ func (m *Manager) MarkChanged(ctx context.Context) {
 }
 
 func memoryGitArgs(args ...string) []string {
-	return append(args, "--", ".", ":(exclude).nexus/**")
+	return append(args, "--", ".", ":(exclude).nexus", ":(exclude).nexus/**")
 }
 
 func (m *Manager) Status(ctx context.Context) Status {
@@ -390,6 +390,38 @@ func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
 	return nil
 }
 
+func (m *Manager) stageRecallChanges(ctx context.Context) error {
+	if _, err := m.git(ctx, memoryGitArgs("add", "-u")...); err != nil {
+		return err
+	}
+	out, err := m.git(ctx, "ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		return err
+	}
+	batch := []string{}
+	flush := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		_, err := m.git(ctx, append([]string{"add", "--"}, batch...)...)
+		batch = batch[:0]
+		return err
+	}
+	for _, rel := range strings.Split(out, "\n") {
+		rel = filepath.ToSlash(strings.TrimSpace(rel))
+		if rel == "" || strings.HasPrefix(rel, ".nexus/") {
+			continue
+		}
+		batch = append(batch, rel)
+		if len(batch) >= 100 {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+	return flush()
+}
+
 func (m *Manager) guardSafeMarkdownStagedDiff(ctx context.Context) error {
 	out, err := m.git(ctx, "diff", "--cached", "--numstat", "--", "*.md")
 	if err != nil {
@@ -474,7 +506,7 @@ func (m *Manager) Push(ctx context.Context) error {
 		m.setError(err)
 		return err
 	}
-	if _, err := m.git(ctx, memoryGitArgs("add", "-A")...); err != nil {
+	if err := m.stageRecallChanges(ctx); err != nil {
 		m.setError(err)
 		return err
 	}
