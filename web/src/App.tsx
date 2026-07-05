@@ -1,16 +1,17 @@
 import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
   Activity, ArrowDownToLine, ArrowUpFromLine, ChevronRight,
-  CircleAlert, Database, FileArchive, HardDrive, Home, Menu, RefreshCw,
+  CircleAlert, Database, FileArchive, FileJson, HardDrive, Home, Menu, RefreshCw,
   Server, Settings, ShieldCheck, Sparkles, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
+import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
 import './nexus.css';
 
-type Section = 'home' | 'devices' | 'recall' | 'files' | 'settings';
+type Section = 'home' | 'devices' | 'recall' | 'templates' | 'files' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -116,6 +117,7 @@ const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
   { id: 'recall', label: '召回', icon: Database },
+  { id: 'templates', label: '模板', icon: FileJson },
   { id: 'files', label: '文件', icon: FileArchive },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -262,6 +264,7 @@ export default function App() {
         <div className="nexus-content">
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
+          {section === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
           {section === 'files' && <FilesPage refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
