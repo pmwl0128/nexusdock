@@ -1,0 +1,111 @@
+package httpx
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type agentDockRuntimeClient struct {
+	endpoint string
+	token    string
+	client   *http.Client
+}
+
+type agentDockRuntimeError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e agentDockRuntimeError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.Code != "" {
+		return e.Code
+	}
+	return "AgentDock Runtime API unavailable"
+}
+
+func (s *Server) agentDockRuntimeClient() (*agentDockRuntimeClient, error) {
+	endpoint := strings.TrimRight(strings.TrimSpace(s.cfg.AgentDockEndpoint), "/")
+	if endpoint == "" {
+		return nil, agentDockRuntimeError{Code: "AGENTDOCK_ENDPOINT_UNCONFIGURED", Message: "AgentDock Runtime API 未配置"}
+	}
+	timeout := s.cfg.AgentDockTimeout
+	if timeout <= 0 {
+		timeout = 8 * time.Second
+	}
+	return &agentDockRuntimeClient{endpoint: endpoint, token: strings.TrimSpace(s.cfg.AgentDockToken), client: &http.Client{Timeout: timeout}}, nil
+}
+
+func (s *Server) runtimeGet(ctx context.Context, path string, query url.Values) (map[string]any, error) {
+	client, err := s.agentDockRuntimeClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.get(ctx, path, query)
+}
+
+func (c *agentDockRuntimeClient) get(ctx context.Context, path string, query url.Values) (map[string]any, error) {
+	u := c.endpoint + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, agentDockRuntimeError{Code: "AGENTDOCK_RUNTIME_UNREACHABLE", Message: err.Error()}
+	}
+	defer resp.Body.Close()
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, agentDockRuntimeError{Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, agentDockRuntimeError{Code: firstNonEmptyString(opsString(body["code"]), fmt.Sprintf("HTTP_%d", resp.StatusCode)), Message: firstNonEmptyString(opsString(body["error"]), resp.Status)}
+	}
+	return body, nil
+}
+
+func runtimeQueryLimitStatus(limit int, status string) url.Values {
+	query := url.Values{}
+	if limit > 0 {
+		query.Set("limit", strconv.Itoa(limit))
+	}
+	if strings.TrimSpace(status) != "" && status != "all" {
+		query.Set("status", status)
+	}
+	return query
+}
+
+func runtimeUnavailablePayload(err error) map[string]any {
+	code := "AGENTDOCK_RUNTIME_UNAVAILABLE"
+	message := "AgentDock Runtime API 不可用"
+	var rtErr agentDockRuntimeError
+	if err != nil {
+		if converted, ok := err.(agentDockRuntimeError); ok {
+			rtErr = converted
+		} else if converted, ok := err.(*agentDockRuntimeError); ok {
+			rtErr = *converted
+		}
+		if rtErr.Code != "" {
+			code = rtErr.Code
+		}
+		if err.Error() != "" {
+			message = err.Error()
+		}
+	}
+	return map[string]any{"ok": false, "available": false, "source": "agentdock-runtime-api", "code": code, "error": message}
+}

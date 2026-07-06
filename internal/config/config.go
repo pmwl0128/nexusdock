@@ -30,6 +30,9 @@ type Config struct {
 	TrustedProxies        []string
 	WorkflowDir           string
 	AgentDockDir          string
+	AgentDockEndpoint     string
+	AgentDockToken        string
+	AgentDockTimeout      time.Duration
 	WorkspaceDir          string
 	DeployDir             string
 	SourceDir             string
@@ -64,6 +67,9 @@ func FromEnv() Config {
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
 		WorkflowDir:           strings.TrimSpace(os.Getenv("NEXUS_WORKFLOW_DIR")),
 		AgentDockDir:          strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_DIR")),
+		AgentDockEndpoint:     strings.TrimRight(strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_ENDPOINT")), "/"),
+		AgentDockToken:        firstNonEmpty(os.Getenv("NEXUS_AGENTDOCK_TOKEN"), os.Getenv("AGENTDOCK_AUTH_TOKEN")),
+		AgentDockTimeout:      time.Duration(getenvInt("NEXUS_AGENTDOCK_TIMEOUT_SECONDS", 8)) * time.Second,
 		WorkspaceDir:          strings.TrimSpace(os.Getenv("NEXUS_WORKSPACE_DIR")),
 		DeployDir:             strings.TrimSpace(os.Getenv("NEXUS_DEPLOY_DIR")),
 		SourceDir:             strings.TrimSpace(os.Getenv("NEXUS_SOURCE_DIR")),

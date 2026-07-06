@@ -54,21 +54,25 @@ type workflowTemplateMoveRequest struct {
 }
 
 func (s *Server) listWorkflowTemplates(w http.ResponseWriter, r *http.Request) {
-	root, err := s.workflowTemplatesRoot()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "WORKFLOW_DIR_UNAVAILABLE", err.Error())
-		return
-	}
 	locationFilter := strings.TrimSpace(r.URL.Query().Get("location"))
 	includeHistory := r.URL.Query().Get("include_history") == "true" || r.URL.Query().Get("view") == "history"
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-
-	all, err := s.readAllWorkflowTemplateSummaries(root, locationFilter)
+	body, err := s.runtimeGet(r.Context(), "/internal/runtime/workflows", nil)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_LIST_FAILED", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
 		return
 	}
-
+	all := make([]workflowTemplateSummary, 0, len(opsArray(body["templates"])))
+	for _, raw := range opsArray(body["templates"]) {
+		item := workflowTemplateSummaryFromRuntime(opsMap(raw))
+		if item.ID == "" {
+			continue
+		}
+		if locationFilter != "" && item.Location != locationFilter {
+			continue
+		}
+		all = append(all, item)
+	}
 	counters := workflowTemplateCounters(all)
 	items := all
 	mode := "history"
@@ -92,193 +96,89 @@ func (s *Server) listWorkflowTemplates(w http.ResponseWriter, r *http.Request) {
 			conflicts++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":              true,
-		"items":           items,
-		"count":           len(items),
-		"total_count":     len(all),
-		"root":            root,
-		"mode":            mode,
-		"conflict_count":  conflicts,
-		"version_summary": counters,
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "total_count": len(all), "root": "agentdock-runtime-api", "source": "agentdock-runtime-api", "mode": mode, "conflict_count": conflicts, "version_summary": counters})
 }
 
 func (s *Server) workflowTemplateDetail(w http.ResponseWriter, r *http.Request) {
-	root, err := s.workflowTemplatesRoot()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "WORKFLOW_DIR_UNAVAILABLE", err.Error())
-		return
-	}
-	location, fileName, err := workflowTemplateParams(r)
+	_, fileName, err := workflowTemplateParams(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
 		return
 	}
-	detail, err := s.readWorkflowTemplateDetail(root, location, fileName)
+	id, version, err := workflowTemplateIDVersion(fileName)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
+		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
 		return
 	}
-	all, _ := s.readAllWorkflowTemplateSummaries(root, "")
+	body, err := s.runtimeGet(r.Context(), "/internal/runtime/workflows/"+id+"/"+version, nil)
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		return
+	}
+	template := opsMap(body["template"])
+	content, _ := json.MarshalIndent(template, "", "  ")
+	detail := workflowTemplateDetail{workflowTemplateSummary: workflowTemplateSummaryFromRuntime(template), Content: string(content), JSON: template}
+	allBody, _ := s.runtimeGet(r.Context(), "/internal/runtime/workflows", nil)
+	all := workflowTemplateSummariesFromRuntime(allBody)
 	attachWorkflowTemplateCounters(&detail.workflowTemplateSummary, all)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail, "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) saveWorkflowTemplate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.workflowTemplatesRoot()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "WORKFLOW_DIR_UNAVAILABLE", err.Error())
-		return
-	}
-	location, fileName, err := workflowTemplateParams(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
-		return
-	}
-	var req workflowTemplateWriteRequest
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_EMPTY", "template content is required")
-		return
-	}
-	var body map[string]any
-	if err := json.Unmarshal([]byte(content), &body); err != nil {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID_JSON", err.Error())
-		return
-	}
-	if err := validateWorkflowTemplateBody(body, fileName); err != nil {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID", err.Error())
-		return
-	}
-	if location == "published" && stringFromMap(body, "status") == "active" {
-		if err := s.ensureSingleActive(root, stringFromMap(body, "id"), fileName); err != nil {
-			writeError(w, http.StatusConflict, "WORKFLOW_TEMPLATE_ACTIVE_CONFLICT", err.Error())
-			return
-		}
-	}
-	if err := os.MkdirAll(filepath.Join(root, location), 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	path := filepath.Join(root, location, fileName)
-	if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	detail, err := s.readWorkflowTemplateDetail(root, location, fileName)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail})
+	writeError(w, http.StatusNotImplemented, "AGENTDOCK_WORKFLOW_WRITE_API_REQUIRED", "Workflow 模板不能再由 Nexus 直接写 AgentDock 内部目录；需要 AgentDock 暴露受控写接口后再启用。")
 }
 
 func (s *Server) createWorkflowTemplate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.workflowTemplatesRoot()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "WORKFLOW_DIR_UNAVAILABLE", err.Error())
-		return
-	}
-	var req workflowTemplateWriteRequest
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	location, err := cleanWorkflowLocation(req.Location)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_LOCATION", err.Error())
-		return
-	}
-	fileName, err := cleanWorkflowFileName(req.FileName)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_FILE", err.Error())
-		return
-	}
-	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_EMPTY", "template content is required")
-		return
-	}
-	var body map[string]any
-	if err := json.Unmarshal([]byte(content), &body); err != nil {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID_JSON", err.Error())
-		return
-	}
-	if err := validateWorkflowTemplateBody(body, fileName); err != nil {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID", err.Error())
-		return
-	}
-	if err := os.MkdirAll(filepath.Join(root, location), 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	path := filepath.Join(root, location, fileName)
-	if _, err := os.Stat(path); err == nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_TEMPLATE_EXISTS", "template file already exists")
-		return
-	}
-	if err := os.WriteFile(path, []byte(content+"\n"), 0o644); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	detail, err := s.readWorkflowTemplateDetail(root, location, fileName)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail})
+	writeError(w, http.StatusNotImplemented, "AGENTDOCK_WORKFLOW_WRITE_API_REQUIRED", "Workflow 模板不能再由 Nexus 直接写 AgentDock 内部目录；需要 AgentDock 暴露受控写接口后再启用。")
 }
 
 func (s *Server) moveWorkflowTemplate(w http.ResponseWriter, r *http.Request) {
-	root, err := s.workflowTemplatesRoot()
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "WORKFLOW_DIR_UNAVAILABLE", err.Error())
-		return
-	}
-	var req workflowTemplateMoveRequest
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	location, err := cleanWorkflowLocation(req.Location)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_LOCATION", err.Error())
-		return
-	}
-	target, err := cleanWorkflowLocation(req.Target)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TARGET", err.Error())
-		return
-	}
-	fileName, err := cleanWorkflowFileName(req.FileName)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_FILE", err.Error())
-		return
-	}
+	writeError(w, http.StatusNotImplemented, "AGENTDOCK_WORKFLOW_WRITE_API_REQUIRED", "Workflow 模板生命周期操作不能再由 Nexus 直接改文件；需要 AgentDock 暴露受控写接口后再启用。")
+}
 
-	var result workflowTemplateLifecycleResult
-	switch target {
-	case "published":
-		result, err = s.publishWorkflowTemplate(root, location, fileName)
+func workflowTemplateSummariesFromRuntime(body map[string]any) []workflowTemplateSummary {
+	items := make([]workflowTemplateSummary, 0, len(opsArray(body["templates"])))
+	for _, raw := range opsArray(body["templates"]) {
+		item := workflowTemplateSummaryFromRuntime(opsMap(raw))
+		if item.ID != "" {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+func workflowTemplateSummaryFromRuntime(item map[string]any) workflowTemplateSummary {
+	id := opsString(item["id"])
+	version := opsString(item["version"])
+	status := opsString(item["status"])
+	location := workflowLocationFromStatus(status)
+	fileName := id + "@" + version + ".json"
+	steps := opsArray(item["steps"])
+	match := opsMap(item["match"])
+	if len(steps) == 0 {
+		steps = make([]any, opsInt(item["step_count"]))
+	}
+	return workflowTemplateSummary{ID: id, Version: version, Title: firstNonEmptyString(opsString(item["title"]), id), Description: opsString(item["description"]), Status: status, Location: location, FileName: fileName, Path: "agentdock-runtime-api/" + fileName, StepCount: len(steps), Keywords: opsStringArray(match["keywords"]), Current: status == "active" || status == "draft"}
+}
+
+func workflowLocationFromStatus(status string) string {
+	switch status {
+	case "draft", "validated":
+		return "drafts"
 	case "retired":
-		result, err = s.retireWorkflowTemplate(root, location, fileName)
-	case "drafts":
-		result, err = s.moveWorkflowTemplateToDrafts(root, location, fileName)
+		return "retired"
+	default:
+		return "published"
 	}
-	if err != nil {
-		writeError(w, workflowLifecycleHTTPStatus(err), "WORKFLOW_TEMPLATE_LIFECYCLE_FAILED", err.Error())
-		return
+}
+
+func workflowTemplateIDVersion(fileName string) (string, string, error) {
+	fileName = strings.TrimSuffix(strings.TrimSpace(fileName), ".json")
+	parts := strings.SplitN(fileName, "@", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", errors.New("workflow template file name must be <id>@<version>.json")
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":              true,
-		"template":        result.Template,
-		"retired":         result.Retired,
-		"current":         result.Current,
-		"conflict_count":  result.ConflictCount,
-		"version_summary": result.VersionSummary,
-	})
+	return parts[0], parts[1], nil
 }
 
 func (s *Server) workflowTemplatesRoot() (string, error) {

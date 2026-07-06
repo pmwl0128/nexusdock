@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,7 +128,8 @@ func (s *Server) registerOpsRoutes(mux *http.ServeMux, protected func(http.Handl
 }
 
 func (s *Server) opsOverview(w http.ResponseWriter, r *http.Request) {
-	tasks := s.collectOpsTasks()
+	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 300)
+	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
 	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0, "cleanable": 0}
 	for _, task := range tasks {
 		counts[task.Status]++
@@ -134,16 +137,19 @@ func (s *Server) opsOverview(w http.ResponseWriter, r *http.Request) {
 			counts["cleanable"]++
 		}
 	}
-	skills := s.collectOpsSkills()
-	workflowCounts := s.workflowCounts()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":         true,
+	payload := map[string]any{
+		"ok":         taskErr == nil && skillErr == nil,
 		"tasks":      counts,
 		"skills":     map[string]any{"count": len(skills), "items": firstSkills(skills, 6)},
-		"workflows":  workflowCounts,
+		"workflows":  s.workflowCountsFromRuntime(r.Context()),
 		"paths":      s.opsPaths(),
+		"source":     "agentdock-runtime-api",
 		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
-	})
+	}
+	if taskErr != nil || skillErr != nil {
+		payload["runtime"] = runtimeUnavailablePayload(firstOpsError(taskErr, skillErr))
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +159,11 @@ func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
 	if limit > 800 {
 		limit = 800
 	}
-	items := s.collectOpsTasks()
+	items, err := s.collectOpsTasksFromRuntime(r.Context(), limit)
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		return
+	}
 	filtered := make([]opsTaskSummary, 0, len(items))
 	for _, item := range items {
 		if status != "" && status != "all" && item.Status != status {
@@ -167,114 +177,59 @@ func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": filtered, "count": len(filtered), "total": len(items), "root": s.agentDockPath("tasks")})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": filtered, "count": len(filtered), "total": len(items), "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) opsTaskDetail(w http.ResponseWriter, r *http.Request) {
-	fileName, err := cleanOpsFileName(r.PathValue("fileName"), ".json")
+	id, err := cleanOpsTaskID(r.PathValue("fileName"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_TASK_FILE", err.Error())
+		writeError(w, http.StatusBadRequest, "INVALID_TASK_ID", err.Error())
 		return
 	}
-	path := filepath.Join(s.agentDockPath("tasks"), fileName)
-	body, summary, err := readOpsTask(path)
+	detail, err := s.opsTaskDetailFromRuntime(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "TASK_NOT_FOUND", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
 		return
 	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "TASK_READ_FAILED", err.Error())
-		return
-	}
-	detail := opsTaskDetail{
-		opsTaskSummary: summary,
-		Path:           filepath.ToSlash(path),
-		Content:        string(raw),
-		JSON:           body,
-		Conditions:     opsArray(body["conditions"]),
-		Steps:          opsArray(body["steps"]),
-		Attempts:       opsArray(body["attempts"]),
-		Events:         opsArray(body["events"]),
-		FinalReview:    opsMap(body["final_review"]),
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail, "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) opsCleanupTasks(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DryRun bool `json:"dry_run"`
-		Limit  int  `json:"limit"`
-	}
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	if req.Limit <= 0 || req.Limit > 200 {
-		req.Limit = 200
-	}
-	root := s.agentDockPath("tasks")
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "TASK_DIR_UNAVAILABLE", err.Error())
-		return
-	}
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	changed := []opsTaskSummary{}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		body, summary, err := readOpsTask(path)
-		if err != nil || !summary.Cleanable {
-			continue
-		}
-		changed = append(changed, summary)
-		if !req.DryRun {
-			body["status"] = "completed"
-			body["completed_at"] = now
-			body["updated_at"] = now
-			body["summary"] = firstNonEmptyString(opsString(body["summary"]), "任务已通过 final_review，已由 Nexus 任务清理标记完成。")
-			events := opsArray(body["events"])
-			events = append(events, map[string]any{"type": "completed", "summary": "Nexus 任务清理：review pass 的 active 任务标记完成。", "created_at": now})
-			body["events"] = events
-			if err := writeJSONFile(path, body); err != nil {
-				writeError(w, http.StatusInternalServerError, "TASK_CLEANUP_FAILED", err.Error())
-				return
-			}
-		}
-		if len(changed) >= req.Limit {
-			break
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "dry_run": req.DryRun, "changed": changed, "count": len(changed)})
+	writeError(w, http.StatusNotImplemented, "AGENTDOCK_TASK_WRITE_API_REQUIRED", "任务清理不能再直接修改 AgentDock 内部文件；需要 AgentDock 暴露受控写接口后再启用。")
 }
 
 func (s *Server) opsSkills(w http.ResponseWriter, r *http.Request) {
-	items := s.collectOpsSkills()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "root": s.opsSkillStateDir(), "fallback_roots": s.opsSkillDocRoots()})
+	items, err := s.collectOpsSkillsFromRuntime(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
-	source := strings.TrimSpace(r.PathValue("source"))
 	skillID, err := cleanOpsName(r.PathValue("skillID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
 		return
 	}
-	detail, err := s.opsSkillDetailModel(source, skillID)
+	detail, err := s.opsSkillDetailFromRuntime(r.Context(), skillID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "SKILL_NOT_FOUND", err.Error())
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail, "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) opsCapabilities(w http.ResponseWriter, r *http.Request) {
-	tasks := s.collectOpsTasks()
-	skills := s.collectOpsSkills()
+	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 500)
+	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
 	tools, a, b := s.collectOpsCapabilityTools(r)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCounts(), "tools": len(tools), "devices": a, "heartbeats": b}, "paths": s.opsPaths()})
+	payload := map[string]any{"ok": taskErr == nil && skillErr == nil, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCountsFromRuntime(r.Context()), "tools": len(tools), "devices": a, "heartbeats": b}, "paths": s.opsPaths(), "source": "agentdock-runtime-api"}
+	if taskErr != nil || skillErr != nil {
+		payload["runtime"] = runtimeUnavailablePayload(firstOpsError(taskErr, skillErr))
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, int, int) {
@@ -331,14 +286,21 @@ func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, i
 			}
 		}
 	}
-	for _, sk := range s.collectOpsSkills() {
-		add(opsToolSummary{Name: sk.ID, Category: "runtime-skill", Status: sk.Status, Description: firstNonEmptyString(sk.Description, "AgentDock Runtime state skill"), Source: "runtime-state", Version: sk.ActiveVersion, Metadata: map[string]any{"channels": sk.Channels, "versions": sk.Versions, "doc_root": sk.DocRoot}})
+	if status, err := s.runtimeGet(r.Context(), "/internal/runtime/status", nil); err == nil {
+		for _, name := range opsStringArray(status["tools"]) {
+			add(opsToolSummary{Name: name, Category: "runtime-tool", Status: "available", Description: "AgentDock Runtime API reported tool", Source: "agentdock-runtime-api"})
+		}
+	}
+	if skills, err := s.collectOpsSkillsFromRuntime(r.Context()); err == nil {
+		for _, sk := range skills {
+			add(opsToolSummary{Name: sk.ID, Category: "runtime-skill", Status: sk.Status, Description: firstNonEmptyString(sk.Description, "AgentDock Runtime API skill"), Source: "agentdock-runtime-api", Version: sk.ActiveVersion, Metadata: map[string]any{"channels": sk.Channels, "versions": sk.Versions}})
+		}
 	}
 	for _, item := range opsCommandContracts() {
 		add(item)
 	}
-	add(opsToolSummary{Name: "workflow_templates", Category: "workflow", Status: "available", Description: "Nexus mediated AgentDock workflow templates", Source: "workflow-runtime-dir", Metadata: map[string]any{"counts": s.workflowCounts(), "root": strings.TrimSpace(s.cfg.WorkflowDir)}})
-	add(opsToolSummary{Name: "task_state", Category: "task", Status: "available", Description: "AgentDock persistent task state", Source: "task-runtime-dir", Metadata: map[string]any{"root": s.agentDockPath("tasks"), "count": len(s.collectOpsTasks())}})
+	add(opsToolSummary{Name: "workflow_templates", Category: "workflow", Status: "available", Description: "AgentDock Runtime API workflow templates", Source: "agentdock-runtime-api", Metadata: map[string]any{"counts": s.workflowCountsFromRuntime(r.Context())}})
+	add(opsToolSummary{Name: "task_state", Category: "task", Status: "available", Description: "AgentDock Runtime API persistent task state", Source: "agentdock-runtime-api", Metadata: map[string]any{"count": len(s.collectOpsTasks())}})
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].Category != items[j].Category {
 			return items[i].Category < items[j].Category
@@ -388,23 +350,139 @@ func (s *Server) opsDeployment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {
-	root := s.agentDockPath("tasks")
-	entries, err := os.ReadDir(root)
+	items, err := s.collectOpsTasksFromRuntime(context.Background(), 500)
 	if err != nil {
 		return nil
 	}
-	items := make([]opsTaskSummary, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+	return items
+}
+
+func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]opsTaskSummary, error) {
+	body, err := s.runtimeGet(ctx, "/internal/runtime/tasks", runtimeQueryLimitStatus(limit, ""))
+	if err != nil {
+		return nil, err
+	}
+	items := make([]opsTaskSummary, 0, len(opsArray(body["tasks"])))
+	for _, raw := range opsArray(body["tasks"]) {
+		m := opsMap(raw)
+		id := firstNonEmptyString(opsString(m["id"]), opsString(m["task_id"]))
+		if id == "" {
 			continue
 		}
-		_, summary, err := readOpsTask(filepath.Join(root, entry.Name()))
-		if err == nil {
-			items = append(items, summary)
+		summary := opsTaskSummary{ID: id, Title: opsString(m["title"]), Goal: opsString(m["goal"]), Status: firstNonEmptyString(opsString(m["status"]), "unknown"), Phase: opsString(m["phase"]), ReviewStatus: firstNonEmptyString(opsString(m["review_status"]), "not_started"), Blocker: opsString(m["blocker"]), UpdatedAt: opsString(m["updated_at"]), CreatedAt: opsString(m["created_at"]), TemplateID: opsString(m["template_id"]), TemplateVersion: opsString(m["template_version"]), ConditionCount: opsInt(m["condition_count"]), StepCount: opsInt(m["step_count"]), AttemptCount: opsInt(m["attempt_count"]), EventCount: opsInt(m["event_count"]), FileName: id}
+		summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
+		items = append(items, summary)
+	}
+	return items, nil
+}
+
+func (s *Server) opsTaskDetailFromRuntime(ctx context.Context, id string) (opsTaskDetail, error) {
+	body, err := s.runtimeGet(ctx, "/internal/runtime/tasks/"+urlPath(id), nil)
+	if err != nil {
+		return opsTaskDetail{}, err
+	}
+	task := opsMap(body["task"])
+	summary := opsTaskSummaryFromMap(task)
+	if summary.ID == "" {
+		summary.ID = id
+		summary.FileName = id
+	}
+	return opsTaskDetail{opsTaskSummary: summary, Path: "agentdock-runtime-api", Conditions: opsArray(task["conditions"]), Steps: opsArray(task["steps"]), Attempts: opsArray(task["attempts"]), Events: opsArray(task["events"]), FinalReview: opsMap(task["final_review"])}, nil
+}
+
+func opsTaskSummaryFromMap(task map[string]any) opsTaskSummary {
+	finalReview := opsMap(task["final_review"])
+	review := firstNonEmptyString(opsString(task["review_status"]), opsString(finalReview["status"]), "not_started")
+	template := opsMap(task["template"])
+	summary := opsTaskSummary{ID: opsString(task["id"]), Title: opsString(task["title"]), Goal: opsString(task["goal"]), Status: firstNonEmptyString(opsString(task["status"]), "unknown"), Phase: opsString(task["phase"]), ReviewStatus: review, Blocker: opsString(task["blocker"]), UpdatedAt: opsString(task["updated_at"]), CreatedAt: opsString(task["created_at"]), TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]), ConditionCount: len(opsArray(task["conditions"])), StepCount: len(opsArray(task["steps"])), AttemptCount: len(opsArray(task["attempts"])), EventCount: len(opsArray(task["events"])), FileName: opsString(task["id"])}
+	summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
+	return summary
+}
+
+func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSummary, error) {
+	body, err := s.runtimeGet(ctx, "/internal/runtime/skills", nil)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]opsSkillSummary, 0, len(opsArray(body["skills"])))
+	for _, raw := range opsArray(body["skills"]) {
+		m := opsMap(raw)
+		id := firstNonEmptyString(opsString(m["skill"]), opsString(m["id"]), opsString(m["name"]))
+		if id == "" {
+			continue
+		}
+		selection := opsMap(m["selection"])
+		channels := opsStringMap(firstNonNil(m["channels"], selection["channels"]))
+		active := firstNonEmptyString(opsString(m["active_version"]), opsString(selection["active_version"]))
+		versions := opsStringArray(m["versions"])
+		items = append(items, opsSkillSummary{ID: id, Title: id, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", id)), UpdatedAt: firstNonEmptyString(opsString(m["updated_at"]), opsString(selection["updated_at"])), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels})
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	return items, nil
+}
+
+func (s *Server) opsSkillDetailFromRuntime(ctx context.Context, skillID string) (opsSkillDetail, error) {
+	body, err := s.runtimeGet(ctx, "/internal/runtime/skills/"+urlPath(skillID), nil)
+	if err != nil {
+		return opsSkillDetail{}, err
+	}
+	manifest := opsMap(body["manifest"])
+	metadata := opsMap(manifest["metadata"])
+	selection := opsMap(body["selection"])
+	versions := opsStringArray(body["versions"])
+	channels := opsStringMap(selection["channels"])
+	active := firstNonEmptyString(opsString(body["version"]), opsString(selection["active_version"]))
+	title := firstNonEmptyString(opsString(metadata["displayName"]), opsString(metadata["display_name"]), opsString(metadata["title"]), opsString(metadata["name"]), skillID)
+	desc := firstNonEmptyString(opsString(metadata["description"]), opsString(manifest["description"]))
+	summary := opsSkillSummary{ID: skillID, Title: title, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", skillID)), Description: desc, UpdatedAt: opsString(selection["updated_at"]), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels, FileCount: 0}
+	return opsSkillDetail{opsSkillSummary: summary, Root: "agentdock-runtime-api", Files: []opsSkillFile{}}, nil
+}
+
+func (s *Server) workflowCountsFromRuntime(ctx context.Context) map[string]int {
+	counts := map[string]int{"drafts": 0, "published": 0, "retired": 0}
+	body, err := s.runtimeGet(ctx, "/internal/runtime/workflows", nil)
+	if err != nil {
+		return counts
+	}
+	for _, raw := range opsArray(body["templates"]) {
+		status := opsString(opsMap(raw)["status"])
+		switch status {
+		case "draft":
+			counts["drafts"]++
+		case "active", "validated":
+			counts["published"]++
+		case "retired":
+			counts["retired"]++
 		}
 	}
-	sort.SliceStable(items, func(i, j int) bool { return items[i].UpdatedAt > items[j].UpdatedAt })
-	return items
+	return counts
+}
+
+func cleanOpsTaskID(value string) (string, error) {
+	value = strings.TrimSuffix(strings.TrimSpace(value), ".json")
+	return cleanOpsName(value)
+}
+
+func urlPath(value string) string {
+	return strings.ReplaceAll(strings.Trim(value, "/"), " ", "%20")
+}
+
+func firstOpsError(values ...error) error {
+	for _, err := range values {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func firstNonNil(values ...any) any {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
 }
 
 func readOpsTask(path string) (map[string]any, opsTaskSummary, error) {
@@ -489,16 +567,11 @@ func (s *Server) collectOpsSkillStates() map[string]opsSkillStateRecord {
 }
 
 func (s *Server) collectOpsSkills() []opsSkillSummary {
-	states := s.collectOpsSkillStates()
-	if len(states) > 0 {
-		items := make([]opsSkillSummary, 0, len(states))
-		for id, record := range states {
-			items = append(items, s.opsSkillSummaryFromState(id, record))
-		}
-		sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
-		return items
+	items, err := s.collectOpsSkillsFromRuntime(context.Background())
+	if err != nil {
+		return nil
 	}
-	return s.collectOpsSkillDirectoryFallback()
+	return items
 }
 
 func (s *Server) opsSkillSummaryFromState(skillID string, record opsSkillStateRecord) opsSkillSummary {
@@ -655,20 +728,7 @@ func (s *Server) collectOpsLogs() []opsLogEntry {
 }
 
 func (s *Server) workflowCounts() map[string]int {
-	root := strings.TrimSpace(s.cfg.WorkflowDir)
-	counts := map[string]int{"drafts": 0, "published": 0, "retired": 0}
-	for key := range counts {
-		entries, err := os.ReadDir(filepath.Join(root, key))
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-				counts[key]++
-			}
-		}
-	}
-	return counts
+	return s.workflowCountsFromRuntime(context.Background())
 }
 
 func (s *Server) opsPaths() map[string]string {
@@ -780,6 +840,58 @@ func firstSkills(items []opsSkillSummary, n int) []opsSkillSummary {
 	}
 	return items[:n]
 }
+
+func opsInt(v any) int {
+	switch typed := v.(type) {
+	case int:
+		return typed
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case json.Number:
+		parsed, _ := typed.Int64()
+		return int(parsed)
+	case string:
+		parsed, _ := strconv.Atoi(strings.TrimSpace(typed))
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func opsStringArray(v any) []string {
+	items := []string{}
+	switch typed := v.(type) {
+	case []string:
+		return append(items, typed...)
+	case []any:
+		for _, item := range typed {
+			if s := opsString(item); s != "" {
+				items = append(items, s)
+			}
+		}
+	}
+	return items
+}
+
+func opsStringMap(v any) map[string]string {
+	out := map[string]string{}
+	switch typed := v.(type) {
+	case map[string]string:
+		for key, value := range typed {
+			out[key] = value
+		}
+	case map[string]any:
+		for key, value := range typed {
+			if s := opsString(value); s != "" {
+				out[key] = s
+			}
+		}
+	}
+	return out
+}
+
 func opsString(v any) string { s, _ := v.(string); return s }
 func opsMap(v any) map[string]any {
 	m, _ := v.(map[string]any)
