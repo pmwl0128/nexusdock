@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, Copy, FileJson, RefreshCw, Search } from 'lucide-react';
 import { api } from '../../api/client';
 
@@ -33,8 +33,10 @@ type WorkflowTemplateDetail = WorkflowTemplateSummary & {
 
 type ListResponse = { ok: boolean; items: WorkflowTemplateSummary[]; count: number; total_count?: number; root: string; mode?: 'current' | 'history'; conflict_count?: number };
 type DetailResponse = { ok: boolean; template: WorkflowTemplateDetail };
-
 type Notice = { tone: Tone; text: string };
+type StepView = { id: string; title: string; phase: string; required: boolean; depends: string[]; substitution: string };
+
+type MatchView = { label: string; values: string[] };
 
 const LOCATIONS: Array<{ value: WorkflowLocation | 'all'; label: string }> = [
   { value: 'all', label: '全部' },
@@ -55,65 +57,25 @@ function statusTone(template?: Pick<WorkflowTemplateSummary, 'location' | 'statu
   return 'muted';
 }
 
-function formatTime(value: string): string {
+function formatTime(value?: string): string {
+  if (!value) return '暂无';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
-function fileNameFor(id: string, version: string): string {
-  return `${id.trim()}@${version.trim()}.json`;
-}
-
-function starterTemplate(): WorkflowTemplateDetail {
-  const content = JSON.stringify({
-    id: 'workflow.new-template',
-    version: '1.0.0',
-    title: '新任务模板',
-    description: '说明这个模板适合什么任务，避免泛化。',
-    status: 'draft',
-    match: {
-      keywords: ['任务模板'],
-      devices: ['DockMini'],
-      task_types: ['template-maintenance'],
-      priority: 50,
-    },
-    completion_conditions: ['已完成真实检查、执行、验证和收尾'],
-    steps: [
-      { id: 'check_context', title: '检查上下文和真实环境', phase: 'check', required: true, substitution: 'forbidden' },
-      { id: 'execute_work', title: '执行模板定义的真实工作', phase: 'execute', required: true, depends_on: ['check_context'], substitution: 'forbidden' },
-      { id: 'verify_result', title: '验证结果并记录证据', phase: 'verify', required: true, depends_on: ['execute_work'], substitution: 'forbidden' },
-    ],
-  }, null, 2);
-  return {
-    id: 'workflow.new-template',
-    version: '1.0.0',
-    title: '新任务模板',
-    description: '说明这个模板适合什么任务，避免泛化。',
-    status: 'draft',
-    location: 'drafts',
-    file_name: 'workflow.new-template@1.0.0.json',
-    path: 'drafts/workflow.new-template@1.0.0.json',
-    size_bytes: content.length,
-    updated_at: new Date().toISOString(),
-    step_count: 3,
-    keywords: ['任务模板'],
-    content,
-    json: JSON.parse(content) as Record<string, unknown>,
-  };
-}
-
-function parseTemplate(content: string): { id: string; version: string; title: string; stepCount: number; error?: string } {
+function parseTemplate(content: string): { body: Record<string, unknown>; id: string; version: string; title: string; description: string; stepCount: number; error?: string } {
   try {
-    const body = JSON.parse(content) as Record<string, unknown>;
-    const id = typeof body.id === 'string' ? body.id : '';
-    const version = typeof body.version === 'string' ? body.version : '';
-    const title = typeof body.title === 'string' ? body.title : '';
-    const steps = Array.isArray(body.steps) ? body.steps.length : 0;
-    if (!id || !version) return { id, version, title, stepCount: steps, error: 'JSON 需要包含 id 和 version。' };
-    return { id, version, title, stepCount: steps };
+    const body = JSON.parse(content || '{}') as Record<string, unknown>;
+    const id = text(body.id);
+    const version = text(body.version);
+    const title = text(body.title);
+    const description = text(body.description);
+    const steps = array(body.steps).length;
+    if (!id || !version) return { body, id, version, title, description, stepCount: steps, error: 'JSON 需要包含 id 和 version。' };
+    return { body, id, version, title, description, stepCount: steps };
   } catch (error) {
-    return { id: '', version: '', title: '', stepCount: 0, error: error instanceof Error ? error.message : 'JSON 解析失败' };
+    return { body: {}, id: '', version: '', title: '', description: '', stepCount: 0, error: error instanceof Error ? error.message : 'JSON 解析失败' };
   }
 }
 
@@ -136,9 +98,9 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   }, [items, query]);
 
   const parsed = useMemo(() => parseTemplate(content), [content]);
-  const dirty = false;
   const activeCount = items.filter((item) => item.location === 'published' && item.status === 'active').length;
   const draftCount = items.reduce((sum, item) => sum + (item.draft_count ?? (item.location === 'drafts' ? 1 : 0)), 0);
+  const retiredCount = items.reduce((sum, item) => sum + (item.retired_count ?? (item.location === 'retired' ? 1 : 0)), 0);
   const conflictCount = items.filter((item) => item.has_conflict || (item.active_count ?? 0) > 1).length;
   const visibleMode = location === 'all' ? '当前版本' : locationLabel(location);
 
@@ -170,18 +132,17 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     }
   }
 
-
   function copyPath() {
     if (!selected) return;
     void navigator.clipboard?.writeText(selected.path);
     setNotice({ tone: 'ok', text: '模板路径已复制。' });
   }
 
-  return <section className="workflow-page">
+  return <section className="workflow-page workflow-runtime-page">
     <div className="section-heading workflow-heading">
       <div>
         <h2>任务模板</h2>
-        <p>通过 AgentDock Runtime API 只读查看任务模板。发布、退役、保存需要 AgentDock 暴露受控写接口后再启用。</p>
+        <p>只读查看 AgentDock Runtime API 暴露的工作流模板；生命周期写操作由 AgentDock 受控接口负责。</p>
       </div>
       <div className="workflow-heading-actions">
         <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading}><RefreshCw size={15} />刷新</button>
@@ -189,22 +150,28 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     </div>
 
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
-    <div className="nx-alert is-info">只读模式：当前页面不直接写 AgentDock workflows 目录，避免绕过 Runtime 生命周期。</div>
 
-    <section className="workflow-metrics">
-      <article><strong>{items.length}</strong><span>{visibleMode}</span></article>
-      <article><strong>{activeCount}</strong><span>Active 当前版</span></article>
-      <article><strong>{conflictCount}</strong><span>多 Active 异常</span></article>
-      <article><strong>{root || '未配置'}</strong><span>workflow root</span></article>
+    <section className="workflow-runtime-banner">
+      <div><span>RUNTIME VIEWER</span><strong>只读模式</strong><p>Nexus 不再直接写 workflows 目录；发布、退役、保存将在 AgentDock 写接口完成后再出现。</p></div>
+      <StatusPill tone="ok">AgentDock API</StatusPill>
     </section>
 
-    <section className="workflow-layout">
-      <aside className="workflow-list-panel">
+    <section className="workflow-metrics workflow-runtime-metrics">
+      <MetricCard value={String(items.length)} label={visibleMode} />
+      <MetricCard value={String(activeCount)} label="Active 当前版" />
+      <MetricCard value={String(draftCount)} label="草稿版本" />
+      <MetricCard value={String(retiredCount)} label="退役历史" />
+      <MetricCard value={String(conflictCount)} label="多 Active 异常" tone={conflictCount ? 'danger' : 'ok'} />
+      <MetricCard value={root || 'agentdock-runtime-api'} label="数据源" wide />
+    </section>
+
+    <section className="workflow-layout workflow-runtime-layout">
+      <aside className="workflow-list-panel workflow-runtime-list-panel">
         <div className="workflow-toolbar">
           <label><span>状态</span><select value={location} onChange={(event) => setLocation(event.target.value as WorkflowLocation | 'all')}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label className="workflow-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 id、标题、关键词" /></label>
         </div>
-        <div className="workflow-list">
+        <div className="workflow-list workflow-runtime-list">
           {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'} · {item.version_count ?? 1} 个版本</small></span>
@@ -213,37 +180,129 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         </div>
       </aside>
 
-      <main className="workflow-editor-panel">
-        {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个任务模板查看 Runtime API 内容。</p></div> : <>
-          <header className="workflow-editor-head">
-            <div>
-              <span className="nexus-eyebrow">{selected.path}</span>
-              <h3>{parsed.title || selected.title || selected.file_name}</h3>
-              <p>{parsed.id || selected.id} · {parsed.version || selected.version} · {parsed.stepCount} 个步骤 · {selected.version_count ?? 1} 个版本 · 更新于 {formatTime(selected.updated_at)}</p>
-            </div>
-            <div className="workflow-editor-actions">
-              <button className="nx-button is-secondary" onClick={copyPath}><Copy size={15} />复制路径</button>
-              <button className="nx-button" disabled title="Runtime 写接口未启用">发布已禁用</button>
-              <button className="nx-button is-secondary" disabled title="Runtime 写接口未启用">退役已禁用</button>
-              <button className="nx-button" disabled title="Runtime 写接口未启用">保存已禁用</button>
-            </div>
-          </header>
-
-          <div className="workflow-editor-meta">
-            <StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill>
-            <span>{selected.size_bytes} bytes</span>
-            <span>草稿 {selected.draft_count ?? 0} / 历史 {selected.retired_count ?? 0}</span>
-            {dirty && <span className="workflow-dirty">有未保存修改</span>}
-            {parsed.error ? <span className="workflow-json-error">{parsed.error}</span> : <span className="workflow-json-ok"><Check size={13} /> JSON 可解析</span>}
-          </div>
-
-          <textarea className="workflow-json-editor" value={content} spellCheck={false} readOnly onChange={() => undefined} />
-        </>}
+      <main className="workflow-runtime-viewer">
+        {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个模板查看 Runtime API 内容。</p></div> : <RuntimeTemplateViewer selected={selected} parsed={parsed} onCopy={copyPath} />}
       </main>
     </section>
   </section>;
 }
 
-function StatusPill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: WorkflowTemplateDetail; parsed: ReturnType<typeof parseTemplate>; onCopy: () => void }) {
+  const match = record(parsed.body.match);
+  const steps = stepViews(parsed.body.steps);
+  const conditions = stringValues(parsed.body.completion_conditions);
+  const keywords = [...stringValues(match.keywords), ...(selected.keywords || [])].filter((value, index, list) => value && list.indexOf(value) === index);
+  const matchRows = matchViews(match);
+  const phases = Array.from(new Set(steps.map((step) => step.phase).filter(Boolean)));
+  const raw = selected.json || parsed.body;
+  return <article className="workflow-runtime-card">
+    <header className="workflow-runtime-head">
+      <div>
+        <span className="nexus-eyebrow">{selected.path}</span>
+        <h3>{parsed.title || selected.title || selected.file_name}</h3>
+        <p>{parsed.description || selected.description || '暂无模板说明。'}</p>
+      </div>
+      <div className="workflow-runtime-actions">
+        <StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill>
+        <button className="nx-button is-secondary" onClick={onCopy}><Copy size={15} />复制路径</button>
+      </div>
+    </header>
+
+    <div className="workflow-runtime-meta">
+      <StatusPill tone={parsed.error ? 'danger' : 'ok'}>{parsed.error || <><Check size={13} /> JSON 可解析</>}</StatusPill>
+      <span>{selected.id}@{selected.version}</span>
+      <span>{selected.version_count ?? 1} 个版本</span>
+      <span>{formatTime(selected.updated_at)}</span>
+    </div>
+
+    <section className="workflow-runtime-grid">
+      <InfoTile label="模板 ID" value={parsed.id || selected.id} />
+      <InfoTile label="版本" value={parsed.version || selected.version} />
+      <InfoTile label="步骤" value={`${steps.length || selected.step_count || 0} 个`} />
+      <InfoTile label="阶段" value={phases.join(' / ') || '未声明'} />
+      <InfoTile label="草稿 / 历史" value={`${selected.draft_count ?? 0} / ${selected.retired_count ?? 0}`} />
+      <InfoTile label="文件名" value={selected.file_name} />
+    </section>
+
+    <section className="workflow-runtime-section">
+      <SectionTitle title="匹配规则" subtitle="模型用这些信号判断是否应该使用该模板。" />
+      {keywords.length > 0 && <ChipRow values={keywords} />}
+      {matchRows.length === 0 ? <EmptyMini>没有匹配规则。</EmptyMini> : <div className="workflow-match-grid">{matchRows.map((row) => <div key={row.label}><span>{row.label}</span><p>{row.values.join(' · ')}</p></div>)}</div>}
+    </section>
+
+    <section className="workflow-runtime-section">
+      <SectionTitle title="完成条件" subtitle="任务结束前必须满足的可验证条件。" />
+      {conditions.length === 0 ? <EmptyMini>没有完成条件。</EmptyMini> : <div className="workflow-condition-list">{conditions.map((condition, index) => <div key={`${condition}:${index}`}><span>{index + 1}</span><p>{condition}</p></div>)}</div>}
+    </section>
+
+    <section className="workflow-runtime-section">
+      <SectionTitle title="执行步骤" subtitle="按阶段拆分的运行步骤，只读展示。" />
+      {steps.length === 0 ? <EmptyMini>没有步骤。</EmptyMini> : <div className="workflow-step-list">{steps.map((step, index) => <div className="workflow-step-card" key={`${step.id}:${index}`}><div><span>{index + 1}</span><strong>{step.title || step.id || `步骤 ${index + 1}`}</strong></div><p>{step.id}</p><footer><em>{step.phase || 'phase unknown'}</em>{step.required && <em>required</em>}{step.substitution && <em>{step.substitution}</em>}{step.depends.length > 0 && <em>depends: {step.depends.join(', ')}</em>}</footer></div>)}</div>}
+    </section>
+
+    <details className="workflow-runtime-json"><summary>查看 Runtime 原始 JSON</summary><pre>{JSON.stringify(raw, null, 2)}</pre></details>
+  </article>;
+}
+
+function StatusPill({ tone, children }: { tone: Tone; children: ReactNode }) {
   return <span className={`status-badge tone-${tone}`}><span />{children}</span>;
+}
+
+function MetricCard({ value, label, tone = 'muted', wide = false }: { value: string; label: string; tone?: Tone; wide?: boolean }) {
+  return <article className={wide ? 'is-wide' : ''}><strong className={`tone-${tone}`}>{value}</strong><span>{label}</span></article>;
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return <div className="workflow-info-tile"><span>{label}</span><strong>{value || '暂无'}</strong></div>;
+}
+
+function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
+  return <header className="workflow-section-title"><div><h4>{title}</h4><p>{subtitle}</p></div></header>;
+}
+
+function ChipRow({ values }: { values: string[] }) {
+  return <div className="workflow-chip-row">{values.slice(0, 18).map((value) => <span key={value}>{value}</span>)}</div>;
+}
+
+function EmptyMini({ children }: { children: ReactNode }) {
+  return <p className="empty-mini">{children}</p>;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function array(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function text(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+function stringValues(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  const single = text(value);
+  return single ? [single] : [];
+}
+
+function stepViews(value: unknown): StepView[] {
+  return array(value).map((item) => {
+    const body = record(item);
+    return {
+      id: text(body.id),
+      title: text(body.title) || text(body.name),
+      phase: text(body.phase),
+      required: body.required === true,
+      depends: stringValues(body.depends_on || body.depends),
+      substitution: text(body.substitution),
+    };
+  });
+}
+
+function matchViews(match: Record<string, unknown>): MatchView[] {
+  const labels: Record<string, string> = { keywords: '关键词', devices: '设备', task_types: '任务类型', projects: '项目', tools: '工具', skills: 'Skill', priority: '优先级' };
+  return Object.entries(match).map(([key, value]) => ({ label: labels[key] || key, values: stringValues(value) })).filter((row) => row.values.length > 0);
 }
