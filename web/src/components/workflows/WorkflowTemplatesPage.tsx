@@ -18,6 +18,12 @@ type WorkflowTemplateSummary = {
   updated_at: string;
   step_count: number;
   keywords?: string[];
+  current?: boolean;
+  version_count?: number;
+  active_count?: number;
+  draft_count?: number;
+  retired_count?: number;
+  has_conflict?: boolean;
 };
 
 type WorkflowTemplateDetail = WorkflowTemplateSummary & {
@@ -25,7 +31,7 @@ type WorkflowTemplateDetail = WorkflowTemplateSummary & {
   json?: Record<string, unknown>;
 };
 
-type ListResponse = { ok: boolean; items: WorkflowTemplateSummary[]; count: number; root: string };
+type ListResponse = { ok: boolean; items: WorkflowTemplateSummary[]; count: number; total_count?: number; root: string; mode?: 'current' | 'history'; conflict_count?: number };
 type DetailResponse = { ok: boolean; template: WorkflowTemplateDetail };
 
 type Notice = { tone: Tone; text: string };
@@ -133,7 +139,9 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   const parsed = useMemo(() => parseTemplate(content), [content]);
   const dirty = !!selected && content !== selected.content;
   const activeCount = items.filter((item) => item.location === 'published' && item.status === 'active').length;
-  const draftCount = items.filter((item) => item.location === 'drafts').length;
+  const draftCount = items.reduce((sum, item) => sum + (item.draft_count ?? (item.location === 'drafts' ? 1 : 0)), 0);
+  const conflictCount = items.filter((item) => item.has_conflict || (item.active_count ?? 0) > 1).length;
+  const visibleMode = location === 'all' ? '当前版本' : locationLabel(location);
 
   async function loadList() {
     setLoading(true);
@@ -218,7 +226,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <div className="section-heading workflow-heading">
       <div>
         <h2>任务模板</h2>
-        <p>管理 AgentDock 工作流模板。这里通过 Nexus 后端中转读写 AgentDock workflows，并保留 JSON 校验和位置约束。</p>
+        <p>管理 AgentDock 工作流模板。默认只展示每个模板的当前版本；发布和退役通过后端生命周期规则执行。</p>
       </div>
       <div className="workflow-heading-actions">
         <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading || saving}><RefreshCw size={15} />刷新</button>
@@ -229,9 +237,9 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
 
     <section className="workflow-metrics">
-      <article><strong>{items.length}</strong><span>当前列表</span></article>
-      <article><strong>{activeCount}</strong><span>Active 发布版</span></article>
-      <article><strong>{draftCount}</strong><span>草稿</span></article>
+      <article><strong>{items.length}</strong><span>{visibleMode}</span></article>
+      <article><strong>{activeCount}</strong><span>Active 当前版</span></article>
+      <article><strong>{conflictCount}</strong><span>多 Active 异常</span></article>
       <article><strong>{root || '未配置'}</strong><span>workflow root</span></article>
     </section>
 
@@ -244,8 +252,8 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         <div className="workflow-list">
           {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
-            <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'}</small></span>
-            <StatusPill tone={statusTone(item)}>{locationLabel(item.location)}</StatusPill>
+            <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'} · {item.version_count ?? 1} 个版本</small></span>
+            <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>
           </button>)}
         </div>
       </aside>
@@ -256,7 +264,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
             <div>
               <span className="nexus-eyebrow">{selected.path}</span>
               <h3>{parsed.title || selected.title || selected.file_name}</h3>
-              <p>{parsed.id || selected.id} · {parsed.version || selected.version} · {parsed.stepCount} 个步骤 · 更新于 {formatTime(selected.updated_at)}</p>
+              <p>{parsed.id || selected.id} · {parsed.version || selected.version} · {parsed.stepCount} 个步骤 · {selected.version_count ?? 1} 个版本 · 更新于 {formatTime(selected.updated_at)}</p>
             </div>
             <div className="workflow-editor-actions">
               <button className="nx-button is-secondary" onClick={copyPath}><Copy size={15} />复制路径</button>
@@ -267,8 +275,9 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
           </header>
 
           <div className="workflow-editor-meta">
-            <StatusPill tone={statusTone(selected)}>{selected.status || selected.location}</StatusPill>
+            <StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill>
             <span>{selected.size_bytes} bytes</span>
+            <span>草稿 {selected.draft_count ?? 0} / 历史 {selected.retired_count ?? 0}</span>
             {dirty && <span className="workflow-dirty">有未保存修改</span>}
             {parsed.error ? <span className="workflow-json-error">{parsed.error}</span> : <span className="workflow-json-ok"><Check size={13} /> JSON 可解析</span>}
           </div>

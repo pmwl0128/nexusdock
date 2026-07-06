@@ -4,12 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 )
@@ -17,18 +15,24 @@ import (
 var workflowFileNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]*@[0-9]+\.[0-9]+\.[0-9]+\.json$`)
 
 type workflowTemplateSummary struct {
-	ID          string    `json:"id"`
-	Version     string    `json:"version"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	Status      string    `json:"status"`
-	Location    string    `json:"location"`
-	FileName    string    `json:"file_name"`
-	Path        string    `json:"path"`
-	SizeBytes   int64     `json:"size_bytes"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	StepCount   int       `json:"step_count"`
-	Keywords    []string  `json:"keywords,omitempty"`
+	ID           string    `json:"id"`
+	Version      string    `json:"version"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description,omitempty"`
+	Status       string    `json:"status"`
+	Location     string    `json:"location"`
+	FileName     string    `json:"file_name"`
+	Path         string    `json:"path"`
+	SizeBytes    int64     `json:"size_bytes"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	StepCount    int       `json:"step_count"`
+	Keywords     []string  `json:"keywords,omitempty"`
+	Current      bool      `json:"current"`
+	VersionCount int       `json:"version_count,omitempty"`
+	ActiveCount  int       `json:"active_count,omitempty"`
+	DraftCount   int       `json:"draft_count,omitempty"`
+	RetiredCount int       `json:"retired_count,omitempty"`
+	HasConflict  bool      `json:"has_conflict,omitempty"`
 }
 
 type workflowTemplateDetail struct {
@@ -56,45 +60,48 @@ func (s *Server) listWorkflowTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	locationFilter := strings.TrimSpace(r.URL.Query().Get("location"))
+	includeHistory := r.URL.Query().Get("include_history") == "true" || r.URL.Query().Get("view") == "history"
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	var items []workflowTemplateSummary
-	for _, location := range workflowTemplateLocations() {
-		if locationFilter != "" && location != locationFilter {
-			continue
+
+	all, err := s.readAllWorkflowTemplateSummaries(root, locationFilter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "WORKFLOW_LIST_FAILED", err.Error())
+		return
+	}
+
+	counters := workflowTemplateCounters(all)
+	items := all
+	mode := "history"
+	if locationFilter == "" && !includeHistory {
+		items = currentWorkflowTemplates(all)
+		mode = "current"
+	}
+	if query != "" {
+		filtered := make([]workflowTemplateSummary, 0, len(items))
+		for _, item := range items {
+			if templateSummaryMatches(item, query) {
+				filtered = append(filtered, item)
+			}
 		}
-		dir := filepath.Join(root, location)
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			writeError(w, http.StatusInternalServerError, "WORKFLOW_LIST_FAILED", err.Error())
-			return
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-				continue
-			}
-			summary, err := s.readWorkflowTemplateSummary(root, location, entry.Name())
-			if err != nil {
-				continue
-			}
-			if query != "" && !templateSummaryMatches(summary, query) {
-				continue
-			}
-			items = append(items, summary)
+		items = filtered
+	}
+	sortWorkflowTemplates(items)
+	conflicts := 0
+	for _, counter := range counters {
+		if counter.Active > 1 {
+			conflicts++
 		}
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ID != items[j].ID {
-			return items[i].ID < items[j].ID
-		}
-		if items[i].Version != items[j].Version {
-			return items[i].Version > items[j].Version
-		}
-		return items[i].Location < items[j].Location
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":              true,
+		"items":           items,
+		"count":           len(items),
+		"total_count":     len(all),
+		"root":            root,
+		"mode":            mode,
+		"conflict_count":  conflicts,
+		"version_summary": counters,
 	})
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "root": root})
 }
 
 func (s *Server) workflowTemplateDetail(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +120,8 @@ func (s *Server) workflowTemplateDetail(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
 		return
 	}
+	all, _ := s.readAllWorkflowTemplateSummaries(root, "")
+	attachWorkflowTemplateCounters(&detail.workflowTemplateSummary, all)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail})
 }
 
@@ -140,6 +149,16 @@ func (s *Server) saveWorkflowTemplate(w http.ResponseWriter, r *http.Request) {
 	if err := json.Unmarshal([]byte(content), &body); err != nil {
 		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID_JSON", err.Error())
 		return
+	}
+	if err := validateWorkflowTemplateBody(body, fileName); err != nil {
+		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID", err.Error())
+		return
+	}
+	if location == "published" && stringFromMap(body, "status") == "active" {
+		if err := s.ensureSingleActive(root, stringFromMap(body, "id"), fileName); err != nil {
+			writeError(w, http.StatusConflict, "WORKFLOW_TEMPLATE_ACTIVE_CONFLICT", err.Error())
+			return
+		}
 	}
 	if err := os.MkdirAll(filepath.Join(root, location), 0o755); err != nil {
 		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
@@ -188,6 +207,10 @@ func (s *Server) createWorkflowTemplate(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID_JSON", err.Error())
 		return
 	}
+	if err := validateWorkflowTemplateBody(body, fileName); err != nil {
+		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_INVALID", err.Error())
+		return
+	}
 	if err := os.MkdirAll(filepath.Join(root, location), 0o755); err != nil {
 		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_SAVE_FAILED", err.Error())
 		return
@@ -234,30 +257,28 @@ func (s *Server) moveWorkflowTemplate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_FILE", err.Error())
 		return
 	}
-	source := filepath.Join(root, location, fileName)
-	content, err := os.ReadFile(source)
+
+	var result workflowTemplateLifecycleResult
+	switch target {
+	case "published":
+		result, err = s.publishWorkflowTemplate(root, location, fileName)
+	case "retired":
+		result, err = s.retireWorkflowTemplate(root, location, fileName)
+	case "drafts":
+		result, err = s.moveWorkflowTemplateToDrafts(root, location, fileName)
+	}
 	if err != nil {
-		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
+		writeError(w, workflowLifecycleHTTPStatus(err), "WORKFLOW_TEMPLATE_LIFECYCLE_FAILED", err.Error())
 		return
 	}
-	if err := os.MkdirAll(filepath.Join(root, target), 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_MOVE_FAILED", err.Error())
-		return
-	}
-	destination := filepath.Join(root, target, fileName)
-	if err := os.WriteFile(destination, content, 0o644); err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_MOVE_FAILED", err.Error())
-		return
-	}
-	if target == "retired" && location != "retired" {
-		_ = os.Remove(source)
-	}
-	detail, err := s.readWorkflowTemplateDetail(root, target, fileName)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "WORKFLOW_TEMPLATE_MOVE_FAILED", err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":              true,
+		"template":        result.Template,
+		"retired":         result.Retired,
+		"current":         result.Current,
+		"conflict_count":  result.ConflictCount,
+		"version_summary": result.VersionSummary,
+	})
 }
 
 func (s *Server) workflowTemplatesRoot() (string, error) {
