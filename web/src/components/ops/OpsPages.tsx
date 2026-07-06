@@ -80,12 +80,29 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
 export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<CapabilitiesResponse>('/v1/ops/capabilities', { ok: false, tools: [], counts: {}, paths: {} }, refreshToken);
   const counts = resource.data.counts;
-  return <OpsShell title="Capability" subtitle="Nexus 当前可见的工具、任务、模板、Skill 和数据目录。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-metrics is-dashboard"><Metric label="任务" value={String(counts.tasks ?? 0)} /><Metric label="Skill" value={String(counts.skills ?? 0)} /><Metric label="模板" value={JSON.stringify(counts.workflows ?? {})} /></section>
-    <div className="ops-grid cards is-rich">{resource.data.tools.map((tool) => <article className="ops-card" key={tool.name}><header><span className="ops-card-icon"><Layers size={18} /></span><StatusBadge tone={tool.status === 'available' ? 'ok' : 'warn'}>{tool.status}</StatusBadge></header><h3>{tool.name}</h3><p>{tool.description}</p><code>{tool.category}</code></article>)}</div>
-    <PathPanel paths={resource.data.paths} />
+  const workflowCounts = (counts.workflows && typeof counts.workflows === 'object' ? counts.workflows : {}) as Record<string, unknown>;
+  const groups = resource.data.tools.reduce<Record<string, CapabilitiesResponse['tools']>>((acc, tool) => {
+    const key = tool.category || 'other';
+    acc[key] = [...(acc[key] || []), tool];
+    return acc;
+  }, {});
+  const availableTools = resource.data.tools.filter((tool) => tool.status === 'available').length;
+  const workflowTotal = Number(workflowCounts.published || 0) + Number(workflowCounts.drafts || 0) + Number(workflowCounts.retired || 0);
+  return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，而不是原始接口字段。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+    <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 能看见什么、能操作什么、数据从哪里来。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
+    <section className="cap-summary-grid">
+      <CapabilitySummary title="任务系统" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
+      <CapabilitySummary title="Skill Runtime" value={String(counts.skills ?? 0)} detail="本机可见 Skill" tone="ok" />
+      <CapabilitySummary title="Workflow 模板" value={String(workflowTotal || workflowCounts.published || 0)} detail={`${workflowCounts.published ?? 0} published · ${workflowCounts.drafts ?? 0} drafts`} tone="muted" />
+      <CapabilitySummary title="工具能力" value={String(resource.data.tools.length)} detail={`${availableTools} available`} tone={availableTools ? 'ok' : 'warn'} />
+    </section>
+    <section className="cap-layout">
+      <article className="cap-tool-panel"><header><div><h3>工具分组</h3><p>按能力域展示，不再平铺成无意义卡片。</p></div><StatusBadge tone="muted">{Object.keys(groups).length} groups</StatusBadge></header>{Object.entries(groups).length === 0 ? <EmptyOps text="没有可展示工具。" /> : Object.entries(groups).map(([category, tools]) => <div className="cap-group" key={category}><div className="cap-group-head"><strong>{category}</strong><span>{tools.length} tools</span></div>{tools.map((tool) => <div className="cap-tool-row" key={tool.name}><StatusDot tone={tool.status === 'available' ? 'ok' : 'warn'} /><div><strong>{tool.name}</strong><small>{tool.description}</small></div><em>{tool.status}</em></div>)}</div>)}</article>
+      <aside className="cap-side"><article className="cap-mini-panel"><h3>模板状态</h3><div className="cap-kv"><span>Published</span><strong>{String(workflowCounts.published ?? 0)}</strong></div><div className="cap-kv"><span>Drafts</span><strong>{String(workflowCounts.drafts ?? 0)}</strong></div><div className="cap-kv"><span>Retired</span><strong>{String(workflowCounts.retired ?? 0)}</strong></div></article><PathPanel paths={resource.data.paths} /></aside>
+    </section>
   </OpsShell>;
 }
+
 export function LogsPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<LogsResponse>('/v1/ops/logs', { ok: false, items: [], count: 0, roots: [] }, refreshToken);
   const [selectedPath, setSelectedPath] = useState('');
@@ -113,6 +130,7 @@ function TaskDetail({ task }: { task?: OpsTask }) {
 function TaskCard({ task }: { task: OpsTask }) { return <article className="ops-task-card"><header><div><strong>{task.title || task.id}</strong><small>{task.id} · {formatTime(task.updated_at)}</small></div><StatusBadge tone={toneForTask(task)}>{task.status}</StatusBadge></header><p>{task.goal}</p>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<footer><span>{task.phase || 'no phase'}</span><span>review: {task.review_status}</span><span>{task.condition_count} 条件 / {task.step_count} 步骤</span>{task.template_id && <span>{task.template_id}@{task.template_version}</span>}{task.cleanable && <strong>可清理</strong>}</footer></article>; }
 function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button className="nx-button is-secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
 function Metric({ label, value, tone = 'muted' }: { label: string; value: string; tone?: Tone }) { return <article><span className={`metric-icon tone-${tone}`}>{label.slice(0, 1)}</span><strong>{value}</strong><small>{label}</small></article>; }
+function CapabilitySummary({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: Tone }) { return <article className="cap-summary-card"><header><span className={`metric-icon tone-${tone}`}>{title.slice(0, 1)}</span>{title}</header><strong>{value}</strong><p>{detail}</p></article>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function StatusDot({ tone }: { tone: Tone }) { return <i className={`ops-dot tone-${tone}`} />; }
