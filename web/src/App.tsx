@@ -103,6 +103,9 @@ type FetchJob = {
   mounted_at?: string;
 };
 
+type OpsOverview = { ok: boolean; tasks?: Record<string, number>; skills?: { count?: number }; workflows?: Record<string, number>; paths?: Record<string, string>; updated_at?: string };
+type DeploymentStatus = { ok: boolean; service?: string; health?: { ok?: boolean; addr?: string }; source?: { commit?: string; dir?: string }; image?: string; updated_at?: string };
+
 type SystemStatus = {
   ok: boolean;
   service: string;
@@ -302,20 +305,25 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
   const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=8', [], refreshToken);
+  const opsResource = useResource<OpsOverview>('/v1/ops/overview', { ok: false }, refreshToken);
+  const deployResource = useResource<DeploymentStatus>('/v1/ops/deployment', { ok: false }, refreshToken);
   const devices = devicesResource.data ?? [];
   const artifacts = artifactsResource.data ?? [];
   const fetches = fetchesResource.data ?? [];
   const backup = backupResource.data;
+  const ops = opsResource.data || { ok: false };
+  const taskCounts = ops.tasks || {};
+  const deploy = deployResource.data || { ok: false };
   const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
   const failedTransfers = artifacts.filter((item) => item.deliveries.some((delivery) => delivery.status === 'failed')).length
     + fetches.filter((item) => item.status === 'failed').length;
   const recentTransferCount = artifacts.length + fetches.length;
-  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
+  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error, opsResource.error, deployResource.error].filter(Boolean) as string[];
 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
       <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、文件和备份集中管理</h2><p>只展示当前真实运行链路，不再保留未接入生产的 Task、Run 和 Evolution 概念。</p></div>
-      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{recentTransferCount} 条近期传输</span></div>
+      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{taskCounts.active || 0} 个 active 任务</span><span>{deploy.health?.ok ? '部署健康' : '部署待确认'}</span></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
@@ -323,6 +331,8 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
       <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
       <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
       <MetricButton label="近期文件" value={recentTransferCount} tone="ok" onClick={() => navigate('files')} />
+      <MetricButton label="Active 任务" value={taskCounts.active || 0} tone="warn" onClick={() => navigate('tasks')} />
+      <MetricButton label="Blocked" value={taskCounts.blocked || 0} tone={taskCounts.blocked ? 'danger' : 'muted'} onClick={() => navigate('tasks')} />
       <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
     </section>
 
@@ -339,6 +349,18 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
           {failedTransfers > 0 && <button type="button" className="attention-row" onClick={() => navigate('files')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>{failedTransfers} 条文件传输失败</strong><small>打开文件页面查看错误和目标设备</small></span><ChevronRight size={16} /></button>}
         </>}
+      </Panel>
+      <Panel title="AgentDock 任务" subtitle={`${taskCounts.active || 0} active · ${taskCounts.blocked || 0} blocked · ${taskCounts.cleanable || 0} cleanable`}>
+        <SummaryStat label="Active" value={String(taskCounts.active || 0)} tone="warn" />
+        <SummaryStat label="Blocked" value={String(taskCounts.blocked || 0)} tone={taskCounts.blocked ? 'danger' : 'muted'} />
+        <SummaryStat label="Completed" value={String(taskCounts.completed || 0)} tone="ok" />
+        <button type="button" className="attention-row" onClick={() => navigate('tasks')}><StatusBadge tone={taskCounts.blocked ? 'danger' : 'ok'}>{taskCounts.blocked ? 'check' : 'ok'}</StatusBadge><span><strong>打开任务中心</strong><small>查看详情、review、阻塞和清理候选</small></span><ChevronRight size={16} /></button>
+      </Panel>
+      <Panel title="部署状态" subtitle={`${deploy.service || 'recalldock'} · ${deploy.source?.commit ? deploy.source.commit.slice(0, 8) : 'unknown commit'}`}>
+        <SummaryStat label="健康" value={deploy.health?.ok ? 'ok' : 'unknown'} tone={deploy.health?.ok ? 'ok' : 'warn'} />
+        <SummaryStat label="Skill" value={String(ops.skills?.count || 0)} tone="ok" />
+        <SummaryStat label="模板" value={String(ops.workflows?.published || 0)} tone="muted" />
+        <button type="button" className="attention-row" onClick={() => navigate('deploy')}><StatusBadge tone={deploy.health?.ok ? 'ok' : 'warn'}>{deploy.health?.ok ? 'healthy' : 'unknown'}</StatusBadge><span><strong>打开部署中心</strong><small>{deploy.health?.addr || '查看 compose、挂载和源码提交'}</small></span><ChevronRight size={16} /></button>
       </Panel>
     </section>
   </>;
