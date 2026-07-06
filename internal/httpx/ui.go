@@ -52,6 +52,12 @@ func (s *Server) serveUI(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveEmbeddedAsset(w http.ResponseWriter, dist fs.FS, assetPath string) {
+	if assetPath == "index.html" {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+	} else if strings.HasPrefix(assetPath, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
 	data, err := fs.ReadFile(dist, assetPath)
 	if err != nil {
 		http.Error(w, "ui asset not found", http.StatusNotFound)
