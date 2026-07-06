@@ -10,10 +10,11 @@ import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
-import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage, TaskCleanupPage } from './components/ops/OpsPages';
+import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage } from './components/ops/OpsPages';
 import './nexus.css';
 
-type Section = 'home' | 'devices' | 'recall' | 'tasks' | 'cleanup' | 'skills' | 'capabilities' | 'logs' | 'deploy' | 'templates' | 'files' | 'settings';
+type Section = 'home' | 'devices' | 'recall' | 'runtime' | 'deploy' | 'files' | 'settings';
+type RuntimeTab = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -121,21 +122,44 @@ type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
-  { id: 'recall', label: '召回', icon: Database },
-  { id: 'tasks', label: '任务', icon: ListChecks },
-  { id: 'cleanup', label: '清理', icon: Trash2 },
-  { id: 'skills', label: 'Skill', icon: Wrench },
-  { id: 'capabilities', label: '能力', icon: Boxes },
-  { id: 'logs', label: '日志', icon: ScrollText },
-  { id: 'deploy', label: '部署', icon: Rocket },
-  { id: 'templates', label: '模板', icon: FileJson },
+  { id: 'recall', label: 'Recall', icon: Database },
   { id: 'files', label: '文件', icon: FileArchive },
+  { id: 'runtime', label: 'Runtime', icon: Boxes },
+  { id: 'deploy', label: '部署', icon: Rocket },
   { id: 'settings', label: '设置', icon: Settings },
 ];
 
+const RUNTIME_TABS: Array<{ id: RuntimeTab; label: string; desc: string; icon: typeof Home }> = [
+  { id: 'tasks', label: '任务', desc: '任务状态、review、阻塞和候选', icon: ListChecks },
+  { id: 'skills', label: 'Skill', desc: '已安装 Skill、版本和 manifest', icon: Wrench },
+  { id: 'templates', label: '模板', desc: '只读 Runtime 模板 Viewer', icon: FileJson },
+  { id: 'capabilities', label: '能力', desc: 'Runtime 能力和设备上报', icon: Boxes },
+  { id: 'logs', label: '日志', desc: '排障日志和运行尾部', icon: ScrollText },
+];
+
+const LEGACY_RUNTIME_TABS: Record<string, RuntimeTab> = {
+  tasks: 'tasks',
+  cleanup: 'tasks',
+  skills: 'skills',
+  templates: 'templates',
+  capabilities: 'capabilities',
+  logs: 'logs',
+};
+
+function hashParts(): string[] {
+  return window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+}
+
+function runtimeTabFromHash(): RuntimeTab {
+  const [first, second] = hashParts();
+  if (first === 'runtime' && RUNTIME_TABS.some((tab) => tab.id === second)) return second as RuntimeTab;
+  return LEGACY_RUNTIME_TABS[first] || 'tasks';
+}
+
 function sectionFromHash(): Section {
-  const value = window.location.hash.replace(/^#\/?/, '').split('/')[0] as Section;
-  if (NAV.some((item) => item.id === value)) return value;
+  const [first] = hashParts();
+  if (LEGACY_RUNTIME_TABS[first]) return 'runtime';
+  if (NAV.some((item) => item.id === first)) return first as Section;
   const params = new URLSearchParams(window.location.search);
   if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
   return 'home';
@@ -193,6 +217,7 @@ function toneForStatus(status?: string): Tone {
 
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
+  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(runtimeTabFromHash);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -220,7 +245,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onHash = () => setSection(sectionFromHash());
+    const onHash = () => {
+      setSection(sectionFromHash());
+      setRuntimeTab(runtimeTabFromHash());
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -228,6 +256,14 @@ export default function App() {
   function navigate(next: Section) {
     window.location.hash = next;
     setSection(next);
+    if (next === 'runtime') setRuntimeTab('tasks');
+    setMenuOpen(false);
+  }
+
+  function navigateRuntime(next: RuntimeTab) {
+    window.location.hash = `runtime/${next}`;
+    setSection('runtime');
+    setRuntimeTab(next);
     setMenuOpen(false);
   }
 
@@ -270,15 +306,10 @@ export default function App() {
           </div>
         </header>
         <div className="nexus-content">
-          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
+          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} navigateRuntime={navigateRuntime} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
-          {section === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
-          {section === 'cleanup' && <TaskCleanupPage refreshToken={refreshToken} />}
-          {section === 'skills' && <SkillsPage refreshToken={refreshToken} />}
-          {section === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
-          {section === 'logs' && <LogsPage refreshToken={refreshToken} />}
+          {section === 'runtime' && <RuntimeWorkbenchPage refreshToken={refreshToken} activeTab={runtimeTab} onTabChange={navigateRuntime} />}
           {section === 'deploy' && <DeploymentPage refreshToken={refreshToken} />}
-          {section === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
           {section === 'files' && <FilesPage refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
@@ -296,7 +327,7 @@ function SessionExpiredDialog() {
   return <div className="session-expired-overlay" role="presentation"><section className="session-expired-dialog" role="dialog" aria-modal="true" aria-labelledby="session-expired-title"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。</p><button onClick={signInAgain}>重新登录</button></section></div>;
 }
 
-function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
+function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: number; navigate: (section: Section) => void; navigateRuntime: (tab: RuntimeTab) => void }) {
   const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
@@ -327,8 +358,8 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
       <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
       <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
       <MetricButton label="近期文件" value={recentTransferCount} tone="ok" onClick={() => navigate('files')} />
-      <MetricButton label="Active 任务" value={taskCounts.active || 0} tone="warn" onClick={() => navigate('tasks')} />
-      <MetricButton label="Blocked" value={taskCounts.blocked || 0} tone={taskCounts.blocked ? 'danger' : 'muted'} onClick={() => navigate('tasks')} />
+      <MetricButton label="Active 任务" value={taskCounts.active || 0} tone="warn" onClick={() => navigateRuntime('tasks')} />
+      <MetricButton label="Blocked" value={taskCounts.blocked || 0} tone={taskCounts.blocked ? 'danger' : 'muted'} onClick={() => navigateRuntime('tasks')} />
       <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
     </section>
 
@@ -350,7 +381,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
         <SummaryStat label="Active" value={String(taskCounts.active || 0)} tone="warn" />
         <SummaryStat label="Blocked" value={String(taskCounts.blocked || 0)} tone={taskCounts.blocked ? 'danger' : 'muted'} />
         <SummaryStat label="Completed" value={String(taskCounts.completed || 0)} tone="ok" />
-        <button type="button" className="attention-row" onClick={() => navigate('tasks')}><StatusBadge tone={taskCounts.blocked ? 'danger' : 'ok'}>{taskCounts.blocked ? 'check' : 'ok'}</StatusBadge><span><strong>打开任务中心</strong><small>查看详情、review、阻塞和清理候选</small></span><ChevronRight size={16} /></button>
+        <button type="button" className="attention-row" onClick={() => navigateRuntime('tasks')}><StatusBadge tone={taskCounts.blocked ? 'danger' : 'ok'}>{taskCounts.blocked ? 'check' : 'ok'}</StatusBadge><span><strong>打开任务中心</strong><small>查看详情、review、阻塞和清理候选</small></span><ChevronRight size={16} /></button>
       </Panel>
       <Panel title="部署状态" subtitle={`${deploy.service || 'recalldock'} · ${deploy.source?.commit ? deploy.source.commit.slice(0, 8) : 'unknown commit'}`}>
         <SummaryStat label="健康" value={deploy.health?.ok ? 'ok' : 'unknown'} tone={deploy.health?.ok ? 'ok' : 'warn'} />
@@ -360,6 +391,19 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
       </Panel>
     </section>
   </>;
+}
+
+function RuntimeWorkbenchPage({ refreshToken, activeTab, onTabChange }: { refreshToken: number; activeTab: RuntimeTab; onTabChange: (tab: RuntimeTab) => void }) {
+  const active = RUNTIME_TABS.find((tab) => tab.id === activeTab) || RUNTIME_TABS[0];
+  const ActiveIcon = active.icon;
+  return <section className="runtime-workbench">
+    <div className="section-heading runtime-heading"><div><span className="nexus-eyebrow">Runtime Inspector</span><h2>AgentDock Runtime</h2><p>把只读观察和排障功能收敛到一个工作台；真正的设备和 Env 操作仍在设备页完成。</p></div><StatusBadge tone="ok">只读优先</StatusBadge></div>
+    <div className="runtime-tab-strip">{RUNTIME_TABS.map((tab) => {
+      const Icon = tab.icon;
+      return <button key={tab.id} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => onTabChange(tab.id)}><Icon size={17} /><span><strong>{tab.label}</strong><small>{tab.desc}</small></span></button>;
+    })}</div>
+    <section className="runtime-active-panel"><header><span><ActiveIcon size={18} /></span><div><h3>{active.label}</h3><p>{active.desc}</p></div></header>{activeTab === 'tasks' && <><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>不再单独作为页面；可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></>}{activeTab === 'skills' && <SkillsPage refreshToken={refreshToken} />}{activeTab === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}{activeTab === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}{activeTab === 'logs' && <LogsPage refreshToken={refreshToken} />}</section>
+  </section>;
 }
 
 function FilesPage({ refreshToken }: { refreshToken: number }) {
