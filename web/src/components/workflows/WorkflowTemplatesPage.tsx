@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, FileJson, Plus, RefreshCw, Save, Search, Send, ShieldAlert } from 'lucide-react';
-import { ApiError, api } from '../../api/client';
+import { Check, Copy, FileJson, RefreshCw, Search } from 'lucide-react';
+import { api } from '../../api/client';
 
 type WorkflowLocation = 'drafts' | 'published' | 'retired';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
@@ -125,7 +125,6 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   const [selected, setSelected] = useState<WorkflowTemplateDetail | null>(null);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => { void loadList(); }, [refreshToken, location]);
@@ -137,7 +136,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   }, [items, query]);
 
   const parsed = useMemo(() => parseTemplate(content), [content]);
-  const dirty = !!selected && content !== selected.content;
+  const dirty = false;
   const activeCount = items.filter((item) => item.location === 'published' && item.status === 'active').length;
   const draftCount = items.reduce((sum, item) => sum + (item.draft_count ?? (item.location === 'drafts' ? 1 : 0)), 0);
   const conflictCount = items.filter((item) => item.has_conflict || (item.active_count ?? 0) > 1).length;
@@ -171,50 +170,6 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     }
   }
 
-  function newDraft() {
-    const draft = starterTemplate();
-    setSelected(draft);
-    setContent(draft.content);
-    setNotice({ tone: 'warn', text: '已创建本地草稿，修改 id/version 后点“保存”。' });
-  }
-
-  async function saveTemplate() {
-    if (!selected || parsed.error) return;
-    const nextFile = fileNameFor(parsed.id, parsed.version);
-    const isExisting = items.some((item) => item.location === selected.location && item.file_name === selected.file_name);
-    setSaving(true);
-    setNotice(null);
-    try {
-      const result = isExisting
-        ? await api<DetailResponse>(`/v1/workflow-templates/${selected.location}/${selected.file_name}`, { method: 'PUT', body: JSON.stringify({ content }) })
-        : await api<DetailResponse>('/v1/workflow-templates', { method: 'POST', body: JSON.stringify({ location: 'drafts', file_name: nextFile, content }) });
-      setSelected(result.template);
-      setContent(result.template.content);
-      await loadList();
-      setNotice({ tone: 'ok', text: `已保存：${result.template.path}` });
-    } catch (error) {
-      setNotice({ tone: 'danger', text: error instanceof ApiError ? `${error.code || error.status}：${error.message}` : error instanceof Error ? error.message : '保存失败' });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function moveTemplate(target: WorkflowLocation) {
-    if (!selected) return;
-    setSaving(true);
-    setNotice(null);
-    try {
-      const result = await api<DetailResponse>('/v1/workflow-templates/move', { method: 'POST', body: JSON.stringify({ location: selected.location, file_name: selected.file_name, target }) });
-      setSelected(result.template);
-      setContent(result.template.content);
-      await loadList();
-      setNotice({ tone: 'ok', text: `已移动到${locationLabel(target)}：${result.template.file_name}` });
-    } catch (error) {
-      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '移动失败' });
-    } finally {
-      setSaving(false);
-    }
-  }
 
   function copyPath() {
     if (!selected) return;
@@ -226,15 +181,15 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <div className="section-heading workflow-heading">
       <div>
         <h2>任务模板</h2>
-        <p>管理 AgentDock 工作流模板。默认只展示每个模板的当前版本；发布和退役通过后端生命周期规则执行。</p>
+        <p>通过 AgentDock Runtime API 只读查看任务模板。发布、退役、保存需要 AgentDock 暴露受控写接口后再启用。</p>
       </div>
       <div className="workflow-heading-actions">
-        <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading || saving}><RefreshCw size={15} />刷新</button>
-        <button className="nx-button" onClick={newDraft}><Plus size={15} />新建草稿</button>
+        <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading}><RefreshCw size={15} />刷新</button>
       </div>
     </div>
 
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
+    <div className="nx-alert is-info">只读模式：当前页面不直接写 AgentDock workflows 目录，避免绕过 Runtime 生命周期。</div>
 
     <section className="workflow-metrics">
       <article><strong>{items.length}</strong><span>{visibleMode}</span></article>
@@ -259,7 +214,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
       </aside>
 
       <main className="workflow-editor-panel">
-        {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个任务模板，或新建草稿。</p></div> : <>
+        {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个任务模板查看 Runtime API 内容。</p></div> : <>
           <header className="workflow-editor-head">
             <div>
               <span className="nexus-eyebrow">{selected.path}</span>
@@ -268,9 +223,9 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
             </div>
             <div className="workflow-editor-actions">
               <button className="nx-button is-secondary" onClick={copyPath}><Copy size={15} />复制路径</button>
-              {selected.location !== 'published' && <button className="nx-button" onClick={() => void moveTemplate('published')} disabled={saving || dirty || !!parsed.error}><Send size={15} />发布</button>}
-              {selected.location !== 'retired' && <button className="nx-button is-secondary" onClick={() => void moveTemplate('retired')} disabled={saving || dirty}><ShieldAlert size={15} />退役</button>}
-              <button className="nx-button" onClick={() => void saveTemplate()} disabled={saving || !!parsed.error || !dirty}><Save size={15} />保存</button>
+              <button className="nx-button" disabled title="Runtime 写接口未启用">发布已禁用</button>
+              <button className="nx-button is-secondary" disabled title="Runtime 写接口未启用">退役已禁用</button>
+              <button className="nx-button" disabled title="Runtime 写接口未启用">保存已禁用</button>
             </div>
           </header>
 
@@ -282,7 +237,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
             {parsed.error ? <span className="workflow-json-error">{parsed.error}</span> : <span className="workflow-json-ok"><Check size={13} /> JSON 可解析</span>}
           </div>
 
-          <textarea className="workflow-json-editor" value={content} spellCheck={false} onChange={(event) => setContent(event.target.value)} />
+          <textarea className="workflow-json-editor" value={content} spellCheck={false} readOnly onChange={() => undefined} />
         </>}
       </main>
     </section>

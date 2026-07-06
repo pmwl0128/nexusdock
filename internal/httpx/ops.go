@@ -435,7 +435,7 @@ func (s *Server) opsSkillDetailFromRuntime(ctx context.Context, skillID string) 
 	title := firstNonEmptyString(opsString(metadata["displayName"]), opsString(metadata["display_name"]), opsString(metadata["title"]), opsString(metadata["name"]), skillID)
 	desc := firstNonEmptyString(opsString(metadata["description"]), opsString(manifest["description"]))
 	summary := opsSkillSummary{ID: skillID, Title: title, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", skillID)), Description: desc, UpdatedAt: opsString(selection["updated_at"]), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels, FileCount: 0}
-	return opsSkillDetail{opsSkillSummary: summary, Root: "agentdock-runtime-api", Files: []opsSkillFile{}}, nil
+	return opsSkillDetail{opsSkillSummary: summary, Root: "agentdock-runtime-api", Files: []opsSkillFile{}, RuntimeState: body}, nil
 }
 
 func (s *Server) workflowCountsFromRuntime(ctx context.Context) map[string]int {
