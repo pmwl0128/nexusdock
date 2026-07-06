@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, Copy, FileJson, RefreshCw, Search } from 'lucide-react';
 import { api } from '../../api/client';
+import { formatTime, timeZoneLabel } from '../../lib/time';
 
 type WorkflowLocation = 'drafts' | 'published' | 'retired';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
@@ -35,7 +36,7 @@ type ListResponse = { ok: boolean; items: WorkflowTemplateSummary[]; count: numb
 type DetailResponse = { ok: boolean; template: WorkflowTemplateDetail };
 type Notice = { tone: Tone; text: string };
 type StepView = { id: string; title: string; phase: string; required: boolean; depends: string[]; substitution: string };
-
+type StepGroup = { phase: string; steps: StepView[] };
 type MatchView = { label: string; values: string[] };
 
 const LOCATIONS: Array<{ value: WorkflowLocation | 'all'; label: string }> = [
@@ -55,13 +56,6 @@ function statusTone(template?: Pick<WorkflowTemplateSummary, 'location' | 'statu
   if (template.location === 'published') return 'warn';
   if (template.location === 'drafts') return 'warn';
   return 'muted';
-}
-
-function formatTime(value?: string): string {
-  if (!value) return '暂无';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
 function parseTemplate(content: string): { body: Record<string, unknown>; id: string; version: string; title: string; description: string; stepCount: number; error?: string } {
@@ -152,7 +146,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
 
     <section className="workflow-runtime-banner">
-      <div><span>RUNTIME VIEWER</span><strong>只读模式</strong><p>Nexus 不再直接写 workflows 目录；发布、退役、保存将在 AgentDock 写接口完成后再出现。</p></div>
+      <div><span>RUNTIME VIEWER</span><strong>只读模式</strong><p>Nexus 不再直接写 workflows 目录；发布、退役、保存将在 AgentDock 写接口完成后再出现。时间按 {timeZoneLabel()} 显示。</p></div>
       <StatusPill tone="ok">AgentDock API</StatusPill>
     </section>
 
@@ -171,6 +165,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
           <label><span>状态</span><select value={location} onChange={(event) => setLocation(event.target.value as WorkflowLocation | 'all')}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label className="workflow-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 id、标题、关键词" /></label>
         </div>
+        <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>当前列表</span><em>{location === 'all' ? '全部状态' : locationLabel(location)}</em></div>
         <div className="workflow-list workflow-runtime-list">
           {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
@@ -193,7 +188,8 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
   const conditions = stringValues(parsed.body.completion_conditions);
   const keywords = [...stringValues(match.keywords), ...(selected.keywords || [])].filter((value, index, list) => value && list.indexOf(value) === index);
   const matchRows = matchViews(match);
-  const phases = Array.from(new Set(steps.map((step) => step.phase).filter(Boolean)));
+  const stepGroups = groupSteps(steps);
+  const phases = stepGroups.map((group) => group.phase).filter(Boolean);
   const raw = selected.json || parsed.body;
   return <article className="workflow-runtime-card">
     <header className="workflow-runtime-head">
@@ -203,6 +199,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
         <p>{parsed.description || selected.description || '暂无模板说明。'}</p>
       </div>
       <div className="workflow-runtime-actions">
+        <div className="workflow-runtime-head-stat"><strong>{steps.length || selected.step_count || 0}</strong><span>steps</span></div>
         <StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill>
         <button className="nx-button is-secondary" onClick={onCopy}><Copy size={15} />复制路径</button>
       </div>
@@ -224,7 +221,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
       <InfoTile label="文件名" value={selected.file_name} />
     </section>
 
-    <section className="workflow-runtime-section">
+    <section className="workflow-runtime-section workflow-runtime-section-soft">
       <SectionTitle title="匹配规则" subtitle="模型用这些信号判断是否应该使用该模板。" />
       {keywords.length > 0 && <ChipRow values={keywords} />}
       {matchRows.length === 0 ? <EmptyMini>没有匹配规则。</EmptyMini> : <div className="workflow-match-grid">{matchRows.map((row) => <div key={row.label}><span>{row.label}</span><p>{row.values.join(' · ')}</p></div>)}</div>}
@@ -237,11 +234,15 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
 
     <section className="workflow-runtime-section">
       <SectionTitle title="执行步骤" subtitle="按阶段拆分的运行步骤，只读展示。" />
-      {steps.length === 0 ? <EmptyMini>没有步骤。</EmptyMini> : <div className="workflow-step-list">{steps.map((step, index) => <div className="workflow-step-card" key={`${step.id}:${index}`}><div><span>{index + 1}</span><strong>{step.title || step.id || `步骤 ${index + 1}`}</strong></div><p>{step.id}</p><footer><em>{step.phase || 'phase unknown'}</em>{step.required && <em>required</em>}{step.substitution && <em>{step.substitution}</em>}{step.depends.length > 0 && <em>depends: {step.depends.join(', ')}</em>}</footer></div>)}</div>}
+      {steps.length === 0 ? <EmptyMini>没有步骤。</EmptyMini> : <div className="workflow-phase-list">{stepGroups.map((group) => <div className="workflow-phase-block" key={group.phase}><header><span>{group.phase}</span><strong>{group.steps.length} steps</strong></header><div className="workflow-step-list">{group.steps.map((step, index) => <StepCard key={`${group.phase}:${step.id}:${index}`} step={step} index={steps.indexOf(step) + 1} />)}</div></div>)}</div>}
     </section>
 
     <details className="workflow-runtime-json"><summary>查看 Runtime 原始 JSON</summary><pre>{JSON.stringify(raw, null, 2)}</pre></details>
   </article>;
+}
+
+function StepCard({ step, index }: { step: StepView; index: number }) {
+  return <div className="workflow-step-card"><div><span>{index}</span><strong>{step.title || step.id || `步骤 ${index}`}</strong></div><p>{step.id || '未声明 step id'}</p><footer><em>{step.phase || 'phase unknown'}</em>{step.required && <em>required</em>}{step.substitution && <em>{step.substitution}</em>}{step.depends.length > 0 && <em>depends: {step.depends.join(', ')}</em>}</footer></div>;
 }
 
 function StatusPill({ tone, children }: { tone: Tone; children: ReactNode }) {
@@ -286,6 +287,15 @@ function stringValues(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(text).filter(Boolean);
   const single = text(value);
   return single ? [single] : [];
+}
+
+function groupSteps(steps: StepView[]): StepGroup[] {
+  const groups = new Map<string, StepView[]>();
+  for (const step of steps) {
+    const phase = step.phase || '未分阶段';
+    groups.set(phase, [...(groups.get(phase) || []), step]);
+  }
+  return Array.from(groups.entries()).map(([phase, groupSteps]) => ({ phase, steps: groupSteps }));
 }
 
 function stepViews(value: unknown): StepView[] {

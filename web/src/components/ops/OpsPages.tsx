@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CheckCircle2, FileText, Layers, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
+import { formatTime, timeZoneLabel } from '../../lib/time';
 
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
@@ -23,7 +24,6 @@ type LogsResponse = { ok: boolean; items: OpsLog[]; count: number; roots: string
 type DeploymentResponse = { ok: boolean; service: string; health: { ok: boolean; addr: string }; paths: OpsPaths; compose: string; source: { dir: string; commit: string }; image?: string; updated_at: string };
 
 const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0, root: '' };
-function formatTime(value?: string): string { if (!value) return '暂无'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date); }
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
 function toneForTask(task: Pick<OpsTask, 'status' | 'phase' | 'review_status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.phase === 'closeout' && task.review_status === 'pass') return 'warn'; if (task.status === 'active') return 'warn'; return 'muted'; }
@@ -68,7 +68,7 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/ops/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const stats = useMemo(() => ({ active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }), [tasks]);
 
-  return <OpsShell title="任务中心" subtitle="通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。Active 是任务记录状态，不等于后台进程。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{resource.data.total || tasks.length} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={stats.blocked ? 'danger' : stats.cleanable ? 'warn' : 'ok'}>{stats.blocked ? `${stats.blocked} blocked` : stats.cleanable ? `${stats.cleanable} cleanable` : 'healthy'}</StatusBadge></section>
     <section className="ops-metrics is-dashboard"><Metric label="Active" value={String(stats.active)} tone="warn" /><Metric label="Blocked" value={String(stats.blocked)} tone={stats.blocked ? 'danger' : 'muted'} /><Metric label="Completed" value={String(stats.completed)} tone="ok" /><Metric label="可清理" value={String(stats.cleanable)} tone={stats.cleanable ? 'warn' : 'muted'} /></section>
     <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">{resource.data.count} / {resource.data.total}</span></div>

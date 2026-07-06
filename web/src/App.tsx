@@ -1,3 +1,4 @@
+import { formatTime, timeZoneLabel } from './lib/time';
 import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
   Activity, ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight,
@@ -168,12 +169,7 @@ function useResource<T>(path: string, fallback: T, refreshToken: number): Resour
   return state;
 }
 
-function formatTime(value?: string): string {
-  if (!value) return '暂无时间';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
-}
+
 
 function formatBytes(value?: number): string {
   if (value === undefined || value < 0) return '暂无';
@@ -424,6 +420,7 @@ function BackupPanel({ backup }: { backup?: BackupStatus }) {
       <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
       <SettingValue label="下次运行" value={formatTime(backup.next_run_at)} />
+      <SettingValue label="显示时区" value={timeZoneLabel()} />
       <SettingValue label="归档大小" value={formatBytes(backup.archive_size)} />
       <SettingValue label="远端路径" value={backup.remote_path || '暂无'} mono />
       <SettingValue label="SHA256" value={backup.sha256 || '暂无'} mono />

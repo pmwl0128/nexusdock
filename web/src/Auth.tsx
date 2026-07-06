@@ -1,3 +1,4 @@
+import { formatTime } from './lib/time';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
@@ -277,7 +278,7 @@ export function AccountSecurity() {
         {sessions.map((item) => (
           <article className={`session-row ${item.current ? 'is-current' : ''}`} key={item.id}>
             <span className="session-device">{/iOS|Android/.test(item.user_agent_summary) ? <Smartphone size={18} /> : <Laptop size={18} />}</span>
-            <div className="session-copy"><div><strong>{item.user_agent_summary || '未知设备'}</strong>{item.current && <em>当前</em>}</div><span>{item.ip_prefix || '未知网络'} · {item.remember_me ? '记住我' : '浏览器会话'}</span><small><Clock3 size={12} />最近活动 {formatSessionTime(item.last_seen_at)}</small></div>
+            <div className="session-copy"><div><strong>{item.user_agent_summary || '未知设备'}</strong>{item.current && <em>当前</em>}</div><span>{item.ip_prefix || '未知网络'} · {item.remember_me ? '记住我' : '浏览器会话'}</span><small><Clock3 size={12} />最近活动 {formatTime(item.last_seen_at, { fallback: '未知' })}</small></div>
             {!item.current && <button className="session-revoke" title="撤销会话" onClick={() => void revoke(item.id)} disabled={Boolean(actionBusy)}><Trash2 size={16} /></button>}
           </article>
         ))}
@@ -287,8 +288,4 @@ export function AccountSecurity() {
   );
 }
 
-function formatSessionTime(value: string): string {
-  if (!value) return '未知';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
-}
+

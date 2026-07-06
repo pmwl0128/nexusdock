@@ -1,3 +1,4 @@
+import { formatTime } from './lib/time';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   Archive, Check, Clock3, Cpu, FileText, Folder, GitBranch, Pencil, Plus,
@@ -88,11 +89,6 @@ function formatBytes(value?: number): string {
   return `${(value / 1024 / 1024).toFixed(1)} MiB`;
 }
 
-function formatTime(value?: string): string {
-  if (!value) return '未知';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false });
-}
 
 function initialPath(): string {
   return normalizePath(new URLSearchParams(window.location.search).get('path') || '');

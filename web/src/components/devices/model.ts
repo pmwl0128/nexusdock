@@ -46,12 +46,7 @@ export function createIdempotencyKey(): string {
   return `nexus-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function formatTime(value?: string): string {
-  if (!value) return '暂无';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'medium' }).format(date);
-}
+export { formatTime, timeZoneLabel } from '../../lib/time';
 
 export function buildCommandPayload(type: CommandType, fields: Record<string, string | boolean>): Record<string, unknown> {
   switch (type) {
