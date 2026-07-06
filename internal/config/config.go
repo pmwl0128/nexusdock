@@ -29,6 +29,11 @@ type Config struct {
 	AuthAllowInsecureHTTP bool
 	TrustedProxies        []string
 	WorkflowDir           string
+	AgentDockDir          string
+	WorkspaceDir          string
+	DeployDir             string
+	SourceDir             string
+	LogDirs               string
 	AutoSync              bool
 	PullInterval          time.Duration
 	PushDebounce          time.Duration
@@ -58,6 +63,11 @@ func FromEnv() Config {
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
 		WorkflowDir:           strings.TrimSpace(os.Getenv("NEXUS_WORKFLOW_DIR")),
+		AgentDockDir:          strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_DIR")),
+		WorkspaceDir:          strings.TrimSpace(os.Getenv("NEXUS_WORKSPACE_DIR")),
+		DeployDir:             strings.TrimSpace(os.Getenv("NEXUS_DEPLOY_DIR")),
+		SourceDir:             strings.TrimSpace(os.Getenv("NEXUS_SOURCE_DIR")),
+		LogDirs:               strings.TrimSpace(os.Getenv("NEXUS_LOG_DIRS")),
 		AutoSync:              getenvBool("RECALLDOCK_AUTO_SYNC", false),
 		PullInterval:          time.Duration(getenvInt("RECALLDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
 		PushDebounce:          time.Duration(getenvInt("RECALLDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,

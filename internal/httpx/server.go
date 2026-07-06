@@ -75,6 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
+	s.registerOpsRoutes(mux, protected)
 	mux.HandleFunc("GET /v1/workflow-templates", protected(s.listWorkflowTemplates))
 	mux.HandleFunc("POST /v1/workflow-templates", protected(s.createWorkflowTemplate))
 	mux.HandleFunc("POST /v1/workflow-templates/move", protected(s.moveWorkflowTemplate))

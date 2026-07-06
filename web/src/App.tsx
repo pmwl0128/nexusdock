@@ -1,17 +1,18 @@
 import { Children, useEffect, useState, type ReactNode } from 'react';
 import {
-  Activity, ArrowDownToLine, ArrowUpFromLine, ChevronRight,
-  CircleAlert, Database, FileArchive, FileJson, HardDrive, Home, Menu, RefreshCw,
-  Server, Settings, ShieldCheck, Sparkles, X,
+  Activity, ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight,
+  CircleAlert, Database, FileArchive, FileJson, HardDrive, Home, ListChecks, Menu, RefreshCw,
+  Rocket, ScrollText, Server, Settings, ShieldCheck, Sparkles, Trash2, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { AccountSecurity, type WebSession } from './Auth';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
+import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage, TaskCleanupPage } from './components/ops/OpsPages';
 import './nexus.css';
 
-type Section = 'home' | 'devices' | 'recall' | 'templates' | 'files' | 'settings';
+type Section = 'home' | 'devices' | 'recall' | 'tasks' | 'cleanup' | 'skills' | 'capabilities' | 'logs' | 'deploy' | 'templates' | 'files' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -117,6 +118,12 @@ const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
   { id: 'recall', label: '召回', icon: Database },
+  { id: 'tasks', label: '任务', icon: ListChecks },
+  { id: 'cleanup', label: '清理', icon: Trash2 },
+  { id: 'skills', label: 'Skill', icon: Wrench },
+  { id: 'capabilities', label: '能力', icon: Boxes },
+  { id: 'logs', label: '日志', icon: ScrollText },
+  { id: 'deploy', label: '部署', icon: Rocket },
   { id: 'templates', label: '模板', icon: FileJson },
   { id: 'files', label: '文件', icon: FileArchive },
   { id: 'settings', label: '设置', icon: Settings },
@@ -264,6 +271,12 @@ export default function App() {
         <div className="nexus-content">
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
+          {section === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
+          {section === 'cleanup' && <TaskCleanupPage refreshToken={refreshToken} />}
+          {section === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+          {section === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
+          {section === 'logs' && <LogsPage refreshToken={refreshToken} />}
+          {section === 'deploy' && <DeploymentPage refreshToken={refreshToken} />}
           {section === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
           {section === 'files' && <FilesPage refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
