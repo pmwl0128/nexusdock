@@ -6,13 +6,19 @@ type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
 
 type OpsTask = { id: string; title: string; goal: string; status: string; phase: string; review_status: string; blocker?: string; updated_at: string; created_at: string; template_id?: string; template_version?: string; condition_count: number; step_count: number; attempt_count: number; event_count: number; cleanable: boolean; file_name: string };
+type OpsTaskDetail = OpsTask & { path?: string; content?: string; json?: Record<string, unknown>; conditions?: unknown[]; steps?: unknown[]; attempts?: unknown[]; events?: unknown[]; final_review?: Record<string, unknown> };
 type OpsSkill = { id: string; title: string; source: string; path: string; description?: string; updated_at: string; file_count: number; status: string };
+type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
+type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[] };
 type OpsLog = { name: string; path: string; size_bytes: number; updated_at: string; tail: string };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string; deploy?: string; source?: string };
+type OpsTool = { name: string; category: string; status: string; description: string };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root: string };
+type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail };
 type CleanupResponse = { ok: boolean; dry_run: boolean; changed: OpsTask[]; count: number };
 type SkillsResponse = { ok: boolean; items: OpsSkill[]; count: number; root: string };
-type CapabilitiesResponse = { ok: boolean; tools: Array<{ name: string; category: string; status: string; description: string }>; counts: Record<string, unknown>; paths: OpsPaths };
+type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail };
+type CapabilitiesResponse = { ok: boolean; tools: OpsTool[]; counts: Record<string, unknown>; paths: OpsPaths };
 type LogsResponse = { ok: boolean; items: OpsLog[]; count: number; roots: string[] };
 type DeploymentResponse = { ok: boolean; service: string; health: { ok: boolean; addr: string }; paths: OpsPaths; compose: string; source: { dir: string; commit: string }; image?: string; updated_at: string };
 
@@ -21,7 +27,9 @@ function formatTime(value?: string): string { if (!value) return '暂无'; const
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
 function toneForTask(task: Pick<OpsTask, 'status' | 'phase' | 'review_status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.phase === 'closeout' && task.review_status === 'pass') return 'warn'; if (task.status === 'active') return 'warn'; return 'muted'; }
+function toneForStatus(status?: string): Tone { if (!status) return 'muted'; if (['ok', 'healthy', 'available', 'installed', 'active', 'success', 'completed'].includes(status)) return 'ok'; if (['failed', 'blocked', 'offline', 'unknown'].includes(status)) return 'danger'; if (['pending', 'draft', 'running', 'degraded'].includes(status)) return 'warn'; return 'muted'; }
 function shortHash(value?: string): string { return value ? value.slice(0, 8) : 'unknown'; }
+function pretty(value: unknown): string { try { return JSON.stringify(value, null, 2); } catch { return String(value); } }
 
 function useOpsResource<T>(path: string, fallback: T, refreshToken: number) {
   const [localToken, setLocalToken] = useState(0);
@@ -34,6 +42,22 @@ function useOpsResource<T>(path: string, fallback: T, refreshToken: number) {
   }, [path, refreshToken, localToken]);
   return { ...state, reload: () => setLocalToken((value) => value + 1) };
 }
+
+function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: number) {
+  const [state, setState] = useState<{ data: T; loading: boolean; error?: string }>({ data: fallback, loading: false });
+  useEffect(() => {
+    if (!path) {
+      setState({ data: fallback, loading: false });
+      return undefined;
+    }
+    let cancelled = false;
+    setState((current) => ({ ...current, loading: true, error: undefined }));
+    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallback, loading: false, error: apiMessage(error) }); });
+    return () => { cancelled = true; };
+  }, [path, refreshToken]);
+  return state;
+}
+
 export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
@@ -42,18 +66,14 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const tasks = resource.data.items;
   const [selectedId, setSelectedId] = useState('');
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
-  const stats = useMemo(() => ({
-    active: tasks.filter((item) => item.status === 'active').length,
-    blocked: tasks.filter((item) => item.status === 'blocked').length,
-    completed: tasks.filter((item) => item.status === 'completed').length,
-    cleanable: tasks.filter((item) => item.cleanable).length,
-  }), [tasks]);
+  const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/ops/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
+  const stats = useMemo(() => ({ active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }), [tasks]);
 
-  return <OpsShell title="任务中心" subtitle="按真实任务 JSON 展示状态、阶段、review 和清理信号。Active 是任务记录状态，不等于后台进程。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  return <OpsShell title="任务中心" subtitle="按真实任务 JSON 展示状态、阶段、review、条件、步骤和事件。Active 是任务记录状态，不等于后台进程。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{resource.data.total || tasks.length} 条任务记录</h3><p>{resource.data.root || '任务目录未配置'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={stats.blocked ? 'danger' : stats.cleanable ? 'warn' : 'ok'}>{stats.blocked ? `${stats.blocked} blocked` : stats.cleanable ? `${stats.cleanable} cleanable` : 'healthy'}</StatusBadge></section>
     <section className="ops-metrics is-dashboard"><Metric label="Active" value={String(stats.active)} tone="warn" /><Metric label="Blocked" value={String(stats.blocked)} tone={stats.blocked ? 'danger' : 'muted'} /><Metric label="Completed" value={String(stats.completed)} tone="ok" /><Metric label="可清理" value={String(stats.cleanable)} tone={stats.cleanable ? 'warn' : 'muted'} /></section>
     <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">{resource.data.count} / {resource.data.total}</span></div>
-    <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{task.title || task.id}</strong><small>{task.phase || 'no phase'} · {formatTime(task.updated_at)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} /></section>
+    <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{task.title || task.id}</strong><small>{task.phase || 'no phase'} · {formatTime(task.updated_at)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
 
@@ -68,12 +88,16 @@ export function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
     <section className="ops-grid cards">{candidates.length === 0 ? <EmptyOps text="当前没有可清理任务。" /> : candidates.map((task) => <TaskCard key={task.id} task={task} />)}</section>
   </OpsShell>;
 }
+
 export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<SkillsResponse>('/v1/ops/skills', { ok: false, items: [], count: 0, root: '' }, refreshToken);
   const runtime = resource.data.items.filter((item) => item.source === 'runtime').length;
-  return <OpsShell title="Skill 管理" subtitle="本机已安装 Skill、来源、说明和文件规模。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  const [selectedKey, setSelectedKey] = useState('');
+  const selected = resource.data.items.find((item) => `${item.source}:${item.id}` === selectedKey) || resource.data.items[0];
+  const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/ops/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
+  return <OpsShell title="Skill 管理" subtitle="本机已安装 Skill、来源、说明、文档内容和文件清单。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero is-soft"><div><span>SKILL RUNTIME</span><h3>{resource.data.count} 个 Skill</h3><p>{runtime} 个 runtime Skill · {resource.data.root || '未挂载 skills 目录'}</p></div><StatusBadge tone={resource.data.count ? 'ok' : 'warn'}>{resource.data.count ? 'installed' : 'empty'}</StatusBadge></section>
-    <div className="ops-grid cards is-rich">{resource.data.items.length === 0 ? <EmptyOps text="没有读取到 Skill。" /> : resource.data.items.map((skill) => <article className="ops-card skill-card" key={`${skill.source}:${skill.id}`}><header><span className="ops-card-icon"><Layers size={18} /></span><StatusBadge tone="ok">{skill.status}</StatusBadge></header><h3>{skill.title}</h3><p>{skill.description || '暂无说明。'}</p><dl><div><dt>ID</dt><dd>{skill.id}</dd></div><div><dt>来源</dt><dd>{skill.source}</dd></div><div><dt>文件</dt><dd>{skill.file_count}</dd></div><div><dt>更新</dt><dd>{formatTime(skill.updated_at)}</dd></div></dl><code>{skill.path}</code></article>)}</div>
+    <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{resource.data.items.length === 0 ? <EmptyOps text="没有读取到 Skill。" /> : resource.data.items.map((skill) => <button key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.source} · {skill.file_count} files · {formatTime(skill.updated_at)}</small></span><StatusBadge tone={toneForStatus(skill.status)}>{skill.status}</StatusBadge></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
 
@@ -81,14 +105,12 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<CapabilitiesResponse>('/v1/ops/capabilities', { ok: false, tools: [], counts: {}, paths: {} }, refreshToken);
   const counts = resource.data.counts;
   const workflowCounts = (counts.workflows && typeof counts.workflows === 'object' ? counts.workflows : {}) as Record<string, unknown>;
-  const groups = resource.data.tools.reduce<Record<string, CapabilitiesResponse['tools']>>((acc, tool) => {
-    const key = tool.category || 'other';
-    acc[key] = [...(acc[key] || []), tool];
-    return acc;
-  }, {});
+  const [selectedName, setSelectedName] = useState('');
+  const groups = resource.data.tools.reduce<Record<string, OpsTool[]>>((acc, tool) => { const key = tool.category || 'other'; acc[key] = [...(acc[key] || []), tool]; return acc; }, {});
+  const selected = resource.data.tools.find((tool) => tool.name === selectedName) || resource.data.tools[0];
   const availableTools = resource.data.tools.filter((tool) => tool.status === 'available').length;
   const workflowTotal = Number(workflowCounts.published || 0) + Number(workflowCounts.drafts || 0) + Number(workflowCounts.retired || 0);
-  return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，而不是原始接口字段。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，并可查看选中能力的来源信息。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 能看见什么、能操作什么、数据从哪里来。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
     <section className="cap-summary-grid">
       <CapabilitySummary title="任务系统" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
@@ -97,8 +119,8 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
       <CapabilitySummary title="工具能力" value={String(resource.data.tools.length)} detail={`${availableTools} available`} tone={availableTools ? 'ok' : 'warn'} />
     </section>
     <section className="cap-layout">
-      <article className="cap-tool-panel"><header><div><h3>工具分组</h3><p>按能力域展示，不再平铺成无意义卡片。</p></div><StatusBadge tone="muted">{Object.keys(groups).length} groups</StatusBadge></header>{Object.entries(groups).length === 0 ? <EmptyOps text="没有可展示工具。" /> : Object.entries(groups).map(([category, tools]) => <div className="cap-group" key={category}><div className="cap-group-head"><strong>{category}</strong><span>{tools.length} tools</span></div>{tools.map((tool) => <div className="cap-tool-row" key={tool.name}><StatusDot tone={tool.status === 'available' ? 'ok' : 'warn'} /><div><strong>{tool.name}</strong><small>{tool.description}</small></div><em>{tool.status}</em></div>)}</div>)}</article>
-      <aside className="cap-side"><article className="cap-mini-panel"><h3>模板状态</h3><div className="cap-kv"><span>Published</span><strong>{String(workflowCounts.published ?? 0)}</strong></div><div className="cap-kv"><span>Drafts</span><strong>{String(workflowCounts.drafts ?? 0)}</strong></div><div className="cap-kv"><span>Retired</span><strong>{String(workflowCounts.retired ?? 0)}</strong></div></article><PathPanel paths={resource.data.paths} /></aside>
+      <article className="cap-tool-panel"><header><div><h3>工具分组</h3><p>选中一项后右侧展示用途、状态、统计和路径。</p></div><StatusBadge tone="muted">{Object.keys(groups).length} groups</StatusBadge></header>{Object.entries(groups).length === 0 ? <EmptyOps text="没有可展示工具。" /> : Object.entries(groups).map(([category, tools]) => <div className="cap-group" key={category}><div className="cap-group-head"><strong>{category}</strong><span>{tools.length} tools</span></div>{tools.map((tool) => <button type="button" className={`cap-tool-row ${selected?.name === tool.name ? 'is-selected' : ''}`} key={tool.name} onClick={() => setSelectedName(tool.name)}><StatusDot tone={tool.status === 'available' ? 'ok' : 'warn'} /><div><strong>{tool.name}</strong><small>{tool.description}</small></div><em>{tool.status}</em></button>)}</div>)}</article>
+      <aside className="cap-side"><CapabilityDetail tool={selected} counts={counts} paths={resource.data.paths} workflowCounts={workflowCounts} /><PathPanel paths={resource.data.paths} /></aside>
     </section>
   </OpsShell>;
 }
@@ -108,7 +130,7 @@ export function LogsPage({ refreshToken }: { refreshToken: number }) {
   const [selectedPath, setSelectedPath] = useState('');
   const selected = resource.data.items.find((item) => item.path === selectedPath) || resource.data.items[0];
   return <OpsShell title="运行日志" subtitle="按更新时间聚合可读取日志，左侧选择文件，右侧查看尾部内容。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-master-detail logs-layout"><div className="ops-task-rail">{resource.data.items.length === 0 ? <EmptyOps text="当前没有可展示日志。" /> : resource.data.items.map((item) => <button key={`${item.path}:${item.updated_at}`} className={`ops-task-line ${selected?.path === item.path ? 'is-selected' : ''}`} onClick={() => setSelectedPath(item.path)}><StatusDot tone="muted" /><span><strong>{item.name}</strong><small>{formatBytes(item.size_bytes)} · {formatTime(item.updated_at)}</small></span></button>)}</div><article className="ops-log is-detail"><header><div><strong>{selected?.name || '暂无日志'}</strong><small>{selected?.path || resource.data.roots.join(', ')}</small></div><FileText size={17} /></header><pre>{selected?.tail || '空日志'}</pre></article></section>
+    <section className="ops-master-detail logs-layout"><div className="ops-task-rail">{resource.data.items.length === 0 ? <EmptyOps text="当前没有可展示日志。" /> : resource.data.items.map((item) => <button key={`${item.path}:${item.updated_at}`} className={`ops-task-line ${selected?.path === item.path ? 'is-selected' : ''}`} onClick={() => setSelectedPath(item.path)}><StatusDot tone="muted" /><span><strong>{item.name}</strong><small>{formatBytes(item.size_bytes)} · {formatTime(item.updated_at)}</small></span></button>)}</div><article className="ops-log is-detail"><header><div><strong>{selected?.name || '暂无日志'}</strong><small>{selected?.path || resource.data.roots.join(', ')}</small></div><FileText size={17} /></header><div className="ops-key-values is-compact"><Info label="大小" value={formatBytes(selected?.size_bytes)} /><Info label="更新" value={formatTime(selected?.updated_at)} /><Info label="根目录" value={resource.data.roots.join(', ') || '未配置'} /></div><pre>{selected?.tail || '空日志'}</pre></article></section>
   </OpsShell>;
 }
 
@@ -119,12 +141,31 @@ export function DeploymentPage({ refreshToken }: { refreshToken: number }) {
     <section className="ops-command-hero deploy-hero"><div><span>PRODUCTION</span><h3>{resource.data.service}</h3><p>{resource.data.health?.addr || 'addr unknown'} · {formatTime(resource.data.updated_at)}</p></div><StatusBadge tone={resource.data.health?.ok ? 'ok' : 'danger'}>{resource.data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></section>
     <section className="ops-metrics is-dashboard"><Metric label="服务" value={resource.data.service} /><Metric label="健康" value={resource.data.health?.ok ? 'ok' : 'unknown'} tone={resource.data.health?.ok ? 'ok' : 'warn'} /><Metric label="提交" value={shortHash(commit)} /><Metric label="镜像" value={resource.data.image || 'local'} /></section>
     <section className="deploy-grid"><PathPanel paths={resource.data.paths} /><article className="ops-card deploy-card"><header><span className="ops-card-icon"><FileText size={18} /></span><StatusBadge tone="muted">配置</StatusBadge></header><h3>Compose 配置</h3><p>{resource.data.paths?.deploy || '未配置部署目录'}</p><pre>{resource.data.compose || '未读取到配置。'}</pre></article></section>
+    <DeploymentDetail data={resource.data} />
   </OpsShell>;
 }
-function TaskDetail({ task }: { task?: OpsTask }) {
+
+function TaskDetail({ task, detail, loading, error }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string }) {
   if (!task) return <article className="ops-detail-empty"><EmptyOps text="请选择一个任务。" /></article>;
-  const completion = Math.max(0, Math.min(100, Math.round((task.step_count ? task.condition_count / Math.max(task.condition_count, task.step_count) : 0) * 100)));
-  return <article className="ops-task-detail"><header><div><span>任务详情</span><h3>{task.title || task.id}</h3><p>{task.goal}</p></div><StatusBadge tone={toneForTask(task)}>{task.status}</StatusBadge></header>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<div className="ops-detail-grid"><Info label="阶段" value={task.phase || 'none'} /><Info label="Review" value={task.review_status || 'not_started'} /><Info label="条件" value={String(task.condition_count)} /><Info label="步骤" value={String(task.step_count)} /><Info label="事件" value={String(task.event_count)} /><Info label="更新" value={formatTime(task.updated_at)} /></div><div className="ops-progress"><div><span>完成信号</span><strong>{completion}%</strong></div><i style={{ width: `${completion}%` }} /></div><footer><code>{task.id}</code>{task.template_id && <code>{task.template_id}@{task.template_version}</code>}{task.cleanable && <StatusBadge tone="warn">可清理</StatusBadge>}</footer></article>;
+  const full = detail?.id ? detail : task;
+  const completion = Math.max(0, Math.min(100, Math.round((full.step_count ? full.condition_count / Math.max(full.condition_count, full.step_count) : 0) * 100)));
+  return <article className="ops-task-detail"><header><div><span>任务详情</span><h3>{full.title || full.id}</h3><p>{full.goal || '暂无目标描述。'}</p></div><StatusBadge tone={toneForTask(full)}>{full.status}</StatusBadge></header>{loading && <div className="nx-alert is-info">正在读取完整任务 JSON…</div>}{error && <div className="nx-alert is-error">{error}</div>}{full.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{full.blocker}</div>}<div className="ops-detail-grid"><Info label="阶段" value={full.phase || 'none'} /><Info label="Review" value={full.review_status || 'not_started'} /><Info label="条件" value={String(full.condition_count)} /><Info label="步骤" value={String(full.step_count)} /><Info label="事件" value={String(full.event_count)} /><Info label="更新" value={formatTime(full.updated_at)} /></div><div className="ops-progress"><div><span>完成信号</span><strong>{completion}%</strong></div><i style={{ width: `${completion}%` }} /></div><section className="ops-detail-section"><h4>任务文件</h4><div className="ops-key-values"><Info label="ID" value={full.id} /><Info label="文件" value={full.file_name} /><Info label="路径" value={detail?.path || '未读取详情'} /><Info label="创建" value={formatTime(full.created_at)} />{full.template_id && <Info label="模板" value={`${full.template_id}@${full.template_version || 'unknown'}`} />}</div></section>{detail?.final_review && Object.keys(detail.final_review).length > 0 && <RawJsonPanel title="Final Review" value={detail.final_review} />}{detail?.conditions && <RawJsonPanel title={`条件 (${detail.conditions.length})`} value={detail.conditions} />}{detail?.steps && <RawJsonPanel title={`步骤 (${detail.steps.length})`} value={detail.steps} />}{detail?.events && <RawJsonPanel title={`事件 (${detail.events.length})`} value={detail.events} />}{detail?.json && <RawJsonPanel title="完整任务 JSON" value={detail.json} />}{detail?.content && <details className="ops-json-panel"><summary>原始文件内容</summary><pre>{detail.content}</pre></details>}<footer><code>{full.id}</code>{full.template_id && <code>{full.template_id}@{full.template_version}</code>}{full.cleanable && <StatusBadge tone="warn">可清理</StatusBadge>}</footer></article>;
+}
+
+function SkillDetail({ skill, detail, loading, error }: { skill?: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string }) {
+  if (!skill) return <article className="ops-detail-empty"><EmptyOps text="请选择一个 Skill。" /></article>;
+  const full = detail?.id ? detail : skill;
+  const files = detail?.files || [];
+  return <article className="ops-task-detail ops-skill-detail"><header><div><span>Skill 详情</span><h3>{full.title || full.id}</h3><p>{full.description || '暂无说明。'}</p></div><StatusBadge tone={toneForStatus(full.status)}>{full.status}</StatusBadge></header>{loading && <div className="nx-alert is-info">正在读取 Skill 文档和文件清单…</div>}{error && <div className="nx-alert is-error">{error}</div>}<div className="ops-detail-grid"><Info label="ID" value={full.id} /><Info label="来源" value={full.source} /><Info label="文件数" value={String(full.file_count)} /><Info label="更新" value={formatTime(full.updated_at)} /><Info label="逻辑路径" value={full.path} /><Info label="真实目录" value={detail?.root || '未读取详情'} /></div>{detail?.skill_doc && <section className="ops-detail-section"><h4>SKILL.md</h4><pre className="ops-doc-preview">{detail.skill_doc}</pre></section>}<section className="ops-detail-section"><h4>文件清单</h4>{files.length === 0 ? <EmptyOps text="没有可展示文件。" /> : <div className="ops-file-list">{files.map((file) => <div key={file.path} className="ops-file-row"><span><strong>{file.path}</strong><small>{file.kind} · {formatTime(file.updated_at)}</small></span><em>{formatBytes(file.size_bytes)}</em></div>)}</div>}</section><RawJsonPanel title="Skill 摘要 JSON" value={full} /></article>;
+}
+
+function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsTool; counts: Record<string, unknown>; paths: OpsPaths; workflowCounts: Record<string, unknown> }) {
+  if (!tool) return <article className="cap-mini-panel"><h3>能力详情</h3><EmptyOps text="请选择一个工具能力。" /></article>;
+  return <article className="cap-mini-panel cap-detail-panel"><h3>{tool.name}</h3><p>{tool.description}</p><div className="ops-key-values is-compact"><Info label="分类" value={tool.category || 'other'} /><Info label="状态" value={tool.status} /><Info label="任务" value={String(counts.tasks ?? 0)} /><Info label="Skill" value={String(counts.skills ?? 0)} /><Info label="Published 模板" value={String(workflowCounts.published ?? 0)} /></div><RawJsonPanel title="能力统计 JSON" value={{ tool, counts, paths }} /></article>;
+}
+
+function DeploymentDetail({ data }: { data: DeploymentResponse }) {
+  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'recalldock'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><RawJsonPanel title="部署响应 JSON" value={data} /></article>;
 }
 
 function TaskCard({ task }: { task: OpsTask }) { return <article className="ops-task-card"><header><div><strong>{task.title || task.id}</strong><small>{task.id} · {formatTime(task.updated_at)}</small></div><StatusBadge tone={toneForTask(task)}>{task.status}</StatusBadge></header><p>{task.goal}</p>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<footer><span>{task.phase || 'no phase'}</span><span>review: {task.review_status}</span><span>{task.condition_count} 条件 / {task.step_count} 步骤</span>{task.template_id && <span>{task.template_id}@{task.template_version}</span>}{task.cleanable && <strong>可清理</strong>}</footer></article>; }
@@ -134,5 +175,6 @@ function CapabilitySummary({ title, value, detail, tone }: { title: string; valu
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function StatusDot({ tone }: { tone: Tone }) { return <i className={`ops-dot tone-${tone}`} />; }
+function RawJsonPanel({ title, value }: { title: string; value: unknown }) { return <details className="ops-json-panel"><summary>{title}</summary><pre>{pretty(value)}</pre></details>; }
 function EmptyOps({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }
 function PathPanel({ paths }: { paths: OpsPaths }) { return <article className="ops-paths is-rich"><h3>路径</h3>{Object.entries(paths).map(([key, value]) => <div key={key}><span>{key}</span><code>{value || '未配置'}</code></div>)}</article>; }

@@ -33,6 +33,18 @@ type opsTaskSummary struct {
 	FileName        string `json:"file_name"`
 }
 
+type opsTaskDetail struct {
+	opsTaskSummary
+	Path        string         `json:"path"`
+	Content     string         `json:"content"`
+	JSON        map[string]any `json:"json"`
+	Conditions  []any          `json:"conditions,omitempty"`
+	Steps       []any          `json:"steps,omitempty"`
+	Attempts    []any          `json:"attempts,omitempty"`
+	Events      []any          `json:"events,omitempty"`
+	FinalReview map[string]any `json:"final_review,omitempty"`
+}
+
 type opsSkillSummary struct {
 	ID          string `json:"id"`
 	Title       string `json:"title"`
@@ -42,6 +54,20 @@ type opsSkillSummary struct {
 	UpdatedAt   string `json:"updated_at"`
 	FileCount   int    `json:"file_count"`
 	Status      string `json:"status"`
+}
+
+type opsSkillFile struct {
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	SizeBytes int64  `json:"size_bytes"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type opsSkillDetail struct {
+	opsSkillSummary
+	Root     string         `json:"root"`
+	SkillDoc string         `json:"skill_doc,omitempty"`
+	Files    []opsSkillFile `json:"files"`
 }
 
 type opsLogEntry struct {
@@ -55,8 +81,10 @@ type opsLogEntry struct {
 func (s *Server) registerOpsRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /v1/ops/overview", protected(s.opsOverview))
 	mux.HandleFunc("GET /v1/ops/tasks", protected(s.opsTasks))
+	mux.HandleFunc("GET /v1/ops/tasks/{fileName}", protected(s.opsTaskDetail))
 	mux.HandleFunc("POST /v1/ops/tasks/cleanup", protected(s.opsCleanupTasks))
 	mux.HandleFunc("GET /v1/ops/skills", protected(s.opsSkills))
+	mux.HandleFunc("GET /v1/ops/skills/{source}/{skillID}", protected(s.opsSkillDetail))
 	mux.HandleFunc("GET /v1/ops/capabilities", protected(s.opsCapabilities))
 	mux.HandleFunc("GET /v1/ops/logs", protected(s.opsLogs))
 	mux.HandleFunc("GET /v1/ops/deployment", protected(s.opsDeployment))
@@ -105,6 +133,37 @@ func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": filtered, "count": len(filtered), "total": len(items), "root": s.agentDockPath("tasks")})
+}
+
+func (s *Server) opsTaskDetail(w http.ResponseWriter, r *http.Request) {
+	fileName, err := cleanOpsFileName(r.PathValue("fileName"), ".json")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_TASK_FILE", err.Error())
+		return
+	}
+	path := filepath.Join(s.agentDockPath("tasks"), fileName)
+	body, summary, err := readOpsTask(path)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "TASK_NOT_FOUND", err.Error())
+		return
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "TASK_READ_FAILED", err.Error())
+		return
+	}
+	detail := opsTaskDetail{
+		opsTaskSummary: summary,
+		Path:           filepath.ToSlash(path),
+		Content:        string(raw),
+		JSON:           body,
+		Conditions:     opsArray(body["conditions"]),
+		Steps:          opsArray(body["steps"]),
+		Attempts:       opsArray(body["attempts"]),
+		Events:         opsArray(body["events"]),
+		FinalReview:    opsMap(body["final_review"]),
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail})
 }
 
 func (s *Server) opsCleanupTasks(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +218,46 @@ func (s *Server) opsCleanupTasks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) opsSkills(w http.ResponseWriter, r *http.Request) {
 	items := s.collectOpsSkills()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "root": s.agentDockPath("skills")})
+}
+
+func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
+	source := strings.TrimSpace(r.PathValue("source"))
+	skillID, err := cleanOpsName(r.PathValue("skillID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
+		return
+	}
+	label, base, err := s.opsSkillRoot(source)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_SKILL_SOURCE", err.Error())
+		return
+	}
+	root := filepath.Join(base, skillID)
+	info, err := os.Stat(root)
+	if err != nil || !info.IsDir() {
+		if err == nil {
+			err = fmt.Errorf("%s is not a directory", skillID)
+		}
+		writeError(w, http.StatusNotFound, "SKILL_NOT_FOUND", err.Error())
+		return
+	}
+	title, desc := readSkillDoc(filepath.Join(root, "SKILL.md"))
+	detail := opsSkillDetail{
+		opsSkillSummary: opsSkillSummary{
+			ID:          skillID,
+			Title:       firstNonEmptyString(title, skillID),
+			Description: desc,
+			Source:      label,
+			Path:        filepath.ToSlash(filepath.Join(label, skillID)),
+			UpdatedAt:   modTime(info),
+			FileCount:   countFiles(root, 4),
+			Status:      "installed",
+		},
+		Root:     filepath.ToSlash(root),
+		SkillDoc: readSmallText(filepath.Join(root, "SKILL.md"), 32000),
+		Files:    collectOpsSkillFiles(root, 4, 160),
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail})
 }
 
 func (s *Server) opsCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -238,6 +337,17 @@ func readOpsTask(path string) (map[string]any, opsTaskSummary, error) {
 	}
 	summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
 	return body, summary, nil
+}
+
+func (s *Server) opsSkillRoot(source string) (string, string, error) {
+	switch source {
+	case "runtime":
+		return "runtime", s.agentDockPath("skills"), nil
+	case "agents":
+		return "agents", s.agentDockPath(".agents/skills"), nil
+	default:
+		return "", "", fmt.Errorf("unsupported skill source %q", source)
+	}
 }
 
 func (s *Server) collectOpsSkills() []opsSkillSummary {
@@ -329,6 +439,77 @@ func (s *Server) logRoots() []string {
 		roots = append(roots, filepath.Join(s.cfg.WorkspaceDir, ".npm/_logs"), filepath.Join(s.cfg.WorkspaceDir, ".cc-switch/logs"))
 	}
 	return roots
+}
+
+func cleanOpsFileName(value, suffix string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value != filepath.Base(value) || strings.Contains(value, "/") || strings.Contains(value, "\\") || strings.Contains(value, "..") {
+		return "", fmt.Errorf("invalid file name")
+	}
+	if suffix != "" && !strings.HasSuffix(value, suffix) {
+		return "", fmt.Errorf("file name must end with %s", suffix)
+	}
+	return value, nil
+}
+
+func cleanOpsName(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value != filepath.Base(value) || strings.Contains(value, "/") || strings.Contains(value, "\\") || strings.Contains(value, "..") {
+		return "", fmt.Errorf("invalid name")
+	}
+	return value, nil
+}
+
+func collectOpsSkillFiles(root string, maxDepth, maxItems int) []opsSkillFile {
+	root = filepath.Clean(root)
+	baseDepth := strings.Count(root, string(os.PathSeparator))
+	items := []opsSkillFile{}
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == root {
+			return nil
+		}
+		depth := strings.Count(filepath.Clean(path), string(os.PathSeparator)) - baseDepth
+		if d.IsDir() && depth > maxDepth {
+			return fs.SkipDir
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		rel := trimKnownRoot(path, root)
+		items = append(items, opsSkillFile{Path: rel, Kind: skillFileKind(rel), SizeBytes: info.Size(), UpdatedAt: modTime(info)})
+		if len(items) >= maxItems {
+			return fs.SkipAll
+		}
+		return nil
+	})
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Kind != items[j].Kind {
+			return items[i].Kind < items[j].Kind
+		}
+		return items[i].Path < items[j].Path
+	})
+	return items
+}
+
+func skillFileKind(path string) string {
+	name := strings.ToLower(filepath.Base(path))
+	ext := strings.ToLower(filepath.Ext(path))
+	switch {
+	case name == "skill.md" || name == "readme.md":
+		return "doc"
+	case name == "manifest.json" || name == "package.json" || name == "skill.json":
+		return "manifest"
+	case ext == ".go" || ext == ".ts" || ext == ".tsx" || ext == ".js" || ext == ".py" || ext == ".sh":
+		return "code"
+	case ext == ".json" || ext == ".yaml" || ext == ".yml" || ext == ".toml":
+		return "config"
+	default:
+		return "asset"
+	}
 }
 
 func opsSplitCSV(value string) []string {
