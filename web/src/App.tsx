@@ -137,9 +137,11 @@ function sectionFromHash(): Section {
   return 'home';
 }
 
-function unpackAPI<T>(body: unknown): T {
+function unpackAPI<T>(body: unknown, fallback: T): T {
   const value = body as { data?: unknown; items?: unknown };
-  return (value?.data ?? value?.items ?? body) as T;
+  if (value && typeof value === 'object' && 'data' in value) return (value.data ?? fallback) as T;
+  if (value && typeof value === 'object' && 'items' in value) return (value.items ?? fallback) as T;
+  return (body ?? fallback) as T;
 }
 
 function messageOf(error: unknown): string {
@@ -154,7 +156,7 @@ function useResource<T>(path: string, fallback: T, refreshToken: number): Resour
     let cancelled = false;
     setState((current) => ({ ...current, loading: true }));
     api<unknown>(path).then((body) => {
-      if (!cancelled) setState({ data: unpackAPI<T>(body), live: true, loading: false });
+      if (!cancelled) setState({ data: unpackAPI<T>(body, fallback), live: true, loading: false });
     }).catch((error) => {
       if (!cancelled) setState({ data: fallback, live: false, loading: false, error: messageOf(error) });
     });

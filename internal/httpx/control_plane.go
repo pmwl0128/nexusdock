@@ -60,6 +60,9 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 		writeControlPlaneError(w, err)
 		return
 	}
+	if items == nil {
+		items = []devices.Device{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
