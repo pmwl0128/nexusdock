@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/uvwt/agentdock-nexus/internal/devices"
 )
 
 type opsTaskSummary struct {
@@ -46,14 +48,19 @@ type opsTaskDetail struct {
 }
 
 type opsSkillSummary struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Source      string `json:"source"`
-	Path        string `json:"path"`
-	Description string `json:"description,omitempty"`
-	UpdatedAt   string `json:"updated_at"`
-	FileCount   int    `json:"file_count"`
-	Status      string `json:"status"`
+	ID               string            `json:"id"`
+	Title            string            `json:"title"`
+	Source           string            `json:"source"`
+	Path             string            `json:"path"`
+	Description      string            `json:"description,omitempty"`
+	UpdatedAt        string            `json:"updated_at"`
+	FileCount        int               `json:"file_count"`
+	Status           string            `json:"status"`
+	ActiveVersion    string            `json:"active_version,omitempty"`
+	Versions         []string          `json:"versions,omitempty"`
+	Channels         map[string]string `json:"channels,omitempty"`
+	RuntimeStatePath string            `json:"runtime_state_path,omitempty"`
+	DocRoot          string            `json:"doc_root,omitempty"`
 }
 
 type opsSkillFile struct {
@@ -65,9 +72,37 @@ type opsSkillFile struct {
 
 type opsSkillDetail struct {
 	opsSkillSummary
-	Root     string         `json:"root"`
-	SkillDoc string         `json:"skill_doc,omitempty"`
-	Files    []opsSkillFile `json:"files"`
+	Root         string         `json:"root"`
+	SkillDoc     string         `json:"skill_doc,omitempty"`
+	Files        []opsSkillFile `json:"files"`
+	RuntimeState map[string]any `json:"runtime_state,omitempty"`
+}
+
+type opsSkillRuntimeState struct {
+	ActiveVersion string            `json:"active_version"`
+	Channels      map[string]string `json:"channels"`
+	History       []string          `json:"history"`
+	UpdatedAt     string            `json:"updated_at"`
+}
+
+type opsSkillStateRecord struct {
+	ID      string
+	Path    string
+	ModTime string
+	Raw     map[string]any
+	State   opsSkillRuntimeState
+}
+
+type opsToolSummary struct {
+	Name        string         `json:"name"`
+	Category    string         `json:"category"`
+	Status      string         `json:"status"`
+	Description string         `json:"description,omitempty"`
+	Source      string         `json:"source"`
+	DeviceID    string         `json:"device_id,omitempty"`
+	DeviceName  string         `json:"device_name,omitempty"`
+	Version     string         `json:"version,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type opsLogEntry struct {
@@ -217,7 +252,7 @@ func (s *Server) opsCleanupTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) opsSkills(w http.ResponseWriter, r *http.Request) {
 	items := s.collectOpsSkills()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "root": s.agentDockPath("skills")})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "root": s.opsSkillStateDir(), "fallback_roots": s.opsSkillDocRoots()})
 }
 
 func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
@@ -227,35 +262,10 @@ func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
 		return
 	}
-	label, base, err := s.opsSkillRoot(source)
+	detail, err := s.opsSkillDetailModel(source, skillID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_SKILL_SOURCE", err.Error())
-		return
-	}
-	root := filepath.Join(base, skillID)
-	info, err := os.Stat(root)
-	if err != nil || !info.IsDir() {
-		if err == nil {
-			err = fmt.Errorf("%s is not a directory", skillID)
-		}
 		writeError(w, http.StatusNotFound, "SKILL_NOT_FOUND", err.Error())
 		return
-	}
-	title, desc := readSkillDoc(filepath.Join(root, "SKILL.md"))
-	detail := opsSkillDetail{
-		opsSkillSummary: opsSkillSummary{
-			ID:          skillID,
-			Title:       firstNonEmptyString(title, skillID),
-			Description: desc,
-			Source:      label,
-			Path:        filepath.ToSlash(filepath.Join(label, skillID)),
-			UpdatedAt:   modTime(info),
-			FileCount:   countFiles(root, 4),
-			Status:      "installed",
-		},
-		Root:     filepath.ToSlash(root),
-		SkillDoc: readSmallText(filepath.Join(root, "SKILL.md"), 32000),
-		Files:    collectOpsSkillFiles(root, 4, 160),
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail})
 }
@@ -263,17 +273,99 @@ func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
 func (s *Server) opsCapabilities(w http.ResponseWriter, r *http.Request) {
 	tasks := s.collectOpsTasks()
 	skills := s.collectOpsSkills()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true,
-		"tools": []map[string]any{
-			{"name": "task_manage", "category": "task", "status": "available", "description": "持久化任务、模板匹配、final_review 和完成流"},
-			{"name": "recall_bootstrap", "category": "memory", "status": "available", "description": "读取高优先级 RecallDock 上下文"},
-			{"name": "workflow_templates", "category": "template", "status": "available", "description": "Nexus 任务模板 API 和管理页"},
-			{"name": "device_commands", "category": "nexus", "status": "available", "description": "设备注册、命令队列、环境变量动作和 Artifact Relay"},
-		},
-		"counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCounts()},
-		"paths":  s.opsPaths(),
+	tools, a, b := s.collectOpsCapabilityTools(r)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCounts(), "tools": len(tools), "devices": a, "heartbeats": b}, "paths": s.opsPaths()})
+}
+
+func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, int, int) {
+	items := []opsToolSummary{}
+	seen := map[string]bool{}
+	add := func(item opsToolSummary) {
+		item.Name = strings.TrimSpace(item.Name)
+		if item.Name == "" {
+			return
+		}
+		key := item.Source + ":" + item.Category + ":" + item.Name + ":" + item.DeviceID
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		if item.Status == "" {
+			item.Status = "available"
+		}
+		items = append(items, item)
+	}
+	dc, hc := 0, 0
+	if s.devices != nil {
+		devs, err := s.devices.List(r.Context())
+		if err == nil {
+			dc = len(devs)
+			for _, dev := range devs {
+				caps := dev.Capabilities
+				skills := []devices.SkillSummary{}
+				src := "device-registry"
+				if snap, err := s.devices.Snapshot(r.Context(), dev.ID); err == nil && snap.Heartbeat != nil {
+					hc++
+					caps = snap.Heartbeat.Capabilities
+					skills = snap.Heartbeat.Skills
+					src = "device-heartbeat"
+				}
+				for _, cap := range caps {
+					st := "disabled"
+					if cap.Enabled {
+						st = "available"
+					}
+					md := map[string]any{}
+					for k, v := range cap.Metadata {
+						md[k] = v
+					}
+					add(opsToolSummary{Name: cap.Name, Category: "device-capability", Status: st, Description: "AgentDock device reported capability", Source: src, DeviceID: dev.ID, DeviceName: dev.Name, Version: cap.Version, Metadata: md})
+				}
+				for _, sk := range skills {
+					st := "installed"
+					if sk.Active {
+						st = "active"
+					}
+					add(opsToolSummary{Name: sk.Name, Category: "runtime-skill", Status: st, Description: "AgentDock heartbeat reported skill", Source: src, DeviceID: dev.ID, DeviceName: dev.Name, Version: sk.Version, Metadata: map[string]any{"channel": sk.Channel}})
+				}
+			}
+		}
+	}
+	for _, sk := range s.collectOpsSkills() {
+		add(opsToolSummary{Name: sk.ID, Category: "runtime-skill", Status: sk.Status, Description: firstNonEmptyString(sk.Description, "AgentDock Runtime state skill"), Source: "runtime-state", Version: sk.ActiveVersion, Metadata: map[string]any{"channels": sk.Channels, "versions": sk.Versions, "doc_root": sk.DocRoot}})
+	}
+	for _, item := range opsCommandContracts() {
+		add(item)
+	}
+	add(opsToolSummary{Name: "workflow_templates", Category: "workflow", Status: "available", Description: "Nexus mediated AgentDock workflow templates", Source: "workflow-runtime-dir", Metadata: map[string]any{"counts": s.workflowCounts(), "root": strings.TrimSpace(s.cfg.WorkflowDir)}})
+	add(opsToolSummary{Name: "task_state", Category: "task", Status: "available", Description: "AgentDock persistent task state", Source: "task-runtime-dir", Metadata: map[string]any{"root": s.agentDockPath("tasks"), "count": len(s.collectOpsTasks())}})
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Category != items[j].Category {
+			return items[i].Category < items[j].Category
+		}
+		if items[i].Source != items[j].Source {
+			return items[i].Source < items[j].Source
+		}
+		return items[i].Name < items[j].Name
 	})
+	return items, dc, hc
+}
+
+func opsCommandContracts() []opsToolSummary {
+	data := []struct{ name, risk, desc string }{
+		{"health.check", "low", "Health check command"},
+		{"recall.sync", "low", "Recall sync command"},
+		{"service.inspect", "low", "Service inspect command"},
+		{"diagnostics.collect", "low", "Diagnostics command"},
+		{"env.manage", "medium", "Env registry command"},
+		{"service.restart", "high", "Service restart command"},
+		{"agentdock.reload", "high", "AgentDock reload command"},
+	}
+	items := make([]opsToolSummary, 0, len(data))
+	for _, row := range data {
+		items = append(items, opsToolSummary{Name: row.name, Category: "command", Status: "contract", Description: row.desc, Source: "nexus-command-contract", Metadata: map[string]any{"risk": row.risk}})
+	}
+	return items
 }
 
 func (s *Server) opsLogs(w http.ResponseWriter, r *http.Request) {
@@ -339,39 +431,198 @@ func readOpsTask(path string) (map[string]any, opsTaskSummary, error) {
 	return body, summary, nil
 }
 
-func (s *Server) opsSkillRoot(source string) (string, string, error) {
-	switch source {
-	case "runtime":
-		return "runtime", s.agentDockPath("skills"), nil
-	case "agents":
-		return "agents", s.agentDockPath(".agents/skills"), nil
-	default:
-		return "", "", fmt.Errorf("unsupported skill source %q", source)
-	}
+func (s *Server) opsSkillStateDir() string {
+	return s.agentDockPath("nexus/skills/state")
 }
 
-func (s *Server) collectOpsSkills() []opsSkillSummary {
-	roots := []struct{ label, path string }{{"runtime", s.agentDockPath("skills")}, {"agents", s.agentDockPath(".agents/skills")}}
+func (s *Server) opsSkillDocRoots() []string {
+	roots := []string{
+		s.agentDockPath("skill-sources"),
+		filepath.Join(strings.TrimSpace(s.cfg.WorkspaceDir), "skills"),
+		s.agentDockPath("skills"),
+		filepath.Join(strings.TrimSpace(s.cfg.WorkspaceDir), ".agents/skills"),
+		s.agentDockPath(".agents/skills"),
+	}
 	seen := map[string]bool{}
-	items := []opsSkillSummary{}
+	result := make([]string, 0, len(roots))
 	for _, root := range roots {
-		entries, err := os.ReadDir(root.path)
+		root = strings.TrimSpace(root)
+		if root == "" || seen[root] {
+			continue
+		}
+		seen[root] = true
+		result = append(result, root)
+	}
+	return result
+}
+
+func (s *Server) collectOpsSkillStates() map[string]opsSkillStateRecord {
+	root := s.opsSkillStateDir()
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	items := map[string]opsSkillStateRecord{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		if _, err := cleanOpsName(id); err != nil {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		raw, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
+		var state opsSkillRuntimeState
+		if err := json.Unmarshal(raw, &state); err != nil {
+			continue
+		}
+		var rawState map[string]any
+		_ = json.Unmarshal(raw, &rawState)
+		info, _ := entry.Info()
+		items[id] = opsSkillStateRecord{ID: id, Path: path, ModTime: modTime(info), Raw: rawState, State: state}
+	}
+	return items
+}
+
+func (s *Server) collectOpsSkills() []opsSkillSummary {
+	states := s.collectOpsSkillStates()
+	if len(states) > 0 {
+		items := make([]opsSkillSummary, 0, len(states))
+		for id, record := range states {
+			items = append(items, s.opsSkillSummaryFromState(id, record))
+		}
+		sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+		return items
+	}
+	return s.collectOpsSkillDirectoryFallback()
+}
+
+func (s *Server) opsSkillSummaryFromState(skillID string, record opsSkillStateRecord) opsSkillSummary {
+	docRoot := s.findOpsSkillDocRoot(skillID)
+	title, desc, updatedAt, fileCount := "", "", firstNonEmptyString(record.State.UpdatedAt, record.ModTime), 0
+	if docRoot != "" {
+		info, _ := os.Stat(docRoot)
+		title, desc = readSkillDoc(filepath.Join(docRoot, "SKILL.md"))
+		fileCount = countFiles(docRoot, 4)
+		updatedAt = firstNonEmptyString(record.State.UpdatedAt, modTime(info), record.ModTime)
+	}
+	return opsSkillSummary{
+		ID:               skillID,
+		Title:            firstNonEmptyString(title, skillID),
+		Description:      desc,
+		Source:           "runtime",
+		Path:             filepath.ToSlash(filepath.Join("runtime", skillID)),
+		UpdatedAt:        updatedAt,
+		FileCount:        fileCount,
+		Status:           "installed",
+		ActiveVersion:    record.State.ActiveVersion,
+		Versions:         opsSkillVersions(record.State),
+		Channels:         record.State.Channels,
+		RuntimeStatePath: filepath.ToSlash(record.Path),
+		DocRoot:          filepath.ToSlash(docRoot),
+	}
+}
+
+func (s *Server) collectOpsSkillDirectoryFallback() []opsSkillSummary {
+	items := []opsSkillSummary{}
+	seen := map[string]bool{}
+	for _, root := range s.opsSkillDocRoots() {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		label := s.opsSkillRootLabel(root)
 		for _, entry := range entries {
-			if !entry.IsDir() || seen[root.label+":"+entry.Name()] {
+			if !entry.IsDir() || seen[entry.Name()] {
 				continue
 			}
-			seen[root.label+":"+entry.Name()] = true
-			path := filepath.Join(root.path, entry.Name())
+			seen[entry.Name()] = true
+			path := filepath.Join(root, entry.Name())
 			info, _ := entry.Info()
 			title, desc := readSkillDoc(filepath.Join(path, "SKILL.md"))
-			items = append(items, opsSkillSummary{ID: entry.Name(), Title: firstNonEmptyString(title, entry.Name()), Description: desc, Source: root.label, Path: filepath.ToSlash(filepath.Join(root.label, entry.Name())), UpdatedAt: modTime(info), FileCount: countFiles(path, 4), Status: "installed"})
+			items = append(items, opsSkillSummary{ID: entry.Name(), Title: firstNonEmptyString(title, entry.Name()), Description: desc, Source: label, Path: filepath.ToSlash(filepath.Join(label, entry.Name())), UpdatedAt: modTime(info), FileCount: countFiles(path, 4), Status: "source-only", DocRoot: filepath.ToSlash(path)})
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return items
+}
+
+func (s *Server) opsSkillDetailModel(source, skillID string) (opsSkillDetail, error) {
+	states := s.collectOpsSkillStates()
+	record, hasState := states[skillID]
+	root := s.findOpsSkillDocRoot(skillID)
+	if !hasState && root == "" {
+		return opsSkillDetail{}, fmt.Errorf("skill %s not found", skillID)
+	}
+	if source != "" && source != "runtime" && root != "" && s.opsSkillRootLabel(filepath.Dir(root)) != source {
+		// Keep old links usable, but reject clearly unrelated source labels when no runtime state exists.
+		if !hasState {
+			return opsSkillDetail{}, fmt.Errorf("skill %s not found in source %s", skillID, source)
+		}
+	}
+	summary := opsSkillSummary{ID: skillID, Title: skillID, Source: firstNonEmptyString(source, "runtime"), Path: filepath.ToSlash(filepath.Join(firstNonEmptyString(source, "runtime"), skillID)), Status: "installed"}
+	if hasState {
+		summary = s.opsSkillSummaryFromState(skillID, record)
+	} else if root != "" {
+		info, _ := os.Stat(root)
+		title, desc := readSkillDoc(filepath.Join(root, "SKILL.md"))
+		summary = opsSkillSummary{ID: skillID, Title: firstNonEmptyString(title, skillID), Description: desc, Source: s.opsSkillRootLabel(filepath.Dir(root)), Path: filepath.ToSlash(filepath.Join(s.opsSkillRootLabel(filepath.Dir(root)), skillID)), UpdatedAt: modTime(info), FileCount: countFiles(root, 4), Status: "source-only", DocRoot: filepath.ToSlash(root)}
+	}
+	detail := opsSkillDetail{opsSkillSummary: summary, Root: filepath.ToSlash(root), RuntimeState: record.Raw}
+	if root != "" {
+		detail.SkillDoc = readSmallText(filepath.Join(root, "SKILL.md"), 32000)
+		detail.Files = collectOpsSkillFiles(root, 4, 160)
+	} else {
+		detail.Files = []opsSkillFile{}
+	}
+	return detail, nil
+}
+
+func (s *Server) findOpsSkillDocRoot(skillID string) string {
+	for _, root := range s.opsSkillDocRoots() {
+		candidate := filepath.Join(root, skillID)
+		info, err := os.Stat(candidate)
+		if err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func (s *Server) opsSkillRootLabel(root string) string {
+	clean := filepath.Clean(root)
+	switch clean {
+	case filepath.Clean(s.agentDockPath("skill-sources")):
+		return "source"
+	case filepath.Clean(filepath.Join(strings.TrimSpace(s.cfg.WorkspaceDir), "skills")):
+		return "workspace"
+	case filepath.Clean(s.agentDockPath("skills")):
+		return "legacy"
+	case filepath.Clean(filepath.Join(strings.TrimSpace(s.cfg.WorkspaceDir), ".agents/skills")), filepath.Clean(s.agentDockPath(".agents/skills")):
+		return "agents"
+	default:
+		return "source"
+	}
+}
+
+func opsSkillVersions(state opsSkillRuntimeState) []string {
+	seen := map[string]bool{}
+	versions := []string{}
+	for i := len(state.History) - 1; i >= 0; i-- {
+		version := strings.TrimSpace(state.History[i])
+		if version != "" && !seen[version] {
+			seen[version] = true
+			versions = append(versions, version)
+		}
+	}
+	if version := strings.TrimSpace(state.ActiveVersion); version != "" && !seen[version] {
+		versions = append(versions, version)
+	}
+	return versions
 }
 
 func (s *Server) collectOpsLogs() []opsLogEntry {

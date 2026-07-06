@@ -218,7 +218,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <div className="section-heading workflow-heading">
       <div>
         <h2>任务模板</h2>
-        <p>管理 AgentDock 工作流模板。这里直接读写 DockMini 的 workflows 目录，发布前请确认 JSON 结构和适用范围。</p>
+        <p>管理 AgentDock 工作流模板。这里通过 Nexus 后端中转读写 AgentDock workflows，并保留 JSON 校验和位置约束。</p>
       </div>
       <div className="workflow-heading-actions">
         <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading || saving}><RefreshCw size={15} />刷新</button>
