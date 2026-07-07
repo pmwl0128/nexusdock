@@ -647,3 +647,113 @@
   .mem-lite-edit-body textarea { min-height: calc(100dvh - 310px); font-size: 13px; }
   .mem-lite-notice { margin-bottom: 10px; border-radius: 14px; }
 }
+
+/* Recall visual trim: keep primary file workflow first, fold low-frequency tools. */
+.mem-lite-advanced{
+  max-width:1500px;
+  margin:16px auto 0;
+}
+.mem-lite-advanced>summary{
+  list-style:none;
+  cursor:pointer;
+  border:1px solid #e1e6ee;
+  border-radius:15px;
+  padding:13px 15px;
+  background:rgba(255,255,255,.96);
+  box-shadow:0 7px 24px rgba(35,50,74,.04);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.mem-lite-advanced>summary::-webkit-details-marker{display:none}
+.mem-lite-advanced>summary strong{font-size:14px;color:#273248}
+.mem-lite-advanced>summary span{font-size:11px;color:#748096;text-align:right}
+.mem-lite-advanced[open]>summary{margin-bottom:12px;border-color:#cfd9ee;background:#f9fbff}
+.mem-lite-advanced .mem-card-console{margin:0 auto 14px}
+.mem-lite-advanced .mem-lite-lower{margin-top:14px}
+
+@media (max-width: 760px){
+  .mem-lite{padding:8px 10px calc(72px + env(safe-area-inset-bottom));}
+  .mem-lite-header{margin-bottom:8px;padding:12px 13px;border-radius:16px;gap:10px;}
+  .mem-lite-header h1{margin:4px 0 2px;font-size:24px;line-height:1.05;}
+  .mem-lite-header p{display:none;}
+  .mem-lite-kicker{font-size:9px;letter-spacing:.12em;}
+  .mem-lite-header-actions{grid-template-columns:1fr 1fr;gap:7px;}
+  .mem-lite-header-actions button{min-height:36px;padding:7px 9px;border-radius:11px;font-size:12px;}
+  .mem-lite-health{padding:5px 8px;font-size:10px;}
+  .mem-lite-stats{
+    display:flex;
+    gap:8px;
+    margin:0 -10px 8px;
+    padding:0 10px 2px;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scroll-snap-type:x mandatory;
+  }
+  .mem-lite-stats>div{
+    flex:0 0 104px;
+    min-height:48px;
+    padding:8px 9px;
+    border-radius:13px;
+    grid-template-columns:auto 1fr;
+    scroll-snap-align:start;
+  }
+  .mem-lite-stats svg{width:15px;height:15px;}
+  .mem-lite-stats span{font-size:10px;}
+  .mem-lite-stats strong{font-size:17px;}
+  .mem-lite-browser,.mem-lite-editor{border-radius:16px;}
+  .mem-lite-panel-head{padding:12px 13px;}
+  .mem-lite-panel-head h2{font-size:17px;}
+  .mem-lite-panel-head p{margin-top:3px;font-size:11px;}
+  .mem-lite-search{height:40px;margin:10px;border-radius:12px;}
+  .mem-lite-search button{height:38px;border-radius:0 11px 11px 0;}
+  .mem-lite-files{padding:0 8px 10px;}
+  .mem-lite-files>button{min-height:54px;padding:9px;border-radius:12px;}
+  .mem-lite-files strong{font-size:13px;}
+  .mem-lite-files small,.mem-lite-files em{font-size:10px;}
+  .mem-lite-advanced{margin:10px auto 0;}
+  .mem-lite-advanced>summary{padding:11px 12px;border-radius:14px;}
+  .mem-lite-advanced>summary span{max-width:170px;}
+  .mem-lite-advanced .mem-card-console{display:grid;}
+  .mem-lite-advanced .mem-lite-lower{display:grid;grid-template-columns:1fr;}
+  .mem-lite-advanced:not([open]){display:block;}
+  .mem-lite:not(.is-detail-open) .mem-lite-advanced{display:block;}
+  .mem-lite.is-detail-open .mem-lite-advanced{display:none;}
+}
+
+
+/* Actual mobile window pass: remove overflow-prone chrome and redundant stats. */
+@media (max-width: 900px){
+  .mem-lite,
+  .mem-lite *{box-sizing:border-box;}
+  .mem-lite{
+    width:100%;
+    max-width:100vw;
+    overflow-x:hidden;
+    padding:8px 10px calc(72px + env(safe-area-inset-bottom)) !important;
+  }
+  .mem-lite-header,
+  .mem-lite-grid,
+  .mem-lite-advanced{
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    margin-left:0;
+    margin-right:0;
+  }
+  .mem-lite-header{
+    padding:12px 13px !important;
+    border-radius:16px !important;
+    overflow:hidden;
+  }
+  .mem-lite-header p{display:none !important;}
+  .mem-lite-header h1{font-size:24px !important;line-height:1.05 !important;margin:4px 0 0 !important;}
+  .mem-lite-stats{display:none !important;}
+  .mem-lite-browser,
+  .mem-lite-editor{width:100%;max-width:100%;min-width:0;}
+  .mem-lite-search{grid-template-columns:auto minmax(0,1fr) 58px !important;margin:10px !important;}
+  .mem-lite-search button{padding-left:8px !important;padding-right:8px !important;}
+  .mem-lite-files>button{grid-template-columns:20px minmax(0,1fr) !important;}
+  .mem-lite-files>button em{display:none !important;}
+}

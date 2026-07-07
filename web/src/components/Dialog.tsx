@@ -8,49 +8,38 @@ export default function Dialog({ title, description, children, onClose, wide = f
   onClose: () => void;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = description ? `${titleId}-description` : undefined;
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const panel = panelRef.current;
-    panel?.querySelector<HTMLElement>('button, input, select, textarea')?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key !== 'Tab' || !panel) return;
-      const items = Array.from(panel.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)'));
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    panelRef.current?.querySelector<HTMLElement>('button, input, select, textarea')?.focus();
     document.body.classList.add('nexus-modal-open');
     return () => {
-      document.removeEventListener('keydown', onKeyDown);
       document.body.classList.remove('nexus-modal-open');
       previous?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="nx-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <div ref={panelRef} className={`nx-dialog ${wide ? 'is-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
+    <dialog
+      ref={dialogRef}
+      className="nx-dialog-backdrop"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+    >
+      <div ref={panelRef} className={`nx-dialog ${wide ? 'is-wide' : ''}`}>
         <header>
           <div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div>
           <button type="button" className="nx-icon-button" aria-label="关闭" onClick={onClose}><X size={19} /></button>
         </header>
         <div className="nx-dialog-body">{children}</div>
       </div>
-    </div>
+    </dialog>
   );
 }

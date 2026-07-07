@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { CredentialUpdatePage, LoginPage } from './Auth';
+import { LoginPage } from './Auth';
+import CredentialUpdatePage from './CredentialUpdatePage';
 import './styles.css';
 import './recall-nexus.css';
 

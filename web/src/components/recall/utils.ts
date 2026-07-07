@@ -1,0 +1,55 @@
+export const NEW_RECALL_TEMPLATE = `---
+type: note
+scope: inbox
+source: user-confirmed
+confidence: medium
+---
+
+# 新召回条目
+
+`;
+
+export function normalizePath(value: string): string {
+  return String(value || '').replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+}
+
+export function nameOf(path: string): string {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  return parts.at(-1) || path;
+}
+
+export function formatBytes(value?: number): string {
+  if (!value) return '—';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+export function initialPath(): string {
+  return normalizePath(new URLSearchParams(window.location.search).get('path') || '');
+}
+
+export function updateRoute(path = '', query = '') {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('tab');
+  params.delete('prefix');
+  if (path) params.set('path', path); else params.delete('path');
+  if (query) params.set('q', query); else params.delete('q');
+  const next = `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}#recall`;
+  window.history.replaceState(null, '', next);
+}
+
+export function messageOf(reason: unknown): string {
+  return reason instanceof Error ? reason.message : '操作失败';
+}
+
+export function isCompactViewport(): boolean {
+  return window.matchMedia('(max-width: 760px)').matches;
+}
+
+export function csvTags(value: string): string[] {
+  return value.split(',').flatMap((tag) => {
+    const trimmed = tag.trim();
+    return trimmed ? [trimmed] : [];
+  });
+}

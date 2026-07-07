@@ -1,20 +1,36 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { getCommand } from '../api/commands';
 import type { DeviceCommand } from '../api/types';
 import { TERMINAL_COMMAND_STATUSES } from '../components/devices/model';
 
+type PollState = { command?: DeviceCommand; error: string; loading: boolean };
+type PollAction =
+  | { type: 'idle' }
+  | { type: 'start'; seed?: DeviceCommand }
+  | { type: 'success'; command: DeviceCommand }
+  | { type: 'failure'; error: string };
+
+function pollReducer(_state: PollState, action: PollAction): PollState {
+  switch (action.type) {
+    case 'idle':
+      return { command: undefined, error: '', loading: false };
+    case 'start':
+      return { command: action.seed, error: '', loading: true };
+    case 'success':
+      return { command: action.command, error: '', loading: false };
+    case 'failure':
+      return { command: _state.command, error: action.error, loading: false };
+  }
+}
+
 export function useCommandPolling(commandId?: string, seed?: DeviceCommand) {
-  const [command, setCommand] = useState<DeviceCommand | undefined>(seed);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(Boolean(commandId));
+  const [state, dispatch] = useReducer(pollReducer, { command: seed, error: '', loading: Boolean(commandId) });
   const [refreshToken, setRefreshToken] = useState(0);
   const refresh = useCallback(() => setRefreshToken((value) => value + 1), []);
 
   useEffect(() => {
     if (!commandId) {
-      setCommand(undefined);
-      setLoading(false);
-      setError('');
+      dispatch({ type: 'idle' });
       return;
     }
     let stopped = false;
@@ -22,24 +38,19 @@ export function useCommandPolling(commandId?: string, seed?: DeviceCommand) {
     let failures = 0;
     const startedAt = Date.now();
     const controller = new AbortController();
-    setCommand(seed);
-    setLoading(true);
-    setError('');
+    dispatch({ type: 'start', seed });
 
     const poll = async () => {
       try {
         const next = await getCommand(commandId, controller.signal);
         if (stopped) return;
-        setCommand(next);
-        setError('');
-        setLoading(false);
+        dispatch({ type: 'success', command: next });
         failures = 0;
         if (TERMINAL_COMMAND_STATUSES.has(next.status)) return;
       } catch (reason) {
         if (stopped) return;
         failures += 1;
-        setError(reason instanceof Error ? reason.message : '命令状态获取失败');
-        setLoading(false);
+        dispatch({ type: 'failure', error: reason instanceof Error ? reason.message : '命令状态获取失败' });
       }
       const age = Date.now() - startedAt;
       const base = document.hidden ? 15000 : age < 30000 ? 2000 : 5000;
@@ -61,7 +72,7 @@ export function useCommandPolling(commandId?: string, seed?: DeviceCommand) {
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [commandId, refreshToken]);
+  }, [commandId, refreshToken, seed]);
 
-  return { command, error, loading, refresh };
+  return { ...state, refresh };
 }

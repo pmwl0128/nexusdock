@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, FileJson, RefreshCw, Search } from 'lucide-react';
 import { api } from '../../api/client';
 import { formatTime, timeZoneLabel } from '../../lib/time';
@@ -83,12 +83,15 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  useEffect(() => { void loadList(); }, [refreshToken, location]);
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+
+  useEffect(() => { void loadListRef.current(); }, [refreshToken, location]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return items;
-    return items.filter((item) => [item.id, item.version, item.title, item.description, item.status, item.location, item.file_name, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
+    return items.filter((item) => [item.id, item.version, item.title, item.description, item.status, item.location, item.file_name, ...(item.keywords || [])].flatMap((value) => value ? [value] : []).join(' ').toLowerCase().includes(needle));
   }, [items, query]);
 
   const parsed = useMemo(() => parseTemplate(content), [content]);
@@ -139,7 +142,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         <p>只读查看 AgentDock Runtime API 暴露的工作流模板；生命周期写操作由 AgentDock 受控接口负责。</p>
       </div>
       <div className="workflow-heading-actions">
-        <button className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading}><RefreshCw size={15} />刷新</button>
+        <button type="button" className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading}><RefreshCw size={15} />刷新</button>
       </div>
     </div>
 
@@ -167,7 +170,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         </div>
         <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>当前列表</span><em>{location === 'all' ? '全部状态' : locationLabel(location)}</em></div>
         <div className="workflow-list workflow-runtime-list">
-          {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
+          {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'} · {item.version_count ?? 1} 个版本</small></span>
             <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>
@@ -189,7 +192,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
   const keywords = [...stringValues(match.keywords), ...(selected.keywords || [])].filter((value, index, list) => value && list.indexOf(value) === index);
   const matchRows = matchViews(match);
   const stepGroups = groupSteps(steps);
-  const phases = stepGroups.map((group) => group.phase).filter(Boolean);
+  const phases = stepGroups.flatMap((group) => group.phase ? [group.phase] : []);
   const raw = selected.json || parsed.body;
   return <article className="workflow-runtime-card">
     <header className="workflow-runtime-head">
@@ -201,7 +204,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
       <div className="workflow-runtime-actions">
         <div className="workflow-runtime-head-stat"><strong>{steps.length || selected.step_count || 0}</strong><span>steps</span></div>
         <StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill>
-        <button className="nx-button is-secondary" onClick={onCopy}><Copy size={15} />复制路径</button>
+        <button type="button" className="nx-button is-secondary" onClick={onCopy}><Copy size={15} />复制路径</button>
       </div>
     </header>
 
@@ -284,7 +287,7 @@ function text(value: unknown): string {
 }
 
 function stringValues(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  if (Array.isArray(value)) return value.flatMap((item) => { const current = text(item); return current ? [current] : []; });
   const single = text(value);
   return single ? [single] : [];
 }
@@ -314,5 +317,9 @@ function stepViews(value: unknown): StepView[] {
 
 function matchViews(match: Record<string, unknown>): MatchView[] {
   const labels: Record<string, string> = { keywords: '关键词', devices: '设备', task_types: '任务类型', projects: '项目', tools: '工具', skills: 'Skill', priority: '优先级' };
-  return Object.entries(match).map(([key, value]) => ({ label: labels[key] || key, values: stringValues(value) })).filter((row) => row.values.length > 0);
+  return Object.entries(match).reduce<MatchView[]>((rows, [key, value]) => {
+    const values = stringValues(value);
+    if (values.length > 0) rows.push({ label: labels[key] || key, values });
+    return rows;
+  }, []);
 }

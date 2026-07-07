@@ -25,15 +25,11 @@ export default function DevicesPage({ refreshToken }: { refreshToken: number }) 
   const { devices, loading, error, refresh } = useDevices(refreshToken);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
-  const [selected, setSelected] = useState<DeviceSnapshot>();
+  const [selectedId, setSelectedId] = useState('');
   const [dialog, setDialog] = useState<'enroll' | 'approve' | 'revoke' | 'command' | 'history' | null>(null);
   const [notice, setNotice] = useState('');
 
-  useEffect(() => {
-    if (!selected) return;
-    const current = devices.find((item) => item.device.id === selected.device.id);
-    if (current) setSelected(current);
-  }, [devices]);
+  const selected = devices.find((item) => item.device.id === selectedId);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -46,7 +42,7 @@ export default function DevicesPage({ refreshToken }: { refreshToken: number }) 
   }, [devices, query, status]);
 
   function open(next: typeof dialog, snapshot?: DeviceSnapshot) {
-    setSelected(snapshot);
+    setSelectedId(snapshot?.device.id || '');
     setDialog(next);
     setNotice('');
   }
@@ -78,9 +74,9 @@ export default function DevicesPage({ refreshToken }: { refreshToken: number }) 
 
       {loading ? <DeviceEmpty icon={<RefreshCw className="nx-spin" />} title="正在读取设备" text="正在从 Nexus 控制面加载设备和心跳快照。" />
         : filtered.length === 0 ? <DeviceEmpty icon={<Server />} title="暂无匹配设备" text={devices.length === 0 ? '创建一次性注册 Token，让 AgentDock 节点完成 enrollment。' : '调整状态筛选或搜索条件。'} />
-          : <div className="nx-device-grid">{filtered.map((snapshot) => <DeviceCard key={snapshot.device.id} snapshot={snapshot} onDetails={() => setSelected(snapshot)} onAction={(next) => open(next, snapshot)} />)}</div>}
+          : <div className="nx-device-grid">{filtered.map((snapshot) => <DeviceCard key={snapshot.device.id} snapshot={snapshot} onDetails={() => { setSelectedId(snapshot.device.id); setDialog(null); }} onAction={(next) => open(next, snapshot)} />)}</div>}
 
-      {selected && !dialog && <DeviceDetails snapshot={selected} onClose={() => setSelected(undefined)} onAction={(next) => open(next, selected)} />}
+      {selected && !dialog && <DeviceDetails snapshot={selected} onClose={() => setSelectedId('')} onAction={(next) => open(next, selected)} />}
       {dialog === 'enroll' && <EnrollmentDialog onClose={() => setDialog(null)} onComplete={() => completed('一次性注册 Token 已创建。')} />}
       {dialog === 'approve' && selected && <ApproveDialog snapshot={selected} onClose={() => setDialog(null)} onComplete={() => completed(`设备 ${selected.device.name} 已批准，等待真实心跳后转为在线。`)} />}
       {dialog === 'revoke' && selected && <RevokeDialog snapshot={selected} onClose={() => setDialog(null)} onComplete={() => completed(`设备 ${selected.device.name} 已撤销。`)} />}

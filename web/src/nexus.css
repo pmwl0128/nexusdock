@@ -354,3 +354,269 @@
 @media(max-width:430px){
   .nexus-section-files .file-mode-switch button strong{font-size:12px}.nexus-section-files .file-mode-switch svg{display:none}.nexus-section-devices .nx-heading-actions{display:grid;grid-template-columns:1fr 1fr}.nexus-section-devices .nx-heading-actions .nx-button:last-child{grid-column:1/-1}
 }
+
+/* Content layout tuning v4: keep sidebar unchanged, simplify page presentation */
+.nexus-content{
+  max-width:min(1440px,100%);
+  padding:24px 28px 34px;
+}
+.nexus-section-home{
+  display:grid;
+  gap:0;
+}
+.nexus-workbench-hero{
+  min-height:132px!important;
+  padding:22px 24px!important;
+  border-radius:18px!important;
+  align-items:center;
+}
+.nexus-workbench-hero h2{
+  font-size:clamp(24px,2.45vw,34px)!important;
+  margin:6px 0 8px!important;
+}
+.nexus-workbench-hero p{
+  max-width:560px;
+  font-size:13px;
+  line-height:1.55;
+}
+.hero-health-stack{
+  min-width:218px;
+  padding:12px 13px;
+  border-radius:14px;
+  gap:6px;
+}
+.metric-grid.compact-metrics{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:10px!important;
+  margin:14px 0!important;
+}
+.compact-metrics .metric-card{
+  min-height:86px!important;
+  padding:13px 14px!important;
+  border-radius:15px!important;
+}
+.compact-metrics .metric-icon{
+  width:30px;
+  height:30px;
+  border-radius:9px;
+}
+.compact-metrics .metric-value{
+  font-size:24px!important;
+  margin-top:8px!important;
+}
+.dashboard-grid-nexus{
+  gap:12px!important;
+  align-items:start;
+}
+.dashboard-grid-nexus .nexus-panel,
+.settings-grid .nexus-panel,
+.file-section-panel,
+.ops-master-detail>*,
+.deploy-card,
+.ops-paths.is-rich,
+.cap-tool-panel,
+.cap-mini-panel,
+.workflow-runtime-list-panel,
+.workflow-runtime-detail{
+  border-radius:15px!important;
+}
+.dashboard-grid-nexus .nexus-panel>header,
+.settings-grid .nexus-panel>header{
+  padding:14px 16px 10px!important;
+}
+.panel-body{
+  padding:10px 16px 14px;
+  gap:8px;
+}
+.summary-stat,
+.object-row,
+.attention-row{
+  padding:9px 10px!important;
+  border-radius:11px!important;
+}
+.summary-stat strong{
+  font-size:18px;
+}
+.files-workbench,
+.runtime-standalone-page,
+.ops-page,
+.cap-layout,
+.workflow-runtime-page{
+  gap:12px!important;
+}
+.section-heading{
+  margin-bottom:12px;
+}
+.section-heading h2{
+  font-size:22px;
+  letter-spacing:-.02em;
+}
+.section-heading p{
+  font-size:12px;
+  line-height:1.5;
+  margin-top:4px;
+}
+.file-summary-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+.file-summary-card{
+  min-height:76px;
+  padding:13px 14px;
+  border-radius:13px;
+}
+.file-summary-card>span{
+  width:32px;
+  height:32px;
+  border-radius:10px;
+}
+.file-summary-card strong{
+  font-size:21px;
+}
+.file-summary-card small{
+  margin-top:3px;
+  font-size:11px;
+}
+.file-mode-switch{
+  gap:8px;
+}
+.file-mode-switch button{
+  min-height:68px;
+  padding:11px 12px;
+  border-radius:13px;
+}
+.file-section-panel{
+  padding:13px;
+}
+.file-section-panel>header{
+  margin-bottom:10px;
+  padding-bottom:10px;
+}
+.file-record-list{
+  gap:10px;
+}
+.file-record-card{
+  padding:14px;
+  border-radius:13px;
+}
+.file-record-card.is-expanded>dl{
+  gap:8px;
+}
+.compact-settings{
+  gap:12px!important;
+}
+.setting-row,
+.setting-value{
+  min-height:38px;
+  padding:10px 0!important;
+}
+.ops-command-hero,
+.cap-hero,
+.workflow-runtime-banner{
+  min-height:116px!important;
+  padding:18px!important;
+  border-radius:16px!important;
+}
+.ops-command-hero h3,
+.cap-hero h3{
+  font-size:24px!important;
+}
+.ops-metrics.is-dashboard,
+.cap-summary-grid,
+.workflow-runtime-metrics{
+  gap:10px!important;
+}
+.ops-metrics.is-dashboard article,
+.cap-summary-card,
+.workflow-runtime-metrics article{
+  min-height:82px!important;
+  padding:13px!important;
+  border-radius:13px!important;
+}
+.ops-master-detail{
+  gap:12px!important;
+  grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr);
+}
+.deploy-grid{
+  gap:12px!important;
+  grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr)!important;
+}
+.ops-task-rail{
+  max-height:calc(100vh - 242px);
+}
+.ops-task-detail,
+.ops-log.is-detail{
+  min-height:0;
+}
+
+@media(max-width:1180px){
+  .nexus-content{padding:22px;}
+  .metric-grid.compact-metrics{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
+  .dashboard-grid-nexus{grid-template-columns:repeat(2,minmax(0,1fr))!important;}
+  .dashboard-grid-nexus .nexus-panel:first-child{grid-column:span 2;}
+  .ops-master-detail,.deploy-grid{grid-template-columns:1fr!important;}
+}
+@media(max-width:820px){
+  .nexus-content{padding:10px 12px 18px!important;}
+  .nexus-section-home{gap:0;}
+  .nexus-workbench-hero{padding:12px 13px!important;border-radius:14px!important;}
+  .metric-grid.compact-metrics{grid-template-columns:none!important;}
+  .dashboard-grid-nexus .nexus-panel:first-child{grid-column:auto;}
+  .panel-body{padding:8px 12px 12px!important;}
+  .nexus-panel>header{padding:12px 13px 9px!important;}
+  .section-heading{margin-bottom:9px!important;gap:8px!important;}
+  .files-workbench,.runtime-standalone-page,.ops-page{gap:9px!important;}
+  .nexus-section-files .files-workbench,
+  .nexus-section-settings>section,
+  .nexus-section-devices .nx-devices-page,
+  .nexus-section-deploy .ops-page{gap:9px!important;}
+  .nexus-section-files .file-summary-grid{
+    display:flex!important;
+    gap:8px!important;
+    margin:0 -12px 8px!important;
+    padding:0 12px 2px!important;
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+  }
+  .nexus-section-files .file-summary-card{
+    flex:0 0 112px;
+    min-height:68px!important;
+    padding:9px!important;
+    border-radius:12px!important;
+    scroll-snap-align:start;
+  }
+  .nexus-section-files .file-summary-card>span{width:26px;height:26px;border-radius:8px;}
+  .nexus-section-files .file-summary-card strong{font-size:17px!important;}
+  .nexus-section-files .file-summary-card small{font-size:10px!important;margin-top:2px!important;}
+  .nexus-section-files .file-mode-switch{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;}
+  .nexus-section-files .file-mode-switch button{min-height:50px;padding:9px!important;border-radius:12px!important;}
+  .nexus-section-files .file-mode-switch svg{width:15px;height:15px;}
+  .nexus-section-files .file-section-panel{padding:10px!important;border-radius:13px!important;}
+  .nexus-section-files .file-record-card.is-expanded{padding:10px!important;border-radius:12px!important;}
+  .nexus-section-settings .compact-settings{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    margin:0!important;
+    padding:0!important;
+    overflow:visible!important;
+    gap:9px!important;
+  }
+  .nexus-section-settings .settings-grid{gap:9px!important;}
+  .nexus-section-settings .setting-row,.nexus-section-settings .setting-value{min-height:34px;padding:8px 0!important;}
+  .runtime-standalone-page .ops-task-rail,
+  .runtime-standalone-page .workflow-runtime-list-panel{max-height:240px!important;}
+  .ops-task-line{min-height:46px!important;}
+  .ops-command-hero,.cap-hero,.workflow-runtime-banner{padding:13px!important;border-radius:14px!important;}
+  .deploy-card pre,.ops-log pre,.ops-json-panel pre,.ops-doc-preview{max-height:260px!important;}
+}
+@media(max-width:520px){
+  .dashboard-grid-nexus{grid-template-columns:1fr!important;}
+  .dashboard-grid-nexus .nexus-panel:first-child{grid-column:auto!important;}
+  .nexus-section-files .file-mode-switch strong{font-size:12px;}
+  .nexus-section-files .file-mode-switch small{display:none!important;}
+  .object-row small,.attention-row small{display:none;}
+}
+
+/* Native dialog reset for React Doctor modal accessibility */
+dialog.nx-dialog-backdrop{border:0;max-width:none;max-height:none;padding:0;margin:0;background:transparent;color:inherit}dialog.nx-dialog-backdrop::backdrop{background:rgba(8,15,29,.54);backdrop-filter:blur(2px)}dialog.session-expired-overlay{border:0;max-width:none;max-height:none;padding:0;background:transparent;color:inherit}dialog.session-expired-overlay::backdrop{background:rgba(8,15,29,.54);backdrop-filter:blur(2px)}

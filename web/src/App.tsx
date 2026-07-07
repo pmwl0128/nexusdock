@@ -1,12 +1,13 @@
 import { formatTime, timeZoneLabel } from './lib/time';
-import { Children, useEffect, useState, type ReactNode } from 'react';
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity, ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight,
   CircleAlert, Database, FileArchive, FileJson, HardDrive, Home, ListChecks, Menu, RefreshCw,
-  Rocket, ScrollText, Server, Settings, ShieldCheck, Sparkles, Trash2, Wrench, X,
+  Rocket, ScrollText, Server, Settings, ShieldCheck, Sparkles, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
-import { AccountSecurity, type WebSession } from './Auth';
+import { type WebSession } from './Auth';
+import AccountSecurity from './AccountSecurity';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
@@ -105,8 +106,6 @@ type FetchJob = {
   mounted_at?: string;
 };
 
-type OpsOverview = { ok: boolean; tasks?: Record<string, number>; skills?: { count?: number }; workflows?: Record<string, number>; paths?: Record<string, string>; updated_at?: string };
-type DeploymentStatus = { ok: boolean; service?: string; health?: { ok?: boolean; addr?: string }; source?: { commit?: string; dir?: string }; image?: string; updated_at?: string };
 
 type SystemStatus = {
   ok: boolean;
@@ -119,20 +118,22 @@ type SystemStatus = {
 
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 
-const RUNTIME_SECTIONS: Array<{ id: RuntimeSection; label: string; desc: string; icon: typeof Home }> = [
-  { id: 'tasks', label: '任务', desc: '任务状态、review、阻塞和候选', icon: ListChecks },
-  { id: 'skills', label: 'Skill', desc: '已安装 Skill、版本和 manifest', icon: Wrench },
-  { id: 'templates', label: '模板', desc: '只读 Runtime 模板 Viewer', icon: FileJson },
-  { id: 'capabilities', label: '能力', desc: 'Runtime 能力和设备上报', icon: Boxes },
-  { id: 'logs', label: '日志', desc: '排障日志和运行尾部', icon: ScrollText },
+type SectionMeta = { id: Section; label: string; icon: typeof Home };
+
+const RUNTIME_SECTIONS: SectionMeta[] = [
+  { id: 'tasks', label: '任务', icon: ListChecks },
+  { id: 'skills', label: 'Skill', icon: Wrench },
+  { id: 'templates', label: '模板', icon: FileJson },
+  { id: 'capabilities', label: '能力', icon: Boxes },
+  { id: 'logs', label: '日志', icon: ScrollText },
 ];
 
-const NAV: Array<{ id: Section; label: string; icon: typeof Home }> = [
+const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
   { id: 'recall', label: 'Recall', icon: Database },
   { id: 'files', label: '文件', icon: FileArchive },
-  ...RUNTIME_SECTIONS.map(({ id, label, icon }) => ({ id, label, icon })),
+  ...RUNTIME_SECTIONS,
   { id: 'deploy', label: '部署', icon: Rocket },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -174,14 +175,16 @@ function messageOf(error: unknown): string {
 }
 
 function useResource<T>(path: string, fallback: T, refreshToken: number): Resource<T> {
+  const fallbackRef = useRef(fallback);
+  fallbackRef.current = fallback;
   const [state, setState] = useState<Resource<T>>({ data: fallback, live: false, loading: true });
   useEffect(() => {
     let cancelled = false;
     setState((current) => ({ ...current, loading: true }));
     api<unknown>(path).then((body) => {
-      if (!cancelled) setState({ data: unpackAPI<T>(body, fallback), live: true, loading: false });
+      if (!cancelled) setState({ data: unpackAPI<T>(body, fallbackRef.current), live: true, loading: false });
     }).catch((error) => {
-      if (!cancelled) setState({ data: fallback, live: false, loading: false, error: messageOf(error) });
+      if (!cancelled) setState({ data: fallbackRef.current, live: false, loading: false, error: messageOf(error) });
     });
     return () => { cancelled = true; };
   }, [path, refreshToken]);
@@ -252,16 +255,10 @@ export default function App() {
     setMenuOpen(false);
   }
 
-  function navigateRuntime(next: RuntimeSection) {
-    window.location.hash = next;
-    setSection(next);
-    setMenuOpen(false);
-  }
-
   if (section === 'recall') {
     return (
       <div className="nexus-recall-mode">
-        <button className="nexus-recall-return" onClick={() => navigate('home')}>
+        <button type="button" className="nexus-recall-return" onClick={() => navigate('home')}>
           <ChevronRight size={15} /> 返回 Nexus
         </button>
         <RecallWorkspace />
@@ -281,23 +278,23 @@ export default function App() {
         <nav aria-label="主导航">
           {NAV.map((item) => {
             const Icon = item.icon;
-            return <button key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
+            return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
           })}
         </nav>
         <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>个人控制台</span></div>
       </aside>
-      {menuOpen && <button className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
+      {menuOpen && <button type="button" className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
       <main className="nexus-main">
         <header className="nexus-topbar">
-          <button className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
+          <button type="button" className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
           <div><span className="nexus-eyebrow">AgentDock Nexus</span><h1>{active.label}</h1></div>
           <div className="nexus-top-actions">
-            <button className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
+            <button type="button" className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
             <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
           </div>
         </header>
         <div className={`nexus-content nexus-section-${section}`}>
-          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} navigateRuntime={navigateRuntime} />}
+          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
           {section === 'tasks' && <RuntimeStandalonePage kind="tasks" refreshToken={refreshToken} />}
           {section === 'skills' && <RuntimeStandalonePage kind="skills" refreshToken={refreshToken} />}
@@ -314,38 +311,39 @@ export default function App() {
   );
 }
 
-function SessionExpiredDialog() {
-  function signInAgain() {
-    const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    window.location.assign(`/login?return_to=${encodeURIComponent(returnTo)}`);
-  }
-  return <div className="session-expired-overlay" role="presentation"><section className="session-expired-dialog" role="dialog" aria-modal="true" aria-labelledby="session-expired-title"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。</p><button onClick={signInAgain}>重新登录</button></section></div>;
+function signInAgain() {
+  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.assign(`/login?return_to=${encodeURIComponent(returnTo)}`);
 }
 
-function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: number; navigate: (section: Section) => void; navigateRuntime: (tab: RuntimeSection) => void }) {
+function SessionExpiredDialog() {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+  return <dialog ref={dialogRef} className="session-expired-overlay" aria-labelledby="session-expired-title"><section className="session-expired-dialog"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。</p><button type="button" onClick={signInAgain}>重新登录</button></section></dialog>;
+}
+
+function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
   const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
   const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=8', [], refreshToken);
-  const opsResource = useResource<OpsOverview>('/v1/ops/overview', { ok: false }, refreshToken);
-  const deployResource = useResource<DeploymentStatus>('/v1/ops/deployment', { ok: false }, refreshToken);
   const devices = devicesResource.data ?? [];
   const artifacts = artifactsResource.data ?? [];
   const fetches = fetchesResource.data ?? [];
   const backup = backupResource.data;
-  const ops = opsResource.data || { ok: false };
-  const taskCounts = ops.tasks || {};
-  const deploy = deployResource.data || { ok: false };
   const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
   const failedTransfers = artifacts.filter((item) => item.deliveries.some((delivery) => delivery.status === 'failed')).length
     + fetches.filter((item) => item.status === 'failed').length;
   const recentTransferCount = artifacts.length + fetches.length;
-  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error, opsResource.error, deployResource.error].filter(Boolean) as string[];
+  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
-      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、文件和备份集中管理</h2><p>只展示当前真实运行链路，不再保留未接入生产的 Task、Run 和 Evolution 概念。</p></div>
-      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{taskCounts.active || 0} 个 active 任务</span><span>{deploy.health?.ok ? '部署健康' : '部署待确认'}</span></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、文件和备份集中管理</h2><p>首页只保留日常需要关注的真实状态，低频运维内容仍保留在原页面入口中。</p></div>
+      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{recentTransferCount} 条近期文件</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
@@ -353,8 +351,6 @@ function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: n
       <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
       <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
       <MetricButton label="近期文件" value={recentTransferCount} tone="ok" onClick={() => navigate('files')} />
-      <MetricButton label="Active 任务" value={taskCounts.active || 0} tone="warn" onClick={() => navigateRuntime('tasks')} />
-      <MetricButton label="Blocked" value={taskCounts.blocked || 0} tone={taskCounts.blocked ? 'danger' : 'muted'} onClick={() => navigateRuntime('tasks')} />
       <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
     </section>
 
@@ -371,18 +367,6 @@ function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: n
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
           {failedTransfers > 0 && <button type="button" className="attention-row" onClick={() => navigate('files')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>{failedTransfers} 条文件传输失败</strong><small>打开文件页面查看错误和目标设备</small></span><ChevronRight size={16} /></button>}
         </>}
-      </Panel>
-      <Panel title="AgentDock 任务" subtitle={`${taskCounts.active || 0} active · ${taskCounts.blocked || 0} blocked · ${taskCounts.cleanable || 0} cleanable`}>
-        <SummaryStat label="Active" value={String(taskCounts.active || 0)} tone="warn" />
-        <SummaryStat label="Blocked" value={String(taskCounts.blocked || 0)} tone={taskCounts.blocked ? 'danger' : 'muted'} />
-        <SummaryStat label="Completed" value={String(taskCounts.completed || 0)} tone="ok" />
-        <button type="button" className="attention-row" onClick={() => navigateRuntime('tasks')}><StatusBadge tone={taskCounts.blocked ? 'danger' : 'ok'}>{taskCounts.blocked ? 'check' : 'ok'}</StatusBadge><span><strong>打开任务中心</strong><small>查看详情、review、阻塞和清理候选</small></span><ChevronRight size={16} /></button>
-      </Panel>
-      <Panel title="部署状态" subtitle={`${deploy.service || 'recalldock'} · ${deploy.source?.commit ? deploy.source.commit.slice(0, 8) : 'unknown commit'}`}>
-        <SummaryStat label="健康" value={deploy.health?.ok ? 'ok' : 'unknown'} tone={deploy.health?.ok ? 'ok' : 'warn'} />
-        <SummaryStat label="Skill" value={String(ops.skills?.count || 0)} tone="ok" />
-        <SummaryStat label="模板" value={String(ops.workflows?.published || 0)} tone="muted" />
-        <button type="button" className="attention-row" onClick={() => navigate('deploy')}><StatusBadge tone={deploy.health?.ok ? 'ok' : 'warn'}>{deploy.health?.ok ? 'healthy' : 'unknown'}</StatusBadge><span><strong>打开部署中心</strong><small>{deploy.health?.addr || '查看 compose、挂载和源码提交'}</small></span><ChevronRight size={16} /></button>
       </Panel>
     </section>
   </>;
@@ -407,7 +391,7 @@ function FilesPage({ refreshToken }: { refreshToken: number }) {
   const artifacts = artifactsResource.data ?? [];
   const fetches = fetchesResource.data ?? [];
   const error = artifactsResource.error || fetchesResource.error;
-  const completedDeliveries = artifacts.flatMap((item) => item.deliveries).filter((item) => item.status === 'completed').length;
+  const completedDeliveries = artifacts.reduce((count, item) => count + item.deliveries.reduce((inner, delivery) => inner + (delivery.status === 'completed' ? 1 : 0), 0), 0);
   return <section className="files-workbench">
     <div className="section-heading"><div><h2>文件传输</h2><p>发送 Delivery 和反向 Fetch 分开查看，避免两类长列表挤在同一屏里。</p></div><StatusBadge tone={error ? 'danger' : 'ok'}>{error ? '读取失败' : '实时 API'}</StatusBadge></div>
     {error && <InlineAlert tone="danger" title="文件记录读取失败" message={error} />}
@@ -471,7 +455,7 @@ function BackupPanel({ backup }: { backup?: BackupStatus }) {
   </Panel>;
 }
 
-function MetricButton({ label, value, tone, onClick }: { label: string; value: number; tone: Tone; onClick: () => void }) { return <button className="metric-card" onClick={onClick}><span className={`metric-icon tone-${tone}`}><Activity size={20} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
+function MetricButton({ label, value, tone, onClick }: { label: string; value: number; tone: Tone; onClick: () => void }) { return <button type="button" className="metric-card" onClick={onClick}><span className={`metric-icon tone-${tone}`}><Activity size={20} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
 function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) { return <article className="file-summary-card"><span>{icon}</span><div><strong>{value}</strong><small>{label}</small></div></article>; }
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Check, KeyRound, Play, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { createEnvAction, type EnvActionRequest } from '../../api/env';
 import { listDeviceCommands } from '../../api/commands';
@@ -36,33 +36,21 @@ type EnvOutput = {
 
 export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: string }) {
   const { devices, loading, error, refresh } = useDevices(0);
-  const [deviceId, setDeviceId] = useState(fixedDeviceId || '');
+  const [manualDeviceId, setManualDeviceId] = useState('');
   const [commands, setCommands] = useState<DeviceCommand[]>([]);
   const [selectedCommandId, setSelectedCommandId] = useState('');
   const [commandsLoading, setCommandsLoading] = useState(false);
   const [actionBusy, setActionBusy] = useState('');
   const [notice, setNotice] = useState('');
   const [actionError, setActionError] = useState('');
+  const deviceId = fixedDeviceId || manualDeviceId || devices[0]?.device.id || '';
   const selectedDevice = devices.find(({ device }) => device.id === deviceId);
   const latest = commands[0];
   const { command: polledCommand, loading: polling } = useCommandPolling(selectedCommandId || latest?.id, selectedCommandId ? commands.find((item) => item.id === selectedCommandId) : latest);
   const output = parseEnvOutput(polledCommand?.result?.output);
   const summaries = envSummaries(output);
 
-  useEffect(() => {
-    if (fixedDeviceId) {
-      setDeviceId(fixedDeviceId);
-      return;
-    }
-    if (!deviceId && devices.length > 0) setDeviceId(devices[0].device.id);
-  }, [devices, deviceId, fixedDeviceId]);
-
-  useEffect(() => {
-    if (!deviceId) return;
-    void loadCommands(deviceId);
-  }, [deviceId]);
-
-  async function loadCommands(nextDeviceId = deviceId) {
+  const loadCommands = useCallback(async (nextDeviceId = deviceId) => {
     if (!nextDeviceId) return;
     setCommandsLoading(true);
     setActionError('');
@@ -78,7 +66,12 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
     } finally {
       setCommandsLoading(false);
     }
-  }
+  }, [deviceId]);
+
+  useEffect(() => {
+    if (!deviceId) return;
+    void loadCommands(deviceId);
+  }, [deviceId, loadCommands]);
 
   async function submit(request: EnvActionRequest): Promise<boolean> {
     if (!deviceId || actionBusy) return false;
@@ -117,7 +110,7 @@ export default function EnvManagerPage({ fixedDeviceId }: { fixedDeviceId?: stri
         <article className="nexus-panel env-control-panel">
           <header><div><h3>控制</h3><p>选择节点并下发 env.manage 命令。</p></div></header>
           <div className="panel-body env-form-stack">
-            {fixedDeviceId ? <div className="env-fixed-device"><span>目标设备</span><strong>{selectedDevice?.device.name || fixedDeviceId}</strong></div> : <label><span>目标设备</span><select value={deviceId} onChange={(event) => setDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>}
+            {fixedDeviceId ? <div className="env-fixed-device"><span>目标设备</span><strong>{selectedDevice?.device.name || fixedDeviceId}</strong></div> : <label><span>目标设备</span><select value={deviceId} onChange={(event) => setManualDeviceId(event.target.value)} disabled={loading || devices.length === 0}>{devices.map(({ device }) => <option key={device.id} value={device.id}>{device.name} · {device.status}</option>)}</select></label>}
             {selectedDevice && <div className="env-policy-line"><span className={canManageEnv ? 'is-ok' : 'is-bad'}>{canManageEnv ? '允许 env.manage' : '未允许 env.manage'}</span><span className={riskOK ? 'is-ok' : 'is-bad'}>{riskOK ? 'medium 风险可用' : '风险等级不足'}</span></div>}
             {selectedDevice && (!canManageEnv || !riskOK) && <div className="nx-alert is-warning"><ShieldAlert size={17} />设备策略需要允许 env.manage 且 max_risk 至少为 medium。</div>}
             <EnvActions summaries={summaries} disabled={!deviceId || !canManageEnv || !riskOK || Boolean(actionBusy)} onSubmit={submit} />
@@ -153,36 +146,32 @@ function EnvActions({ summaries, disabled, onSubmit }: {
   disabled: boolean;
   onSubmit: (request: EnvActionRequest) => Promise<boolean>;
 }) {
-  const skills = summaries.map((item) => item.skill).filter(Boolean);
-  const [skill, setSkill] = useState('');
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<'secret' | 'plain'>('secret');
+  const skills = summaries.flatMap((item) => item.skill ? [item.skill] : []);
+  const [selectedSkill, setSelectedSkill] = useState('');
+  const [selectedName, setSelectedName] = useState('');
+  const [kindOverride, setKindOverride] = useState<'secret' | 'plain' | ''>('');
   const [value, setValue] = useState('');
   const [operation, setOperation] = useState('status');
+  const skill = selectedSkill && skills.includes(selectedSkill) ? selectedSkill : skills[0] || '';
   const entries = summaries.find((item) => item.skill === skill)?.vars ?? [];
-  const names = entries.map((item) => item.name).filter(Boolean);
+  const names = entries.flatMap((item) => item.name ? [item.name] : []);
+  const name = selectedName && names.includes(selectedName) ? selectedName : names[0] || '';
   const selectedEntry = entries.find((item) => item.name === name);
+  const defaultKind = selectedEntry?.kind === 'plain' || selectedEntry?.kind === 'secret' ? selectedEntry.kind : 'secret';
+  const kind = kindOverride || defaultKind;
 
-  useEffect(() => {
-    if (skills.length === 0) {
-      setSkill('');
-      setName('');
-      return;
-    }
-    if (!skills.includes(skill)) setSkill(skills[0]);
-  }, [skills.join('\u0000'), skill]);
+  function chooseSkill(nextSkill: string) {
+    const nextEntries = summaries.find((item) => item.skill === nextSkill)?.vars ?? [];
+    const nextName = nextEntries[0]?.name || '';
+    setSelectedSkill(nextSkill);
+    setSelectedName(nextName);
+    setKindOverride('');
+  }
 
-  useEffect(() => {
-    if (names.length === 0) {
-      setName('');
-      return;
-    }
-    if (!names.includes(name)) setName(names[0]);
-  }, [names.join('\u0000'), name]);
-
-  useEffect(() => {
-    if (selectedEntry?.kind === 'plain' || selectedEntry?.kind === 'secret') setKind(selectedEntry.kind);
-  }, [selectedEntry?.kind]);
+  function chooseName(nextName: string) {
+    setSelectedName(nextName);
+    setKindOverride('');
+  }
 
   async function setVariable(event: FormEvent) {
     event.preventDefault();
@@ -201,9 +190,9 @@ function EnvActions({ summaries, disabled, onSubmit }: {
         <button type="button" className="nx-button is-secondary" disabled={disabled} onClick={() => void onSubmit({ action: 'migrate-from-agentdock-env' })}>迁移旧配置</button>
       </div>
       <form className="env-set-form" onSubmit={setVariable}>
-        <label><span>Skill</span><select value={skill} onChange={(event) => setSkill(event.target.value)} disabled={registryUnavailable}>{skills.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>变量</span><select value={name} onChange={(event) => setName(event.target.value)} disabled={!skill || names.length === 0}>{names.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>类型</span><select value={kind} onChange={(event) => setKind(event.target.value as 'secret' | 'plain')} disabled={!name}><option value="secret">secret</option><option value="plain">plain</option></select></label>
+        <label><span>Skill</span><select value={skill} onChange={(event) => chooseSkill(event.target.value)} disabled={registryUnavailable}>{skills.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>变量</span><select value={name} onChange={(event) => chooseName(event.target.value)} disabled={!skill || names.length === 0}>{names.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>类型</span><select value={kind} onChange={(event) => setKindOverride(event.target.value as 'secret' | 'plain')} disabled={!name}><option value="secret">secret</option><option value="plain">plain</option></select></label>
         <label><span>验证 Operation</span><input value={operation} onChange={(event) => setOperation(event.target.value)} disabled={!skill} /></label>
         <label className="env-value-field"><span>值</span><input type={kind === 'secret' ? 'password' : 'text'} value={value} onChange={(event) => setValue(event.target.value)} autoComplete="off" disabled={!name} /></label>
         <div className="env-action-row">

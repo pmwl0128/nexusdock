@@ -1,8 +1,9 @@
 const LOCALE = 'zh-CN';
 const DEFAULT_TIME_ZONE = 'Asia/Shanghai';
 const ISO_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+const TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 
-export function displayTimeZone(): string {
+function displayTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE;
   } catch {
@@ -14,7 +15,7 @@ export function timeZoneLabel(): string {
   return displayTimeZone().replace(/_/g, ' ');
 }
 
-export function parseTimestamp(value?: string): Date | null {
+function parseTimestamp(value?: string): Date | null {
   if (!value) return null;
   const raw = value.trim();
   if (!raw) return null;
@@ -27,20 +28,22 @@ export function formatTime(value?: string, options: { seconds?: boolean; compact
   const date = parseTimestamp(value);
   if (!date) return value || options.fallback || '暂无';
   const timeZone = displayTimeZone();
-  const formatter = new Intl.DateTimeFormat(LOCALE, {
-    timeZone,
-    year: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(options.seconds ? { second: '2-digit' as const } : {}),
-    hour12: false,
-    timeZoneName: options.compact ? undefined : 'shortOffset',
-  });
+  const key = [timeZone, options.seconds ? 'seconds' : 'minutes', options.compact ? 'compact' : 'offset'].join(':');
+  let formatter = TIME_FORMATTERS.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(LOCALE, {
+      timeZone,
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(options.seconds ? { second: '2-digit' as const } : {}),
+      hour12: false,
+      timeZoneName: options.compact ? undefined : 'shortOffset',
+    });
+    TIME_FORMATTERS.set(key, formatter);
+  }
   return formatter.format(date);
 }
 
-export function formatTimeCompact(value?: string): string {
-  return formatTime(value, { compact: true });
-}

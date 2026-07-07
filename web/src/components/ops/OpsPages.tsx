@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, FileText, Layers, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
 import { formatTime, timeZoneLabel } from '../../lib/time';
@@ -31,27 +31,31 @@ function toneForStatus(status?: string): Tone { if (!status) return 'muted'; if 
 function shortHash(value?: string): string { return value ? value.slice(0, 8) : 'unknown'; }
 
 function useOpsResource<T>(path: string, fallback: T, refreshToken: number) {
+  const fallbackRef = useRef(fallback);
+  fallbackRef.current = fallback;
   const [localToken, setLocalToken] = useState(0);
   const [state, setState] = useState<{ data: T; loading: boolean; error?: string }>({ data: fallback, loading: true });
   useEffect(() => {
     let cancelled = false;
     setState((current) => ({ ...current, loading: true, error: undefined }));
-    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallback, loading: false, error: apiMessage(error) }); });
+    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallbackRef.current, loading: false, error: apiMessage(error) }); });
     return () => { cancelled = true; };
   }, [path, refreshToken, localToken]);
   return { ...state, reload: () => setLocalToken((value) => value + 1) };
 }
 
 function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: number) {
+  const fallbackRef = useRef(fallback);
+  fallbackRef.current = fallback;
   const [state, setState] = useState<{ data: T; loading: boolean; error?: string }>({ data: fallback, loading: false });
   useEffect(() => {
     if (!path) {
-      setState({ data: fallback, loading: false });
+      setState({ data: fallbackRef.current, loading: false });
       return undefined;
     }
     let cancelled = false;
     setState((current) => ({ ...current, loading: true, error: undefined }));
-    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallback, loading: false, error: apiMessage(error) }); });
+    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallbackRef.current, loading: false, error: apiMessage(error) }); });
     return () => { cancelled = true; };
   }, [path, refreshToken]);
   return state;
@@ -71,16 +75,16 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{resource.data.total || tasks.length} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={stats.blocked ? 'danger' : stats.cleanable ? 'warn' : 'ok'}>{stats.blocked ? `${stats.blocked} blocked` : stats.cleanable ? `${stats.cleanable} cleanable` : 'healthy'}</StatusBadge></section>
     <section className="ops-metrics is-dashboard"><Metric label="Active" value={String(stats.active)} tone="warn" /><Metric label="Blocked" value={String(stats.blocked)} tone={stats.blocked ? 'danger' : 'muted'} /><Metric label="Completed" value={String(stats.completed)} tone="ok" /><Metric label="可清理" value={String(stats.cleanable)} tone={stats.cleanable ? 'warn' : 'muted'} /></section>
-    <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">{resource.data.count} / {resource.data.total}</span></div>
-    <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{task.title || task.id}</strong><small>{task.phase || 'no phase'} · {formatTime(task.updated_at)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} /></section>
+    <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">{resource.data.count} / {resource.data.total}</span></div>
+    <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{task.title || task.id}</strong><small>{task.phase || 'no phase'} · {formatTime(task.updated_at)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
 
-export function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
+function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<TaskListResponse>('/v1/ops/tasks?status=active&limit=500', emptyTasks, refreshToken);
   const candidates = resource.data.items.filter((item) => item.cleanable);
   return <OpsShell title="任务清理" subtitle="AgentDock Runtime API 当前只开放只读接口，Nexus 不再直接修改任务 JSON。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-cleanup-hero is-large"><div><span>READ ONLY</span><strong>{candidates.length}</strong><p>这些任务已经 final_review pass，但写入动作需要 AgentDock 暴露受控写接口后再启用。</p></div><div className="ops-actions"><button className="nx-button is-secondary" disabled title="Runtime 写接口未启用"><CheckCircle2 size={15} />预览已禁用</button><button className="nx-button is-danger" disabled title="Runtime 写接口未启用"><Trash2 size={15} />清理已禁用</button></div></section>
+    <section className="ops-cleanup-hero is-large"><div><span>READ ONLY</span><strong>{candidates.length}</strong><p>这些任务已经 final_review pass，但写入动作需要 AgentDock 暴露受控写接口后再启用。</p></div><div className="ops-actions"><button type="button" className="nx-button is-secondary" disabled title="Runtime 写接口未启用"><CheckCircle2 size={15} />预览已禁用</button><button type="button" className="nx-button is-danger" disabled title="Runtime 写接口未启用"><Trash2 size={15} />清理已禁用</button></div></section>
     <div className="nx-alert is-warning">任务清理已切换为只读模式：Nexus 不再直接改 AgentDock 内部文件，避免绕过 Runtime 状态机。</div>
     <section className="ops-grid cards">{candidates.length === 0 ? <EmptyOps text="当前没有可清理任务。" /> : candidates.map((task) => <TaskCard key={task.id} task={task} />)}</section>
   </OpsShell>;
@@ -94,7 +98,7 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/ops/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell title="Skill 管理" subtitle="通过 AgentDock Runtime API 展示已安装 Skill、版本、channel、manifest 和 selection。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero is-soft"><div><span>SKILL RUNTIME</span><h3>{resource.data.count} 个 Skill</h3><p>{runtime} 个 Runtime Skill · {resource.data.source || resource.data.root || 'AgentDock Runtime API'}</p></div><StatusBadge tone={resource.data.count ? 'ok' : 'warn'}>{resource.data.count ? 'installed' : 'empty'}</StatusBadge></section>
-    <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{resource.data.items.length === 0 ? <EmptyOps text="没有读取到 Skill。" /> : resource.data.items.map((skill) => <button key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.source} · {skill.active_version || 'no version'} · {skill.file_count} files · {formatTime(skill.updated_at)}</small></span><StatusBadge tone={toneForStatus(skill.status)}>{skill.status}</StatusBadge></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} /></section>
+    <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{resource.data.items.length === 0 ? <EmptyOps text="没有读取到 Skill。" /> : resource.data.items.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.source} · {skill.active_version || 'no version'} · {skill.file_count} files · {formatTime(skill.updated_at)}</small></span><StatusBadge tone={toneForStatus(skill.status)}>{skill.status}</StatusBadge></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
 
@@ -127,7 +131,7 @@ export function LogsPage({ refreshToken }: { refreshToken: number }) {
   const [selectedPath, setSelectedPath] = useState('');
   const selected = resource.data.items.find((item) => item.path === selectedPath) || resource.data.items[0];
   return <OpsShell title="运行日志" subtitle="按更新时间聚合可读取日志，左侧选择文件，右侧查看尾部内容。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-master-detail logs-layout"><div className="ops-task-rail">{resource.data.items.length === 0 ? <EmptyOps text="当前没有可展示日志。" /> : resource.data.items.map((item) => <button key={`${item.path}:${item.updated_at}`} className={`ops-task-line ${selected?.path === item.path ? 'is-selected' : ''}`} onClick={() => setSelectedPath(item.path)}><StatusDot tone="muted" /><span><strong>{item.name}</strong><small>{formatBytes(item.size_bytes)} · {formatTime(item.updated_at)}</small></span></button>)}</div><article className="ops-log is-detail"><header><div><strong>{selected?.name || '暂无日志'}</strong><small>{selected?.path || resource.data.roots.join(', ')}</small></div><FileText size={17} /></header><div className="ops-key-values is-compact"><Info label="大小" value={formatBytes(selected?.size_bytes)} /><Info label="更新" value={formatTime(selected?.updated_at)} /><Info label="根目录" value={resource.data.roots.join(', ') || '未配置'} /></div><pre>{selected?.tail || '空日志'}</pre></article></section>
+    <section className="ops-master-detail logs-layout"><div className="ops-task-rail">{resource.data.items.length === 0 ? <EmptyOps text="当前没有可展示日志。" /> : resource.data.items.map((item) => <button type="button" key={`${item.path}:${item.updated_at}`} className={`ops-task-line ${selected?.path === item.path ? 'is-selected' : ''}`} onClick={() => setSelectedPath(item.path)}><StatusDot tone="muted" /><span><strong>{item.name}</strong><small>{formatBytes(item.size_bytes)} · {formatTime(item.updated_at)}</small></span></button>)}</div><article className="ops-log is-detail"><header><div><strong>{selected?.name || '暂无日志'}</strong><small>{selected?.path || resource.data.roots.join(', ')}</small></div><FileText size={17} /></header><div className="ops-key-values is-compact"><Info label="大小" value={formatBytes(selected?.size_bytes)} /><Info label="更新" value={formatTime(selected?.updated_at)} /><Info label="根目录" value={resource.data.roots.join(', ') || '未配置'} /></div><pre>{selected?.tail || '空日志'}</pre></article></section>
   </OpsShell>;
 }
 
@@ -219,7 +223,7 @@ function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
 }
 
 function TaskCard({ task }: { task: OpsTask }) { return <article className="ops-task-card"><header><div><strong>{task.title || task.id}</strong><small>{task.id} · {formatTime(task.updated_at)}</small></div><StatusBadge tone={toneForTask(task)}>{task.status}</StatusBadge></header><p>{task.goal}</p>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<footer><span>{task.phase || 'no phase'}</span><span>review: {task.review_status}</span><span>{task.condition_count} 条件 / {task.step_count} 步骤</span>{task.template_id && <span>{task.template_id}@{task.template_version}</span>}{task.cleanable && <strong>可清理</strong>}</footer></article>; }
-function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button className="nx-button is-secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
+function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button type="button" className="nx-button is-secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
 function Metric({ label, value, tone = 'muted' }: { label: string; value: string; tone?: Tone }) { return <article><span className={`metric-icon tone-${tone}`}>{label.slice(0, 1)}</span><strong>{value}</strong><small>{label}</small></article>; }
 function CapabilitySummary({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: Tone }) { return <article className="cap-summary-card"><header><span className={`metric-icon tone-${tone}`}>{title.slice(0, 1)}</span>{title}</header><strong>{value}</strong><p>{detail}</p></article>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
