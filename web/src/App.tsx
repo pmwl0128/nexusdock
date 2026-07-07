@@ -389,11 +389,13 @@ function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: n
 }
 
 function RuntimeStandalonePage({ kind, refreshToken }: { kind: RuntimeSection; refreshToken: number }) {
-  if (kind === 'tasks') return <section className="runtime-standalone-page"><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></section>;
-  if (kind === 'skills') return <SkillsPage refreshToken={refreshToken} />;
-  if (kind === 'templates') return <WorkflowTemplatesPage refreshToken={refreshToken} />;
-  if (kind === 'capabilities') return <CapabilitiesPage refreshToken={refreshToken} />;
-  return <LogsPage refreshToken={refreshToken} />;
+  return <section className={`runtime-standalone-page runtime-${kind}-page`}>
+    {kind === 'tasks' && <><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></>}
+    {kind === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+    {kind === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
+    {kind === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
+    {kind === 'logs' && <LogsPage refreshToken={refreshToken} />}
+  </section>;
 }
 
 type FileView = 'artifacts' | 'fetches';
