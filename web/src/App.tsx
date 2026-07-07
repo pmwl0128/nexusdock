@@ -296,7 +296,7 @@ export default function App() {
             <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
           </div>
         </header>
-        <div className="nexus-content">
+        <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} navigateRuntime={navigateRuntime} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
           {section === 'tasks' && <RuntimeStandalonePage kind="tasks" refreshToken={refreshToken} />}
