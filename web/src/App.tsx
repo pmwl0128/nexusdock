@@ -396,37 +396,52 @@ function HomePage({ refreshToken, navigate, navigateRuntime }: { refreshToken: n
 function RuntimeWorkbenchPage({ refreshToken, activeTab, onTabChange }: { refreshToken: number; activeTab: RuntimeTab; onTabChange: (tab: RuntimeTab) => void }) {
   const active = RUNTIME_TABS.find((tab) => tab.id === activeTab) || RUNTIME_TABS[0];
   const ActiveIcon = active.icon;
-  return <section className="runtime-workbench">
-    <div className="section-heading runtime-heading"><div><span className="nexus-eyebrow">Runtime Inspector</span><h2>AgentDock Runtime</h2><p>把只读观察和排障功能收敛到一个工作台；真正的设备和 Env 操作仍在设备页完成。</p></div><StatusBadge tone="ok">只读优先</StatusBadge></div>
-    <div className="runtime-tab-strip">{RUNTIME_TABS.map((tab) => {
+  return <section className="runtime-workbench runtime-workbench-split">
+    <div className="section-heading runtime-heading runtime-heading-slim">
+      <div><span className="nexus-eyebrow">Runtime Inspector</span><h2>{active.label}</h2><p>{active.desc}</p></div>
+      <StatusBadge tone="ok">只读优先</StatusBadge>
+    </div>
+    <nav className="runtime-tab-strip runtime-subnav" aria-label="Runtime 功能导航">{RUNTIME_TABS.map((tab) => {
       const Icon = tab.icon;
-      return <button key={tab.id} className={activeTab === tab.id ? 'is-active' : ''} onClick={() => onTabChange(tab.id)}><Icon size={17} /><span><strong>{tab.label}</strong><small>{tab.desc}</small></span></button>;
-    })}</div>
-    <section className="runtime-active-panel"><header><span><ActiveIcon size={18} /></span><div><h3>{active.label}</h3><p>{active.desc}</p></div></header>{activeTab === 'tasks' && <><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>不再单独作为页面；可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></>}{activeTab === 'skills' && <SkillsPage refreshToken={refreshToken} />}{activeTab === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}{activeTab === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}{activeTab === 'logs' && <LogsPage refreshToken={refreshToken} />}</section>
+      return <button key={tab.id} type="button" className={activeTab === tab.id ? 'is-active' : ''} onClick={() => onTabChange(tab.id)}><Icon size={17} /><span><strong>{tab.label}</strong><small>{tab.desc}</small></span></button>;
+    })}</nav>
+    <section className="runtime-page-shell" aria-label={active.label}>
+      <div className="runtime-page-context"><span><ActiveIcon size={18} /></span><div><strong>{active.label}</strong><small>{active.desc}</small></div></div>
+      {activeTab === 'tasks' && <><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>不再单独作为页面；可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></>}
+      {activeTab === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+      {activeTab === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
+      {activeTab === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
+      {activeTab === 'logs' && <LogsPage refreshToken={refreshToken} />}
+    </section>
   </section>;
 }
 
+type FileView = 'artifacts' | 'fetches';
+
 function FilesPage({ refreshToken }: { refreshToken: number }) {
+  const [fileView, setFileView] = useState<FileView>('artifacts');
   const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=100', [], refreshToken);
   const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=100', [], refreshToken);
   const artifacts = artifactsResource.data ?? [];
   const fetches = fetchesResource.data ?? [];
   const error = artifactsResource.error || fetchesResource.error;
-  return <section>
-    <div className="section-heading"><div><h2>文件传输</h2><p>查看真实 Artifact 发送、Delivery 落盘和反向 Fetch 状态。列表直接展开关键字段、路径、摘要和错误。</p></div><StatusBadge tone={error ? 'danger' : 'ok'}>{error ? '读取失败' : '实时 API'}</StatusBadge></div>
+  const completedDeliveries = artifacts.flatMap((item) => item.deliveries).filter((item) => item.status === 'completed').length;
+  return <section className="files-workbench">
+    <div className="section-heading"><div><h2>文件传输</h2><p>发送 Delivery 和反向 Fetch 分开查看，避免两类长列表挤在同一屏里。</p></div><StatusBadge tone={error ? 'danger' : 'ok'}>{error ? '读取失败' : '实时 API'}</StatusBadge></div>
     {error && <InlineAlert tone="danger" title="文件记录读取失败" message={error} />}
     <div className="file-summary-grid">
       <SummaryCard icon={<ArrowUpFromLine size={18} />} label="发送记录" value={artifacts.length} />
       <SummaryCard icon={<ArrowDownToLine size={18} />} label="Fetch 记录" value={fetches.length} />
-      <SummaryCard icon={<HardDrive size={18} />} label="已完成 Delivery" value={artifacts.flatMap((item) => item.deliveries).filter((item) => item.status === 'completed').length} />
+      <SummaryCard icon={<HardDrive size={18} />} label="已完成 Delivery" value={completedDeliveries} />
     </div>
-    <section className="file-section">
-      <h3>发送与 Delivery</h3>
-      {artifactsResource.loading ? <EmptyState text="正在读取 Artifact 记录…" /> : artifacts.length === 0 ? <EmptyState text="暂无 Artifact 发送记录。" /> : <div className="file-record-list">{artifacts.map((detail) => <ArtifactCard key={detail.artifact.id} detail={detail} />)}</div>}
-    </section>
-    <section className="file-section">
-      <h3>反向 Fetch</h3>
-      {fetchesResource.loading ? <EmptyState text="正在读取 Fetch 记录…" /> : fetches.length === 0 ? <EmptyState text="暂无反向 Fetch 记录。" /> : <div className="file-record-list">{fetches.map((fetch) => <FetchCard key={fetch.id} fetch={fetch} />)}</div>}
+    <div className="file-mode-switch" role="tablist" aria-label="文件记录类型">
+      <button type="button" role="tab" aria-selected={fileView === 'artifacts'} className={fileView === 'artifacts' ? 'is-active' : ''} onClick={() => setFileView('artifacts')}><ArrowUpFromLine size={16} /><span><strong>发送与 Delivery</strong><small>{artifacts.length} 条 Artifact 记录</small></span></button>
+      <button type="button" role="tab" aria-selected={fileView === 'fetches'} className={fileView === 'fetches' ? 'is-active' : ''} onClick={() => setFileView('fetches')}><ArrowDownToLine size={16} /><span><strong>反向 Fetch</strong><small>{fetches.length} 条 Fetch 记录</small></span></button>
+    </div>
+    <section className="file-section file-section-panel">
+      <header><div><h3>{fileView === 'artifacts' ? '发送与 Delivery' : '反向 Fetch'}</h3><p>{fileView === 'artifacts' ? '展示 Artifact、目标设备 Delivery、大小、摘要和错误。' : '展示从设备拉取文件的源路径、状态、摘要和挂载信息。'}</p></div><StatusBadge tone="muted">{fileView === 'artifacts' ? artifacts.length : fetches.length} 条</StatusBadge></header>
+      {fileView === 'artifacts' && (artifactsResource.loading ? <EmptyState text="正在读取 Artifact 记录…" /> : artifacts.length === 0 ? <EmptyState text="暂无 Artifact 发送记录。" /> : <div className="file-record-list">{artifacts.map((detail) => <ArtifactCard key={detail.artifact.id} detail={detail} />)}</div>)}
+      {fileView === 'fetches' && (fetchesResource.loading ? <EmptyState text="正在读取 Fetch 记录…" /> : fetches.length === 0 ? <EmptyState text="暂无反向 Fetch 记录。" /> : <div className="file-record-list">{fetches.map((fetch) => <FetchCard key={fetch.id} fetch={fetch} />)}</div>)}
     </section>
   </section>;
 }
