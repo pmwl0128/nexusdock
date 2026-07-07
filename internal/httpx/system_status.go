@@ -5,13 +5,17 @@ import (
 )
 
 func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
+	recallRepoDir := s.store.Root()
 	status := map[string]any{
-		"ok":             true,
-		"service":        "recalldock",
-		"database":       "unavailable",
-		"schema_version": 0,
-		"recall_root":    s.store.Root(),
-		"artifact_root":  "",
+		"ok":              true,
+		"service":         "nexus",
+		"database":        "unavailable",
+		"schema_version":  0,
+		"nexus_data_dir":  s.cfg.NexusDataDir,
+		"recall_repo_dir": recallRepoDir,
+		// recall_root is kept as a deprecated compatibility alias for older UI bundles.
+		"recall_root":   recallRepoDir,
+		"artifact_root": "",
 	}
 	if s.artifacts != nil {
 		status["artifact_root"] = s.artifacts.Root()

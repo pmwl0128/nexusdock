@@ -48,14 +48,18 @@ type HealthResponse struct {
 type SystemStatus struct {
 	// Ok 系统是否健康。
 	Ok bool `json:"ok"`
-	// Service 服务名称。
+	// Service 服务名称，固定为 nexus。
 	Service string `json:"service"`
 	// Database SQLite 健康状态。
 	Database string `json:"database"`
 	// SchemaVersion 数据库 Schema 版本。
 	SchemaVersion int64 `json:"schema_version"`
-	// RecallRoot RecallDock 召回仓库路径。
-	RecallRoot string `json:"recall_root"`
+	// NexusDataDir Nexus 系统状态目录。
+	NexusDataDir string `json:"nexus_data_dir"`
+	// RecallRepoDir Recall Git Markdown 仓库目录。
+	RecallRepoDir string `json:"recall_repo_dir"`
+	// RecallRoot 已废弃兼容字段；请使用 recall_repo_dir。
+	RecallRoot *string `json:"recall_root,omitempty"`
 	// ArtifactRoot Artifact 密文存储路径。
 	ArtifactRoot string `json:"artifact_root"`
 }

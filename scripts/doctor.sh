@@ -47,7 +47,7 @@ read_env_file() {
       value="${value:1:${#value}-2}"
     fi
     case "$key" in
-      RECALLDOCK_*) export "$key=$value" ;;
+      RECALLDOCK_*|NEXUS_*|RECALL_REPO_DIR) export "$key=$value" ;;
     esac
   done < "$file"
 }
@@ -90,11 +90,27 @@ check_auth_policy() {
   fi
 }
 
+check_nexus_data_dir() {
+  local dir="${NEXUS_DATA_DIR:-./nexus-data}"
+  if mkdir -p "$dir" 2>/tmp/nexus-doctor-mkdir; then ok "Nexus 数据目录存在且可创建：$dir"; else fail "Nexus 数据目录不可创建：$dir $(cat /tmp/nexus-doctor-mkdir 2>/dev/null)"; return; fi
+  if [ -w "$dir" ]; then ok "Nexus 数据目录可写：$dir"; else fail "Nexus 数据目录不可写：$dir"; fi
+  local db="$dir/nexus.db"
+  if [ -f "$db" ]; then
+    if command -v sqlite3 >/dev/null 2>&1; then
+      if sqlite3 "$db" 'PRAGMA quick_check;' | grep -qx ok; then ok "nexus.db quick_check 通过：$db"; else fail "nexus.db quick_check 失败：$db"; fi
+    else
+      warn 'sqlite3 不可用，跳过 nexus.db quick_check'
+    fi
+  else
+    warn "nexus.db 不存在，可能是首次启动：$db"
+  fi
+}
+
 check_recall_repo() {
-  local dir="${RECALLDOCK_STORE_DIR:-recall}"
-  if [ -d "$dir" ]; then ok "召回目录存在：$dir"; else warn "召回目录不存在：$dir"; fi
+  local dir="${RECALL_REPO_DIR:-${RECALLDOCK_STORE_DIR:-recall}}"
+  if [ -d "$dir" ]; then ok "Recall 仓库目录存在：$dir"; else warn "Recall 仓库目录不存在：$dir"; fi
   if [ -d "$dir/.git" ]; then
-    ok "召回目录是 Git 仓库：$dir"
+    ok "Recall 仓库是 Git 仓库：$dir"
     if git -C "$dir" status --short --branch >/tmp/recalldock-doctor-git-status 2>&1; then
       sed 's/^/[GIT] /' /tmp/recalldock-doctor-git-status
     else
@@ -103,7 +119,7 @@ check_recall_repo() {
     if git -C "$dir" remote -v | grep -q .; then ok 'Git remote 已配置'; else warn '记忆 Git remote 未配置'; fi
     if git -C "$dir" fetch --dry-run >/tmp/recalldock-doctor-fetch 2>&1; then ok 'Git remote 可 fetch'; else warn "Git remote fetch 失败：$(tr '\n' ' ' </tmp/recalldock-doctor-fetch | cut -c1-240)"; fi
   else
-    warn "召回目录不是 Git 仓库：$dir"
+    warn "Recall 仓库不是 Git 仓库：$dir"
   fi
 }
 
@@ -132,6 +148,7 @@ check_assets() {
 load_env
 check_compose
 check_auth_policy
+check_nexus_data_dir
 check_recall_repo
 check_ports_and_health
 check_assets

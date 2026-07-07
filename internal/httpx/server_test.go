@@ -158,3 +158,21 @@ func TestEmbeddingStatusIsGracefullyDisabled(t *testing.T) {
 		t.Fatalf("embedding status should be disabled: %s", res.Body.String())
 	}
 }
+
+func TestRuntimeRoutesUseRuntimePrefix(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks", nil)
+	response := httptest.NewRecorder()
+
+	h.ServeHTTP(response, request)
+
+	if response.Code == http.StatusNotFound {
+		t.Fatalf("/v1/runtime/tasks must be registered")
+	}
+
+	legacy := httptest.NewRecorder()
+	h.ServeHTTP(legacy, httptest.NewRequest(http.MethodGet, "/v1/ops/tasks", nil))
+	if legacy.Code != http.StatusNotFound {
+		t.Fatalf("/v1/ops/tasks should not remain as a public Nexus route, got %d", legacy.Code)
+	}
+}

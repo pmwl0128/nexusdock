@@ -620,3 +620,28 @@
 
 /* Native dialog reset for React Doctor modal accessibility */
 dialog.nx-dialog-backdrop{border:0;max-width:none;max-height:none;padding:0;margin:0;background:transparent;color:inherit}dialog.nx-dialog-backdrop::backdrop{background:rgba(8,15,29,.54);backdrop-filter:blur(2px)}dialog.session-expired-overlay{border:0;max-width:none;max-height:none;padding:0;background:transparent;color:inherit}dialog.session-expired-overlay::backdrop{background:rgba(8,15,29,.54);backdrop-filter:blur(2px)}
+
+
+.runtime-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.runtime-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--nx-border, rgba(148, 163, 184, 0.28));
+  border-radius: 999px;
+  background: var(--nx-surface, rgba(255, 255, 255, 0.86));
+  padding: 8px 12px;
+  color: inherit;
+}
+
+.runtime-tabs button.is-active {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  font-weight: 700;
+}

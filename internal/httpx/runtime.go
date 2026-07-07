@@ -115,19 +115,20 @@ type opsLogEntry struct {
 	Tail      string `json:"tail"`
 }
 
-func (s *Server) registerOpsRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
-	mux.HandleFunc("GET /v1/ops/overview", protected(s.opsOverview))
-	mux.HandleFunc("GET /v1/ops/tasks", protected(s.opsTasks))
-	mux.HandleFunc("GET /v1/ops/tasks/{fileName}", protected(s.opsTaskDetail))
-	mux.HandleFunc("POST /v1/ops/tasks/cleanup", protected(s.opsCleanupTasks))
-	mux.HandleFunc("GET /v1/ops/skills", protected(s.opsSkills))
-	mux.HandleFunc("GET /v1/ops/skills/{source}/{skillID}", protected(s.opsSkillDetail))
-	mux.HandleFunc("GET /v1/ops/capabilities", protected(s.opsCapabilities))
-	mux.HandleFunc("GET /v1/ops/logs", protected(s.opsLogs))
-	mux.HandleFunc("GET /v1/ops/deployment", protected(s.opsDeployment))
+func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /v1/runtime/overview", protected(s.runtimeOverview))
+	mux.HandleFunc("GET /v1/runtime/tasks", protected(s.runtimeTasks))
+	mux.HandleFunc("GET /v1/runtime/tasks/{fileName}", protected(s.runtimeTaskDetail))
+	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
+	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
+	mux.HandleFunc("GET /v1/runtime/capabilities", protected(s.runtimeCapabilities))
+	mux.HandleFunc("GET /v1/runtime/logs", protected(s.runtimeLogs))
+	mux.HandleFunc("GET /v1/runtime/deployment", protected(s.runtimeDeployment))
+	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
+	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
 }
 
-func (s *Server) opsOverview(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
 	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 300)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
 	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0, "cleanable": 0}
@@ -152,7 +153,7 @@ func (s *Server) opsOverview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
-func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	limit := queryInt(r, "limit", 200)
@@ -180,13 +181,13 @@ func (s *Server) opsTasks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": filtered, "count": len(filtered), "total": len(items), "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) opsTaskDetail(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeTaskDetail(w http.ResponseWriter, r *http.Request) {
 	id, err := cleanOpsTaskID(r.PathValue("fileName"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_TASK_ID", err.Error())
 		return
 	}
-	detail, err := s.opsTaskDetailFromRuntime(r.Context(), id)
+	detail, err := s.runtimeTaskDetailFromRuntime(r.Context(), id)
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
 		return
@@ -194,11 +195,11 @@ func (s *Server) opsTaskDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail, "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) opsCleanupTasks(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeCleanupTasks(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusNotImplemented, "AGENTDOCK_TASK_WRITE_API_REQUIRED", "任务清理不能再直接修改 AgentDock 内部文件；需要 AgentDock 暴露受控写接口后再启用。")
 }
 
-func (s *Server) opsSkills(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeSkills(w http.ResponseWriter, r *http.Request) {
 	items, err := s.collectOpsSkillsFromRuntime(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
@@ -207,13 +208,13 @@ func (s *Server) opsSkills(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 	skillID, err := cleanOpsName(r.PathValue("skillID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
 		return
 	}
-	detail, err := s.opsSkillDetailFromRuntime(r.Context(), skillID)
+	detail, err := s.runtimeSkillDetailFromRuntime(r.Context(), skillID)
 	if err != nil {
 		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
 		return
@@ -221,7 +222,7 @@ func (s *Server) opsSkillDetail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail, "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) opsCapabilities(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeCapabilities(w http.ResponseWriter, r *http.Request) {
 	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 500)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
 	tools, a, b := s.collectOpsCapabilityTools(r)
@@ -330,16 +331,16 @@ func opsCommandContracts() []opsToolSummary {
 	return items
 }
 
-func (s *Server) opsLogs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeLogs(w http.ResponseWriter, r *http.Request) {
 	items := s.collectOpsLogs()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "roots": s.logRoots()})
 }
 
-func (s *Server) opsDeployment(w http.ResponseWriter, r *http.Request) {
+func (s *Server) runtimeDeployment(w http.ResponseWriter, r *http.Request) {
 	compose := readSmallText(filepath.Join(strings.TrimSpace(s.cfg.DeployDir), "docker-compose.yml"), 16000)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":         true,
-		"service":    "recalldock",
+		"service":    "nexus",
 		"health":     map[string]any{"ok": true, "addr": s.cfg.Addr()},
 		"paths":      s.opsPaths(),
 		"compose":    compose,
@@ -376,7 +377,7 @@ func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]o
 	return items, nil
 }
 
-func (s *Server) opsTaskDetailFromRuntime(ctx context.Context, id string) (opsTaskDetail, error) {
+func (s *Server) runtimeTaskDetailFromRuntime(ctx context.Context, id string) (opsTaskDetail, error) {
 	body, err := s.runtimeGet(ctx, "/internal/runtime/tasks/"+urlPath(id), nil)
 	if err != nil {
 		return opsTaskDetail{}, err
@@ -421,7 +422,7 @@ func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSum
 	return items, nil
 }
 
-func (s *Server) opsSkillDetailFromRuntime(ctx context.Context, skillID string) (opsSkillDetail, error) {
+func (s *Server) runtimeSkillDetailFromRuntime(ctx context.Context, skillID string) (opsSkillDetail, error) {
 	body, err := s.runtimeGet(ctx, "/internal/runtime/skills/"+urlPath(skillID), nil)
 	if err != nil {
 		return opsSkillDetail{}, err
@@ -624,7 +625,7 @@ func (s *Server) collectOpsSkillDirectoryFallback() []opsSkillSummary {
 	return items
 }
 
-func (s *Server) opsSkillDetailModel(source, skillID string) (opsSkillDetail, error) {
+func (s *Server) runtimeSkillDetailModel(source, skillID string) (opsSkillDetail, error) {
 	states := s.collectOpsSkillStates()
 	record, hasState := states[skillID]
 	root := s.findOpsSkillDocRoot(skillID)
@@ -732,7 +733,7 @@ func (s *Server) workflowCounts() map[string]int {
 }
 
 func (s *Server) opsPaths() map[string]string {
-	return map[string]string{"agentdock": s.cfg.AgentDockDir, "workspace": s.cfg.WorkspaceDir, "workflows": s.cfg.WorkflowDir, "deploy": s.cfg.DeployDir, "source": s.cfg.SourceDir}
+	return map[string]string{"agentdock": s.cfg.AgentDockDir, "workspace": s.cfg.WorkspaceDir, "deploy": s.cfg.DeployDir, "source": s.cfg.SourceDir}
 }
 
 func (s *Server) agentDockPath(parts ...string) string {

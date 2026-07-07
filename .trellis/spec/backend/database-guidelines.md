@@ -1,6 +1,6 @@
 # Database Guidelines
 
-The backend uses SQLite through `database/sql` and `modernc.org/sqlite`. Database code must be deterministic, migration-backed, and safe to run on local developer machines and long-lived MemoryDock deployments.
+The backend uses SQLite through `database/sql` and `modernc.org/sqlite`. Database code must be deterministic, migration-backed, and safe to run on local developer machines and long-lived Nexus deployments.
 
 ## SQLite Setup
 

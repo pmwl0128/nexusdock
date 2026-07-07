@@ -3,7 +3,7 @@
   "info": {
     "title": "AgentDock Nexus API",
     "version": "1.0.0",
-    "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、召回、加密文件、备份状态和账号会话。"
+    "description": "个人 AgentDock Nexus 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。"
   },
   "servers": [
     {
@@ -5068,6 +5068,1057 @@
         }
       }
     },
+    "/v1/runtime/overview": {
+      "get": {
+        "operationId": "getRuntimeOverview",
+        "summary": "读取 AgentDock Runtime 可用性和概览",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/tasks": {
+      "get": {
+        "operationId": "listRuntimeTasks",
+        "summary": "通过 AgentDock Runtime API 列出任务视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/tasks/{taskID}": {
+      "get": {
+        "operationId": "getRuntimeTask",
+        "summary": "通过 AgentDock Runtime API 读取任务详情",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RuntimeTaskId"
+          }
+        ]
+      }
+    },
+    "/v1/runtime/skills": {
+      "get": {
+        "operationId": "listRuntimeSkills",
+        "summary": "通过 AgentDock Runtime API 列出 Skill 视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/skills/{source}/{skillID}": {
+      "get": {
+        "operationId": "getRuntimeSkill",
+        "summary": "通过 AgentDock Runtime API 读取 Skill 详情",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RuntimeSkillSource"
+          },
+          {
+            "$ref": "#/components/parameters/RuntimeSkillId"
+          }
+        ]
+      }
+    },
+    "/v1/runtime/workflow-templates": {
+      "get": {
+        "operationId": "listRuntimeWorkflowTemplates",
+        "summary": "通过 AgentDock Runtime API 列出 Workflow 模板视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/workflow-templates/{location}/{fileName}": {
+      "get": {
+        "operationId": "getRuntimeWorkflowTemplate",
+        "summary": "通过 AgentDock Runtime API 读取 Workflow 模板详情",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RuntimeWorkflowLocation"
+          },
+          {
+            "$ref": "#/components/parameters/RuntimeWorkflowFileName"
+          }
+        ]
+      }
+    },
+    "/v1/runtime/capabilities": {
+      "get": {
+        "operationId": "listRuntimeCapabilities",
+        "summary": "读取 AgentDock Runtime 能力视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/logs": {
+      "get": {
+        "operationId": "listRuntimeLogs",
+        "summary": "读取 AgentDock Runtime 日志视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/runtime/deployment": {
+      "get": {
+        "operationId": "getRuntimeDeployment",
+        "summary": "读取 AgentDock Runtime 部署诊断视图",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/artifacts": {
       "get": {
         "operationId": "listArtifacts",
@@ -6854,6 +7905,51 @@
         "schema": {
           "type": "string"
         }
+      },
+      "RuntimeTaskId": {
+        "name": "taskID",
+        "in": "path",
+        "required": true,
+        "description": "AgentDock Runtime task ID。",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RuntimeSkillSource": {
+        "name": "source",
+        "in": "path",
+        "required": true,
+        "description": "AgentDock Runtime skill source。",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RuntimeSkillId": {
+        "name": "skillID",
+        "in": "path",
+        "required": true,
+        "description": "AgentDock Runtime skill ID。",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RuntimeWorkflowLocation": {
+        "name": "location",
+        "in": "path",
+        "required": true,
+        "description": "Runtime workflow template location。",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RuntimeWorkflowFileName": {
+        "name": "fileName",
+        "in": "path",
+        "required": true,
+        "description": "Runtime workflow template file name。",
+        "schema": {
+          "type": "string"
+        }
       }
     },
     "schemas": {
@@ -6981,7 +8077,7 @@
           },
           "service": {
             "type": "string",
-            "description": "服务名称。"
+            "description": "服务名称，固定为 nexus。"
           },
           "database": {
             "type": "string",
@@ -6992,9 +8088,17 @@
             "description": "数据库 Schema 版本。",
             "minimum": 0
           },
+          "nexus_data_dir": {
+            "type": "string",
+            "description": "Nexus 系统状态目录。"
+          },
+          "recall_repo_dir": {
+            "type": "string",
+            "description": "Recall Git Markdown 仓库目录。"
+          },
           "recall_root": {
             "type": "string",
-            "description": "RecallDock 召回仓库路径。"
+            "description": "已废弃兼容字段；请使用 recall_repo_dir。"
           },
           "artifact_root": {
             "type": "string",
@@ -7006,7 +8110,8 @@
           "service",
           "database",
           "schema_version",
-          "recall_root",
+          "nexus_data_dir",
+          "recall_repo_dir",
           "artifact_root"
         ]
       },

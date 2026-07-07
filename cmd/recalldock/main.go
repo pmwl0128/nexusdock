@@ -39,14 +39,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, err := recall.NewStore(cfg.StoreDir)
+	store, err := recall.NewStore(cfg.RecallRepoDir)
 	if err != nil {
 		logger.Error("failed to initialize store", "error", err)
 		os.Exit(1)
 	}
 
 	syncManager := syncer.NewManager(syncer.Config{
-		RepoDir:       cfg.StoreDir,
+		RepoDir:       cfg.RecallRepoDir,
 		AutoSync:      cfg.AutoSync,
 		PullInterval:  cfg.PullInterval,
 		PushDebounce:  cfg.PushDebounce,
@@ -57,12 +57,12 @@ func main() {
 	defer cancel()
 	syncManager.Start(ctx)
 
-	controlDir := filepath.Join(cfg.StoreDir, ".nexus")
+	controlDir := cfg.NexusDataDir
 	if err := os.MkdirAll(controlDir, 0o700); err != nil {
 		logger.Error("failed to create control plane directory", "error", err)
 		os.Exit(1)
 	}
-	controlDBPath := filepath.Join(controlDir, "control-plane.db")
+	controlDBPath := filepath.Join(controlDir, "nexus.db")
 	controlDB, err := core.OpenSQLite(ctx, controlDBPath, 4)
 	if err != nil {
 		logger.Error("failed to open control plane database", "error", err)
@@ -136,7 +136,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("recalldock starting", "addr", cfg.Addr(), "store_dir", cfg.StoreDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
+		logger.Info("nexus starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", "error", err)
 			cancel()
@@ -147,5 +147,5 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
-	logger.Info("recalldock stopped")
+	logger.Info("nexus stopped")
 }

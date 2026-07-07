@@ -75,12 +75,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
-	s.registerOpsRoutes(mux, protected)
-	mux.HandleFunc("GET /v1/workflow-templates", protected(s.listWorkflowTemplates))
-	mux.HandleFunc("POST /v1/workflow-templates", protected(s.createWorkflowTemplate))
-	mux.HandleFunc("POST /v1/workflow-templates/move", protected(s.moveWorkflowTemplate))
-	mux.HandleFunc("GET /v1/workflow-templates/", protected(s.workflowTemplateDetail))
-	mux.HandleFunc("PUT /v1/workflow-templates/", protected(s.saveWorkflowTemplate))
+	s.registerRuntimeRoutes(mux, protected)
 	s.registerWebAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
 	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))
@@ -120,7 +115,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "recalldock"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "nexus"})
 }
 
 func (s *Server) syncStatus(w http.ResponseWriter, r *http.Request) {

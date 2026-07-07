@@ -11,11 +11,11 @@ import AccountSecurity from './AccountSecurity';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
-import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage } from './components/ops/OpsPages';
+import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import './nexus.css';
 
-type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs';
-type Section = 'home' | 'devices' | 'recall' | 'files' | RuntimeSection | 'deploy' | 'settings';
+type RuntimeTab = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs' | 'deploy';
+type Section = 'home' | 'devices' | 'recall' | 'files' | 'runtime' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -112,6 +112,8 @@ type SystemStatus = {
   service: string;
   database: string;
   schema_version: number;
+  nexus_data_dir?: string;
+  recall_repo_dir?: string;
   recall_root?: string;
   artifact_root: string;
 };
@@ -119,13 +121,15 @@ type SystemStatus = {
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 
 type SectionMeta = { id: Section; label: string; icon: typeof Home };
+type RuntimeTabMeta = { id: RuntimeTab; label: string; icon: typeof Home };
 
-const RUNTIME_SECTIONS: SectionMeta[] = [
+const RUNTIME_SECTIONS: RuntimeTabMeta[] = [
   { id: 'tasks', label: '任务', icon: ListChecks },
   { id: 'skills', label: 'Skill', icon: Wrench },
   { id: 'templates', label: '模板', icon: FileJson },
   { id: 'capabilities', label: '能力', icon: Boxes },
   { id: 'logs', label: '日志', icon: ScrollText },
+  { id: 'deploy', label: '部署', icon: Rocket },
 ];
 
 const NAV: SectionMeta[] = [
@@ -133,28 +137,33 @@ const NAV: SectionMeta[] = [
   { id: 'devices', label: '设备', icon: Server },
   { id: 'recall', label: 'Recall', icon: Database },
   { id: 'files', label: '文件', icon: FileArchive },
-  ...RUNTIME_SECTIONS,
-  { id: 'deploy', label: '部署', icon: Rocket },
+  { id: 'runtime', label: '运行时', icon: Wrench },
   { id: 'settings', label: '设置', icon: Settings },
 ];
 
-const LEGACY_RUNTIME_TABS: Record<string, RuntimeSection> = {
+const LEGACY_RUNTIME_TABS: Record<string, RuntimeTab> = {
   tasks: 'tasks',
   cleanup: 'tasks',
   skills: 'skills',
   templates: 'templates',
   capabilities: 'capabilities',
   logs: 'logs',
+  deploy: 'deploy',
 };
 
 function hashParts(): string[] {
   return window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
 }
 
-function sectionFromHash(): Section {
+function runtimeTabFromHash(): RuntimeTab {
   const [first, second] = hashParts();
   if (first === 'runtime') return LEGACY_RUNTIME_TABS[second] || 'tasks';
-  if (LEGACY_RUNTIME_TABS[first]) return LEGACY_RUNTIME_TABS[first];
+  return LEGACY_RUNTIME_TABS[first] || 'tasks';
+}
+
+function sectionFromHash(): Section {
+  const [first] = hashParts();
+  if (first === 'runtime' || LEGACY_RUNTIME_TABS[first]) return 'runtime';
   if (NAV.some((item) => item.id === first)) return first as Section;
   const params = new URLSearchParams(window.location.search);
   if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
@@ -215,6 +224,7 @@ function toneForStatus(status?: string): Tone {
 
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
+  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(runtimeTabFromHash);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -244,15 +254,21 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       setSection(sectionFromHash());
+      setRuntimeTab(runtimeTabFromHash());
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
   function navigate(next: Section) {
-    window.location.hash = next;
+    window.location.hash = next === 'runtime' ? `runtime/${runtimeTab}` : next;
     setSection(next);
     setMenuOpen(false);
+  }
+
+  function changeRuntimeTab(next: RuntimeTab) {
+    setRuntimeTab(next);
+    window.location.hash = `runtime/${next}`;
   }
 
   if (section === 'recall') {
@@ -296,12 +312,7 @@ export default function App() {
         <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
-          {section === 'tasks' && <RuntimeStandalonePage kind="tasks" refreshToken={refreshToken} />}
-          {section === 'skills' && <RuntimeStandalonePage kind="skills" refreshToken={refreshToken} />}
-          {section === 'templates' && <RuntimeStandalonePage kind="templates" refreshToken={refreshToken} />}
-          {section === 'capabilities' && <RuntimeStandalonePage kind="capabilities" refreshToken={refreshToken} />}
-          {section === 'logs' && <RuntimeStandalonePage kind="logs" refreshToken={refreshToken} />}
-          {section === 'deploy' && <DeploymentPage refreshToken={refreshToken} />}
+          {section === 'runtime' && <RuntimePage active={runtimeTab} onChange={changeRuntimeTab} refreshToken={refreshToken} />}
           {section === 'files' && <FilesPage refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
@@ -372,13 +383,21 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   </>;
 }
 
-function RuntimeStandalonePage({ kind, refreshToken }: { kind: RuntimeSection; refreshToken: number }) {
-  return <section className={`runtime-standalone-page runtime-${kind}-page`}>
-    {kind === 'tasks' && <><div className="runtime-inline-note"><strong>任务清理已降级</strong><span>可清理候选只作为任务状态提示，写入动作等待 AgentDock 受控接口。</span></div><TaskCenterPage refreshToken={refreshToken} /></>}
-    {kind === 'skills' && <SkillsPage refreshToken={refreshToken} />}
-    {kind === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
-    {kind === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
-    {kind === 'logs' && <LogsPage refreshToken={refreshToken} />}
+function RuntimePage({ active, onChange, refreshToken }: { active: RuntimeTab; onChange: (tab: RuntimeTab) => void; refreshToken: number }) {
+  return <section className={`runtime-standalone-page runtime-${active}-page`}>
+    <div className="runtime-tabs" role="tablist" aria-label="AgentDock Runtime 数据">
+      {RUNTIME_SECTIONS.map((item) => {
+        const Icon = item.icon;
+        return <button type="button" role="tab" aria-selected={active === item.id} className={active === item.id ? 'is-active' : ''} key={item.id} onClick={() => onChange(item.id)}><Icon size={16} />{item.label}</button>;
+      })}
+    </div>
+    <div className="runtime-inline-note"><strong>AgentDock Runtime owns this lifecycle.</strong><span>Nexus displays Runtime API state and can only perform writes through controlled Runtime endpoints.</span></div>
+    {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
+    {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+    {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
+    {active === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
+    {active === 'logs' && <LogsPage refreshToken={refreshToken} />}
+    {active === 'deploy' && <DeploymentPage refreshToken={refreshToken} />}
   </section>;
 }
 
@@ -422,16 +441,17 @@ function FetchCard({ fetch }: { fetch: FetchJob }) {
 }
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'recalldock', database: 'unknown', schema_version: 0, recall_root: '', artifact_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexus', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '', artifact_root: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
       <Panel title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
-        <SettingValue label="服务" value={system.data.service || 'recalldock'} tone={system.data.ok ? 'ok' : 'danger'} />
+        <SettingValue label="服务" value={system.data.service || 'nexus'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
-        <SettingValue label="召回仓库" value={system.data.recall_root || '暂无'} mono />
+        <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
+        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || system.data.recall_root || '暂无'} mono />
         <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup.data} />

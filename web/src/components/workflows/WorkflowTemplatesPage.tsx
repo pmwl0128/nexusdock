@@ -107,12 +107,12 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     try {
       const params = new URLSearchParams();
       if (location !== 'all') params.set('location', location);
-      const result = await api<ListResponse>(`/v1/workflow-templates${params.size ? `?${params.toString()}` : ''}`);
+      const result = await api<ListResponse>(`/v1/runtime/workflow-templates${params.size ? `?${params.toString()}` : ''}`);
       setItems(result.items || []);
       setRoot(result.root || '');
       if (!selected && result.items?.[0]) await openTemplate(result.items[0]);
     } catch (error) {
-      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '任务模板读取失败' });
+      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : 'Workflow读取失败' });
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   async function openTemplate(template: WorkflowTemplateSummary) {
     setNotice(null);
     try {
-      const result = await api<DetailResponse>(`/v1/workflow-templates/${template.location}/${template.file_name}`);
+      const result = await api<DetailResponse>(`/v1/runtime/workflow-templates/${template.location}/${template.file_name}`);
       setSelected(result.template);
       setContent(result.template.content);
     } catch (error) {
@@ -138,8 +138,8 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   return <section className="workflow-page workflow-runtime-page">
     <div className="section-heading workflow-heading">
       <div>
-        <h2>任务模板</h2>
-        <p>只读查看 AgentDock Runtime API 暴露的工作流模板；生命周期写操作由 AgentDock 受控接口负责。</p>
+        <h2>Workflow</h2>
+        <p>只读查看 AgentDock Runtime API 暴露的Workflow 模板；AgentDock Runtime 拥有生命周期，Nexus 只展示 Runtime API 状态。</p>
       </div>
       <div className="workflow-heading-actions">
         <button type="button" className="nx-button is-secondary" onClick={() => void loadList()} disabled={loading}><RefreshCw size={15} />刷新</button>
@@ -170,7 +170,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         </div>
         <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>当前列表</span><em>{location === 'all' ? '全部状态' : locationLabel(location)}</em></div>
         <div className="workflow-list workflow-runtime-list">
-          {loading ? <p className="empty-mini">正在读取任务模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
+          {loading ? <p className="empty-mini">正在读取Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'} · {item.version_count ?? 1} 个版本</small></span>
             <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>

@@ -158,13 +158,15 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "Nexus 系统与数据存储状态。",
         {
             "ok": scalar("boolean", "系统是否健康。"),
-            "service": scalar("string", "服务名称。"),
+            "service": scalar("string", "服务名称，固定为 nexus。"),
             "database": scalar("string", "SQLite 健康状态。"),
             "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
-            "recall_root": scalar("string", "RecallDock 召回仓库路径。"),
-                        "artifact_root": scalar("string", "Artifact 密文存储路径。"),
+            "nexus_data_dir": scalar("string", "Nexus 系统状态目录。"),
+            "recall_repo_dir": scalar("string", "Recall Git Markdown 仓库目录。"),
+            "recall_root": scalar("string", "已废弃兼容字段；请使用 recall_repo_dir。"),
+            "artifact_root": scalar("string", "Artifact 密文存储路径。"),
         },
-        ("ok", "service", "database", "schema_version", "recall_root", "artifact_root"),
+        ("ok", "service", "database", "schema_version", "nexus_data_dir", "recall_repo_dir", "artifact_root"),
     )
     schemas["BackupHistory"] = obj(
         "一次备份执行的脱敏结果。",
@@ -414,6 +416,11 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "FetchId": path_param("fetchId", "Artifact Fetch UUID。"),
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
         "RecallPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
+        "RuntimeTaskId": path_param("taskID", "AgentDock Runtime task ID。", uuid=False),
+        "RuntimeSkillSource": path_param("source", "AgentDock Runtime skill source。", uuid=False),
+        "RuntimeSkillId": path_param("skillID", "AgentDock Runtime skill ID。", uuid=False),
+        "RuntimeWorkflowLocation": path_param("location", "Runtime workflow template location。", uuid=False),
+        "RuntimeWorkflowFileName": path_param("fileName", "Runtime workflow template file name。", uuid=False),
     }
 
     def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
@@ -504,6 +511,16 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/sync/pull": {"post": operation("pullRecall", "从远端更新召回仓库", request=body())},
         "/v1/sync/push": {"post": operation("pushRecall", "保存召回仓库到远端", request=body())},
         "/v1/sync/now": {"post": operation("syncRecallNow", "立即双向同步召回仓库", request=body())},
+        "/v1/runtime/overview": {"get": operation("getRuntimeOverview", "读取 AgentDock Runtime 可用性和概览")},
+        "/v1/runtime/tasks": {"get": operation("listRuntimeTasks", "通过 AgentDock Runtime API 列出任务视图")},
+        "/v1/runtime/tasks/{taskID}": {"get": operation("getRuntimeTask", "通过 AgentDock Runtime API 读取任务详情", params=[p("RuntimeTaskId")])},
+        "/v1/runtime/skills": {"get": operation("listRuntimeSkills", "通过 AgentDock Runtime API 列出 Skill 视图")},
+        "/v1/runtime/skills/{source}/{skillID}": {"get": operation("getRuntimeSkill", "通过 AgentDock Runtime API 读取 Skill 详情", params=[p("RuntimeSkillSource"), p("RuntimeSkillId")])},
+        "/v1/runtime/workflow-templates": {"get": operation("listRuntimeWorkflowTemplates", "通过 AgentDock Runtime API 列出 Workflow 模板视图")},
+        "/v1/runtime/workflow-templates/{location}/{fileName}": {"get": operation("getRuntimeWorkflowTemplate", "通过 AgentDock Runtime API 读取 Workflow 模板详情", params=[p("RuntimeWorkflowLocation"), p("RuntimeWorkflowFileName")])},
+        "/v1/runtime/capabilities": {"get": operation("listRuntimeCapabilities", "读取 AgentDock Runtime 能力视图")},
+        "/v1/runtime/logs": {"get": operation("listRuntimeLogs", "读取 AgentDock Runtime 日志视图")},
+        "/v1/runtime/deployment": {"get": operation("getRuntimeDeployment", "读取 AgentDock Runtime 部署诊断视图")},
         "/v1/artifacts": {"get": operation("listArtifacts", "列出最近加密文件发送记录")},
         "/v1/artifact-fetches": {"get": operation("listArtifactFetches", "列出最近反向文件接收记录")},
         "/v1/artifacts/uploads": {"post": operation("createArtifactUpload", "创建管理员文件上传", request=body(), success_code="201")},
@@ -528,7 +545,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "info": {
             "title": "AgentDock Nexus API",
             "version": "1.0.0",
-            "description": "个人多设备 AgentDock 控制台的真实生产 HTTP 契约，覆盖设备、召回、加密文件、备份状态和账号会话。",
+            "description": "个人 AgentDock Nexus 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,

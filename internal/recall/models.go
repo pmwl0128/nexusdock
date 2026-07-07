@@ -16,14 +16,13 @@ const (
 	ScopeDevice  Scope = "device"
 	ScopeAgent   Scope = "agent"
 	ScopeOps     Scope = "ops"
-	ScopeDomain  Scope = "domain"
 	ScopeNotes   Scope = "notes"
 	ScopeInbox   Scope = "inbox"
 )
 
 func (s Scope) Valid() bool {
 	switch s {
-	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeDomain, ScopeNotes, ScopeInbox:
+	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeNotes, ScopeInbox:
 		return true
 	default:
 		return false

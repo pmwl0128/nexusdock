@@ -10,7 +10,7 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/config"
 )
 
-func TestOpsTasksUsesAgentDockRuntimeAPI(t *testing.T) {
+func TestRuntimeTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/internal/runtime/tasks" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
@@ -19,10 +19,10 @@ func TestOpsTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 	}))
 	defer runtime.Close()
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/ops/tasks?limit=20", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks?limit=20", nil)
 	response := httptest.NewRecorder()
 
-	server.opsTasks(response, request)
+	server.runtimeTasks(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
@@ -38,13 +38,13 @@ func TestOpsTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 	}
 }
 
-func TestOpsTaskDetailDoesNotReadFilesWhenRuntimeAPIUnconfigured(t *testing.T) {
+func TestRuntimeTaskDetailDoesNotReadFilesWhenRuntimeAPIUnconfigured(t *testing.T) {
 	server := &Server{cfg: config.Config{AgentDockDir: t.TempDir()}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/ops/tasks/tsk_demo", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks/tsk_demo", nil)
 	request.SetPathValue("fileName", "tsk_demo")
 	response := httptest.NewRecorder()
 
-	server.opsTaskDetail(response, request)
+	server.runtimeTaskDetail(response, request)
 
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", response.Code)
@@ -54,7 +54,7 @@ func TestOpsTaskDetailDoesNotReadFilesWhenRuntimeAPIUnconfigured(t *testing.T) {
 	}
 }
 
-func TestOpsSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
+func TestRuntimeSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/internal/runtime/skills" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
@@ -63,10 +63,10 @@ func TestOpsSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 	}))
 	defer runtime.Close()
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/ops/skills", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills", nil)
 	response := httptest.NewRecorder()
 
-	server.opsSkills(response, request)
+	server.runtimeSkills(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
@@ -82,7 +82,7 @@ func TestOpsSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 	}
 }
 
-func TestOpsSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
+func TestRuntimeSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/internal/runtime/skills/demo-skill" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
@@ -91,12 +91,12 @@ func TestOpsSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 	}))
 	defer runtime.Close()
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/ops/skills/runtime/demo-skill", nil)
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill", nil)
 	request.SetPathValue("source", "runtime")
 	request.SetPathValue("skillID", "demo-skill")
 	response := httptest.NewRecorder()
 
-	server.opsSkillDetail(response, request)
+	server.runtimeSkillDetail(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())

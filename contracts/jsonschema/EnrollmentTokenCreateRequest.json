@@ -127,7 +127,7 @@
         },
         "service": {
           "type": "string",
-          "description": "服务名称。"
+          "description": "服务名称，固定为 nexus。"
         },
         "database": {
           "type": "string",
@@ -138,9 +138,17 @@
           "description": "数据库 Schema 版本。",
           "minimum": 0
         },
+        "nexus_data_dir": {
+          "type": "string",
+          "description": "Nexus 系统状态目录。"
+        },
+        "recall_repo_dir": {
+          "type": "string",
+          "description": "Recall Git Markdown 仓库目录。"
+        },
         "recall_root": {
           "type": "string",
-          "description": "RecallDock 召回仓库路径。"
+          "description": "已废弃兼容字段；请使用 recall_repo_dir。"
         },
         "artifact_root": {
           "type": "string",
@@ -152,7 +160,8 @@
         "service",
         "database",
         "schema_version",
-        "recall_root",
+        "nexus_data_dir",
+        "recall_repo_dir",
         "artifact_root"
       ]
     },

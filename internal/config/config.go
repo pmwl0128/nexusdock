@@ -20,6 +20,8 @@ type Config struct {
 	Host                  string
 	Port                  int
 	StoreDir              string
+	NexusDataDir          string
+	RecallRepoDir         string
 	AuthToken             string
 	Username              string
 	Password              string
@@ -28,7 +30,6 @@ type Config struct {
 	RequireAuth           bool
 	AuthAllowInsecureHTTP bool
 	TrustedProxies        []string
-	WorkflowDir           string
 	AgentDockDir          string
 	AgentDockEndpoint     string
 	AgentDockToken        string
@@ -50,13 +51,16 @@ type Config struct {
 }
 
 func FromEnv() Config {
-	storeDir := getenv("RECALLDOCK_STORE_DIR", "recall")
-	defaultAccessFile := filepath.Join(storeDir, ".recalldock", "access.json")
-	defaultEmbeddingIndexFile := filepath.Join(storeDir, ".recalldock", "embedding-index.json")
+	recallRepoDir := getenvAny("RECALL_REPO_DIR", "RECALLDOCK_STORE_DIR", "recall")
+	nexusDataDir := getenv("NEXUS_DATA_DIR", filepath.Join(".", "nexus-data"))
+	defaultAccessFile := filepath.Join(nexusDataDir, "access.json")
+	defaultEmbeddingIndexFile := filepath.Join(recallRepoDir, ".recalldock", "embedding-index.json")
 	cfg := Config{
 		Host:                  getenv("RECALLDOCK_HOST", "127.0.0.1"),
 		Port:                  getenvInt("RECALLDOCK_PORT", 18777),
-		StoreDir:              storeDir,
+		StoreDir:              recallRepoDir,
+		NexusDataDir:          nexusDataDir,
+		RecallRepoDir:         recallRepoDir,
 		AuthToken:             os.Getenv("RECALLDOCK_AUTH_TOKEN"),
 		Username:              strings.TrimSpace(os.Getenv("RECALLDOCK_USERNAME")),
 		Password:              os.Getenv("RECALLDOCK_PASSWORD"),
@@ -65,7 +69,6 @@ func FromEnv() Config {
 		RequireAuth:           getenvBool("RECALLDOCK_REQUIRE_AUTH", false),
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
-		WorkflowDir:           strings.TrimSpace(os.Getenv("NEXUS_WORKFLOW_DIR")),
 		AgentDockDir:          strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_DIR")),
 		AgentDockEndpoint:     strings.TrimRight(strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_ENDPOINT")), "/"),
 		AgentDockToken:        firstNonEmpty(os.Getenv("NEXUS_AGENTDOCK_TOKEN"), os.Getenv("AGENTDOCK_AUTH_TOKEN")),

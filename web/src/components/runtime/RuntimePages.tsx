@@ -64,12 +64,12 @@ function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: numb
 export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
-  const path = `/v1/ops/tasks?status=${status}&limit=300${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
+  const path = `/v1/runtime/tasks?status=${status}&limit=300${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
   const tasks = resource.data.items;
   const [selectedId, setSelectedId] = useState('');
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
-  const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/ops/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
+  const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const stats = useMemo(() => ({ active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }), [tasks]);
 
   return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading} error={resource.error} onReload={resource.reload}>
@@ -81,9 +81,9 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<TaskListResponse>('/v1/ops/tasks?status=active&limit=500', emptyTasks, refreshToken);
+  const resource = useOpsResource<TaskListResponse>('/v1/runtime/tasks?status=active&limit=500', emptyTasks, refreshToken);
   const candidates = resource.data.items.filter((item) => item.cleanable);
-  return <OpsShell title="任务清理" subtitle="AgentDock Runtime API 当前只开放只读接口，Nexus 不再直接修改任务 JSON。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  return <OpsShell title="任务清理" subtitle="AgentDock Runtime API 当前只开放只读接口，Nexus 不再直接修改 AgentDock Runtime 状态。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-cleanup-hero is-large"><div><span>READ ONLY</span><strong>{candidates.length}</strong><p>这些任务已经 final_review pass，但写入动作需要 AgentDock 暴露受控写接口后再启用。</p></div><div className="ops-actions"><button type="button" className="nx-button is-secondary" disabled title="Runtime 写接口未启用"><CheckCircle2 size={15} />预览已禁用</button><button type="button" className="nx-button is-danger" disabled title="Runtime 写接口未启用"><Trash2 size={15} />清理已禁用</button></div></section>
     <div className="nx-alert is-warning">任务清理已切换为只读模式：Nexus 不再直接改 AgentDock 内部文件，避免绕过 Runtime 状态机。</div>
     <section className="ops-grid cards">{candidates.length === 0 ? <EmptyOps text="当前没有可清理任务。" /> : candidates.map((task) => <TaskCard key={task.id} task={task} />)}</section>
@@ -91,19 +91,19 @@ function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
 }
 
 export function SkillsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<SkillsResponse>('/v1/ops/skills', { ok: false, items: [], count: 0, root: '' }, refreshToken);
+  const resource = useOpsResource<SkillsResponse>('/v1/runtime/skills', { ok: false, items: [], count: 0, root: '' }, refreshToken);
   const runtime = resource.data.items.filter((item) => item.source === 'agentdock-api' || item.source === 'runtime').length;
   const [selectedKey, setSelectedKey] = useState('');
   const selected = resource.data.items.find((item) => `${item.source}:${item.id}` === selectedKey) || resource.data.items[0];
-  const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/ops/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
-  return <OpsShell title="Skill 管理" subtitle="通过 AgentDock Runtime API 展示已安装 Skill、版本、channel、manifest 和 selection。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
+  const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/runtime/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
+  return <OpsShell title="Skill" subtitle="通过 AgentDock Runtime API 展示已安装 Skill、版本、channel、manifest 和 selection。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero is-soft"><div><span>SKILL RUNTIME</span><h3>{resource.data.count} 个 Skill</h3><p>{runtime} 个 Runtime Skill · {resource.data.source || resource.data.root || 'AgentDock Runtime API'}</p></div><StatusBadge tone={resource.data.count ? 'ok' : 'warn'}>{resource.data.count ? 'installed' : 'empty'}</StatusBadge></section>
     <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{resource.data.items.length === 0 ? <EmptyOps text="没有读取到 Skill。" /> : resource.data.items.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.source} · {skill.active_version || 'no version'} · {skill.file_count} files · {formatTime(skill.updated_at)}</small></span><StatusBadge tone={toneForStatus(skill.status)}>{skill.status}</StatusBadge></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
 
 export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<CapabilitiesResponse>('/v1/ops/capabilities', { ok: false, tools: [], counts: {}, paths: {} }, refreshToken);
+  const resource = useOpsResource<CapabilitiesResponse>('/v1/runtime/capabilities', { ok: false, tools: [], counts: {}, paths: {} }, refreshToken);
   const counts = resource.data.counts;
   const workflowCounts = (counts.workflows && typeof counts.workflows === 'object' ? counts.workflows : {}) as Record<string, unknown>;
   const [selectedKey, setSelectedKey] = useState('');
@@ -114,7 +114,7 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
   return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，并可查看选中能力的来源信息。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 从 AgentDock Runtime API 和设备心跳看见什么、能操作什么。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
     <section className="cap-summary-grid">
-      <CapabilitySummary title="任务系统" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
+      <CapabilitySummary title="Runtime 任务" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
       <CapabilitySummary title="Skill Runtime" value={String(counts.skills ?? 0)} detail="本机可见 Skill" tone="ok" />
       <CapabilitySummary title="Workflow 模板" value={String(workflowTotal || workflowCounts.published || 0)} detail={`${workflowCounts.published ?? 0} published · ${workflowCounts.drafts ?? 0} drafts`} tone="muted" />
       <CapabilitySummary title="工具能力" value={String(resource.data.tools.length)} detail={`${availableTools} available`} tone={availableTools ? 'ok' : 'warn'} />
@@ -127,7 +127,7 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
 }
 
 export function LogsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<LogsResponse>('/v1/ops/logs', { ok: false, items: [], count: 0, roots: [] }, refreshToken);
+  const resource = useOpsResource<LogsResponse>('/v1/runtime/logs', { ok: false, items: [], count: 0, roots: [] }, refreshToken);
   const [selectedPath, setSelectedPath] = useState('');
   const selected = resource.data.items.find((item) => item.path === selectedPath) || resource.data.items[0];
   return <OpsShell title="运行日志" subtitle="按更新时间聚合可读取日志，左侧选择文件，右侧查看尾部内容。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
@@ -136,7 +136,7 @@ export function LogsPage({ refreshToken }: { refreshToken: number }) {
 }
 
 export function DeploymentPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<DeploymentResponse>('/v1/ops/deployment', { ok: false, service: 'recalldock', health: { ok: false, addr: '' }, paths: {}, compose: '', source: { dir: '', commit: '' }, updated_at: '' }, refreshToken);
+  const resource = useOpsResource<DeploymentResponse>('/v1/runtime/deployment', { ok: false, service: 'nexus', health: { ok: false, addr: '' }, paths: {}, compose: '', source: { dir: '', commit: '' }, updated_at: '' }, refreshToken);
   const commit = resource.data.source?.commit || '';
   return <OpsShell title="部署中心" subtitle="生产容器看到的健康、源码、镜像、目录和配置。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero deploy-hero"><div><span>PRODUCTION</span><h3>{resource.data.service}</h3><p>{resource.data.health?.addr || 'addr unknown'} · {formatTime(resource.data.updated_at)}</p></div><StatusBadge tone={resource.data.health?.ok ? 'ok' : 'danger'}>{resource.data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></section>
@@ -171,7 +171,7 @@ function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsT
 }
 
 function DeploymentDetail({ data }: { data: DeploymentResponse }) {
-  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'recalldock'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="当前提交" value={shortHash(data.source?.commit)} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><section className="ops-detail-section"><h4>源码</h4><div className="ops-key-values"><Info label="目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /></div></section></article>;
+  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'nexus'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="当前提交" value={shortHash(data.source?.commit)} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><section className="ops-detail-section"><h4>源码</h4><div className="ops-key-values"><Info label="目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /></div></section></article>;
 }
 
 

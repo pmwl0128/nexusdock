@@ -58,3 +58,33 @@ func TestRequireAuthNeedsAPIToken(t *testing.T) {
 		t.Fatalf("valid require auth config rejected: %v", err)
 	}
 }
+
+func TestFromEnvUsesNexusDataDirAndRecallRepoDir(t *testing.T) {
+	t.Setenv("NEXUS_DATA_DIR", "/tmp/nexus-data")
+	t.Setenv("RECALL_REPO_DIR", "/tmp/recall-repo")
+
+	cfg := FromEnv()
+
+	if cfg.NexusDataDir != "/tmp/nexus-data" {
+		t.Fatalf("NexusDataDir = %q", cfg.NexusDataDir)
+	}
+	if cfg.RecallRepoDir != "/tmp/recall-repo" {
+		t.Fatalf("RecallRepoDir = %q", cfg.RecallRepoDir)
+	}
+	if cfg.StoreDir != cfg.RecallRepoDir {
+		t.Fatalf("StoreDir should remain deprecated alias for RecallRepoDir, got %q", cfg.StoreDir)
+	}
+}
+
+func TestFromEnvFallsBackToLegacyRecallDockStoreDir(t *testing.T) {
+	t.Setenv("RECALLDOCK_STORE_DIR", "/tmp/legacy-recall")
+
+	cfg := FromEnv()
+
+	if cfg.RecallRepoDir != "/tmp/legacy-recall" {
+		t.Fatalf("RecallRepoDir = %q", cfg.RecallRepoDir)
+	}
+	if cfg.NexusDataDir == "" || cfg.NexusDataDir == cfg.RecallRepoDir {
+		t.Fatalf("NexusDataDir should be independent, got %q", cfg.NexusDataDir)
+	}
+}
