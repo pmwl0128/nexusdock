@@ -1,4 +1,4 @@
-package main
+package nexusapp
 
 import (
 	"bufio"
@@ -15,16 +15,16 @@ import (
 	"github.com/uvwt/agentdock-nexus/internal/core"
 )
 
-func adminCommandRequested() bool {
-	return len(os.Args) >= 3 && os.Args[1] == "admin"
+func adminCommandRequested(args []string) bool {
+	return len(args) >= 3 && args[1] == "admin"
 }
 
-func runAdminCommand(ctx context.Context, cfg config.Config) error {
-	controlDir := filepath.Join(cfg.StoreDir, ".nexus")
+func runAdminCommand(ctx context.Context, cfg config.Config, args []string) error {
+	controlDir := cfg.NexusDataDir
 	if err := os.MkdirAll(controlDir, 0o700); err != nil {
 		return err
 	}
-	dbPath := filepath.Join(controlDir, "control-plane.db")
+	dbPath := filepath.Join(controlDir, "nexus.db")
 	db, err := core.OpenSQLite(ctx, dbPath, 1)
 	if err != nil {
 		return err
@@ -36,10 +36,10 @@ func runAdminCommand(ctx context.Context, cfg config.Config) error {
 	}
 	service := auth.NewService(db)
 	reader := bufio.NewReader(os.Stdin)
-	command := os.Args[2]
+	command := args[2]
 	username := ""
-	if len(os.Args) > 3 {
-		username = strings.TrimSpace(os.Args[3])
+	if len(args) > 3 {
+		username = strings.TrimSpace(args[3])
 	}
 	switch command {
 	case "init":
@@ -58,8 +58,19 @@ func runAdminCommand(ctx context.Context, cfg config.Config) error {
 		}
 		return service.RotateAdminCredential(ctx, username, secret)
 	default:
-		return errors.New("usage: recalldock admin <init|recover> [username]")
+		return fmt.Errorf("usage: %s admin <init|recover> [username]", executableName(args))
 	}
+}
+
+func executableName(args []string) string {
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		return "nexus"
+	}
+	name := filepath.Base(args[0])
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		return "nexus"
+	}
+	return name
 }
 
 func readConfirmedCredential(reader *bufio.Reader) (string, error) {

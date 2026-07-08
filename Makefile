@@ -1,4 +1,4 @@
-.PHONY: fmt test vet contracts web-build build build-recalldock run run-recalldock clean
+.PHONY: fmt test vet contracts web-build build build-nexus build-recalldock run run-nexus run-recalldock clean
 
 fmt:
 	gofmt -w .
@@ -15,18 +15,23 @@ contracts:
 web-build:
 	cd web && npm run build
 
-build: web-build test vet contracts build-recalldock
+build: web-build test vet contracts build-nexus
+
+build-nexus:
+	mkdir -p bin
+	go build -o bin/nexus ./cmd/nexus
 
 build-recalldock:
 	mkdir -p bin
 	go build -o bin/recalldock ./cmd/recalldock
 
+run: run-nexus
 
-run: run-recalldock
+run-nexus:
+	go run ./cmd/nexus
 
 run-recalldock:
 	go run ./cmd/recalldock
-
 
 clean:
 	rm -rf bin

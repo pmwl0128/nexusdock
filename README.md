@@ -18,8 +18,8 @@ Nexus does not own AgentDock Task, Skill, or Workflow lifecycle state. Those sys
 ## Runtime Structure
 
 ```text
-cmd/nexus          preferred production service entrypoint
-cmd/recalldock     deprecated compatibility entrypoint
+cmd/nexus          production service entrypoint
+cmd/recalldock     deprecated compatibility wrapper
 internal/recall    Recall Markdown content, notes, cards, and Git sync
 internal/devices   device enrollment, heartbeat, policy, and structured commands
 internal/commands  device command queue
@@ -29,7 +29,7 @@ internal/httpx     Nexus HTTP API, Runtime API facade, and embedded Web UI
 web                React Nexus console
 ```
 
-Current builds still use `cmd/recalldock` as the compatibility entrypoint until `cmd/nexus` lands. New product vocabulary, public contracts, deployment variables, and UI copy must use Nexus, Recall, and Runtime.
+Production builds use `cmd/nexus`. `cmd/recalldock` is kept only as a deprecated compatibility wrapper for existing local commands. New product vocabulary, public contracts, deployment variables, and UI copy must use Nexus, Recall, and Runtime.
 
 ## Data Layout
 

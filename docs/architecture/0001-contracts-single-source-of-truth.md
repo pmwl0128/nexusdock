@@ -6,7 +6,7 @@
 
 ## 决策
 
-1. `contracts/` 只描述 `cmd/recalldock` 当前真实生产 HTTP 能力。
+1. `contracts/` 只描述 `cmd/nexus` 当前真实生产 HTTP 能力；`cmd/recalldock` 仅是兼容包装。
 2. REST API 使用 OpenAPI 3.1，DTO 使用 JSON Schema Draft 2020-12。
 3. Go DTO 与设备客户端只能由 `scripts/generate-contracts.py` 生成。
 4. `internal/api/dto/` 不重复定义传输字段。

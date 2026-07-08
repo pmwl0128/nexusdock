@@ -1,6 +1,6 @@
 # AgentDock Nexus 部署
 
-生产服务是 AgentDock Nexus。当前兼容入口仍为 `cmd/recalldock`，但部署、变量、状态和 UI 必须按 Nexus / Recall / Runtime 边界理解。
+生产服务是 AgentDock Nexus，主入口为 `cmd/nexus`。`cmd/recalldock` 只作为兼容包装保留。
 
 ## 构建
 
@@ -20,9 +20,11 @@ Nexus 系统状态不得再写入 Recall 仓库下的 `.nexus` 目录。旧 `REC
 ## Compose
 
 ```bash
-docker compose build recalldock
-docker compose up -d recalldock
+docker compose build nexus
+docker compose up -d nexus
 ```
+
+生产镜像名建议使用 `nexus:local`，旧 `recalldock:local` 只作为回滚镜像保留。
 
 Compose 应分别挂载 Nexus 数据目录和 Recall 仓库目录。
 
