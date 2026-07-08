@@ -132,7 +132,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ("code", "message", "request_id"),
     )
     schemas["LegacyErrorEnvelope"] = obj(
-        "RecallDock 与浏览器接口使用的错误信封。",
+        "Nexus 与浏览器接口使用的错误信封。",
         {
             "ok": scalar("boolean", "固定为 false。"),
             "error": obj(

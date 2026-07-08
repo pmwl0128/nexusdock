@@ -8015,7 +8015,7 @@
       },
       "LegacyErrorEnvelope": {
         "type": "object",
-        "description": "RecallDock 与浏览器接口使用的错误信封。",
+        "description": "Nexus 与浏览器接口使用的错误信封。",
         "additionalProperties": false,
         "properties": {
           "ok": {
