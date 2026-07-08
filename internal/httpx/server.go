@@ -76,6 +76,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	s.registerRuntimeRoutes(mux, protected)
+	s.registerWorkflowTemplateRoutes(mux, protected)
 	s.registerWebAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
 	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))

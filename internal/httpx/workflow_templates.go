@@ -39,14 +39,14 @@ func (s *Server) listRuntimeWorkflowTemplates(w http.ResponseWriter, r *http.Req
 	locationFilter := strings.TrimSpace(r.URL.Query().Get("location"))
 	includeHistory := r.URL.Query().Get("include_history") == "true" || r.URL.Query().Get("view") == "history"
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	body, err := s.runtimeGet(r.Context(), "/internal/runtime/workflows", nil)
+	templates, err := s.listWorkflowTemplates("")
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeError(w, http.StatusConflict, "WORKFLOW_LIST_FAILED", err.Error())
 		return
 	}
-	all := make([]workflowTemplateSummary, 0, len(opsArray(body["templates"])))
-	for _, raw := range opsArray(body["templates"]) {
-		item := workflowTemplateSummaryFromRuntime(opsMap(raw))
+	all := make([]workflowTemplateSummary, 0, len(templates))
+	for _, template := range templates {
+		item := workflowTemplateSummaryFromTemplate(template)
 		if item.ID == "" {
 			continue
 		}
@@ -78,7 +78,7 @@ func (s *Server) listRuntimeWorkflowTemplates(w http.ResponseWriter, r *http.Req
 			conflicts++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "total_count": len(all), "root": "agentdock-runtime-api", "source": "agentdock-runtime-api", "mode": mode, "conflict_count": conflicts, "version_summary": counters})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "total_count": len(all), "root": s.workflowRegistryRoot(), "source": "nexus-registry", "mode": mode, "conflict_count": conflicts, "version_summary": counters})
 }
 
 func (s *Server) runtimeWorkflowTemplateDetail(w http.ResponseWriter, r *http.Request) {
@@ -92,18 +92,22 @@ func (s *Server) runtimeWorkflowTemplateDetail(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
 		return
 	}
-	body, err := s.runtimeGet(r.Context(), "/internal/runtime/workflows/"+id+"/"+version, nil)
+	template, err := s.getWorkflowTemplate(id, version)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
 		return
 	}
-	template := opsMap(body["template"])
 	content, _ := json.MarshalIndent(template, "", "  ")
-	detail := workflowTemplateDetail{workflowTemplateSummary: workflowTemplateSummaryFromRuntime(template), Content: string(content), JSON: template}
-	allBody, _ := s.runtimeGet(r.Context(), "/internal/runtime/workflows", nil)
-	all := workflowTemplateSummariesFromRuntime(allBody)
+	var asMap map[string]any
+	_ = json.Unmarshal(content, &asMap)
+	detail := workflowTemplateDetail{workflowTemplateSummary: workflowTemplateSummaryFromTemplate(template), Content: string(content), JSON: asMap}
+	allTemplates, _ := s.listWorkflowTemplates("")
+	all := make([]workflowTemplateSummary, 0, len(allTemplates))
+	for _, item := range allTemplates {
+		all = append(all, workflowTemplateSummaryFromTemplate(item))
+	}
 	attachWorkflowTemplateCounters(&detail.workflowTemplateSummary, all)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail, "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail, "source": "nexus-registry"})
 }
 
 func workflowTemplateSummariesFromRuntime(body map[string]any) []workflowTemplateSummary {
