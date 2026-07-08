@@ -124,7 +124,7 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 	dir := initRepo(t)
 	ctx := context.Background()
 	runtimeDir := filepath.Join(dir, ".nexus")
-	if err := os.MkdirAll(filepath.Join(runtimeDir, "artifacts", "fetch"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(runtimeDir, "runtime-cache", "payloads"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	databasePath := filepath.Join(runtimeDir, "control-plane.db")
@@ -138,8 +138,8 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 	if err := os.WriteFile(databasePath, []byte("live database"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	artifactPath := filepath.Join(runtimeDir, "artifacts", "fetch", "payload.adr")
-	if err := os.WriteFile(artifactPath, []byte("encrypted payload"), 0o600); err != nil {
+	payloadPath := filepath.Join(runtimeDir, "runtime-cache", "payloads", "payload.bin")
+	if err := os.WriteFile(payloadPath, []byte("runtime payload"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "profile.md"), []byte("# Profile\n"), 0o644); err != nil {
@@ -179,8 +179,8 @@ func TestRuntimeStateExcludedFromStatusPushAndDiscard(t *testing.T) {
 	if _, err := os.Stat(databasePath); err != nil {
 		t.Fatalf("runtime database was removed: %v", err)
 	}
-	if _, err := os.Stat(artifactPath); err != nil {
-		t.Fatalf("runtime artifact was removed: %v", err)
+	if _, err := os.Stat(payloadPath); err != nil {
+		t.Fatalf("runtime payload was removed: %v", err)
 	}
 	if status := mgr.Status(ctx); status.Dirty {
 		t.Fatalf("runtime-only changes must not mark recall dirty: %#v", status)

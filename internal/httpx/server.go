@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/uvwt/agentdock-nexus/internal/artifacts"
 	"github.com/uvwt/agentdock-nexus/internal/auth"
 	"github.com/uvwt/agentdock-nexus/internal/commands"
 	"github.com/uvwt/agentdock-nexus/internal/config"
@@ -30,7 +29,6 @@ type Server struct {
 	devices   *devices.Service
 	commands  *commands.Service
 	auth      *auth.Service
-	artifacts *artifacts.Service
 	embedding *recall.EmbeddingService
 }
 
@@ -42,10 +40,6 @@ func WithSystemDatabase(db *sql.DB) ServerOption {
 
 func WithWebAuthentication(authService *auth.Service) ServerOption {
 	return func(server *Server) { server.auth = authService }
-}
-
-func WithArtifactRelay(service *artifacts.Service) ServerOption {
-	return func(server *Server) { server.artifacts = service }
 }
 
 func WithEmbeddingService(service *recall.EmbeddingService) ServerOption {
@@ -105,10 +99,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteRecall))
 	if s.devices != nil && s.commands != nil {
 		s.registerControlPlaneRoutes(mux)
-	}
-	if s.artifacts != nil && s.devices != nil && s.commands != nil {
-		s.registerArtifactRoutes(mux)
-		s.registerArtifactFetchRoutes(mux)
 	}
 	mux.HandleFunc("GET /v1/", http.NotFound)
 	mux.HandleFunc("GET /api/", http.NotFound)

@@ -105,8 +105,6 @@ COMMAND_TYPES = [
     "diagnostics.collect",
     "agentdock.reload",
     "env.manage",
-    "artifact.pull",
-    "artifact.fetch",
 ]
 
 def build_schemas() -> dict[str, dict[str, Any]]:
@@ -164,9 +162,8 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "nexus_data_dir": scalar("string", "Nexus 系统状态目录。"),
             "recall_repo_dir": scalar("string", "Recall Git Markdown 仓库目录。"),
             "recall_root": scalar("string", "已废弃兼容字段；请使用 recall_repo_dir。"),
-            "artifact_root": scalar("string", "Artifact 密文存储路径。"),
         },
-        ("ok", "service", "database", "schema_version", "nexus_data_dir", "recall_repo_dir", "artifact_root"),
+        ("ok", "service", "database", "schema_version", "nexus_data_dir", "recall_repo_dir"),
     )
     schemas["BackupHistory"] = obj(
         "一次备份执行的脱敏结果。",
@@ -411,9 +408,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
     parameters = {
         "DeviceId": path_param("deviceId", "Device UUID。"),
         "CommandId": path_param("commandId", "Command UUID。"),
-        "ArtifactId": path_param("artifactId", "Artifact UUID。"),
-        "DeliveryId": path_param("deliveryId", "Delivery UUID。"),
-        "FetchId": path_param("fetchId", "Artifact Fetch UUID。"),
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
         "RecallPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
         "RuntimeTaskId": path_param("taskID", "AgentDock Runtime task ID。", uuid=False),
@@ -455,9 +449,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
 
     p = lambda name: {"$ref": f"#/components/parameters/{name}"}
     no_content = {"description": "已接受，无响应体。"}
-    binary = {"description": "密文二进制内容。", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}}
-    multipart = {"required": True, "content": {"multipart/form-data": {"schema": generic}}}
-
     paths: dict[str, Any] = {
         "/health": {"get": operation("getHealth", "读取服务健康状态", success=ok(ref("HealthResponse")))},
         "/v1/system/status": {"get": operation("getSystemStatus", "读取 Nexus 与 SQLite 状态", success=ok(ref("SystemStatus")))},
@@ -521,23 +512,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/runtime/capabilities": {"get": operation("listRuntimeCapabilities", "读取 AgentDock Runtime 能力视图")},
         "/v1/runtime/logs": {"get": operation("listRuntimeLogs", "读取 AgentDock Runtime 日志视图")},
         "/v1/runtime/deployment": {"get": operation("getRuntimeDeployment", "读取 AgentDock Runtime 部署诊断视图")},
-        "/v1/artifacts": {"get": operation("listArtifacts", "列出最近加密文件发送记录")},
-        "/v1/artifact-fetches": {"get": operation("listArtifactFetches", "列出最近反向文件接收记录")},
-        "/v1/artifacts/uploads": {"post": operation("createArtifactUpload", "创建管理员文件上传", request=body(), success_code="201")},
-        "/v1/artifacts/{artifactId}": {"get": operation("getArtifact", "读取文件发送详情", params=[p("ArtifactId")])},
-        "/v1/artifacts/{artifactId}/dispatch": {"post": operation("dispatchArtifact", "派发加密文件", params=[p("ArtifactId")], request=body())},
-        "/v1/artifacts/{artifactId}/content": {"post": operation("uploadArtifactContent", "上传加密文件内容", params=[p("ArtifactId")], request=multipart, success_code="201")},
-        "/v1/devices/{deviceId}/artifacts/uploads": {"post": operation("createDeviceArtifactUpload", "创建设备文件上传", params=[p("DeviceId")], request=body(), success_code="201")},
-        "/v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/content": {"get": operation("downloadArtifactContent", "下载派发给设备的加密内容", params=[p("DeviceId"), p("DeliveryId")], success=binary)},
-        "/v1/devices/{deviceId}/artifact-deliveries/{deliveryId}/result": {"post": operation("completeArtifactDelivery", "上报设备文件落盘结果", params=[p("DeviceId"), p("DeliveryId")], request=body())},
-        "/v1/devices/{deviceId}/artifact-fetches": {"post": operation("createArtifactFetch", "创建反向文件接收请求", params=[p("DeviceId")], request=body(), success_code="201")},
-        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}": {"get": operation("getArtifactFetch", "读取反向文件接收详情", params=[p("DeviceId"), p("FetchId")])},
-        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/content": {
-            "get": operation("downloadArtifactFetch", "下载反向接收的加密内容", params=[p("DeviceId"), p("FetchId")], success=binary),
-            "post": operation("uploadArtifactFetch", "上传反向接收的加密内容", params=[p("DeviceId"), p("FetchId")], request=multipart, success_code="201"),
-        },
-        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/mounted": {"post": operation("confirmArtifactFetchMounted", "确认反向接收文件已挂载", params=[p("DeviceId"), p("FetchId")], request=body())},
-        "/v1/devices/{deviceId}/artifact-fetches/{fetchId}/result": {"post": operation("reportArtifactFetchResult", "上报反向接收文件结果", params=[p("DeviceId"), p("FetchId")], request=body())},
     }
 
     return {

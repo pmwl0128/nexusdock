@@ -9,7 +9,6 @@ cmd/recalldock/       # 兼容生产入口与管理 CLI
 contracts/            # 当前生产 OpenAPI、JSON Schema、错误码
 generated/            # 契约生成的 Go DTO 与客户端
 internal/
-  artifacts/          # 加密 Artifact Relay / Fetch
   audit/ auth/         # 管理员会话、设备认证、必要审计
   commands/ devices/  # 设备注册、心跳、策略和结构化命令
   config/ core/        # 配置、SQLite、迁移和共享错误

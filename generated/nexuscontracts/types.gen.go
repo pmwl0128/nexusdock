@@ -60,8 +60,6 @@ type SystemStatus struct {
 	RecallRepoDir string `json:"recall_repo_dir"`
 	// RecallRoot 已废弃兼容字段；请使用 recall_repo_dir。
 	RecallRoot *string `json:"recall_root,omitempty"`
-	// ArtifactRoot Artifact 密文存储路径。
-	ArtifactRoot string `json:"artifact_root"`
 }
 
 // BackupHistory 一次备份执行的脱敏结果。

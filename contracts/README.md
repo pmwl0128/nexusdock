@@ -2,7 +2,7 @@
 
 `contracts/` describes the current AgentDock Nexus HTTP API.
 
-Nexus owns devices, Recall access, artifact relay, administrator sessions, and system status. AgentDock Runtime owns Task, Skill, and Workflow lifecycles; Nexus exposes these only as Runtime API-backed views/actions.
+Nexus owns devices, Recall access, administrator sessions, and system status. AgentDock Runtime owns Task, Skill, and Workflow lifecycles; Nexus exposes these only as Runtime API-backed views/actions.
 
 ## 当前内容
 
@@ -21,4 +21,4 @@ python3 scripts/check-contracts.py
 go test ./generated/nexuscontracts
 ```
 
-生成文件不得手改。新增接口前必须确认它直接服务个人控制台、Recall、设备、文件中继或 Runtime facade 的真实工作流。
+生成文件不得手改。新增接口前必须确认它直接服务个人控制台、Recall、设备或 Runtime facade 的真实工作流。

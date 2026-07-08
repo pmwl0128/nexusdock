@@ -14,11 +14,7 @@ func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 		"nexus_data_dir":  s.cfg.NexusDataDir,
 		"recall_repo_dir": recallRepoDir,
 		// recall_root is kept as a deprecated compatibility alias for older UI bundles.
-		"recall_root":   recallRepoDir,
-		"artifact_root": "",
-	}
-	if s.artifacts != nil {
-		status["artifact_root"] = s.artifacts.Root()
+		"recall_root": recallRepoDir,
 	}
 	if s.db == nil {
 		status["ok"] = false

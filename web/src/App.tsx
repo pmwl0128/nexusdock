@@ -1,8 +1,8 @@
 import { formatTime, timeZoneLabel } from './lib/time';
 import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Activity, ArrowDownToLine, ArrowUpFromLine, Boxes, ChevronRight,
-  CircleAlert, Database, FileArchive, FileJson, HardDrive, Home, ListChecks, Menu, RefreshCw,
+  Activity, Boxes, ChevronRight,
+  CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
   Rocket, ScrollText, Server, Settings, ShieldCheck, Sparkles, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
@@ -15,7 +15,7 @@ import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage 
 import './nexus.css';
 
 type RuntimeTab = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs' | 'deploy';
-type Section = 'home' | 'devices' | 'recall' | 'files' | 'runtime' | 'settings';
+type Section = 'home' | 'devices' | 'recall' | 'runtime' | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -58,55 +58,6 @@ type BackupStatus = {
   history?: BackupHistory[];
 };
 
-type Artifact = {
-  id: string;
-  source_kind: string;
-  source_id?: string;
-  filename: string;
-  content_type: string;
-  status: string;
-  cipher_size: number;
-  plain_size: number;
-  plain_sha256?: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type Delivery = {
-  id: string;
-  artifact_id: string;
-  target_device_id: string;
-  status: string;
-  local_path?: string;
-  error_code?: string;
-  error_message?: string;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-};
-
-type ArtifactDetail = { artifact: Artifact; deliveries: Delivery[] };
-
-type FetchJob = {
-  id: string;
-  requester_device_id: string;
-  source_device_id: string;
-  source_path: string;
-  archive_requested: boolean;
-  status: string;
-  filename?: string;
-  plain_size: number;
-  plain_sha256?: string;
-  error_code?: string;
-  error_message?: string;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
-  mounted_at?: string;
-};
-
-
 type SystemStatus = {
   ok: boolean;
   service: string;
@@ -115,7 +66,6 @@ type SystemStatus = {
   nexus_data_dir?: string;
   recall_repo_dir?: string;
   recall_root?: string;
-  artifact_root: string;
 };
 
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
@@ -136,7 +86,6 @@ const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
   { id: 'recall', label: 'Recall', icon: Database },
-  { id: 'files', label: '文件', icon: FileArchive },
   { id: 'runtime', label: '运行时', icon: Wrench },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -313,7 +262,6 @@ export default function App() {
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
           {section === 'runtime' && <RuntimePage active={runtimeTab} onChange={changeRuntimeTab} refreshToken={refreshToken} />}
-          {section === 'files' && <FilesPage refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
       </main>
@@ -339,30 +287,23 @@ function SessionExpiredDialog() {
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
   const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
-  const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=8', [], refreshToken);
-  const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=8', [], refreshToken);
   const devices = devicesResource.data ?? [];
-  const artifacts = artifactsResource.data ?? [];
-  const fetches = fetchesResource.data ?? [];
   const backup = backupResource.data;
   const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
-  const failedTransfers = artifacts.filter((item) => item.deliveries.some((delivery) => delivery.status === 'failed')).length
-    + fetches.filter((item) => item.status === 'failed').length;
-  const recentTransferCount = artifacts.length + fetches.length;
-  const errors = [devicesResource.error, backupResource.error, artifactsResource.error, fetchesResource.error].filter(Boolean) as string[];
+  const errors = [devicesResource.error, backupResource.error].filter(Boolean) as string[];
 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
-      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、文件和备份集中管理</h2><p>首页只保留日常需要关注的真实状态，低频运维内容仍保留在原页面入口中。</p></div>
-      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{recentTransferCount} 条近期文件</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、备份和运行时集中管理</h2><p>首页只保留日常需要关注的真实状态，低频运维内容仍保留在原页面入口中。</p></div>
+      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
     <section className="metric-grid compact-metrics">
       <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
       <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
-      <MetricButton label="近期文件" value={recentTransferCount} tone="ok" onClick={() => navigate('files')} />
-      <MetricButton label="传输失败" value={failedTransfers} tone={failedTransfers ? 'danger' : 'muted'} onClick={() => navigate('files')} />
+      <MetricButton label="运行时" value={1} tone="ok" onClick={() => navigate('runtime')} />
+      <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('settings')} />
     </section>
 
     <section className="dashboard-grid-nexus">
@@ -372,11 +313,10 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
         <SummaryList empty="暂无设备。">{devices.slice(0, 5).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
       </Panel>
       <BackupPanel backup={backup} />
-      <Panel title="需要处理" subtitle="只聚合真实设备、备份和文件异常">
-        {unhealthyDevices.length === 0 && backup?.state !== 'failed' && failedTransfers === 0 ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
+      <Panel title="需要处理" subtitle="只聚合真实设备和备份异常">
+        {unhealthyDevices.length === 0 && backup?.state !== 'failed' ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {unhealthyDevices.slice(0, 4).map((device) => <button type="button" className="attention-row" key={device.id} onClick={() => navigate('devices')}><StatusBadge tone={toneForStatus(device.status)}>{device.status}</StatusBadge><span><strong>{device.name || device.id}</strong><small>{device.platform || 'unknown'} / {device.arch || 'unknown'}</small></span><ChevronRight size={16} /></button>)}
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
-          {failedTransfers > 0 && <button type="button" className="attention-row" onClick={() => navigate('files')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>{failedTransfers} 条文件传输失败</strong><small>打开文件页面查看错误和目标设备</small></span><ChevronRight size={16} /></button>}
         </>}
       </Panel>
     </section>
@@ -401,47 +341,8 @@ function RuntimePage({ active, onChange, refreshToken }: { active: RuntimeTab; o
   </section>;
 }
 
-type FileView = 'artifacts' | 'fetches';
-
-function FilesPage({ refreshToken }: { refreshToken: number }) {
-  const [fileView, setFileView] = useState<FileView>('artifacts');
-  const artifactsResource = useResource<ArtifactDetail[]>('/v1/artifacts?limit=100', [], refreshToken);
-  const fetchesResource = useResource<FetchJob[]>('/v1/artifact-fetches?limit=100', [], refreshToken);
-  const artifacts = artifactsResource.data ?? [];
-  const fetches = fetchesResource.data ?? [];
-  const error = artifactsResource.error || fetchesResource.error;
-  const completedDeliveries = artifacts.reduce((count, item) => count + item.deliveries.reduce((inner, delivery) => inner + (delivery.status === 'completed' ? 1 : 0), 0), 0);
-  return <section className="files-workbench">
-    <div className="section-heading"><div><h2>文件传输</h2><p>发送 Delivery 和反向 Fetch 分开查看，避免两类长列表挤在同一屏里。</p></div><StatusBadge tone={error ? 'danger' : 'ok'}>{error ? '读取失败' : '实时 API'}</StatusBadge></div>
-    {error && <InlineAlert tone="danger" title="文件记录读取失败" message={error} />}
-    <div className="file-summary-grid">
-      <SummaryCard icon={<ArrowUpFromLine size={18} />} label="发送记录" value={artifacts.length} />
-      <SummaryCard icon={<ArrowDownToLine size={18} />} label="Fetch 记录" value={fetches.length} />
-      <SummaryCard icon={<HardDrive size={18} />} label="已完成 Delivery" value={completedDeliveries} />
-    </div>
-    <div className="file-mode-switch" role="tablist" aria-label="文件记录类型">
-      <button type="button" role="tab" aria-selected={fileView === 'artifacts'} className={fileView === 'artifacts' ? 'is-active' : ''} onClick={() => setFileView('artifacts')}><ArrowUpFromLine size={16} /><span><strong>发送与 Delivery</strong><small>{artifacts.length} 条 Artifact 记录</small></span></button>
-      <button type="button" role="tab" aria-selected={fileView === 'fetches'} className={fileView === 'fetches' ? 'is-active' : ''} onClick={() => setFileView('fetches')}><ArrowDownToLine size={16} /><span><strong>反向 Fetch</strong><small>{fetches.length} 条 Fetch 记录</small></span></button>
-    </div>
-    <section className="file-section file-section-panel">
-      <header><div><h3>{fileView === 'artifacts' ? '发送与 Delivery' : '反向 Fetch'}</h3><p>{fileView === 'artifacts' ? '展示 Artifact、目标设备 Delivery、大小、摘要和错误。' : '展示从设备拉取文件的源路径、状态、摘要和挂载信息。'}</p></div><StatusBadge tone="muted">{fileView === 'artifacts' ? artifacts.length : fetches.length} 条</StatusBadge></header>
-      {fileView === 'artifacts' && (artifactsResource.loading ? <EmptyState text="正在读取 Artifact 记录…" /> : artifacts.length === 0 ? <EmptyState text="暂无 Artifact 发送记录。" /> : <div className="file-record-list">{artifacts.map((detail) => <ArtifactCard key={detail.artifact.id} detail={detail} />)}</div>)}
-      {fileView === 'fetches' && (fetchesResource.loading ? <EmptyState text="正在读取 Fetch 记录…" /> : fetches.length === 0 ? <EmptyState text="暂无反向 Fetch 记录。" /> : <div className="file-record-list">{fetches.map((fetch) => <FetchCard key={fetch.id} fetch={fetch} />)}</div>)}
-    </section>
-  </section>;
-}
-
-function ArtifactCard({ detail }: { detail: ArtifactDetail }) {
-  const { artifact, deliveries } = detail;
-  return <article className="file-record-card is-expanded"><header><span className="file-record-icon"><ArrowUpFromLine size={17} /></span><div><h4>{artifact.filename}</h4><code>{artifact.id}</code></div><StatusBadge tone={toneForStatus(artifact.status)}>{artifact.status}</StatusBadge></header><dl><div><dt>来源</dt><dd>{artifact.source_kind}{artifact.source_id ? ` / ${artifact.source_id}` : ''}</dd></div><div><dt>内容类型</dt><dd>{artifact.content_type || 'unknown'}</dd></div><div><dt>明文大小</dt><dd>{formatBytes(artifact.plain_size)}</dd></div><div><dt>密文大小</dt><dd>{formatBytes(artifact.cipher_size)}</dd></div><div><dt>创建</dt><dd>{formatTime(artifact.created_at)}</dd></div><div><dt>更新</dt><dd>{formatTime(artifact.updated_at)}</dd></div><div><dt>过期</dt><dd>{formatTime(artifact.expires_at)}</dd></div><div><dt>Delivery</dt><dd>{deliveries.length}</dd></div></dl>{artifact.plain_sha256 && <div className="file-digest"><span>SHA256</span><code>{artifact.plain_sha256}</code></div>}<h4 className="file-mini-title">Delivery 明细</h4><div className="delivery-list is-detail">{deliveries.length ? deliveries.map((delivery) => <div key={delivery.id}><StatusBadge tone={toneForStatus(delivery.status)}>{delivery.status}</StatusBadge><span><strong>{delivery.target_device_id}</strong><small>{delivery.local_path || delivery.error_message || delivery.id}</small></span><time>{formatTime(delivery.completed_at || delivery.updated_at)}</time></div>) : <EmptyMini text="暂无 Delivery。" />}</div></article>;
-}
-
-function FetchCard({ fetch }: { fetch: FetchJob }) {
-  return <article className="file-record-card is-expanded"><header><span className="file-record-icon"><ArrowDownToLine size={17} /></span><div><h4>{fetch.filename || fetch.source_path}</h4><code>{fetch.id}</code></div><StatusBadge tone={toneForStatus(fetch.status)}>{fetch.status}</StatusBadge></header><dl><div><dt>源设备</dt><dd>{fetch.source_device_id}</dd></div><div><dt>请求设备</dt><dd>{fetch.requester_device_id}</dd></div><div><dt>大小</dt><dd>{formatBytes(fetch.plain_size)}</dd></div><div><dt>创建</dt><dd>{formatTime(fetch.created_at)}</dd></div><div><dt>更新</dt><dd>{formatTime(fetch.updated_at)}</dd></div><div><dt>过期</dt><dd>{formatTime(fetch.expires_at)}</dd></div><div><dt>归档</dt><dd>{fetch.archive_requested ? '是' : '否'}</dd></div><div><dt>挂载</dt><dd>{formatTime(fetch.mounted_at)}</dd></div></dl><div className="file-digest"><span>源路径</span><code>{fetch.source_path}</code></div>{fetch.plain_sha256 && <div className="file-digest"><span>SHA256</span><code>{fetch.plain_sha256}</code></div>}{fetch.error_message && <div className="nx-alert is-error">{fetch.error_code || 'FETCH_FAILED'}：{fetch.error_message}</div>}</article>;
-}
-
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexus', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '', artifact_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexus', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
@@ -452,7 +353,6 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
         <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || system.data.recall_root || '暂无'} mono />
-        <SettingValue label="密文目录" value={system.data.artifact_root || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup.data} />
     </section>
@@ -476,7 +376,6 @@ function BackupPanel({ backup }: { backup?: BackupStatus }) {
 }
 
 function MetricButton({ label, value, tone, onClick }: { label: string; value: number; tone: Tone; onClick: () => void }) { return <button type="button" className="metric-card" onClick={onClick}><span className={`metric-icon tone-${tone}`}><Activity size={20} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
-function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) { return <article className="file-summary-card"><span>{icon}</span><div><strong>{value}</strong><small>{label}</small></div></article>; }
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }

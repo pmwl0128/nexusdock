@@ -149,10 +149,6 @@
         "recall_root": {
           "type": "string",
           "description": "已废弃兼容字段；请使用 recall_repo_dir。"
-        },
-        "artifact_root": {
-          "type": "string",
-          "description": "Artifact 密文存储路径。"
         }
       },
       "required": [
@@ -161,8 +157,7 @@
         "database",
         "schema_version",
         "nexus_data_dir",
-        "recall_repo_dir",
-        "artifact_root"
+        "recall_repo_dir"
       ]
     },
     "BackupHistory": {
@@ -490,9 +485,7 @@
               "service.restart",
               "diagnostics.collect",
               "agentdock.reload",
-              "env.manage",
-              "artifact.pull",
-              "artifact.fetch"
+              "env.manage"
             ]
           }
         },
@@ -602,9 +595,7 @@
             "service.restart",
             "diagnostics.collect",
             "agentdock.reload",
-            "env.manage",
-            "artifact.pull",
-            "artifact.fetch"
+            "env.manage"
           ]
         },
         "payload": {
@@ -875,9 +866,7 @@
             "service.restart",
             "diagnostics.collect",
             "agentdock.reload",
-            "env.manage",
-            "artifact.pull",
-            "artifact.fetch"
+            "env.manage"
           ]
         },
         "status": {

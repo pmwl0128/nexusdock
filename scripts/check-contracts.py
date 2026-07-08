@@ -18,13 +18,15 @@ REQUIRED_PATHS = {
     "/v1/backup/status",
     "/v1/devices",
     "/v1/recall",
-    "/v1/artifacts",
-    "/v1/artifact-fetches",
     "/v1/runtime/tasks",
     "/v1/runtime/skills",
     "/v1/runtime/workflow-templates",
 }
 FORBIDDEN_PATH_PREFIXES = (
+    "/v1/" + "arti" + "facts",
+    "/v1/" + "arti" + "fact-fetches",
+    "/v1/devices/{deviceId}/" + "arti" + "facts",
+    "/v1/devices/{deviceId}/" + "arti" + "fact",
     "/v1/tasks",
     "/v1/runs",
     "/v1/skills",

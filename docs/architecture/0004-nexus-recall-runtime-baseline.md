@@ -13,7 +13,7 @@ Runtime data must enter Nexus through AgentDock Runtime APIs. Nexus must not cre
 
 ## Consequences
 
-- Recall repository migration must not move Nexus device registration, administrator sessions, artifact metadata, or command history.
+- Recall repository migration must not move Nexus device registration, administrator sessions, or command history.
 - Nexus backup and restore can treat system state and Recall content as separate units.
 - Runtime views are allowed to be read-only when AgentDock Runtime lacks controlled write APIs.
 - Public contracts must name Runtime resources as Runtime views or Runtime actions, not Nexus-owned Task or Skill systems.

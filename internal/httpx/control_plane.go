@@ -440,29 +440,15 @@ func contractCommand(command commands.Command) contracts.DeviceCommand {
 }
 
 func redactCommandPayload(commandType commands.Type, payload json.RawMessage) json.RawMessage {
-	if len(payload) == 0 || (commandType != commands.TypeEnvManage && commandType != commands.TypeArtifactPull && commandType != commands.TypeArtifactFetch) {
+	if len(payload) == 0 || commandType != commands.TypeEnvManage {
 		return append(json.RawMessage(nil), payload...)
 	}
 	var values map[string]any
 	if err := json.Unmarshal(payload, &values); err != nil {
 		return append(json.RawMessage(nil), payload...)
 	}
-	if commandType == commands.TypeEnvManage {
-		if value, ok := values["value"].(string); ok && value != "" {
-			values["value"] = "[REDACTED]"
-		}
-	}
-	if commandType == commands.TypeArtifactPull {
-		for _, key := range []string{"download_token", "wrapped_key", "wrap_nonce"} {
-			if value, ok := values[key].(string); ok && value != "" {
-				values[key] = "[REDACTED]"
-			}
-		}
-	}
-	if commandType == commands.TypeArtifactFetch {
-		if value, ok := values["upload_token"].(string); ok && value != "" {
-			values["upload_token"] = "[REDACTED]"
-		}
+	if value, ok := values["value"].(string); ok && value != "" {
+		values["value"] = "[REDACTED]"
 	}
 	redacted, err := json.Marshal(values)
 	if err != nil {
