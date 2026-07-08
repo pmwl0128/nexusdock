@@ -13,7 +13,7 @@ export default function RecallCardsConsole({ state, actions }: Props) {
         <span className={`mem-lite-health ${card.capture?.warnings?.length ? 'warn' : 'ok'}`}>{card.capture ? '候选已生成' : '待捕获'}</span>
       </div>
       <form className="mem-card-form" onSubmit={actions.captureCard}>
-        <label><span>标题</span><input value={card.title} onChange={(event) => actions.setCardField('title', event.target.value)} placeholder="例如：RecallDock BGE-M3 标准入口" /></label>
+        <label><span>标题</span><input value={card.title} onChange={(event) => actions.setCardField('title', event.target.value)} placeholder="例如：Recall BGE-M3 标准入口" /></label>
         <label><span>项目</span><input value={card.project} onChange={(event) => actions.setCardField('project', event.target.value)} /></label>
         <label><span>类型</span><select value={card.type} onChange={(event) => actions.setCardField('type', event.target.value)}><option value="runbook">runbook</option><option value="bug_pattern">bug_pattern</option><option value="deploy_note">deploy_note</option><option value="project_trap">project_trap</option><option value="architecture">architecture</option><option value="decision">decision</option><option value="anti_pattern">anti_pattern</option><option value="preference">preference</option></select></label>
         <label><span>来源</span><input value={card.source} onChange={(event) => actions.setCardField('source', event.target.value)} /></label>

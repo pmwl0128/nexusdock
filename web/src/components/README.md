@@ -2,7 +2,7 @@
 
 本目录用于拆分 AgentDock Nexus Web UI 组件。
 
-当前入口位于 `web/src/App.tsx`，`RecallWorkspace.tsx` 当前承载 RecallDock 工作区能力，文件名暂时保留以降低迁移风险。新增页面和交互应优先按领域拆分为可复用组件，避免继续扩大入口文件。
+当前入口位于 `web/src/App.tsx`，`RecallWorkspace.tsx` 承载 Recall 工作区能力。新增页面和交互应优先按领域拆分为可复用组件，避免继续扩大入口文件。
 
 当前产品一级入口固定为：
 

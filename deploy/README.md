@@ -15,7 +15,7 @@ Persist:
 - `NEXUS_DATA_DIR/backups`
 - `RECALL_REPO_DIR` and its Git remote credentials
 
-Nexus 系统状态不得再写入 Recall 仓库下的 `.nexus` 目录。旧 `RECALLDOCK_STORE_DIR/.nexus` 只作为迁移来源和回滚证据保留。
+Nexus 系统状态不得再写入 Recall 仓库下的 `.nexus` 目录。旧 `RECALLDOCK_STORE_DIR/.nexus` 只作为兼容迁移来源和回滚证据保留。
 
 ## Compose
 

@@ -27,7 +27,7 @@ type MigrationReport struct {
 	InPlace    bool     `json:"in_place"`
 }
 
-// MigrateRepository either validates an existing RecallDock repository in
+// MigrateRepository either validates an existing Recall repository in
 // place or copies it byte-for-byte to a new data root. Service code is never
 // copied; .git metadata is intentionally left with the repository owner.
 func MigrateRepository(req MigrationRequest) (MigrationReport, error) {

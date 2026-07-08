@@ -38,7 +38,7 @@ def create_backup(source: Path, backup_root: Path) -> Path:
     backup_root = backup_root.expanduser().resolve()
     backup_root.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    destination = backup_root / f"recalldock-{stamp}"
+    destination = backup_root / f"recall-{stamp}"
     shutil.copytree(source, destination, symlinks=True, ignore=shutil.ignore_patterns(".git"))
     manifest = {"format": 1, "created_at": datetime.now(timezone.utc).isoformat(), "source": str(source), "files": snapshot(destination)}
     (destination / "MIGRATION_MANIFEST.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -78,7 +78,7 @@ def restore_backup(backup_dir: Path, destination: Path, confirmed: bool, replace
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="RecallDock migration backup, verification and rollback helper")
+    parser = argparse.ArgumentParser(description="Recall migration backup, verification and rollback helper")
     sub = parser.add_subparsers(dest="command", required=True)
     backup_parser = sub.add_parser("backup")
     backup_parser.add_argument("source", type=Path)

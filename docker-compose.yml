@@ -8,14 +8,14 @@ services:
     volumes:
       - ${NEXUS_DATA_DIR:-./nexus-data}:/var/lib/nexus
       - ${RECALL_REPO_DIR:-./recall}:/recall
-      - ${RECALLDOCK_GITHUB_CREDENTIALS:?set RECALLDOCK_GITHUB_CREDENTIALS to a git credential-store file}:/run/secrets/github_credentials:ro
+      - ${RECALL_GITHUB_CREDENTIALS:?set RECALL_GITHUB_CREDENTIALS to a git credential-store file}:/run/secrets/github_credentials:ro
     environment:
-      RECALLDOCK_AUTH_TOKEN: ${RECALLDOCK_AUTH_TOKEN:?set RECALLDOCK_AUTH_TOKEN for programmatic API access}
+      NEXUS_AUTH_TOKEN: ${NEXUS_AUTH_TOKEN:?set NEXUS_AUTH_TOKEN for programmatic API access}
       NEXUS_DATA_DIR: /var/lib/nexus
       RECALL_REPO_DIR: /recall
       NEXUS_TRUSTED_PROXIES: "${NEXUS_TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16}"
-      RECALLDOCK_AUTO_SYNC: "false"
-      RECALLDOCK_PULL_INTERVAL_SECONDS: "120"
-      RECALLDOCK_PUSH_DEBOUNCE_SECONDS: "10"
+      RECALL_AUTO_SYNC: "false"
+      RECALL_PULL_INTERVAL_SECONDS: "120"
+      RECALL_PUSH_DEBOUNCE_SECONDS: "10"
       NEXUS_AGENTDOCK_ENDPOINT: "${NEXUS_AGENTDOCK_ENDPOINT:-}"
       NEXUS_AGENTDOCK_TOKEN: "${NEXUS_AGENTDOCK_TOKEN:-}"

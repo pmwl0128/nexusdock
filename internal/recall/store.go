@@ -1004,7 +1004,7 @@ func now() string { return time.Now().Format(time.RFC3339) }
 
 func atomicWriteFile(path string, data []byte, mode fs.FileMode) error {
 	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".recalldock-write-*")
+	tmp, err := os.CreateTemp(dir, ".recall-write-*")
 	if err != nil {
 		return err
 	}

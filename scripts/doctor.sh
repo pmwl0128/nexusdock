@@ -47,7 +47,7 @@ read_env_file() {
       value="${value:1:${#value}-2}"
     fi
     case "$key" in
-      RECALLDOCK_*|NEXUS_*|RECALL_REPO_DIR) export "$key=$value" ;;
+      RECALLDOCK_*|NEXUS_*|RECALL_*) export "$key=$value" ;;
     esac
   done < "$file"
 }
@@ -74,17 +74,18 @@ check_compose() {
 }
 
 check_auth_policy() {
-  local host="${RECALLDOCK_HOST:-127.0.0.1}"
-  local require="${RECALLDOCK_REQUIRE_AUTH:-false}"
-  local user="${RECALLDOCK_USERNAME:-}"
-  local pass="${RECALLDOCK_PASSWORD:-}"
-  local token="${RECALLDOCK_AUTH_TOKEN:-}"
+  local host="${NEXUS_HOST:-${RECALLDOCK_HOST:-127.0.0.1}}"
+  local require="${NEXUS_REQUIRE_AUTH:-${RECALLDOCK_REQUIRE_AUTH:-false}}"
+  local user="${NEXUS_USERNAME:-${RECALLDOCK_USERNAME:-}}"
+  local pass="${NEXUS_PASSWORD:-${RECALLDOCK_PASSWORD:-}}"
+  local hash="${NEXUS_PASSWORD_HASH:-${RECALLDOCK_PASSWORD_HASH:-}}"
+  local token="${NEXUS_AUTH_TOKEN:-${RECALLDOCK_AUTH_TOKEN:-}}"
   if [ "$require" = "true" ]; then
-    if [ -z "$token" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 RECALLDOCK_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
-    if [ -z "$user" ] && [ -z "${RECALLDOCK_PASSWORD_HASH:-}" ]; then fail 'RECALLDOCK_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
+    if [ -z "$token" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 NEXUS_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
+    if [ -z "$user" ] && [ -z "$hash" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
     if [ "$user" = "admin" ] && { [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/recalldock'; fi
   elif [ "$host" != "127.0.0.1" ] && [ "$host" != "localhost" ]; then
-    warn "RECALLDOCK_HOST=$host 不是 localhost，建议设置 RECALLDOCK_REQUIRE_AUTH=true"
+    warn "NEXUS_HOST=$host 不是 localhost，建议设置 NEXUS_REQUIRE_AUTH=true"
   else
     ok '认证策略检查通过'
   fi
@@ -111,32 +112,33 @@ check_recall_repo() {
   if [ -d "$dir" ]; then ok "Recall 仓库目录存在：$dir"; else warn "Recall 仓库目录不存在：$dir"; fi
   if [ -d "$dir/.git" ]; then
     ok "Recall 仓库是 Git 仓库：$dir"
-    if git -C "$dir" status --short --branch >/tmp/recalldock-doctor-git-status 2>&1; then
-      sed 's/^/[GIT] /' /tmp/recalldock-doctor-git-status
+    if git -C "$dir" status --short --branch >/tmp/nexus-doctor-git-status 2>&1; then
+      sed 's/^/[GIT] /' /tmp/nexus-doctor-git-status
     else
       warn '记忆 Git 状态读取失败'
     fi
     if git -C "$dir" remote -v | grep -q .; then ok 'Git remote 已配置'; else warn '记忆 Git remote 未配置'; fi
-    if git -C "$dir" fetch --dry-run >/tmp/recalldock-doctor-fetch 2>&1; then ok 'Git remote 可 fetch'; else warn "Git remote fetch 失败：$(tr '\n' ' ' </tmp/recalldock-doctor-fetch | cut -c1-240)"; fi
+    if git -C "$dir" fetch --dry-run >/tmp/nexus-doctor-fetch 2>&1; then ok 'Git remote 可 fetch'; else warn "Git remote fetch 失败：$(tr '\n' ' ' </tmp/nexus-doctor-fetch | cut -c1-240)"; fi
   else
     warn "Recall 仓库不是 Git 仓库：$dir"
   fi
 }
 
 check_ports_and_health() {
-  local port="${RECALLDOCK_PORT:-18777}"
+  local port="${NEXUS_PORT:-${RECALLDOCK_PORT:-18777}}"
   if command -v lsof >/dev/null 2>&1; then
     if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then ok "端口 $port 正在监听"; else warn "端口 $port 未监听"; fi
   else
     warn 'lsof 不可用，跳过端口监听检查'
   fi
-  if curl -fsS "http://127.0.0.1:${port}/health" >/tmp/recalldock-doctor-health 2>&1; then
+  if curl -fsS "http://127.0.0.1:${port}/health" >/tmp/nexus-doctor-health 2>&1; then
     ok "本地 health 通过：http://127.0.0.1:${port}/health"
   else
     warn "本地 health 失败：http://127.0.0.1:${port}/health"
   fi
-  if [ -n "${RECALLDOCK_PUBLIC_HEALTH_URL:-}" ]; then
-    if curl -fsS "$RECALLDOCK_PUBLIC_HEALTH_URL" >/tmp/recalldock-doctor-public-health 2>&1; then ok "公网 health 通过：$RECALLDOCK_PUBLIC_HEALTH_URL"; else warn "公网 health 失败：$RECALLDOCK_PUBLIC_HEALTH_URL"; fi
+  local public_url="${NEXUS_PUBLIC_HEALTH_URL:-${RECALLDOCK_PUBLIC_HEALTH_URL:-}}"
+  if [ -n "$public_url" ]; then
+    if curl -fsS "$public_url" >/tmp/nexus-doctor-public-health 2>&1; then ok "公网 health 通过：$public_url"; else warn "公网 health 失败：$public_url"; fi
   fi
 }
 

@@ -6,7 +6,7 @@
 Nexus 数据库，也不创建 Task、执行设备命令或修改 Skill。
 
 `RecallService` 是 T3、T8 与 API 层唯一应依赖的业务端口。旧 `Store` API 仅作为内部实现保留，
-用于兼容现有 RecallDock HTTP/MCP 行为。
+用于兼容现有 Recall HTTP/MCP 行为。
 
 ## 对 T0 的契约需求
 
@@ -18,7 +18,7 @@ Nexus 数据库，也不创建 Task、执行设备命令或修改 Skill。
 - confidence：`unknown|low|medium|high`
 - conflict source：`device_snapshot|skill_run|user_edit|git_merge|agent_repair`
 
-所有新增字段应先作为 optional 字段进入 V1 契约，避免破坏旧 RecallDock 数据。
+所有新增字段应先作为 optional 字段进入 V1 契约，避免破坏旧 Recall 数据。
 
 ## 对 T1 的持久化需求
 

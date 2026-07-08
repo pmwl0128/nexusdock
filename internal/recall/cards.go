@@ -134,7 +134,7 @@ func (s *Store) WriteCard(req CardRequest) (CardWriteResult, error) {
 	if err != nil {
 		return CardWriteResult{}, err
 	}
-	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Recall: mem, IndexPolicy: "cards are indexed through RecallDock search over path, title, frontmatter and body; external embedding index may rebuild from recall/managed/cards/"}, nil
+	return CardWriteResult{OK: true, Card: card, Warnings: warnings, Recall: mem, IndexPolicy: "cards are indexed through Recall search over path, title, frontmatter and body; external embedding index may rebuild from recall/managed/cards/"}, nil
 }
 
 func normalizeCard(req CardRequest) (Card, []string, error) {

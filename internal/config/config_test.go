@@ -28,7 +28,7 @@ func TestAccessFileRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{Username: "admin", PasswordHash: hash, AccessFile: filepath.Join(dir, ".recalldock", "access.json")}
+	cfg := Config{Username: "admin", PasswordHash: hash, AccessFile: filepath.Join(dir, "nexus", "access.json")}
 	if err := cfg.SaveAccessFile(); err != nil {
 		t.Fatalf("SaveAccessFile: %v", err)
 	}
@@ -86,5 +86,46 @@ func TestFromEnvFallsBackToLegacyRecallDockStoreDir(t *testing.T) {
 	}
 	if cfg.NexusDataDir == "" || cfg.NexusDataDir == cfg.RecallRepoDir {
 		t.Fatalf("NexusDataDir should be independent, got %q", cfg.NexusDataDir)
+	}
+}
+
+func TestFromEnvPrefersNexusAndRecallVariablesOverLegacy(t *testing.T) {
+	t.Setenv("NEXUS_HOST", "0.0.0.0")
+	t.Setenv("RECALLDOCK_HOST", "127.0.0.1")
+	t.Setenv("NEXUS_PORT", "18000")
+	t.Setenv("RECALLDOCK_PORT", "18777")
+	t.Setenv("NEXUS_AUTH_TOKEN", "nexus-token")
+	t.Setenv("RECALLDOCK_AUTH_TOKEN", "legacy-token")
+	t.Setenv("NEXUS_REQUIRE_AUTH", "true")
+	t.Setenv("RECALLDOCK_REQUIRE_AUTH", "false")
+	t.Setenv("RECALL_AUTO_SYNC", "true")
+	t.Setenv("RECALLDOCK_AUTO_SYNC", "false")
+	t.Setenv("RECALL_EMBEDDING_INDEX_FILE", "/tmp/recall-index.json")
+	t.Setenv("RECALLDOCK_EMBEDDING_INDEX_FILE", "/tmp/legacy-index.json")
+
+	cfg := FromEnv()
+
+	if cfg.Host != "0.0.0.0" || cfg.Port != 18000 {
+		t.Fatalf("Nexus host/port should win, got %s:%d", cfg.Host, cfg.Port)
+	}
+	if cfg.AuthToken != "nexus-token" || !cfg.RequireAuth {
+		t.Fatalf("Nexus auth settings should win, token=%q require=%v", cfg.AuthToken, cfg.RequireAuth)
+	}
+	if !cfg.AutoSync {
+		t.Fatalf("Recall variables should win over legacy RecallDock sync variables")
+	}
+	if cfg.EmbeddingIndexFile != "/tmp/recall-index.json" {
+		t.Fatalf("Recall embedding index should win, got %q", cfg.EmbeddingIndexFile)
+	}
+}
+
+func TestFromEnvDefaultsRecallEmbeddingIndexUnderRecallDirectory(t *testing.T) {
+	t.Setenv("RECALL_REPO_DIR", "/tmp/recall-repo")
+
+	cfg := FromEnv()
+
+	want := filepath.Join("/tmp/recall-repo", ".recall", "embedding-index.json")
+	if cfg.EmbeddingIndexFile != want {
+		t.Fatalf("EmbeddingIndexFile = %q, want %q", cfg.EmbeddingIndexFile, want)
 	}
 }
