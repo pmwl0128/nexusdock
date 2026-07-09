@@ -10,7 +10,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/recall"
+	"github.com/uvwt/nexusdock/internal/recall"
 )
 
 func TestExistingRecallDataIsOpenedInPlaceWithoutMutation(t *testing.T) {

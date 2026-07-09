@@ -29,7 +29,7 @@ func TestResolveRejectsTraversalAbsoluteAndGitPaths(t *testing.T) {
 		t.Fatalf(".git/config must not be allowed")
 	}
 
-	for _, path := range []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/recalldock.md", "inbox/old.md"} {
+	for _, path := range []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/nexusdock.md", "inbox/old.md"} {
 		if _, err := store.resolve(path); !errors.Is(err, ErrDisallowedPath) {
 			t.Fatalf("expected legacy root %q to be disallowed, got %v", path, err)
 		}
@@ -40,7 +40,7 @@ func TestAllowedRecallPaths(t *testing.T) {
 	allowed := []string{
 		"profile.md",
 		"recall/docs/devices/codingmini.md",
-		"recall/docs/ops/recalldock.md",
+		"recall/docs/ops/nexusdock.md",
 		"recall/docs/projects/agentdock/project.md",
 		"recall/docs/projects/agentdock/environment.md",
 		"recall/docs/projects/agentdock/runbooks/deploy.md",
@@ -54,7 +54,7 @@ func TestAllowedRecallPaths(t *testing.T) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
-	rejected := []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/recalldock.md", "inbox/old.md", "shared/profile.md", "journal/today.md", "recall/docs/projects/agentdock/overview.md", "recall/docs/projects/agentdock/decisions/a.md", "recall/docs/projects/agentdock/runbooks/nested/a.md", "recall/managed/cards/chatdock/inbox/project_trap/nested/deploy.md", "recall/managed/notes/.hidden.md", "recall/managed/notes/github-learning/raw.bin"}
+	rejected := []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/nexusdock.md", "inbox/old.md", "shared/profile.md", "journal/today.md", "recall/docs/projects/agentdock/overview.md", "recall/docs/projects/agentdock/decisions/a.md", "recall/docs/projects/agentdock/runbooks/nested/a.md", "recall/managed/cards/chatdock/inbox/project_trap/nested/deploy.md", "recall/managed/notes/.hidden.md", "recall/managed/notes/github-learning/raw.bin"}
 	for _, path := range rejected {
 		if IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be rejected", path)

@@ -76,46 +76,27 @@ func TestFromEnvUsesNexusDataDirAndRecallRepoDir(t *testing.T) {
 	}
 }
 
-func TestFromEnvFallsBackToLegacyRecallDockStoreDir(t *testing.T) {
-	t.Setenv("RECALLDOCK_STORE_DIR", "/tmp/legacy-recall")
-
-	cfg := FromEnv()
-
-	if cfg.RecallRepoDir != "/tmp/legacy-recall" {
-		t.Fatalf("RecallRepoDir = %q", cfg.RecallRepoDir)
-	}
-	if cfg.NexusDataDir == "" || cfg.NexusDataDir == cfg.RecallRepoDir {
-		t.Fatalf("NexusDataDir should be independent, got %q", cfg.NexusDataDir)
-	}
-}
-
-func TestFromEnvPrefersNexusAndRecallVariablesOverLegacy(t *testing.T) {
+func TestFromEnvUsesNexusAndRecallVariables(t *testing.T) {
 	t.Setenv("NEXUS_HOST", "0.0.0.0")
-	t.Setenv("RECALLDOCK_HOST", "127.0.0.1")
 	t.Setenv("NEXUS_PORT", "18000")
-	t.Setenv("RECALLDOCK_PORT", "18777")
 	t.Setenv("NEXUS_AUTH_TOKEN", "nexus-token")
-	t.Setenv("RECALLDOCK_AUTH_TOKEN", "legacy-token")
 	t.Setenv("NEXUS_REQUIRE_AUTH", "true")
-	t.Setenv("RECALLDOCK_REQUIRE_AUTH", "false")
 	t.Setenv("RECALL_AUTO_SYNC", "true")
-	t.Setenv("RECALLDOCK_AUTO_SYNC", "false")
 	t.Setenv("RECALL_EMBEDDING_INDEX_FILE", "/tmp/recall-index.json")
-	t.Setenv("RECALLDOCK_EMBEDDING_INDEX_FILE", "/tmp/legacy-index.json")
 
 	cfg := FromEnv()
 
 	if cfg.Host != "0.0.0.0" || cfg.Port != 18000 {
-		t.Fatalf("Nexus host/port should win, got %s:%d", cfg.Host, cfg.Port)
+		t.Fatalf("Nexus host/port should be used, got %s:%d", cfg.Host, cfg.Port)
 	}
 	if cfg.AuthToken != "nexus-token" || !cfg.RequireAuth {
-		t.Fatalf("Nexus auth settings should win, token=%q require=%v", cfg.AuthToken, cfg.RequireAuth)
+		t.Fatalf("Nexus auth settings should be used, token=%q require=%v", cfg.AuthToken, cfg.RequireAuth)
 	}
 	if !cfg.AutoSync {
-		t.Fatalf("Recall variables should win over legacy RecallDock sync variables")
+		t.Fatalf("Recall auto sync should be enabled")
 	}
 	if cfg.EmbeddingIndexFile != "/tmp/recall-index.json" {
-		t.Fatalf("Recall embedding index should win, got %q", cfg.EmbeddingIndexFile)
+		t.Fatalf("Recall embedding index should be used, got %q", cfg.EmbeddingIndexFile)
 	}
 }
 

@@ -51,22 +51,22 @@ type Config struct {
 }
 
 func FromEnv() Config {
-	recallRepoDir := getenvAny("RECALL_REPO_DIR", "RECALLDOCK_STORE_DIR", "recall")
+	recallRepoDir := getenv("RECALL_REPO_DIR", "recall")
 	nexusDataDir := getenv("NEXUS_DATA_DIR", filepath.Join(".", "nexus-data"))
 	defaultAccessFile := filepath.Join(nexusDataDir, "access.json")
 	defaultEmbeddingIndexFile := filepath.Join(recallRepoDir, ".recall", "embedding-index.json")
 	cfg := Config{
-		Host:                  getenvAny("NEXUS_HOST", "RECALLDOCK_HOST", "127.0.0.1"),
-		Port:                  getenvIntAny("NEXUS_PORT", "RECALLDOCK_PORT", 18777),
+		Host:                  getenv("NEXUS_HOST", "127.0.0.1"),
+		Port:                  getenvInt("NEXUS_PORT", 18777),
 		StoreDir:              recallRepoDir,
 		NexusDataDir:          nexusDataDir,
 		RecallRepoDir:         recallRepoDir,
-		AuthToken:             firstNonEmpty(os.Getenv("NEXUS_AUTH_TOKEN"), os.Getenv("RECALLDOCK_AUTH_TOKEN")),
-		Username:              firstNonEmpty(os.Getenv("NEXUS_USERNAME"), os.Getenv("RECALLDOCK_USERNAME")),
-		Password:              firstNonEmpty(os.Getenv("NEXUS_PASSWORD"), os.Getenv("RECALLDOCK_PASSWORD")),
-		PasswordHash:          firstNonEmpty(os.Getenv("NEXUS_PASSWORD_HASH"), os.Getenv("RECALLDOCK_PASSWORD_HASH")),
-		AccessFile:            getenvAny("NEXUS_ACCESS_FILE", "RECALLDOCK_ACCESS_FILE", defaultAccessFile),
-		RequireAuth:           getenvBoolAny("NEXUS_REQUIRE_AUTH", "RECALLDOCK_REQUIRE_AUTH", false),
+		AuthToken:             strings.TrimSpace(os.Getenv("NEXUS_AUTH_TOKEN")),
+		Username:              strings.TrimSpace(os.Getenv("NEXUS_USERNAME")),
+		Password:              strings.TrimSpace(os.Getenv("NEXUS_PASSWORD")),
+		PasswordHash:          strings.TrimSpace(os.Getenv("NEXUS_PASSWORD_HASH")),
+		AccessFile:            getenv("NEXUS_ACCESS_FILE", defaultAccessFile),
+		RequireAuth:           getenvBool("NEXUS_REQUIRE_AUTH", false),
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
 		AgentDockDir:          strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_DIR")),
@@ -77,16 +77,16 @@ func FromEnv() Config {
 		DeployDir:             strings.TrimSpace(os.Getenv("NEXUS_DEPLOY_DIR")),
 		SourceDir:             strings.TrimSpace(os.Getenv("NEXUS_SOURCE_DIR")),
 		LogDirs:               strings.TrimSpace(os.Getenv("NEXUS_LOG_DIRS")),
-		AutoSync:              getenvBoolAny("RECALL_AUTO_SYNC", "RECALLDOCK_AUTO_SYNC", false),
-		PullInterval:          time.Duration(getenvIntAny("RECALL_PULL_INTERVAL_SECONDS", "RECALLDOCK_PULL_INTERVAL_SECONDS", 120)) * time.Second,
-		PushDebounce:          time.Duration(getenvIntAny("RECALL_PUSH_DEBOUNCE_SECONDS", "RECALLDOCK_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
-		CommitMessage:         getenvAny("RECALL_COMMIT_MESSAGE", "RECALLDOCK_COMMIT_MESSAGE", "recall: 自动同步召回库"),
-		LogLevelName:          getenvAny("NEXUS_LOG_LEVEL", "RECALLDOCK_LOG_LEVEL", "info"),
-		EmbeddingEnabled:      getenvBoolAny("RECALL_EMBEDDING_ENABLED", "RECALLDOCK_EMBEDDING_ENABLED", false),
-		EmbeddingEndpoint:     firstNonEmpty(os.Getenv("RECALL_EMBEDDING_ENDPOINT"), os.Getenv("RECALLDOCK_EMBEDDING_ENDPOINT")),
-		EmbeddingModel:        getenvAny("RECALL_EMBEDDING_MODEL", "RECALLDOCK_EMBEDDING_MODEL", "BAAI/bge-m3"),
-		EmbeddingIndexFile:    getenvAny("RECALL_EMBEDDING_INDEX_FILE", "RECALLDOCK_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
-		EmbeddingTimeout:      time.Duration(getenvIntAny("RECALL_EMBEDDING_TIMEOUT_SECONDS", "RECALLDOCK_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
+		AutoSync:              getenvBool("RECALL_AUTO_SYNC", false),
+		PullInterval:          time.Duration(getenvInt("RECALL_PULL_INTERVAL_SECONDS", 120)) * time.Second,
+		PushDebounce:          time.Duration(getenvInt("RECALL_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
+		CommitMessage:         getenv("RECALL_COMMIT_MESSAGE", "recall: 自动同步召回库"),
+		LogLevelName:          getenv("NEXUS_LOG_LEVEL", "info"),
+		EmbeddingEnabled:      getenvBool("RECALL_EMBEDDING_ENABLED", false),
+		EmbeddingEndpoint:     strings.TrimSpace(os.Getenv("RECALL_EMBEDDING_ENDPOINT")),
+		EmbeddingModel:        getenv("RECALL_EMBEDDING_MODEL", "BAAI/bge-m3"),
+		EmbeddingIndexFile:    getenv("RECALL_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
+		EmbeddingTimeout:      time.Duration(getenvInt("RECALL_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
 	}
 	_ = cfg.LoadAccessFile()
 	return cfg
@@ -116,43 +116,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func getenvAny(primary, legacy, fallback string) string {
-	if value := firstNonEmpty(os.Getenv(primary), os.Getenv(legacy)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func getenvIntAny(primary, legacy string, fallback int) int {
-	for _, key := range []string{primary, legacy} {
-		value := strings.TrimSpace(os.Getenv(key))
-		if value == "" {
-			continue
-		}
-		parsed, err := strconv.Atoi(value)
-		if err == nil {
-			return parsed
-		}
-	}
-	return fallback
-}
-
-func getenvBoolAny(primary, legacy string, fallback bool) bool {
-	for _, key := range []string{primary, legacy} {
-		value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
-		if value == "" {
-			continue
-		}
-		switch value {
-		case "1", "true", "yes", "on":
-			return true
-		case "0", "false", "no", "off":
-			return false
-		}
-	}
-	return fallback
 }
 
 func getenv(key, fallback string) string {

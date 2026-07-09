@@ -1,4 +1,4 @@
-# 完善 AgentDock Nexus 前端
+# 完善 NexusDock 前端
 
 ## Goal
 

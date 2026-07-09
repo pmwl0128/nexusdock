@@ -252,7 +252,7 @@ export default function App() {
       <main className="nexus-main">
         <header className="nexus-topbar">
           <button type="button" className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
-          <div><span className="nexus-eyebrow">AgentDock Nexus</span><h1>{active.label}</h1></div>
+          <div><span className="nexus-eyebrow">NexusDock</span><h1>{active.label}</h1></div>
           <div className="nexus-top-actions">
             <button type="button" className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
             <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
@@ -342,13 +342,13 @@ function RuntimePage({ active, onChange, refreshToken }: { active: RuntimeTab; o
 }
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexus', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
       <Panel title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
-        <SettingValue label="服务" value={system.data.service || 'nexus'} tone={system.data.ok ? 'ok' : 'danger'} />
+        <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />

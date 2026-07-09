@@ -136,7 +136,7 @@ export function LogsPage({ refreshToken }: { refreshToken: number }) {
 }
 
 export function DeploymentPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<DeploymentResponse>('/v1/runtime/deployment', { ok: false, service: 'nexus', health: { ok: false, addr: '' }, paths: {}, compose: '', source: { dir: '', commit: '' }, updated_at: '' }, refreshToken);
+  const resource = useOpsResource<DeploymentResponse>('/v1/runtime/deployment', { ok: false, service: 'nexusdock', health: { ok: false, addr: '' }, paths: {}, compose: '', source: { dir: '', commit: '' }, updated_at: '' }, refreshToken);
   const commit = resource.data.source?.commit || '';
   return <OpsShell title="部署中心" subtitle="生产容器看到的健康、源码、镜像、目录和配置。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-command-hero deploy-hero"><div><span>PRODUCTION</span><h3>{resource.data.service}</h3><p>{resource.data.health?.addr || 'addr unknown'} · {formatTime(resource.data.updated_at)}</p></div><StatusBadge tone={resource.data.health?.ok ? 'ok' : 'danger'}>{resource.data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></section>
@@ -171,7 +171,7 @@ function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsT
 }
 
 function DeploymentDetail({ data }: { data: DeploymentResponse }) {
-  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'nexus'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="当前提交" value={shortHash(data.source?.commit)} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><section className="ops-detail-section"><h4>源码</h4><div className="ops-key-values"><Info label="目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /></div></section></article>;
+  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'nexusdock'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="当前提交" value={shortHash(data.source?.commit)} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><section className="ops-detail-section"><h4>源码</h4><div className="ops-key-values"><Info label="目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /></div></section></article>;
 }
 
 

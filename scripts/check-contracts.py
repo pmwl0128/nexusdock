@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the current AgentDock Nexus product contract and generated output."""
+"""Validate the current NexusDock product contract and generated output."""
 
 from __future__ import annotations
 

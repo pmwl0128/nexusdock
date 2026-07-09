@@ -47,7 +47,7 @@ read_env_file() {
       value="${value:1:${#value}-2}"
     fi
     case "$key" in
-      RECALLDOCK_*|NEXUS_*|RECALL_*) export "$key=$value" ;;
+      NEXUS_*|RECALL_*) export "$key=$value" ;;
     esac
   done < "$file"
 }
@@ -74,16 +74,16 @@ check_compose() {
 }
 
 check_auth_policy() {
-  local host="${NEXUS_HOST:-${RECALLDOCK_HOST:-127.0.0.1}}"
-  local require="${NEXUS_REQUIRE_AUTH:-${RECALLDOCK_REQUIRE_AUTH:-false}}"
-  local user="${NEXUS_USERNAME:-${RECALLDOCK_USERNAME:-}}"
-  local pass="${NEXUS_PASSWORD:-${RECALLDOCK_PASSWORD:-}}"
-  local hash="${NEXUS_PASSWORD_HASH:-${RECALLDOCK_PASSWORD_HASH:-}}"
-  local token="${NEXUS_AUTH_TOKEN:-${RECALLDOCK_AUTH_TOKEN:-}}"
+  local host="${NEXUS_HOST:-127.0.0.1}"
+  local require="${NEXUS_REQUIRE_AUTH:-false}"
+  local user="${NEXUS_USERNAME:-}"
+  local pass="${NEXUS_PASSWORD:-}"
+  local hash="${NEXUS_PASSWORD_HASH:-}"
+  local token="${NEXUS_AUTH_TOKEN:-}"
   if [ "$require" = "true" ]; then
     if [ -z "$token" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 NEXUS_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
     if [ -z "$user" ] && [ -z "$hash" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
-    if [ "$user" = "admin" ] && { [ "$pass" = "recalldock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/recalldock'; fi
+    if [ "$user" = "admin" ] && { [ "$pass" = "nexusdock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/nexusdock'; fi
   elif [ "$host" != "127.0.0.1" ] && [ "$host" != "localhost" ]; then
     warn "NEXUS_HOST=$host 不是 localhost，建议设置 NEXUS_REQUIRE_AUTH=true"
   else
@@ -108,7 +108,7 @@ check_nexus_data_dir() {
 }
 
 check_recall_repo() {
-  local dir="${RECALL_REPO_DIR:-${RECALLDOCK_STORE_DIR:-recall}}"
+  local dir="${RECALL_REPO_DIR:-recall}"
   if [ -d "$dir" ]; then ok "Recall 仓库目录存在：$dir"; else warn "Recall 仓库目录不存在：$dir"; fi
   if [ -d "$dir/.git" ]; then
     ok "Recall 仓库是 Git 仓库：$dir"
@@ -125,7 +125,7 @@ check_recall_repo() {
 }
 
 check_ports_and_health() {
-  local port="${NEXUS_PORT:-${RECALLDOCK_PORT:-18777}}"
+  local port="${NEXUS_PORT:-18777}"
   if command -v lsof >/dev/null 2>&1; then
     if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then ok "端口 $port 正在监听"; else warn "端口 $port 未监听"; fi
   else
@@ -136,7 +136,7 @@ check_ports_and_health() {
   else
     warn "本地 health 失败：http://127.0.0.1:${port}/health"
   fi
-  local public_url="${NEXUS_PUBLIC_HEALTH_URL:-${RECALLDOCK_PUBLIC_HEALTH_URL:-}}"
+  local public_url="${NEXUS_PUBLIC_HEALTH_URL:-}"
   if [ -n "$public_url" ]; then
     if curl -fsS "$public_url" >/tmp/nexus-doctor-public-health 2>&1; then ok "公网 health 通过：$public_url"; else warn "公网 health 失败：$public_url"; fi
   fi

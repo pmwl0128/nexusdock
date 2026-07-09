@@ -8,7 +8,7 @@ func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 	recallRepoDir := s.store.Root()
 	status := map[string]any{
 		"ok":              true,
-		"service":         "nexus",
+		"service":         "nexusdock",
 		"database":        "unavailable",
 		"schema_version":  0,
 		"nexus_data_dir":  s.cfg.NexusDataDir,

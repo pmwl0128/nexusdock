@@ -1,4 +1,4 @@
-# AgentDock Nexus 架构决策
+# NexusDock 架构决策
 
 本目录记录当前个人 AgentDock 控制台需要长期遵守的边界。
 

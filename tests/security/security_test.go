@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/recall"
+	"github.com/uvwt/nexusdock/internal/recall"
 )
 
 func TestMemoryStoreRejectsTraversalAndHiddenPaths(t *testing.T) {

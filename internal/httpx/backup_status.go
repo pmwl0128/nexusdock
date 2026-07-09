@@ -12,7 +12,7 @@ import (
 )
 
 const defaultBackupStatusDir = "/backup-status"
-const backupStatusID = "agentdock-nexus-backup"
+const backupStatusID = "nexusdock-backup"
 
 type backupHistory struct {
 	SchemaVersion int    `json:"schema_version,omitempty"`

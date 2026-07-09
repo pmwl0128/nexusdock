@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uvwt/agentdock-nexus/internal/commands"
-	"github.com/uvwt/agentdock-nexus/internal/devices"
+	"github.com/uvwt/nexusdock/internal/commands"
+	"github.com/uvwt/nexusdock/internal/devices"
 )
 
 type fakeClock struct {

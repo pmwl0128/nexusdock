@@ -12,7 +12,7 @@ COPY go.mod ./
 RUN go mod download
 COPY . .
 COPY --from=web-builder /src/internal/httpx/web_dist ./internal/httpx/web_dist
-RUN go build -o /out/nexus ./cmd/nexus
+RUN go build -o /out/nexusdock ./cmd/nexusdock
 
 FROM alpine:3.20
 RUN apk add --no-cache git ca-certificates \
@@ -21,11 +21,11 @@ RUN apk add --no-cache git ca-certificates \
     && chmod +x /usr/local/bin/git \
     && ln -s /usr/local/bin/git /usr/bin/git
 WORKDIR /app
-COPY --from=go-builder /out/nexus /usr/local/bin/nexus
+COPY --from=go-builder /out/nexusdock /usr/local/bin/nexusdock
 ENV NEXUS_HOST=0.0.0.0 \
     NEXUS_PORT=18777 \
     NEXUS_DATA_DIR=/var/lib/nexus \
     RECALL_REPO_DIR=/recall
 EXPOSE 18777
 VOLUME ["/var/lib/nexus", "/recall"]
-ENTRYPOINT ["nexus"]
+ENTRYPOINT ["nexusdock"]

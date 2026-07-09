@@ -1,6 +1,6 @@
-# AgentDock Nexus 部署
+# NexusDock 部署
 
-生产服务是 AgentDock Nexus，主入口为 `cmd/nexus`。`cmd/recalldock` 只作为兼容包装保留。
+生产服务是 NexusDock，主入口为 `cmd/nexusdock`。
 
 ## 构建
 
@@ -14,16 +14,16 @@ Persist:
 - `NEXUS_DATA_DIR/backups`
 - `RECALL_REPO_DIR` and its Git remote credentials
 
-Nexus 系统状态不得再写入 Recall 仓库下的 `.nexus` 目录。旧 `RECALLDOCK_STORE_DIR/.nexus` 只作为兼容迁移来源和回滚证据保留。
+Nexus 系统状态不得写入 Recall 仓库下的 `.nexus` 目录；系统状态只写入 `NEXUS_DATA_DIR`。
 
 ## Compose
 
 ```bash
-docker compose build nexus
-docker compose up -d nexus
+docker compose build nexusdock
+docker compose up -d nexusdock
 ```
 
-生产镜像名建议使用 `nexus:local`，旧 `recalldock:local` 只作为回滚镜像保留。
+生产镜像名使用 `nexusdock:local`。
 
 Compose 应分别挂载 Nexus 数据目录和 Recall 仓库目录。
 

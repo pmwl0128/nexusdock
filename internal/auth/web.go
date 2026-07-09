@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/crypto/argon2"
 
-	"github.com/uvwt/agentdock-nexus/internal/audit"
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/core"
+	"github.com/uvwt/nexusdock/internal/audit"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/core"
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 
 var commonWeakPasswords = map[string]struct{}{
 	"123456789012": {}, "password1234": {}, "qwerty123456": {},
-	"admin12345678": {}, "letmein123456": {}, "recalldock": {},
+	"admin12345678": {}, "letmein123456": {}, "nexusdock": {},
 }
 
 type WebSession struct {
@@ -160,7 +160,7 @@ func (s *Service) EnsureLegacyAdmin(ctx context.Context, username, password, pas
 	if username == "" || (password == "" && passwordHash == "") {
 		return false, nil
 	}
-	if username == "admin" && (password == "recalldock") && passwordHash == "" {
+	if username == "admin" && (password == "nexusdock") && passwordHash == "" {
 		return false, nil
 	}
 	algorithm := "argon2id"

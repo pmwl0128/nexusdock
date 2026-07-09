@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/httpx"
-	"github.com/uvwt/agentdock-nexus/internal/recall"
-	"github.com/uvwt/agentdock-nexus/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/httpx"
+	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 func newHandler(t *testing.T) http.Handler {
@@ -44,7 +44,7 @@ func TestHealthAndEmbeddedNexusUI(t *testing.T) {
 	if !strings.Contains(ui.Body.String(), `<div id="root"></div>`) {
 		t.Fatalf("ui index does not contain application mount point: %s", ui.Body.String())
 	}
-	if !strings.Contains(ui.Body.String(), `<title>AgentDock Nexus</title>`) {
+	if !strings.Contains(ui.Body.String(), `<title>NexusDock</title>`) {
 		t.Fatalf("ui index still exposes legacy title: %s", ui.Body.String())
 	}
 }

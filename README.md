@@ -1,6 +1,6 @@
-# AgentDock Nexus
+# NexusDock
 
-AgentDock Nexus is the personal AgentDock control plane. It manages devices, Recall content, backups, administrator sessions, and a Runtime view backed by AgentDock Runtime APIs.
+NexusDock is the personal AgentDock control plane. It manages devices, Recall content, backups, administrator sessions, and a Runtime view backed by AgentDock Runtime APIs.
 
 ## Product Boundary
 
@@ -17,8 +17,7 @@ Nexus does not own AgentDock Task, Skill, or Workflow lifecycle state. Those sys
 ## Runtime Structure
 
 ```text
-cmd/nexus          production service entrypoint
-cmd/recalldock     deprecated compatibility wrapper
+cmd/nexusdock          production service entrypoint
 internal/recall    Recall Markdown content, notes, cards, and Git sync
 internal/devices   device enrollment, heartbeat, policy, and structured commands
 internal/commands  device command queue
@@ -27,7 +26,7 @@ internal/httpx     Nexus HTTP API, Runtime API facade, and embedded Web UI
 web                React Nexus console
 ```
 
-Production builds use `cmd/nexus`. `cmd/recalldock` is kept only as a deprecated compatibility wrapper for existing local commands. New product vocabulary, public contracts, deployment variables, and UI copy must use Nexus, Recall, and Runtime.
+Production builds use `cmd/nexusdock`. Product vocabulary, public contracts, deployment variables, and UI copy must use NexusDock, Nexus, Recall, and Runtime consistently.
 
 ## Data Layout
 

@@ -57,7 +57,7 @@
 * Memory 主要 CSS：`web/src/styles.css`。
 * Memory 组件：`web/src/MemoryWorkspace.tsx`。
 * Nexus app shell：`web/src/App.tsx`。
-* 真实环境记忆确认：当前 `/Volumes/KIOXIA/Docker/agentdock-nexus/source` 是真实部署目录，前端构建产物需要随源码变更一起处理；MemoryDock 真实服务由 Docker Compose 管理，当前任务不改运行时配置。
+* 真实环境记忆确认：当前 `/Volumes/KIOXIA/Docker/nexusdock/source` 是真实部署目录，前端构建产物需要随源码变更一起处理；MemoryDock 真实服务由 Docker Compose 管理，当前任务不改运行时配置。
 * `.trellis/spec/frontend/index.md` 明确要求：Memory 在 `.nexus-memory-mode` 下应作为 Nexus workbench surface；统一样式应优先作用于 `.nexus-memory-mode`，避免 legacy MemoryDock 独立 UI 风格反向污染控制台。
 * `web/src/App.tsx` 在 `section === 'memory'` 时包裹 `.nexus-memory-mode` 并渲染 `MemoryWorkspace`；这是最适合做统一覆写的边界。
 * `web/src/MemoryWorkspace.tsx` 现有功能表面包括 Dashboard、Memories Explorer/Editor、Git Review、Sync Center、Command Palette、移动导航与 fullscreen/focus 状态；脑暴方案必须保留这些行为入口。

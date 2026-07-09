@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uvwt/agentdock-nexus/internal/auth"
-	"github.com/uvwt/agentdock-nexus/internal/core"
+	"github.com/uvwt/nexusdock/internal/auth"
+	"github.com/uvwt/nexusdock/internal/core"
 )
 
 const sessionCookieName = "nexus_session"

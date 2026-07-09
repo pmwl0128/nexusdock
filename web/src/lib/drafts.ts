@@ -1,4 +1,4 @@
-const RECALL_DRAFT_KEY = 'agentdock-nexus:draft:recall';
+const RECALL_DRAFT_KEY = 'nexusdock:draft:recall';
 const MAX_DRAFT_BYTES = 256 * 1024;
 
 export type RecallDraft = {

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/config"
+	"github.com/uvwt/nexusdock/internal/config"
 )
 
 func TestSafeReturnToRejectsExternalAndControlValues(t *testing.T) {

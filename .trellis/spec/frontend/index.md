@@ -7,7 +7,7 @@ Applies to the React/Vite app under `web/`, including the embedded build output 
 ## Nexus Console Rules
 
 - Treat `web/src/App.tsx` pages as operational console surfaces, not landing pages. Prefer dense, scannable panels, direct action entry points, and visible live/compatibility state.
-- Treat `web/src/RecallWorkspace.tsx` as a Nexus workbench surface when it is rendered under `.nexus-recall-mode`. Scope Recall/Nexus visual integration CSS to `.nexus-recall-mode` and load it after legacy `styles.css` so old legacy RecallDock-specific glass/gradient experiments do not leak back into the unified console shell.
+- Treat `web/src/RecallWorkspace.tsx` as a Nexus workbench surface when it is rendered under `.nexus-recall-mode`. Scope Recall/Nexus visual integration CSS to `.nexus-recall-mode` and load it after legacy `styles.css` so old legacy Recall-specific glass/gradient experiments do not leak back into the unified console shell.
 - When Nexus opens Recall without a file/search deep link, default to the Recall workbench dashboard. Only route directly to the Recall explorer when `tab=memories` is explicit or the URL carries Recall deep-link params such as `path`, `prefix`, or `q`.
 - Do not add new backend API dependencies for dashboard polish unless the task explicitly changes contracts. Reuse existing resource helpers and fallback paths first.
 - Route API calls through `web/src/api/client.ts`; it must parse both Nexus top-level `ErrorResponse` (`code`, `message`, `request_id`) and legacy compatibility errors (`error.code`, `error.message`) because `/ui/` can be served by both surfaces.

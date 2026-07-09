@@ -156,7 +156,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "Nexus 系统与数据存储状态。",
         {
             "ok": scalar("boolean", "系统是否健康。"),
-            "service": scalar("string", "服务名称，固定为 nexus。"),
+            "service": scalar("string", "服务名称，固定为 nexusdock。"),
             "database": scalar("string", "SQLite 健康状态。"),
             "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
             "nexus_data_dir": scalar("string", "Nexus 系统状态目录。"),
@@ -517,9 +517,9 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
     return {
         "openapi": "3.1.0",
         "info": {
-            "title": "AgentDock Nexus API",
+            "title": "NexusDock API",
             "version": "1.0.0",
-            "description": "个人 AgentDock Nexus 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。",
+            "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,

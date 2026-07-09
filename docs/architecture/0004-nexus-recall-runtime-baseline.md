@@ -17,4 +17,4 @@ Runtime data must enter Nexus through AgentDock Runtime APIs. Nexus must not cre
 - Nexus backup and restore can treat system state and Recall content as separate units.
 - Runtime views are allowed to be read-only when AgentDock Runtime lacks controlled write APIs.
 - Public contracts must name Runtime resources as Runtime views or Runtime actions, not Nexus-owned Task or Skill systems.
-- Legacy RecallDock names are migration fallbacks only and are not the design vocabulary for new code.
+- Legacy names are not part of the design vocabulary for new code.

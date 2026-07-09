@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/recall"
-	"github.com/uvwt/agentdock-nexus/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 func newTestHandler(t *testing.T, cfg config.Config) http.Handler {

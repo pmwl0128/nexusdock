@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	recall "github.com/uvwt/agentdock-nexus/internal/recall"
-	recallsync "github.com/uvwt/agentdock-nexus/internal/sync/recall"
+	recall "github.com/uvwt/nexusdock/internal/recall"
+	recallsync "github.com/uvwt/nexusdock/internal/sync/recall"
 )
 
 func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
@@ -92,9 +92,9 @@ func runGit(t *testing.T, dir string, args ...string) {
 }
 
 func TestLiveRecallRepositoryValidation(t *testing.T) {
-	root := strings.TrimSpace(os.Getenv("RECALLDOCK_LIVE_STORE"))
+	root := strings.TrimSpace(os.Getenv("RECALL_LIVE_STORE"))
 	if root == "" {
-		t.Skip("RECALLDOCK_LIVE_STORE is not set")
+		t.Skip("RECALL_LIVE_STORE is not set")
 	}
 	before, err := recall.SnapshotFiles(root)
 	if err != nil {

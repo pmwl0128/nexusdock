@@ -1,12 +1,12 @@
 // Package recallsync preserves Recall Git synchronization behind the
-// AgentDock Nexus module path. It is a compatibility facade, not a second sync
+// NexusDock module path. It is a compatibility facade, not a second sync
 // implementation.
 package recallsync
 
 import (
 	"log/slog"
 
-	"github.com/uvwt/agentdock-nexus/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 type Config = syncer.Config

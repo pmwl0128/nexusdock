@@ -111,7 +111,7 @@ func firstNonEmptyEnv(keys ...string) string {
 
 func NewEmbeddingService(store *Store, cfg EmbeddingConfig) *EmbeddingService {
 	if strings.TrimSpace(cfg.Endpoint) == "" {
-		cfg.Endpoint = firstNonEmptyEnv("RECALL_EMBEDDING_ENDPOINT", "RECALLDOCK_EMBEDDING_ENDPOINT")
+		cfg.Endpoint = strings.TrimSpace(os.Getenv("RECALL_EMBEDDING_ENDPOINT"))
 	}
 	if strings.TrimSpace(cfg.Endpoint) == "" {
 		cfg.Endpoint = DefaultEmbeddingEndpoint

@@ -1,6 +1,6 @@
 # Web Components
 
-本目录用于拆分 AgentDock Nexus Web UI 组件。
+本目录用于拆分 NexusDock Web UI 组件。
 
 当前入口位于 `web/src/App.tsx`，`RecallWorkspace.tsx` 承载 Recall 工作区能力。新增页面和交互应优先按领域拆分为可复用组件，避免继续扩大入口文件。
 

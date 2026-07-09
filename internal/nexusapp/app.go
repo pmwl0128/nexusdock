@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/uvwt/agentdock-nexus/internal/auth"
-	"github.com/uvwt/agentdock-nexus/internal/commands"
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/core"
-	"github.com/uvwt/agentdock-nexus/internal/devices"
-	"github.com/uvwt/agentdock-nexus/internal/httpx"
-	"github.com/uvwt/agentdock-nexus/internal/recall"
-	"github.com/uvwt/agentdock-nexus/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/auth"
+	"github.com/uvwt/nexusdock/internal/commands"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/core"
+	"github.com/uvwt/nexusdock/internal/devices"
+	"github.com/uvwt/nexusdock/internal/httpx"
+	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 func Main(args []string) {
@@ -124,7 +124,7 @@ func Main(args []string) {
 	}
 
 	go func() {
-		logger.Info("nexus starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
+		logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", "error", err)
 			cancel()
@@ -135,5 +135,5 @@ func Main(args []string) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
-	logger.Info("nexus stopped")
+	logger.Info("nexusdock stopped")
 }

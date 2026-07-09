@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "AgentDock Nexus API",
+    "title": "NexusDock API",
     "version": "1.0.0",
-    "description": "个人 AgentDock Nexus 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。"
+    "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。"
   },
   "servers": [
     {
@@ -6331,7 +6331,7 @@
           },
           "service": {
             "type": "string",
-            "description": "服务名称，固定为 nexus。"
+            "description": "服务名称，固定为 nexusdock。"
           },
           "database": {
             "type": "string",

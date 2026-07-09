@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/uvwt/agentdock-nexus/internal/auth"
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/core"
+	"github.com/uvwt/nexusdock/internal/auth"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/core"
 )
 
 func adminCommandRequested(args []string) bool {
@@ -64,11 +64,11 @@ func runAdminCommand(ctx context.Context, cfg config.Config, args []string) erro
 
 func executableName(args []string) string {
 	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
-		return "nexus"
+		return "nexusdock"
 	}
 	name := filepath.Base(args[0])
 	if name == "" || name == "." || name == string(filepath.Separator) {
-		return "nexus"
+		return "nexusdock"
 	}
 	return name
 }

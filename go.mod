@@ -1,4 +1,4 @@
-module github.com/uvwt/agentdock-nexus
+module github.com/uvwt/nexusdock
 
 go 1.26.3
 

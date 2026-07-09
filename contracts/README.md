@@ -1,6 +1,6 @@
-# AgentDock Nexus 当前公共契约
+# NexusDock 当前公共契约
 
-`contracts/` describes the current AgentDock Nexus HTTP API.
+`contracts/` describes the current NexusDock HTTP API.
 
 Nexus owns devices, Recall access, administrator sessions, and system status. AgentDock Runtime owns Task, Skill, and Workflow lifecycles; Nexus exposes these only as Runtime API-backed views/actions.
 

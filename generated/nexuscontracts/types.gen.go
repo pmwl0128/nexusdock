@@ -48,7 +48,7 @@ type HealthResponse struct {
 type SystemStatus struct {
 	// Ok 系统是否健康。
 	Ok bool `json:"ok"`
-	// Service 服务名称，固定为 nexus。
+	// Service 服务名称，固定为 nexusdock。
 	Service string `json:"service"`
 	// Database SQLite 健康状态。
 	Database string `json:"database"`

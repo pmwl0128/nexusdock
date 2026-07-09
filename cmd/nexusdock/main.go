@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/uvwt/agentdock-nexus/internal/nexusapp"
+	"github.com/uvwt/nexusdock/internal/nexusapp"
 )
 
 func main() {

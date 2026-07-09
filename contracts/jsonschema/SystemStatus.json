@@ -127,7 +127,7 @@
         },
         "service": {
           "type": "string",
-          "description": "服务名称，固定为 nexus。"
+          "description": "服务名称，固定为 nexusdock。"
         },
         "database": {
           "type": "string",
@@ -1129,7 +1129,7 @@
     },
     "service": {
       "type": "string",
-      "description": "服务名称，固定为 nexus。"
+      "description": "服务名称，固定为 nexusdock。"
     },
     "database": {
       "type": "string",

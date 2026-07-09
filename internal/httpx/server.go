@@ -11,12 +11,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/uvwt/agentdock-nexus/internal/auth"
-	"github.com/uvwt/agentdock-nexus/internal/commands"
-	"github.com/uvwt/agentdock-nexus/internal/config"
-	"github.com/uvwt/agentdock-nexus/internal/devices"
-	"github.com/uvwt/agentdock-nexus/internal/recall"
-	"github.com/uvwt/agentdock-nexus/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/auth"
+	"github.com/uvwt/nexusdock/internal/commands"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/devices"
+	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 type Server struct {
@@ -106,7 +106,7 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "nexus"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "nexusdock"})
 }
 
 func (s *Server) syncStatus(w http.ResponseWriter, r *http.Request) {

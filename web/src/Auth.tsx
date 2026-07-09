@@ -95,8 +95,8 @@ export function LoginPage() {
 
   return (
     <main className="auth-shell">
-      <section className="auth-story" aria-label="AgentDock Nexus">
-        <div className="auth-brand"><span><Sparkles size={20} /></span><strong>AgentDock Nexus</strong></div>
+      <section className="auth-story" aria-label="NexusDock">
+        <div className="auth-brand"><span><Sparkles size={20} /></span><strong>NexusDock</strong></div>
         <div className="auth-story-copy">
           <p className="auth-kicker">PRIVATE CONTROL PLANE</p>
           <h1>一处连接设备、记忆与自动化。</h1>

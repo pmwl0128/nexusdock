@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uvwt/agentdock-nexus/internal/devices"
+	"github.com/uvwt/nexusdock/internal/devices"
 )
 
 type opsTaskSummary struct {
@@ -340,7 +340,7 @@ func (s *Server) runtimeDeployment(w http.ResponseWriter, r *http.Request) {
 	compose := readSmallText(filepath.Join(strings.TrimSpace(s.cfg.DeployDir), "docker-compose.yml"), 16000)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":         true,
-		"service":    "nexus",
+		"service":    "nexusdock",
 		"health":     map[string]any{"ok": true, "addr": s.cfg.Addr()},
 		"paths":      s.opsPaths(),
 		"compose":    compose,

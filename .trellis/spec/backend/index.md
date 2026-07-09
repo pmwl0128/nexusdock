@@ -1,6 +1,6 @@
 # Backend Development Guidelines
 
-These guidelines describe the current AgentDock Nexus backend conventions. They are executable project rules for humans and AI agents working in this repository.
+These guidelines describe the current NexusDock backend conventions. They are executable project rules for humans and AI agents working in this repository.
 
 ## Scope
 

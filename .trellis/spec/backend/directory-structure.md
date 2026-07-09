@@ -1,11 +1,10 @@
 # Directory Structure
 
-AgentDock Nexus 是单一 Go 服务加 React/Vite 前端。当前兼容生产入口是 `cmd/recalldock`，长期目标入口是 `cmd/nexus`。
+NexusDock 是单一 Go 服务加 React/Vite 前端。当前生产入口是 `cmd/nexusdock`。
 
 ## 当前结构
 
 ```text
-cmd/recalldock/       # 兼容生产入口与管理 CLI
 contracts/            # 当前生产 OpenAPI、JSON Schema、错误码
 generated/            # 契约生成的 Go DTO 与客户端
 internal/
