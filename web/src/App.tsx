@@ -14,8 +14,8 @@ import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage'
 import { CapabilitiesPage, DeploymentPage, LogsPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import './nexus.css';
 
-type RuntimeTab = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs' | 'deploy';
-type Section = 'home' | 'devices' | 'recall' | 'runtime' | 'settings';
+type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs' | 'deploy';
+type Section = 'home' | 'devices' | 'recall' | RuntimeSection | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type NexusDeviceSummary = {
@@ -71,9 +71,9 @@ type SystemStatus = {
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 
 type SectionMeta = { id: Section; label: string; icon: typeof Home };
-type RuntimeTabMeta = { id: RuntimeTab; label: string; icon: typeof Home };
+type RuntimeSectionMeta = { id: RuntimeSection; label: string; icon: typeof Home };
 
-const RUNTIME_SECTIONS: RuntimeTabMeta[] = [
+const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
   { id: 'tasks', label: '任务', icon: ListChecks },
   { id: 'skills', label: 'Skill', icon: Wrench },
   { id: 'templates', label: '模板', icon: FileJson },
@@ -85,12 +85,12 @@ const RUNTIME_SECTIONS: RuntimeTabMeta[] = [
 const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home },
   { id: 'devices', label: '设备', icon: Server },
-  { id: 'recall', label: 'Recall', icon: Database },
-  { id: 'runtime', label: '运行时', icon: Wrench },
+  { id: 'recall', label: '召回库', icon: Database },
+  ...RUNTIME_SECTIONS,
   { id: 'settings', label: '设置', icon: Settings },
 ];
 
-const LEGACY_RUNTIME_TABS: Record<string, RuntimeTab> = {
+const LEGACY_RUNTIME_SECTIONS: Record<string, RuntimeSection> = {
   tasks: 'tasks',
   cleanup: 'tasks',
   skills: 'skills',
@@ -104,15 +104,10 @@ function hashParts(): string[] {
   return window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
 }
 
-function runtimeTabFromHash(): RuntimeTab {
-  const [first, second] = hashParts();
-  if (first === 'runtime') return LEGACY_RUNTIME_TABS[second] || 'tasks';
-  return LEGACY_RUNTIME_TABS[first] || 'tasks';
-}
-
 function sectionFromHash(): Section {
-  const [first] = hashParts();
-  if (first === 'runtime' || LEGACY_RUNTIME_TABS[first]) return 'runtime';
+  const [first, second] = hashParts();
+  if (first === 'runtime') return LEGACY_RUNTIME_SECTIONS[second] || 'tasks';
+  if (LEGACY_RUNTIME_SECTIONS[first]) return LEGACY_RUNTIME_SECTIONS[first];
   if (NAV.some((item) => item.id === first)) return first as Section;
   const params = new URLSearchParams(window.location.search);
   if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
@@ -173,7 +168,6 @@ function toneForStatus(status?: string): Tone {
 
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
-  const [runtimeTab, setRuntimeTab] = useState<RuntimeTab>(runtimeTabFromHash);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -203,33 +197,15 @@ export default function App() {
   useEffect(() => {
     const onHash = () => {
       setSection(sectionFromHash());
-      setRuntimeTab(runtimeTabFromHash());
     };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
   function navigate(next: Section) {
-    window.location.hash = next === 'runtime' ? `runtime/${runtimeTab}` : next;
+    window.location.hash = next;
     setSection(next);
     setMenuOpen(false);
-  }
-
-  function changeRuntimeTab(next: RuntimeTab) {
-    setRuntimeTab(next);
-    window.location.hash = `runtime/${next}`;
-  }
-
-  if (section === 'recall') {
-    return (
-      <div className="nexus-recall-mode">
-        <button type="button" className="nexus-recall-return" onClick={() => navigate('home')}>
-          <ChevronRight size={15} /> 返回 Nexus
-        </button>
-        <RecallWorkspace />
-        {sessionExpired && <SessionExpiredDialog />}
-      </div>
-    );
   }
 
   const active = NAV.find((item) => item.id === section) ?? NAV[0];
@@ -261,7 +237,8 @@ export default function App() {
         <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
-          {section === 'runtime' && <RuntimePage active={runtimeTab} onChange={changeRuntimeTab} refreshToken={refreshToken} />}
+          {section === 'recall' && <RecallWorkspace />}
+          {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>
       </main>
@@ -302,7 +279,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
     <section className="metric-grid compact-metrics">
       <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
       <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
-      <MetricButton label="运行时" value={1} tone="ok" onClick={() => navigate('runtime')} />
+      <MetricButton label="任务" value={1} tone="ok" onClick={() => navigate('tasks')} />
       <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('settings')} />
     </section>
 
@@ -323,14 +300,12 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   </>;
 }
 
-function RuntimePage({ active, onChange, refreshToken }: { active: RuntimeTab; onChange: (tab: RuntimeTab) => void; refreshToken: number }) {
+function isRuntimeSection(section: Section): section is RuntimeSection {
+  return RUNTIME_SECTIONS.some((item) => item.id === section);
+}
+
+function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refreshToken: number }) {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    <div className="runtime-tabs" role="tablist" aria-label="AgentDock Runtime 数据">
-      {RUNTIME_SECTIONS.map((item) => {
-        const Icon = item.icon;
-        return <button type="button" role="tab" aria-selected={active === item.id} className={active === item.id ? 'is-active' : ''} key={item.id} onClick={() => onChange(item.id)}><Icon size={16} />{item.label}</button>;
-      })}
-    </div>
     <div className="runtime-inline-note"><strong>AgentDock Runtime owns this lifecycle.</strong><span>Nexus displays Runtime API state and can only perform writes through controlled Runtime endpoints.</span></div>
     {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
