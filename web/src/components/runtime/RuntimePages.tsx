@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCircle2, FileText, Layers, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
+import { CheckCircle2, Layers, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
 import { formatTime, timeZoneLabel } from '../../lib/time';
 
@@ -11,7 +11,6 @@ type OpsTaskDetail = OpsTask & { path?: string; content?: string; json?: Record<
 type OpsSkill = { id: string; title: string; source: string; path: string; description?: string; updated_at: string; file_count: number; status: string; active_version?: string; versions?: string[]; channels?: Record<string, string>; runtime_state_path?: string; doc_root?: string };
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
-type OpsLog = { name: string; path: string; size_bytes: number; updated_at: string; tail: string };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
 type OpsTool = { name: string; category: string; status: string; description: string; source?: string; device_id?: string; device_name?: string; version?: string; metadata?: Record<string, unknown> };
 type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
@@ -21,7 +20,6 @@ type CleanupResponse = { ok: boolean; dry_run: boolean; changed: OpsTask[]; coun
 type SkillsResponse = { ok: boolean; items: OpsSkill[]; count: number; root?: string; source?: string };
 type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail; source?: string };
 type CapabilitiesResponse = { ok: boolean; tools: OpsTool[]; counts: Record<string, unknown>; paths: OpsPaths; source?: string; runtime?: Record<string, unknown> };
-type LogsResponse = { ok: boolean; items: OpsLog[]; count: number; roots: string[] };
 
 const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0, root: '' };
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
@@ -141,15 +139,6 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
       <article className="cap-tool-panel"><header><div><h3>工具分组</h3><p>选中一项后右侧展示用途、状态、统计和路径。</p></div><StatusBadge tone="muted">{Object.keys(groups).length} groups</StatusBadge></header>{Object.entries(groups).length === 0 ? <EmptyOps text="没有可展示工具。" /> : Object.entries(groups).map(([category, tools]) => <div className="cap-group" key={category}><div className="cap-group-head"><strong>{category}</strong><span>{tools.length} tools</span></div>{tools.map((tool) => <button type="button" className={`cap-tool-row ${selected && toolKey(selected) === toolKey(tool) ? 'is-selected' : ''}`} key={toolKey(tool)} onClick={() => setSelectedKey(toolKey(tool))}><StatusDot tone={tool.status === 'available' ? 'ok' : 'warn'} /><div><strong>{tool.name}</strong><small>{tool.source || 'unknown'} · {tool.description}</small></div><em>{tool.status}</em></button>)}</div>)}</article>
       <aside className="cap-side"><CapabilityDetail tool={selected} counts={counts} paths={resource.data.paths} workflowCounts={workflowCounts} /><PathPanel paths={resource.data.paths} /></aside>
     </section>
-  </OpsShell>;
-}
-
-export function LogsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<LogsResponse>('/v1/runtime/logs', { ok: false, items: [], count: 0, roots: [] }, refreshToken);
-  const [selectedPath, setSelectedPath] = useState('');
-  const selected = resource.data.items.find((item) => item.path === selectedPath) || resource.data.items[0];
-  return <OpsShell title="运行日志" subtitle="按更新时间聚合可读取日志，左侧选择文件，右侧查看尾部内容。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-master-detail logs-layout"><div className="ops-task-rail">{resource.data.items.length === 0 ? <EmptyOps text="当前没有可展示日志。" /> : resource.data.items.map((item) => <button type="button" key={`${item.path}:${item.updated_at}`} className={`ops-task-line ${selected?.path === item.path ? 'is-selected' : ''}`} onClick={() => setSelectedPath(item.path)}><StatusDot tone="muted" /><span><strong>{item.name}</strong><small>{formatBytes(item.size_bytes)} · {formatTime(item.updated_at)}</small></span></button>)}</div><article className="ops-log is-detail"><header><div><strong>{selected?.name || '暂无日志'}</strong><small>{selected?.path || resource.data.roots.join(', ')}</small></div><FileText size={17} /></header><div className="ops-key-values is-compact"><Info label="大小" value={formatBytes(selected?.size_bytes)} /><Info label="更新" value={formatTime(selected?.updated_at)} /><Info label="根目录" value={resource.data.roots.join(', ') || '未配置'} /></div><pre>{selected?.tail || '空日志'}</pre></article></section>
   </OpsShell>;
 }
 

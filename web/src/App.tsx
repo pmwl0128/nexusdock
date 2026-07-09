@@ -3,7 +3,7 @@ import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity, Boxes, ChevronRight,
   CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
-  ScrollText, Server, Settings, ShieldCheck, Sparkles, Wrench, X,
+  Server, Settings, ShieldCheck, Sparkles, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
@@ -11,10 +11,10 @@ import AccountSecurity from './AccountSecurity';
 import { ApiError, api, setCSRFToken } from './api/client';
 import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
-import { CapabilitiesPage, LogsPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
+import { CapabilitiesPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import './nexus.css';
 
-type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities' | 'logs';
+type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities';
 type Section = 'home' | 'devices' | 'recall' | RuntimeSection | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
@@ -78,7 +78,6 @@ const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
   { id: 'skills', label: 'Skill', icon: Wrench },
   { id: 'templates', label: '模板', icon: FileJson },
   { id: 'capabilities', label: '能力', icon: Boxes },
-  { id: 'logs', label: '日志', icon: ScrollText },
 ];
 
 const NAV: SectionMeta[] = [
@@ -95,7 +94,6 @@ const LEGACY_RUNTIME_SECTIONS: Record<string, RuntimeSection> = {
   skills: 'skills',
   templates: 'templates',
   capabilities: 'capabilities',
-  logs: 'logs',
 };
 
 function hashParts(): string[] {
@@ -309,7 +307,6 @@ function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refr
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
     {active === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
-    {active === 'logs' && <LogsPage refreshToken={refreshToken} />}
   </section>;
 }
 

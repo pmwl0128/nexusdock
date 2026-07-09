@@ -106,14 +106,6 @@ type opsToolSummary struct {
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
-type opsLogEntry struct {
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	SizeBytes int64  `json:"size_bytes"`
-	UpdatedAt string `json:"updated_at"`
-	Tail      string `json:"tail"`
-}
-
 func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /v1/runtime/overview", protected(s.runtimeOverview))
 	mux.HandleFunc("GET /v1/runtime/tasks", protected(s.runtimeTasks))
@@ -121,7 +113,6 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
 	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
 	mux.HandleFunc("GET /v1/runtime/capabilities", protected(s.runtimeCapabilities))
-	mux.HandleFunc("GET /v1/runtime/logs", protected(s.runtimeLogs))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
 }
@@ -327,11 +318,6 @@ func opsCommandContracts() []opsToolSummary {
 		items = append(items, opsToolSummary{Name: row.name, Category: "command", Status: "contract", Description: row.desc, Source: "nexus-command-contract", Metadata: map[string]any{"risk": row.risk}})
 	}
 	return items
-}
-
-func (s *Server) runtimeLogs(w http.ResponseWriter, r *http.Request) {
-	items := s.collectOpsLogs()
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "roots": s.logRoots()})
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {
@@ -683,35 +669,6 @@ func opsSkillVersions(state opsSkillRuntimeState) []string {
 	return versions
 }
 
-func (s *Server) collectOpsLogs() []opsLogEntry {
-	items := []opsLogEntry{}
-	for _, root := range s.logRoots() {
-		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return nil
-			}
-			name := d.Name()
-			if !(strings.HasSuffix(name, ".log") || strings.HasSuffix(name, ".out") || strings.HasSuffix(name, ".err")) {
-				return nil
-			}
-			info, err := d.Info()
-			if err != nil {
-				return nil
-			}
-			items = append(items, opsLogEntry{Name: name, Path: trimKnownRoot(path, root), SizeBytes: info.Size(), UpdatedAt: modTime(info), Tail: tailText(path, 80, 12000)})
-			if len(items) >= 30 {
-				return fs.SkipAll
-			}
-			return nil
-		})
-	}
-	sort.SliceStable(items, func(i, j int) bool { return items[i].UpdatedAt > items[j].UpdatedAt })
-	if len(items) > 30 {
-		items = items[:30]
-	}
-	return items
-}
-
 func (s *Server) workflowCounts() map[string]int {
 	return s.workflowCountsFromRuntime(context.Background())
 }
@@ -722,19 +679,6 @@ func (s *Server) opsPaths() map[string]string {
 
 func (s *Server) agentDockPath(parts ...string) string {
 	return filepath.Join(append([]string{strings.TrimSpace(s.cfg.AgentDockDir)}, parts...)...)
-}
-func (s *Server) logRoots() []string {
-	if strings.TrimSpace(s.cfg.LogDirs) != "" {
-		return opsSplitCSV(s.cfg.LogDirs)
-	}
-	roots := []string{}
-	if s.cfg.AgentDockDir != "" {
-		roots = append(roots, s.cfg.AgentDockDir)
-	}
-	if s.cfg.WorkspaceDir != "" {
-		roots = append(roots, filepath.Join(s.cfg.WorkspaceDir, ".npm/_logs"), filepath.Join(s.cfg.WorkspaceDir, ".cc-switch/logs"))
-	}
-	return roots
 }
 
 func cleanOpsFileName(value, suffix string) (string, error) {
@@ -806,17 +750,6 @@ func skillFileKind(path string) string {
 	default:
 		return "asset"
 	}
-}
-
-func opsSplitCSV(value string) []string {
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part = strings.TrimSpace(part); part != "" {
-			result = append(result, part)
-		}
-	}
-	return result
 }
 
 func firstSkills(items []opsSkillSummary, n int) []opsSkillSummary {
@@ -961,21 +894,6 @@ func readSmallText(path string, limit int) string {
 		raw = raw[:limit]
 	}
 	return string(raw)
-}
-
-func tailText(path string, maxLines, maxBytes int) string {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return err.Error()
-	}
-	if len(raw) > maxBytes {
-		raw = raw[len(raw)-maxBytes:]
-	}
-	lines := strings.Split(string(raw), "\n")
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
-	}
-	return strings.Join(lines, "\n")
 }
 
 func trimKnownRoot(path, root string) string {
