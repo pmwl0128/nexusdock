@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Plus, Search } from 'lucide-react';
 import type { RecallEntry, RecallWorkspaceViewModel } from './types';
-import { formatBytes, nameOf, normalizePath } from './utils';
+import { nameOf, normalizePath } from './utils';
 
 type Props = Pick<RecallWorkspaceViewModel, 'state' | 'fileEntries' | 'actions'>;
 
@@ -11,7 +11,6 @@ type RecallTreeNode = {
   folders: RecallTreeNode[];
   files: RecallEntry[];
   fileCount: number;
-  totalSizeBytes: number;
 };
 
 type MutableRecallTreeNode = RecallTreeNode & {
@@ -20,7 +19,7 @@ type MutableRecallTreeNode = RecallTreeNode & {
 };
 
 function createFolderNode(name: string, path: string): MutableRecallTreeNode {
-  return { name, path, folders: [], files: [], fileCount: 0, totalSizeBytes: 0, folderMap: new Map() };
+  return { name, path, folders: [], files: [], fileCount: 0, folderMap: new Map() };
 }
 
 function comparePath(a: string, b: string): number {
@@ -56,15 +55,13 @@ function buildRecallTree(entries: RecallEntry[]): { root: RecallTreeNode; folder
     const files = [...node.files].sort((a, b) => comparePath(nameOf(a.path), nameOf(b.path)));
 
     let fileCount = files.length;
-    let totalSizeBytes = files.reduce((sum, entry) => sum + (entry.size_bytes ?? 0), 0);
     const folders = childFolders.map((folder) => {
       const finalized = finalize(folder);
       fileCount += finalized.fileCount;
-      totalSizeBytes += finalized.totalSizeBytes;
       return finalized;
     });
 
-    return { name: node.name, path: node.path, folders, files, fileCount, totalSizeBytes };
+    return { name: node.name, path: node.path, folders, files, fileCount };
   }
 
   return { root: finalize(root), folderCount };
@@ -96,12 +93,12 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         key={entry.path}
         className={`mem-lite-tree-row mem-lite-tree-file ${state.current?.path === entry.path ? 'active' : ''}`}
         style={treeIndent(depth)}
+        title={entry.path}
         onClick={() => actions.openRecall(entry.path)}
       >
         <span className="mem-lite-tree-spacer" />
         <FileText size={15} />
-        <span className="mem-lite-tree-label"><strong>{nameOf(entry.path)}</strong><small>{entry.path}</small></span>
-        <em>{formatBytes(entry.size_bytes)}</em>
+        <span className="mem-lite-tree-label"><strong>{nameOf(entry.path)}</strong></span>
       </button>
     ));
   }
@@ -117,12 +114,13 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         className="mem-lite-tree-row mem-lite-tree-folder-row"
         style={treeIndent(depth)}
         aria-expanded={!collapsed}
+        title={folder.path}
         onClick={() => toggleFolder(folder.path)}
       >
         <ToggleIcon size={14} />
         <FolderIcon size={16} />
-        <span className="mem-lite-tree-label"><strong>{folder.name}</strong><small>{folder.path}</small></span>
-        <em>{folder.fileCount} 个 · {formatBytes(folder.totalSizeBytes)}</em>
+        <span className="mem-lite-tree-label"><strong>{folder.name}</strong></span>
+        <em>{folder.fileCount}</em>
       </button>
       {!collapsed && <div className="mem-lite-tree-children">
         {folder.folders.map((child) => renderFolder(child, depth + 1))}
