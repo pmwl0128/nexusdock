@@ -650,7 +650,56 @@ dialog.nx-dialog-backdrop{border:0;max-width:none;max-height:none;padding:0;marg
 @media(max-width:760px){
   .runtime-standalone-page .workflow-runtime-page{
     display:block!important;
-    overflow:visible!important;
+    overflow:hidden!important;
+  }
+
+  html,
+  body,
+  #root,
+  .nexus-app,
+  .nexus-main,
+  .nexus-content,
+  .runtime-standalone-page,
+  .runtime-standalone-page .workflow-runtime-page,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-layout,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-viewer,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-card{
+    box-sizing:border-box!important;
+    max-width:100vw!important;
+    overflow-x:hidden!important;
+  }
+  .runtime-standalone-page,
+  .runtime-standalone-page .workflow-runtime-page,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-layout{
+    width:100%!important;
+  }
+  .runtime-standalone-page .workflow-runtime-page .nexus-eyebrow,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-head h3,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-head p,
+  .runtime-standalone-page .workflow-runtime-page .workflow-info-tile strong,
+  .runtime-standalone-page .workflow-runtime-page .workflow-step-card strong,
+  .runtime-standalone-page .workflow-runtime-page .workflow-step-card p{
+    max-width:100%!important;
+    overflow-wrap:anywhere!important;
+    word-break:break-word!important;
+  }
+  .runtime-tabs{
+    max-width:100%!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    padding-bottom:2px!important;
+  }
+  .runtime-tabs button{
+    flex:0 0 auto!important;
+  }
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-head>div,
+  .runtime-standalone-page .workflow-runtime-page .workflow-runtime-list button>span:nth-child(2){
+    min-width:0!important;
+  }
+  .runtime-standalone-page .workflow-runtime-page .workflow-file-icon,
+  .runtime-standalone-page .workflow-runtime-page .status-badge,
+  .runtime-standalone-page .workflow-runtime-page .nx-button{
+    flex-shrink:0!important;
   }
   .runtime-standalone-page .workflow-runtime-page .section-heading{
     display:flex!important;
@@ -704,24 +753,23 @@ dialog.nx-dialog-backdrop{border:0;max-width:none;max-height:none;padding:0;marg
     display:none!important;
   }
   .runtime-standalone-page .workflow-runtime-page .workflow-runtime-list{
-    display:flex!important;
+    display:grid!important;
     gap:8px!important;
-    max-height:none!important;
+    max-height:260px!important;
     min-height:0!important;
-    overflow-x:auto!important;
-    overflow-y:hidden!important;
-    padding:2px 2px 8px!important;
-    margin:0 -2px!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    padding:0!important;
+    margin:0!important;
     -webkit-overflow-scrolling:touch;
-    scroll-snap-type:x proximity;
   }
   .runtime-standalone-page .workflow-runtime-page .workflow-runtime-list button{
-    flex:0 0 78vw!important;
-    min-height:72px!important;
-    max-width:320px!important;
-    scroll-snap-align:start;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    min-height:66px!important;
     grid-template-columns:auto minmax(0,1fr) auto!important;
-    padding:12px!important;
+    padding:11px!important;
     background:#fff!important;
     border-color:#e1e8f2!important;
     box-shadow:0 8px 20px rgba(31,49,82,.04)!important;
