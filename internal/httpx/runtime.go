@@ -834,6 +834,13 @@ func modTime(info fs.FileInfo) string {
 	return info.ModTime().UTC().Format(time.RFC3339Nano)
 }
 
+func fileSize(info fs.FileInfo) int64 {
+	if info == nil {
+		return 0
+	}
+	return info.Size()
+}
+
 func writeJSONFile(path string, body map[string]any) error {
 	content, err := json.MarshalIndent(body, "", "  ")
 	if err != nil {

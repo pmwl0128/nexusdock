@@ -69,6 +69,7 @@ func (s *Server) registerWorkflowTemplateRoutes(mux *http.ServeMux, protected fu
 	mux.HandleFunc("POST /v1/workflow-templates/drafts", protected(s.workflowTemplateSaveDraft))
 	mux.HandleFunc("POST /v1/workflow-templates/match", protected(s.workflowTemplatesMatch))
 	mux.HandleFunc("POST /v1/workflow-templates/reindex", protected(s.workflowTemplatesReindex))
+	mux.HandleFunc("GET /v1/workflow-templates/vector-index", protected(s.workflowTemplateVectorIndexRead))
 	mux.HandleFunc("GET /v1/workflow-templates/", protected(s.workflowTemplateRead))
 	mux.HandleFunc("POST /v1/workflow-templates/", protected(s.workflowTemplateAction))
 }
@@ -292,6 +293,42 @@ func (s *Server) workflowTemplatesReindex(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.Request) {
+	if !s.workflowTemplateVectorEnabled() {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "not_configured"})
+		return
+	}
+	data, err := os.ReadFile(s.workflowTemplateVectorIndexPath())
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "missing"})
+		return
+	}
+	var idx workflowTemplateVectorIndex
+	if err := json.Unmarshal(data, &idx); err != nil {
+		writeError(w, http.StatusConflict, "WORKFLOW_VECTOR_INDEX_INVALID", err.Error())
+		return
+	}
+	if idx.Model != s.cfg.EmbeddingModel || idx.Documents == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": s.cfg.EmbeddingModel})
+		return
+	}
+	info, _ := os.Stat(s.workflowTemplateVectorIndexPath())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":                  true,
+		"available":           true,
+		"source":              "nexus-registry",
+		"file_name":           "vector-index.json",
+		"path":                "workflow-templates/vector-index.json",
+		"size_bytes":          fileSize(info),
+		"updated_at":          modTime(info),
+		"content":             string(data),
+		"vector_index_status": "ready",
+		"vector_index_items":  len(idx.Documents),
+		"embedding_model":     idx.Model,
+		"dimension":           idx.Dimension,
+	})
 }
 
 func (s *Server) getWorkflowTemplate(id, version string) (workflowTemplate, error) {
