@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -46,7 +48,7 @@ func (s *Server) listRuntimeWorkflowTemplates(w http.ResponseWriter, r *http.Req
 	}
 	all := make([]workflowTemplateSummary, 0, len(templates))
 	for _, template := range templates {
-		item := workflowTemplateSummaryFromTemplate(template)
+		item := s.workflowTemplateSummary(template)
 		if item.ID == "" {
 			continue
 		}
@@ -100,14 +102,34 @@ func (s *Server) runtimeWorkflowTemplateDetail(w http.ResponseWriter, r *http.Re
 	content, _ := json.MarshalIndent(template, "", "  ")
 	var asMap map[string]any
 	_ = json.Unmarshal(content, &asMap)
-	detail := workflowTemplateDetail{workflowTemplateSummary: workflowTemplateSummaryFromTemplate(template), Content: string(content), JSON: asMap}
+	detail := workflowTemplateDetail{workflowTemplateSummary: s.workflowTemplateSummary(template), Content: string(content), JSON: asMap}
 	allTemplates, _ := s.listWorkflowTemplates("")
 	all := make([]workflowTemplateSummary, 0, len(allTemplates))
 	for _, item := range allTemplates {
-		all = append(all, workflowTemplateSummaryFromTemplate(item))
+		all = append(all, s.workflowTemplateSummary(item))
 	}
 	attachWorkflowTemplateCounters(&detail.workflowTemplateSummary, all)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail, "source": "nexus-registry"})
+}
+
+func (s *Server) workflowTemplateSummary(t workflowTemplate) workflowTemplateSummary {
+	summary := workflowTemplateSummaryFromTemplate(t)
+	s.attachWorkflowTemplateFileMetadata(&summary)
+	return summary
+}
+
+func (s *Server) attachWorkflowTemplateFileMetadata(summary *workflowTemplateSummary) {
+	if summary == nil || summary.ID == "" || summary.Version == "" {
+		return
+	}
+	area := workflowTemplateStorageArea(summary.Status)
+	summary.Path = filepath.ToSlash(filepath.Join("workflow-templates", area, summary.FileName))
+	info, err := os.Stat(s.workflowTemplatePath(area, summary.ID, summary.Version))
+	if err != nil {
+		return
+	}
+	summary.SizeBytes = info.Size()
+	summary.UpdatedAt = info.ModTime().UTC()
 }
 
 func workflowTemplateSummariesFromRuntime(body map[string]any) []workflowTemplateSummary {

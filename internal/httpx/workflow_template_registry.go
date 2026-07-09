@@ -135,7 +135,7 @@ func (s *Server) workflowTemplateSaveDraft(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusConflict, "WORKFLOW_SAVE_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": workflowTemplateSummaryFromTemplate(t), "root": s.workflowRegistryRoot(), "source": "nexus-registry"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "root": s.workflowRegistryRoot(), "source": "nexus-registry"})
 }
 
 func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +161,7 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "valid": true, "template": t, "template_summary": workflowTemplateSummaryFromTemplate(t), "source": "nexus-registry"})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "valid": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
 	case "publish":
 		t, err := s.loadWorkflowTemplate("drafts", id, version)
 		if err != nil {
@@ -190,7 +190,7 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		_ = os.Remove(s.workflowTemplatePath("drafts", id, version))
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": workflowTemplateSummaryFromTemplate(t), "source": "nexus-registry"})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
 	case "retire":
 		t, err := s.loadWorkflowTemplate("published", id, version)
 		if err != nil {
@@ -208,7 +208,7 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusConflict, "WORKFLOW_RETIRE_FAILED", err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": workflowTemplateSummaryFromTemplate(t), "source": "nexus-registry"})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
 	default:
 		writeError(w, http.StatusNotFound, "WORKFLOW_ACTION_NOT_FOUND", "unsupported workflow template action")
 	}
@@ -227,7 +227,7 @@ func (s *Server) workflowTemplateRead(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": workflowTemplateSummaryFromTemplate(t), "source": "nexus-registry"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
 }
 
 func (s *Server) workflowTemplatesList(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +241,7 @@ func (s *Server) workflowTemplatesList(w http.ResponseWriter, r *http.Request) {
 	}
 	summaries := make([]workflowTemplateSummary, 0, len(templates))
 	for _, t := range templates {
-		item := workflowTemplateSummaryFromTemplate(t)
+		item := s.workflowTemplateSummary(t)
 		if query != "" && !templateSummaryMatches(item, query) {
 			continue
 		}
@@ -716,7 +716,19 @@ func workflowTemplateActionParams(path string) (string, string, string, error) {
 
 func workflowTemplateSummaryFromTemplate(t workflowTemplate) workflowTemplateSummary {
 	fileName := t.ID + "@" + t.Version + ".json"
-	return workflowTemplateSummary{ID: t.ID, Version: t.Version, Title: firstNonEmptyString(t.Title, t.ID), Description: t.Description, Status: string(t.Status), Location: workflowLocationFromStatus(string(t.Status)), FileName: fileName, Path: "nexus-registry/" + fileName, StepCount: len(t.Steps), Keywords: t.Match.Keywords, Current: t.Status == workflowTemplateActive || t.Status == workflowTemplateDraft}
+	status := string(t.Status)
+	area := workflowTemplateStorageArea(status)
+	return workflowTemplateSummary{ID: t.ID, Version: t.Version, Title: firstNonEmptyString(t.Title, t.ID), Description: t.Description, Status: status, Location: workflowLocationFromStatus(status), FileName: fileName, Path: filepath.ToSlash(filepath.Join("workflow-templates", area, fileName)), StepCount: len(t.Steps), Keywords: t.Match.Keywords, Current: t.Status == workflowTemplateActive || t.Status == workflowTemplateDraft}
+}
+
+func workflowTemplateStorageArea(status string) string {
+	switch status {
+	case "draft", "validated":
+		return "drafts"
+	default:
+		// Retired templates are immutable history stored beside active published versions.
+		return "published"
+	}
 }
 
 func workflowTemplateCompactList(templates []workflowTemplate) []map[string]any {
