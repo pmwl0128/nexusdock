@@ -58,6 +58,15 @@ function statusTone(template?: Pick<WorkflowTemplateSummary, 'location' | 'statu
   return 'muted';
 }
 
+function templateDisplayTitle(template?: Pick<WorkflowTemplateSummary, 'title' | 'id' | 'file_name'>): string {
+  const title = template?.title?.trim();
+  if (title) return title;
+  return template?.id || template?.file_name || '未命名模板';
+}
+function templateListMeta(template: WorkflowTemplateSummary): string {
+  return [template.id || template.file_name, template.version || 'no version', `${template.version_count ?? 1} 个版本`].filter(Boolean).join(' · ');
+}
+
 function parseTemplate(content: string): { body: Record<string, unknown>; id: string; version: string; title: string; description: string; stepCount: number; error?: string } {
   try {
     const body = JSON.parse(content || '{}') as Record<string, unknown>;
@@ -172,7 +181,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         <div className="workflow-list workflow-runtime-list">
           {loading ? <p className="empty-mini">正在读取Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
-            <span><strong>{item.id || item.file_name}</strong><small>{item.title || '无标题'} · {item.version || 'no version'} · {item.version_count ?? 1} 个版本</small></span>
+            <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
             <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>
           </button>)}
         </div>
