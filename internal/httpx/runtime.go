@@ -3,7 +3,6 @@ package httpx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -123,7 +122,6 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
 	mux.HandleFunc("GET /v1/runtime/capabilities", protected(s.runtimeCapabilities))
 	mux.HandleFunc("GET /v1/runtime/logs", protected(s.runtimeLogs))
-	mux.HandleFunc("GET /v1/runtime/deployment", protected(s.runtimeDeployment))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
 }
@@ -334,20 +332,6 @@ func opsCommandContracts() []opsToolSummary {
 func (s *Server) runtimeLogs(w http.ResponseWriter, r *http.Request) {
 	items := s.collectOpsLogs()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "roots": s.logRoots()})
-}
-
-func (s *Server) runtimeDeployment(w http.ResponseWriter, r *http.Request) {
-	compose := readSmallText(filepath.Join(strings.TrimSpace(s.cfg.DeployDir), "docker-compose.yml"), 16000)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":         true,
-		"service":    "nexusdock",
-		"health":     map[string]any{"ok": true, "addr": s.cfg.Addr()},
-		"paths":      s.opsPaths(),
-		"compose":    compose,
-		"source":     map[string]any{"dir": s.cfg.SourceDir, "commit": readGitCommit(s.cfg.SourceDir)},
-		"image":      strings.TrimSpace(os.Getenv("NEXUS_IMAGE_NAME")),
-		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
-	})
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {
@@ -733,7 +717,7 @@ func (s *Server) workflowCounts() map[string]int {
 }
 
 func (s *Server) opsPaths() map[string]string {
-	return map[string]string{"agentdock": s.cfg.AgentDockDir, "workspace": s.cfg.WorkspaceDir, "deploy": s.cfg.DeployDir, "source": s.cfg.SourceDir}
+	return map[string]string{"agentdock": s.cfg.AgentDockDir, "workspace": s.cfg.WorkspaceDir}
 }
 
 func (s *Server) agentDockPath(parts ...string) string {
@@ -1001,21 +985,3 @@ func trimKnownRoot(path, root string) string {
 	}
 	return filepath.ToSlash(rel)
 }
-
-func readGitCommit(root string) string {
-	if strings.TrimSpace(root) == "" {
-		return ""
-	}
-	head := strings.TrimSpace(readSmallText(filepath.Join(root, ".git", "HEAD"), 200))
-	if strings.HasPrefix(head, "ref:") {
-		ref := strings.TrimSpace(strings.TrimPrefix(head, "ref:"))
-		return strings.TrimSpace(readSmallText(filepath.Join(root, ".git", filepath.FromSlash(ref)), 200))
-	}
-	if strings.Contains(head, " ") || strings.Contains(head, "no such") {
-		return ""
-	}
-	return head
-}
-
-var _ = errors.Is
-var _ = fmt.Sprintf

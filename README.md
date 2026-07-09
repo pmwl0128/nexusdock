@@ -10,7 +10,7 @@ Top-level product areas:
 - Devices: enrollment, approval, heartbeat, capabilities, policy, environment actions, structured commands, and history.
 - Recall: unified memory, notes, cards, inbox, Markdown editing, Git review, and sync.
 - Runtime: AgentDock Runtime task, skill, workflow, capability, and log views through AgentDock Runtime APIs.
-- Settings: administrator account, browser sessions, Nexus data health, Recall repository location, backup status, and deployment diagnostics.
+- Settings: administrator account, browser sessions, Nexus data health, Recall repository location, and backup status.
 
 Nexus does not own AgentDock Task, Skill, or Workflow lifecycle state. Those systems belong to AgentDock Runtime. Nexus only queries or triggers them through controlled Runtime APIs.
 

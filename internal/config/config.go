@@ -35,8 +35,6 @@ type Config struct {
 	AgentDockToken        string
 	AgentDockTimeout      time.Duration
 	WorkspaceDir          string
-	DeployDir             string
-	SourceDir             string
 	LogDirs               string
 	AutoSync              bool
 	PullInterval          time.Duration
@@ -74,8 +72,6 @@ func FromEnv() Config {
 		AgentDockToken:        firstNonEmpty(os.Getenv("NEXUS_AGENTDOCK_TOKEN"), os.Getenv("AGENTDOCK_AUTH_TOKEN")),
 		AgentDockTimeout:      time.Duration(getenvInt("NEXUS_AGENTDOCK_TIMEOUT_SECONDS", 8)) * time.Second,
 		WorkspaceDir:          strings.TrimSpace(os.Getenv("NEXUS_WORKSPACE_DIR")),
-		DeployDir:             strings.TrimSpace(os.Getenv("NEXUS_DEPLOY_DIR")),
-		SourceDir:             strings.TrimSpace(os.Getenv("NEXUS_SOURCE_DIR")),
 		LogDirs:               strings.TrimSpace(os.Getenv("NEXUS_LOG_DIRS")),
 		AutoSync:              getenvBool("RECALL_AUTO_SYNC", false),
 		PullInterval:          time.Duration(getenvInt("RECALL_PULL_INTERVAL_SECONDS", 120)) * time.Second,

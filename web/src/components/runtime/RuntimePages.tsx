@@ -12,7 +12,7 @@ type OpsSkill = { id: string; title: string; source: string; path: string; descr
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
 type OpsLog = { name: string; path: string; size_bytes: number; updated_at: string; tail: string };
-type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string; deploy?: string; source?: string };
+type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
 type OpsTool = { name: string; category: string; status: string; description: string; source?: string; device_id?: string; device_name?: string; version?: string; metadata?: Record<string, unknown> };
 type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
@@ -22,7 +22,6 @@ type SkillsResponse = { ok: boolean; items: OpsSkill[]; count: number; root?: st
 type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail; source?: string };
 type CapabilitiesResponse = { ok: boolean; tools: OpsTool[]; counts: Record<string, unknown>; paths: OpsPaths; source?: string; runtime?: Record<string, unknown> };
 type LogsResponse = { ok: boolean; items: OpsLog[]; count: number; roots: string[] };
-type DeploymentResponse = { ok: boolean; service: string; health: { ok: boolean; addr: string }; paths: OpsPaths; compose: string; source: { dir: string; commit: string }; image?: string; updated_at: string };
 
 const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0, root: '' };
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
@@ -154,17 +153,6 @@ export function LogsPage({ refreshToken }: { refreshToken: number }) {
   </OpsShell>;
 }
 
-export function DeploymentPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<DeploymentResponse>('/v1/runtime/deployment', { ok: false, service: 'nexusdock', health: { ok: false, addr: '' }, paths: {}, compose: '', source: { dir: '', commit: '' }, updated_at: '' }, refreshToken);
-  const commit = resource.data.source?.commit || '';
-  return <OpsShell title="部署中心" subtitle="生产容器看到的健康、源码、镜像、目录和配置。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-command-hero deploy-hero"><div><span>PRODUCTION</span><h3>{resource.data.service}</h3><p>{resource.data.health?.addr || 'addr unknown'} · {formatTime(resource.data.updated_at)}</p></div><StatusBadge tone={resource.data.health?.ok ? 'ok' : 'danger'}>{resource.data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></section>
-    <section className="ops-metrics is-dashboard"><Metric label="服务" value={resource.data.service} /><Metric label="健康" value={resource.data.health?.ok ? 'ok' : 'unknown'} tone={resource.data.health?.ok ? 'ok' : 'warn'} /><Metric label="提交" value={shortHash(commit)} /><Metric label="镜像" value={resource.data.image || 'local'} /></section>
-    <section className="deploy-grid"><PathPanel paths={resource.data.paths} /><article className="ops-card deploy-card"><header><span className="ops-card-icon"><FileText size={18} /></span><StatusBadge tone="muted">配置</StatusBadge></header><h3>Compose 配置</h3><p>{resource.data.paths?.deploy || '未配置部署目录'}</p><pre>{resource.data.compose || '未读取到配置。'}</pre></article></section>
-    <DeploymentDetail data={resource.data} />
-  </OpsShell>;
-}
-
 function TaskDetail({ task, detail, loading, error }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string }) {
   if (!task) return <article className="ops-detail-empty"><EmptyOps text="请选择一个任务。" /></article>;
   const full = detail?.id ? detail : task;
@@ -188,11 +176,6 @@ function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsT
   if (!tool) return <article className="cap-mini-panel"><h3>能力详情</h3><EmptyOps text="请选择一个工具能力。" /></article>;
   return <article className="cap-mini-panel cap-detail-panel"><h3>{tool.name}</h3><p>{tool.description}</p><div className="ops-key-values is-compact"><Info label="分类" value={tool.category || 'other'} /><Info label="状态" value={tool.status} /><Info label="来源" value={tool.source || 'unknown'} /><Info label="设备" value={tool.device_name || tool.device_id || '—'} /><Info label="版本" value={tool.version || '—'} /><Info label="任务" value={String(counts.tasks ?? 0)} /><Info label="Skill" value={String(counts.skills ?? 0)} /><Info label="Published 模板" value={String(workflowCounts.published ?? 0)} /></div><MetadataChips metadata={tool.metadata} /><section className="ops-detail-section"><h4>相关路径</h4><div className="ops-key-values is-compact"><Info label="AgentDock" value={paths.agentdock || '未配置'} /><Info label="Workspace" value={paths.workspace || '未配置'} /><Info label="Workflows" value={paths.workflows || '未配置'} /></div></section></article>;
 }
-
-function DeploymentDetail({ data }: { data: DeploymentResponse }) {
-  return <article className="ops-task-detail deploy-inspector"><header><div><span>部署详情</span><h3>{data.service || 'nexusdock'}</h3><p>{data.health?.addr || 'addr unknown'}</p></div><StatusBadge tone={data.health?.ok ? 'ok' : 'warn'}>{data.health?.ok ? 'healthy' : 'unknown'}</StatusBadge></header><div className="ops-detail-grid"><Info label="服务" value={data.service || 'unknown'} /><Info label="健康地址" value={data.health?.addr || 'unknown'} /><Info label="镜像" value={data.image || 'local'} /><Info label="源码目录" value={data.source?.dir || 'unknown'} /><Info label="当前提交" value={shortHash(data.source?.commit)} /><Info label="更新时间" value={formatTime(data.updated_at)} /></div><section className="ops-detail-section"><h4>源码</h4><div className="ops-key-values"><Info label="目录" value={data.source?.dir || 'unknown'} /><Info label="完整提交" value={data.source?.commit || 'unknown'} /></div></section></article>;
-}
-
 
 type ReadableItem = { title: string; meta?: string; detail?: string };
 function readableItems(values?: unknown[], fallback = '条目'): ReadableItem[] {
