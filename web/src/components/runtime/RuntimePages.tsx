@@ -14,6 +14,7 @@ type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: Op
 type OpsLog = { name: string; path: string; size_bytes: number; updated_at: string; tail: string };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string; deploy?: string; source?: string };
 type OpsTool = { name: string; category: string; status: string; description: string; source?: string; device_id?: string; device_name?: string; version?: string; metadata?: Record<string, unknown> };
+type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
 type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail; source?: string };
 type CleanupResponse = { ok: boolean; dry_run: boolean; changed: OpsTask[]; count: number };
@@ -27,6 +28,7 @@ const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0,
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
 function toneForTask(task: Pick<OpsTask, 'status' | 'phase' | 'review_status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.phase === 'closeout' && task.review_status === 'pass') return 'warn'; if (task.status === 'active') return 'warn'; return 'muted'; }
+function countTasks(tasks: OpsTask[]): TaskCounts { return { active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }; }
 function toneForStatus(status?: string): Tone { if (!status) return 'muted'; if (['ok', 'healthy', 'available', 'installed', 'active', 'success', 'completed'].includes(status)) return 'ok'; if (['failed', 'blocked', 'offline', 'unknown'].includes(status)) return 'danger'; if (['pending', 'draft', 'running', 'degraded'].includes(status)) return 'warn'; return 'muted'; }
 function shortHash(value?: string): string { return value ? value.slice(0, 8) : 'unknown'; }
 
@@ -66,16 +68,22 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [query, setQuery] = useState('');
   const path = `/v1/runtime/tasks?status=${status}&limit=300${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
+  const allResource = useOpsResource<TaskListResponse>('/v1/runtime/tasks?status=all&limit=300', emptyTasks, refreshToken);
   const tasks = resource.data.items;
   const [selectedId, setSelectedId] = useState('');
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
-  const stats = useMemo(() => ({ active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }), [tasks]);
+  const visibleStats = useMemo(() => countTasks(tasks), [tasks]);
+  const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
+  const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
+  const healthStats = totalCount ? totalStats : visibleStats;
+  const healthTone: Tone = healthStats.blocked ? 'danger' : healthStats.cleanable ? 'warn' : 'ok';
+  const healthText = healthStats.blocked ? `${healthStats.blocked} blocked` : healthStats.cleanable ? `${healthStats.cleanable} cleanable` : 'healthy';
 
-  return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{resource.data.total || tasks.length} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={stats.blocked ? 'danger' : stats.cleanable ? 'warn' : 'ok'}>{stats.blocked ? `${stats.blocked} blocked` : stats.cleanable ? `${stats.cleanable} cleanable` : 'healthy'}</StatusBadge></section>
-    <section className="ops-metrics is-dashboard"><Metric label="Active" value={String(stats.active)} tone="warn" /><Metric label="Blocked" value={String(stats.blocked)} tone={stats.blocked ? 'danger' : 'muted'} /><Metric label="Completed" value={String(stats.completed)} tone="ok" /><Metric label="可清理" value={String(stats.cleanable)} tone={stats.cleanable ? 'warn' : 'muted'} /></section>
-    <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">{resource.data.count} / {resource.data.total}</span></div>
+  return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading || allResource.loading} error={resource.error || allResource.error} onReload={() => { resource.reload(); allResource.reload(); }}>
+    <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{totalCount} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={healthTone}>{healthText}</StatusBadge></section>
+    <section className="ops-metrics is-dashboard"><Metric label="Active" value={String(totalStats.active)} tone={totalStats.active ? 'warn' : 'muted'} /><Metric label="Blocked" value={String(totalStats.blocked)} tone={totalStats.blocked ? 'danger' : 'muted'} /><Metric label="Completed" value={String(totalStats.completed)} tone="ok" /><Metric label="可清理" value={String(totalStats.cleanable)} tone={totalStats.cleanable ? 'warn' : 'muted'} /></section>
+    <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} onClick={() => setStatus(item)}>{item}</button>)}</div><label className="ops-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">当前 {resource.data.count} / 全部 {totalCount}</span></div>
     <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{task.title || task.id}</strong><small>{task.phase || 'no phase'} · {formatTime(task.updated_at)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} /></section>
   </OpsShell>;
 }
