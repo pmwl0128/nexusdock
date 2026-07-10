@@ -10,10 +10,10 @@ import { type WebSession } from './Auth';
 import AccountSecurity from './AccountSecurity';
 import { ApiError, api, setCSRFToken } from './api/client';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
-import { CapabilitiesPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
+import { SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import './nexus.css';
 
-type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities';
+type RuntimeSection = 'tasks' | 'skills' | 'templates';
 type Section = 'home' | 'recall' | RuntimeSection | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
@@ -67,7 +67,6 @@ const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
   { id: 'tasks', label: '任务', icon: ListChecks },
   { id: 'skills', label: 'Skill', icon: Wrench },
   { id: 'templates', label: '模板', icon: FileJson },
-  { id: 'capabilities', label: '能力', icon: Boxes },
 ];
 
 const NAV: SectionMeta[] = [
@@ -82,7 +81,6 @@ const LEGACY_RUNTIME_SECTIONS: Record<string, RuntimeSection> = {
   cleanup: 'tasks',
   skills: 'skills',
   templates: 'templates',
-  capabilities: 'capabilities',
 };
 
 function hashParts(): string[] {
@@ -295,7 +293,6 @@ function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refr
     {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
-    {active === 'capabilities' && <CapabilitiesPage refreshToken={refreshToken} />}
   </section>;
 }
 

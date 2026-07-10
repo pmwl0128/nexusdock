@@ -17,7 +17,6 @@ REQUIRED_PATHS = {
     "/v1/recall",
     "/v1/runtime/tasks",
     "/v1/runtime/skills",
-    "/v1/runtime/capabilities",
     "/v1/runtime/workflow-templates",
 }
 FORBIDDEN_PATH_PREFIXES = (
@@ -31,6 +30,7 @@ FORBIDDEN_PATH_PREFIXES = (
     "/v1/skill-runs",
     "/v1/workflow-templates",
     "/v1/ops",
+    "/v1/runtime/capabilities",
     "/v1/events",
     "/v1/schedules",
 )

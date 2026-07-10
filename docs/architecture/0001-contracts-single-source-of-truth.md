@@ -8,7 +8,7 @@
 
 1. `contracts/` 只描述 `cmd/nexusdock` 当前真实生产 HTTP 能力。
 2. REST API 使用 OpenAPI 3.1，DTO 使用 JSON Schema Draft 2020-12。
-3. Go DTO 与设备客户端只能由 `scripts/generate-contracts.py` 生成。
+3. Go DTO 与客户端只能由 `scripts/generate-contracts.py` 生成。
 4. `internal/api/dto/` 不重复定义传输字段。
 5. 前端、AgentDock 节点和测试不得复制或重新发明公共 DTO。
 6. 契约检查必须阻止已退出的 Task、Run、Context Pack、Skill Catalog、Evolution 和 SSE 事件总线重新进入产品。

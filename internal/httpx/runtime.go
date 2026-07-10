@@ -92,23 +92,12 @@ type opsSkillStateRecord struct {
 	State   opsSkillRuntimeState
 }
 
-type opsToolSummary struct {
-	Name        string         `json:"name"`
-	Category    string         `json:"category"`
-	Status      string         `json:"status"`
-	Description string         `json:"description,omitempty"`
-	Source      string         `json:"source"`
-	Version     string         `json:"version,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
-}
-
 func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /v1/runtime/overview", protected(s.runtimeOverview))
 	mux.HandleFunc("GET /v1/runtime/tasks", protected(s.runtimeTasks))
 	mux.HandleFunc("GET /v1/runtime/tasks/{fileName}", protected(s.runtimeTaskDetail))
 	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
 	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
-	mux.HandleFunc("GET /v1/runtime/capabilities", protected(s.runtimeCapabilities))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
 }
@@ -205,59 +194,6 @@ func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail, "source": "agentdock-runtime-api"})
-}
-
-func (s *Server) runtimeCapabilities(w http.ResponseWriter, r *http.Request) {
-	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 500)
-	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
-	tools := s.collectOpsCapabilityTools(r)
-	payload := map[string]any{"ok": taskErr == nil && skillErr == nil, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCountsFromRuntime(r.Context()), "tools": len(tools)}, "paths": s.opsPaths(), "source": "agentdock-runtime-api"}
-	if taskErr != nil || skillErr != nil {
-		payload["runtime"] = runtimeUnavailablePayload(firstOpsError(taskErr, skillErr))
-	}
-	writeJSON(w, http.StatusOK, payload)
-}
-
-func (s *Server) collectOpsCapabilityTools(r *http.Request) []opsToolSummary {
-	items := []opsToolSummary{}
-	seen := map[string]bool{}
-	add := func(item opsToolSummary) {
-		item.Name = strings.TrimSpace(item.Name)
-		if item.Name == "" {
-			return
-		}
-		key := item.Source + ":" + item.Category + ":" + item.Name
-		if seen[key] {
-			return
-		}
-		seen[key] = true
-		if item.Status == "" {
-			item.Status = "available"
-		}
-		items = append(items, item)
-	}
-	if status, err := s.runtimeGet(r.Context(), "/internal/runtime/status", nil); err == nil {
-		for _, name := range opsStringArray(status["tools"]) {
-			add(opsToolSummary{Name: name, Category: "runtime-tool", Status: "available", Description: "AgentDock Runtime API reported tool", Source: "agentdock-runtime-api"})
-		}
-	}
-	if skills, err := s.collectOpsSkillsFromRuntime(r.Context()); err == nil {
-		for _, sk := range skills {
-			add(opsToolSummary{Name: sk.ID, Category: "runtime-skill", Status: sk.Status, Description: firstNonEmptyString(sk.Description, "AgentDock Runtime API skill"), Source: "agentdock-runtime-api", Version: sk.ActiveVersion, Metadata: map[string]any{"channels": sk.Channels, "versions": sk.Versions}})
-		}
-	}
-	add(opsToolSummary{Name: "workflow_templates", Category: "workflow", Status: "available", Description: "AgentDock Runtime API workflow templates", Source: "agentdock-runtime-api", Metadata: map[string]any{"counts": s.workflowCountsFromRuntime(r.Context())}})
-	add(opsToolSummary{Name: "task_state", Category: "task", Status: "available", Description: "AgentDock Runtime API persistent task state", Source: "agentdock-runtime-api", Metadata: map[string]any{"count": len(s.collectOpsTasks())}})
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].Category != items[j].Category {
-			return items[i].Category < items[j].Category
-		}
-		if items[i].Source != items[j].Source {
-			return items[i].Source < items[j].Source
-		}
-		return items[i].Name < items[j].Name
-	})
-	return items
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {

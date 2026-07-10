@@ -12,14 +12,12 @@ type OpsSkill = { id: string; title: string; source: string; path: string; descr
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
-type OpsTool = { name: string; category: string; status: string; description: string; source?: string; version?: string; metadata?: Record<string, unknown> };
 type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
 type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail; source?: string };
 type CleanupResponse = { ok: boolean; dry_run: boolean; changed: OpsTask[]; count: number };
 type SkillsResponse = { ok: boolean; items: OpsSkill[]; count: number; root?: string; source?: string };
 type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail; source?: string };
-type CapabilitiesResponse = { ok: boolean; tools: OpsTool[]; counts: Record<string, unknown>; paths: OpsPaths; source?: string; runtime?: Record<string, unknown> };
 
 const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0, root: '' };
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
@@ -118,30 +116,6 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   </OpsShell>;
 }
 
-export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<CapabilitiesResponse>('/v1/runtime/capabilities', { ok: false, tools: [], counts: {}, paths: {} }, refreshToken);
-  const counts = resource.data.counts;
-  const workflowCounts = (counts.workflows && typeof counts.workflows === 'object' ? counts.workflows : {}) as Record<string, unknown>;
-  const [selectedKey, setSelectedKey] = useState('');
-  const groups = resource.data.tools.reduce<Record<string, OpsTool[]>>((acc, tool) => { const key = tool.category || 'other'; acc[key] = [...(acc[key] || []), tool]; return acc; }, {});
-  const selected = resource.data.tools.find((tool) => toolKey(tool) === selectedKey) || resource.data.tools[0];
-  const availableTools = resource.data.tools.filter((tool) => tool.status === 'available').length;
-  const workflowTotal = Number(workflowCounts.published || 0) + Number(workflowCounts.drafts || 0) + Number(workflowCounts.retired || 0);
-  return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，并可查看选中能力的来源信息。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 从 AgentDock Runtime API 看见什么、能操作什么。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
-    <section className="cap-summary-grid">
-      <CapabilitySummary title="Runtime 任务" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
-      <CapabilitySummary title="Skill Runtime" value={String(counts.skills ?? 0)} detail="本机可见 Skill" tone="ok" />
-      <CapabilitySummary title="Workflow 模板" value={String(workflowTotal || workflowCounts.published || 0)} detail={`${workflowCounts.published ?? 0} published · ${workflowCounts.drafts ?? 0} drafts`} tone="muted" />
-      <CapabilitySummary title="工具能力" value={String(resource.data.tools.length)} detail={`${availableTools} available`} tone={availableTools ? 'ok' : 'warn'} />
-    </section>
-    <section className="cap-layout">
-      <article className="cap-tool-panel"><header><div><h3>工具分组</h3><p>选中一项后右侧展示用途、状态、统计和路径。</p></div><StatusBadge tone="muted">{Object.keys(groups).length} groups</StatusBadge></header>{Object.entries(groups).length === 0 ? <EmptyOps text="没有可展示工具。" /> : Object.entries(groups).map(([category, tools]) => <div className="cap-group" key={category}><div className="cap-group-head"><strong>{category}</strong><span>{tools.length} tools</span></div>{tools.map((tool) => <button type="button" className={`cap-tool-row ${selected && toolKey(selected) === toolKey(tool) ? 'is-selected' : ''}`} key={toolKey(tool)} onClick={() => setSelectedKey(toolKey(tool))}><StatusDot tone={tool.status === 'available' ? 'ok' : 'warn'} /><div><strong>{tool.name}</strong><small>{tool.source || 'unknown'} · {tool.description}</small></div><em>{tool.status}</em></button>)}</div>)}</article>
-      <aside className="cap-side"><CapabilityDetail tool={selected} counts={counts} paths={resource.data.paths} workflowCounts={workflowCounts} /><PathPanel paths={resource.data.paths} /></aside>
-    </section>
-  </OpsShell>;
-}
-
 function TaskDetail({ task, detail, loading, error }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string }) {
   if (!task) return <article className="ops-detail-empty"><EmptyOps text="请选择一个任务。" /></article>;
   const full = detail?.id ? detail : task;
@@ -159,11 +133,6 @@ function SkillDetail({ skill, detail, loading, error }: { skill?: OpsSkill; deta
   const manifest = asRecord(raw?.manifest);
   const selection = asRecord(raw?.selection);
   return <article className="ops-task-detail ops-skill-detail"><header><div><span>Runtime Skill</span><h3>{full.title || full.id}</h3><p>{full.description || '来自 AgentDock Runtime API。'}</p></div><StatusBadge tone={toneForStatus(full.status)}>{full.status}</StatusBadge></header>{loading && <div className="nx-alert is-info">正在读取 Skill Runtime 详情…</div>}{error && <div className="nx-alert is-error">{error}</div>}<div className="ops-detail-grid"><Info label="ID" value={full.id} /><Info label="来源" value={full.source || 'agentdock-api'} /><Info label="当前版本" value={full.active_version || 'unknown'} /><Info label="版本数" value={String((full.versions || []).length)} /><Info label="更新" value={formatTime(full.updated_at)} /><Info label="逻辑路径" value={full.path || 'agentdock-api'} /></div><section className="ops-detail-section"><h4>Runtime Selection</h4><div className="ops-key-values"><Info label="Active" value={full.active_version || pickText(selection || {}, ['active_version']) || 'unknown'} /><Info label="版本历史" value={(full.versions || []).slice(0, 6).join(' → ') || '暂无'} /><Info label="Binding" value={String(raw?.binding_configured ?? 'unknown')} /><Info label="Root" value={detail?.root || 'agentdock-runtime-api'} /></div><ChannelChips channels={full.channels} /></section>{manifest && <section className="ops-detail-section"><h4>Manifest 摘要</h4><div className="ops-key-values"><Info label="metadata" value={Object.keys(asRecord(manifest.metadata) || {}).join(', ') || '无'} /><Info label="operations" value={String((manifest.operations as unknown[] | undefined)?.length || 0)} /><Info label="permissions" value={Object.keys(asRecord(manifest.permissions) || {}).join(', ') || '无'} /><Info label="env" value={String((manifest.env as unknown[] | undefined)?.length || 0)} /></div></section>}<section className="ops-detail-section"><h4>文件清单</h4>{files.length === 0 ? <EmptyOps text="Runtime API 当前不返回安装包文件清单。" /> : <div className="ops-file-list">{files.map((file) => <div key={file.path} className="ops-file-row"><span><strong>{file.path}</strong><small>{file.kind} · {formatTime(file.updated_at)}</small></span><em>{formatBytes(file.size_bytes)}</em></div>)}</div>}</section>{raw && <RawJsonPanel title="Runtime 原始响应" value={raw} />}</article>;
-}
-
-function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsTool; counts: Record<string, unknown>; paths: OpsPaths; workflowCounts: Record<string, unknown> }) {
-  if (!tool) return <article className="cap-mini-panel"><h3>能力详情</h3><EmptyOps text="请选择一个工具能力。" /></article>;
-  return <article className="cap-mini-panel cap-detail-panel"><h3>{tool.name}</h3><p>{tool.description}</p><div className="ops-key-values is-compact"><Info label="分类" value={tool.category || 'other'} /><Info label="状态" value={tool.status} /><Info label="来源" value={tool.source || 'unknown'} /><Info label="版本" value={tool.version || '—'} /><Info label="任务" value={String(counts.tasks ?? 0)} /><Info label="Skill" value={String(counts.skills ?? 0)} /><Info label="Published 模板" value={String(workflowCounts.published ?? 0)} /></div><MetadataChips metadata={tool.metadata} /><section className="ops-detail-section"><h4>相关路径</h4><div className="ops-key-values is-compact"><Info label="AgentDock" value={paths.agentdock || '未配置'} /><Info label="Workspace" value={paths.workspace || '未配置'} /><Info label="Workflows" value={paths.workflows || '未配置'} /></div></section></article>;
 }
 
 type ReadableItem = { title: string; meta?: string; detail?: string };
@@ -206,9 +175,6 @@ function MetadataChips({ metadata }: { metadata?: Record<string, unknown> }) {
   return <section className="ops-detail-section"><h4>补充信息</h4><div className="ops-chip-row">{entries.slice(0, 12).map(([key, value]) => <span key={key}>{key}: {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? '已配置' : String(value)}</span>)}</div></section>;
 }
 
-function toolKey(tool: Pick<OpsTool, 'name' | 'category' | 'source'>): string {
-  return [tool.source || 'unknown', tool.category || 'other', tool.name].join(':');
-}
 function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
   return <details className="ops-json-panel"><summary>{title}</summary><pre>{JSON.stringify(value, null, 2)}</pre></details>;
 }
@@ -216,9 +182,7 @@ function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
 function TaskCard({ task }: { task: OpsTask }) { return <article className="ops-task-card"><header><div><strong>{taskDisplayTitle(task)}</strong><small>{task.id} · {formatTime(task.updated_at)}</small></div><StatusBadge tone={toneForTask(task)}>{task.status}</StatusBadge></header><p>{task.goal}</p>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<footer><span>{task.phase || 'no phase'}</span><span>review: {task.review_status}</span><span>{task.condition_count} 条件 / {task.step_count} 步骤</span>{task.template_id && <span>{task.template_id}@{task.template_version}</span>}{task.cleanable && <strong>可清理</strong>}</footer></article>; }
 function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button type="button" className="nx-button is-secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
 function Metric({ label, value, tone = 'muted' }: { label: string; value: string; tone?: Tone }) { return <article><span className={`metric-icon tone-${tone}`}>{label.slice(0, 1)}</span><strong>{value}</strong><small>{label}</small></article>; }
-function CapabilitySummary({ title, value, detail, tone }: { title: string; value: string; detail: string; tone: Tone }) { return <article className="cap-summary-card"><header><span className={`metric-icon tone-${tone}`}>{title.slice(0, 1)}</span>{title}</header><strong>{value}</strong><p>{detail}</p></article>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function StatusDot({ tone }: { tone: Tone }) { return <i className={`ops-dot tone-${tone}`} />; }
 function EmptyOps({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }
-function PathPanel({ paths }: { paths: OpsPaths }) { return <article className="ops-paths is-rich"><h3>路径</h3>{Object.entries(paths).map(([key, value]) => <div key={key}><span>{key}</span><code>{value || '未配置'}</code></div>)}</article>; }

@@ -98,15 +98,15 @@ export function LoginPage() {
       <section className="auth-story" aria-label="NexusDock">
         <div className="auth-brand"><span><Sparkles size={20} /></span><strong>NexusDock</strong></div>
         <div className="auth-story-copy">
-          <p className="auth-kicker">PRIVATE CONTROL PLANE</p>
-          <h1>一处连接设备、记忆与自动化。</h1>
-          <p>使用管理员会话进入 Nexus。Agent、设备和脚本继续通过各自的受限 Token 工作。</p>
+          <p className="auth-kicker">PRIVATE CONSOLE</p>
+          <h1>一处管理 Recall、任务与自动化。</h1>
+          <p>使用管理员会话进入 NexusDock。运行时和脚本继续通过受控 Token 工作。</p>
         </div>
         <div className="auth-security-note"><ShieldCheck size={18} /><span>HttpOnly Session · SameSite Strict · CSRF 防护</span></div>
       </section>
       <section className="auth-panel">
         <form className="auth-card" onSubmit={submit}>
-          <header><span className="auth-card-icon"><LockKeyhole size={21} /></span><div><h2>登录控制台</h2><p>使用 Nexus 管理员账号继续</p></div></header>
+          <header><span className="auth-card-icon"><LockKeyhole size={21} /></span><div><h2>登录控制台</h2><p>使用 NexusDock 管理员账号继续</p></div></header>
           {params.get('changed') === '1' && <div className="auth-success"><CheckCircle2 size={17} />密码已更新，请重新登录。</div>}
           {initialized === false && <div className="auth-error">管理员尚未初始化。请在 DockMini 本机运行管理命令后刷新。</div>}
           {error && <div className="auth-error" role="alert">{error}</div>}

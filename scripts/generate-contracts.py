@@ -283,7 +283,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/runtime/skills/{source}/{skillID}": {"get": operation("getRuntimeSkill", "通过 AgentDock Runtime API 读取 Skill 详情", params=[p("RuntimeSkillSource"), p("RuntimeSkillId")])},
         "/v1/runtime/workflow-templates": {"get": operation("listRuntimeWorkflowTemplates", "通过 AgentDock Runtime API 列出 Workflow 模板视图")},
         "/v1/runtime/workflow-templates/{location}/{fileName}": {"get": operation("getRuntimeWorkflowTemplate", "通过 AgentDock Runtime API 读取 Workflow 模板详情", params=[p("RuntimeWorkflowLocation"), p("RuntimeWorkflowFileName")])},
-        "/v1/runtime/capabilities": {"get": operation("listRuntimeCapabilities", "读取 AgentDock Runtime 能力视图")},
     }
 
     return {
