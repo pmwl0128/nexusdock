@@ -12,10 +12,8 @@ import (
 	"time"
 
 	"github.com/uvwt/nexusdock/internal/auth"
-	"github.com/uvwt/nexusdock/internal/commands"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/core"
-	"github.com/uvwt/nexusdock/internal/devices"
 	"github.com/uvwt/nexusdock/internal/httpx"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
@@ -92,16 +90,6 @@ func Main(args []string) {
 		logger.Info("migrated legacy administrator credentials")
 	}
 
-	deviceService, err := devices.NewService(devices.NewSQLiteRepository(controlDB))
-	if err != nil {
-		logger.Error("failed to initialize device control plane", "error", err)
-		os.Exit(1)
-	}
-	commandService, err := commands.NewService(commands.NewSQLiteRepository(controlDB), deviceService)
-	if err != nil {
-		logger.Error("failed to initialize command control plane", "error", err)
-		os.Exit(1)
-	}
 	embeddingService := recall.NewEmbeddingService(store, recall.EmbeddingConfig{
 		Enabled: cfg.EmbeddingEnabled, Endpoint: cfg.EmbeddingEndpoint, Model: cfg.EmbeddingModel,
 		IndexPath: cfg.EmbeddingIndexFile, Timeout: cfg.EmbeddingTimeout,
@@ -113,7 +101,6 @@ func Main(args []string) {
 		syncManager,
 		logger,
 		httpx.WithSystemDatabase(controlDB),
-		httpx.WithControlPlane(deviceService, commandService),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithEmbeddingService(embeddingService),
 	)

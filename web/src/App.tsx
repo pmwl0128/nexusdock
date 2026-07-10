@@ -1,31 +1,22 @@
 import { formatTime, timeZoneLabel } from './lib/time';
-import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity, Boxes, ChevronRight,
   CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
-  Server, Settings, ShieldCheck, Sparkles, Wrench, X,
+  Settings, ShieldCheck, Sparkles, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
 import AccountSecurity from './AccountSecurity';
 import { ApiError, api, setCSRFToken } from './api/client';
-import DevicesManagementPage from './components/devices/DevicesPage';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
 import { CapabilitiesPage, SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import './nexus.css';
 
 type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'capabilities';
-type Section = 'home' | 'devices' | 'recall' | RuntimeSection | 'settings';
+type Section = 'home' | 'recall' | RuntimeSection | 'settings';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
-type NexusDeviceSummary = {
-  id: string;
-  name?: string;
-  platform?: string;
-  arch?: string;
-  agentdock_version?: string;
-  status?: string;
-};
 
 type BackupHistory = {
   state: string;
@@ -82,8 +73,7 @@ const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
 
 const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home },
-  { id: 'devices', label: '设备', icon: Server },
-  { id: 'recall', label: '召回库', icon: Database },
+  { id: 'recall', label: 'Recall', icon: Database },
   ...RUNTIME_SECTIONS,
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -232,7 +222,6 @@ export default function App() {
         </header>
         <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
-          {section === 'devices' && <DevicesManagementPage refreshToken={refreshToken} />}
           {section === 'recall' && <RecallWorkspace />}
           {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
@@ -258,37 +247,38 @@ function SessionExpiredDialog() {
 }
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
-  const devicesResource = useResource<NexusDeviceSummary[]>('/v1/devices', [], refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
-  const devices = devicesResource.data ?? [];
   const backup = backupResource.data;
-  const unhealthyDevices = devices.filter((device) => ['degraded', 'offline', 'pending', 'revoked'].includes(device.status || ''));
-  const errors = [devicesResource.error, backupResource.error].filter(Boolean) as string[];
+  const errors = [system.error, backupResource.error].filter(Boolean) as string[];
+  const systemTone = system.data.ok ? 'ok' : 'danger';
 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
-      <div><span className="nexus-kicker">个人控制台</span><h2>设备、记忆、备份和运行时集中管理</h2><p>首页只保留日常需要关注的真实状态，低频运维内容仍保留在原页面入口中。</p></div>
-      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : 'ok'}>{errors.length ? '部分数据不可用' : '控制面正常'}</StatusBadge><span>{devices.length} 台设备</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>Recall、备份和运行时集中管理</h2><p>旧控制协议已经下线，NexusDock 只保留当前真实使用的管理入口。</p></div>
+      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : systemTone}>{errors.length ? '部分数据不可用' : '控制台正常'}</StatusBadge><span>数据库 {system.data.database || 'unknown'}</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
     <section className="metric-grid compact-metrics">
-      <MetricButton label="在线设备" value={devices.filter((item) => item.status === 'online').length} tone="ok" onClick={() => navigate('devices')} />
-      <MetricButton label="需要处理" value={unhealthyDevices.length + (backup?.state === 'failed' ? 1 : 0)} tone={unhealthyDevices.length || backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('devices')} />
+      <MetricButton label="控制台" value={system.data.ok ? 1 : 0} tone={systemTone} onClick={() => navigate('settings')} />
+      <MetricButton label="Recall" value={1} tone="ok" onClick={() => navigate('recall')} />
       <MetricButton label="任务" value={1} tone="ok" onClick={() => navigate('tasks')} />
       <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('settings')} />
     </section>
 
     <section className="dashboard-grid-nexus">
-      <Panel title="设备状态" subtitle={`${devices.length} 台已注册设备`}>
-        <SummaryStat label="在线" value={String(devices.filter((device) => device.status === 'online').length)} tone="ok" />
-        <SummaryStat label="需关注" value={String(unhealthyDevices.length)} tone={unhealthyDevices.length ? 'danger' : 'muted'} />
-        <SummaryList empty="暂无设备。">{devices.slice(0, 5).map((device) => <ObjectRow key={device.id} title={device.name || device.id} detail={`${device.status || 'unknown'} / ${device.platform || 'unknown'}`} tone={toneForStatus(device.status)} />)}</SummaryList>
+      <Panel title="系统状态" subtitle="NexusDock 运行与 SQLite 健康">
+        <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
+        <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
+        <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
+        <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
+        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || system.data.recall_root || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup} />
-      <Panel title="需要处理" subtitle="只聚合真实设备和备份异常">
-        {unhealthyDevices.length === 0 && backup?.state !== 'failed' ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
-          {unhealthyDevices.slice(0, 4).map((device) => <button type="button" className="attention-row" key={device.id} onClick={() => navigate('devices')}><StatusBadge tone={toneForStatus(device.status)}>{device.status}</StatusBadge><span><strong>{device.name || device.id}</strong><small>{device.platform || 'unknown'} / {device.arch || 'unknown'}</small></span><ChevronRight size={16} /></button>)}
+      <Panel title="需要处理" subtitle="只聚合系统和备份异常">
+        {system.data.ok && backup?.state !== 'failed' ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
+          {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
         </>}
       </Panel>
@@ -348,9 +338,5 @@ function MetricButton({ label, value, tone, onClick }: { label: string; value: n
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }
-function EmptyState({ text }: { text: string }) { return <div className="empty-state"><span><Activity size={24} /></span><h3>等待数据</h3><p>{text}</p></div>; }
-function SummaryStat({ label, value, tone }: { label: string; value: string; tone: Tone }) { return <div className="summary-stat"><span className={`metric-icon tone-${tone}`}><Activity size={15} /></span><div><strong>{value}</strong><small>{label}</small></div></div>; }
-function SummaryList({ empty, children }: { empty: string; children: ReactNode }) { return <div className="summary-list">{Children.count(children) ? children : <EmptyMini text={empty} />}</div>; }
-function ObjectRow({ title, detail, tone }: { title: string; detail: string; tone: Tone }) { return <div className="object-row"><StatusBadge tone={tone}>{tone}</StatusBadge><span><strong>{title}</strong><small>{detail}</small></span></div>; }
 function EmptyMini({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }
 function SettingValue({ label, value, tone = 'muted', mono = false }: { label: string; value: string; tone?: Tone; mono?: boolean }) { return <div className="setting-value"><span>{label}</span><div>{tone !== 'muted' && <StatusBadge tone={tone}>{value}</StatusBadge>}{tone === 'muted' && <strong className={mono ? 'nx-mono' : ''}>{value}</strong>}</div></div>; }

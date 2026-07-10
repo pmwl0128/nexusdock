@@ -28,12 +28,13 @@ func TestMigrationRunnerIsIdempotentAndPersistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version != 3 {
-		t.Fatalf("version = %d, want 3", version)
+	if version != 4 {
+		t.Fatalf("version = %d, want 4", version)
 	}
-	var controlPlaneTable string
-	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='device_commands_v1'`).Scan(&controlPlaneTable); err != nil {
-		t.Fatal(err)
+	var removedTable string
+	err = db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='device_commands_v1'`).Scan(&removedTable)
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("device command table should be removed, err=%v table=%q", err, removedTable)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO users(id, username, created_at, updated_at) VALUES('u1', 'alice', 'now', 'now')`); err != nil {
 		t.Fatal(err)

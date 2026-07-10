@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/uvwt/nexusdock/internal/devices"
 )
 
 type opsTaskSummary struct {
@@ -100,8 +98,6 @@ type opsToolSummary struct {
 	Status      string         `json:"status"`
 	Description string         `json:"description,omitempty"`
 	Source      string         `json:"source"`
-	DeviceID    string         `json:"device_id,omitempty"`
-	DeviceName  string         `json:"device_name,omitempty"`
 	Version     string         `json:"version,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
@@ -214,15 +210,15 @@ func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 func (s *Server) runtimeCapabilities(w http.ResponseWriter, r *http.Request) {
 	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 500)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
-	tools, a, b := s.collectOpsCapabilityTools(r)
-	payload := map[string]any{"ok": taskErr == nil && skillErr == nil, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCountsFromRuntime(r.Context()), "tools": len(tools), "devices": a, "heartbeats": b}, "paths": s.opsPaths(), "source": "agentdock-runtime-api"}
+	tools := s.collectOpsCapabilityTools(r)
+	payload := map[string]any{"ok": taskErr == nil && skillErr == nil, "tools": tools, "counts": map[string]any{"tasks": len(tasks), "skills": len(skills), "workflows": s.workflowCountsFromRuntime(r.Context()), "tools": len(tools)}, "paths": s.opsPaths(), "source": "agentdock-runtime-api"}
 	if taskErr != nil || skillErr != nil {
 		payload["runtime"] = runtimeUnavailablePayload(firstOpsError(taskErr, skillErr))
 	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
-func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, int, int) {
+func (s *Server) collectOpsCapabilityTools(r *http.Request) []opsToolSummary {
 	items := []opsToolSummary{}
 	seen := map[string]bool{}
 	add := func(item opsToolSummary) {
@@ -230,7 +226,7 @@ func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, i
 		if item.Name == "" {
 			return
 		}
-		key := item.Source + ":" + item.Category + ":" + item.Name + ":" + item.DeviceID
+		key := item.Source + ":" + item.Category + ":" + item.Name
 		if seen[key] {
 			return
 		}
@@ -239,42 +235,6 @@ func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, i
 			item.Status = "available"
 		}
 		items = append(items, item)
-	}
-	dc, hc := 0, 0
-	if s.devices != nil {
-		devs, err := s.devices.List(r.Context())
-		if err == nil {
-			dc = len(devs)
-			for _, dev := range devs {
-				caps := dev.Capabilities
-				skills := []devices.SkillSummary{}
-				src := "device-registry"
-				if snap, err := s.devices.Snapshot(r.Context(), dev.ID); err == nil && snap.Heartbeat != nil {
-					hc++
-					caps = snap.Heartbeat.Capabilities
-					skills = snap.Heartbeat.Skills
-					src = "device-heartbeat"
-				}
-				for _, cap := range caps {
-					st := "disabled"
-					if cap.Enabled {
-						st = "available"
-					}
-					md := map[string]any{}
-					for k, v := range cap.Metadata {
-						md[k] = v
-					}
-					add(opsToolSummary{Name: cap.Name, Category: "device-capability", Status: st, Description: "AgentDock device reported capability", Source: src, DeviceID: dev.ID, DeviceName: dev.Name, Version: cap.Version, Metadata: md})
-				}
-				for _, sk := range skills {
-					st := "installed"
-					if sk.Active {
-						st = "active"
-					}
-					add(opsToolSummary{Name: sk.Name, Category: "runtime-skill", Status: st, Description: "AgentDock heartbeat reported skill", Source: src, DeviceID: dev.ID, DeviceName: dev.Name, Version: sk.Version, Metadata: map[string]any{"channel": sk.Channel}})
-				}
-			}
-		}
 	}
 	if status, err := s.runtimeGet(r.Context(), "/internal/runtime/status", nil); err == nil {
 		for _, name := range opsStringArray(status["tools"]) {
@@ -285,9 +245,6 @@ func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, i
 		for _, sk := range skills {
 			add(opsToolSummary{Name: sk.ID, Category: "runtime-skill", Status: sk.Status, Description: firstNonEmptyString(sk.Description, "AgentDock Runtime API skill"), Source: "agentdock-runtime-api", Version: sk.ActiveVersion, Metadata: map[string]any{"channels": sk.Channels, "versions": sk.Versions}})
 		}
-	}
-	for _, item := range opsCommandContracts() {
-		add(item)
 	}
 	add(opsToolSummary{Name: "workflow_templates", Category: "workflow", Status: "available", Description: "AgentDock Runtime API workflow templates", Source: "agentdock-runtime-api", Metadata: map[string]any{"counts": s.workflowCountsFromRuntime(r.Context())}})
 	add(opsToolSummary{Name: "task_state", Category: "task", Status: "available", Description: "AgentDock Runtime API persistent task state", Source: "agentdock-runtime-api", Metadata: map[string]any{"count": len(s.collectOpsTasks())}})
@@ -300,23 +257,6 @@ func (s *Server) collectOpsCapabilityTools(r *http.Request) ([]opsToolSummary, i
 		}
 		return items[i].Name < items[j].Name
 	})
-	return items, dc, hc
-}
-
-func opsCommandContracts() []opsToolSummary {
-	data := []struct{ name, risk, desc string }{
-		{"health.check", "low", "Health check command"},
-		{"recall.sync", "low", "Recall sync command"},
-		{"service.inspect", "low", "Service inspect command"},
-		{"diagnostics.collect", "low", "Diagnostics command"},
-		{"env.manage", "medium", "Env registry command"},
-		{"service.restart", "high", "Service restart command"},
-		{"agentdock.reload", "high", "AgentDock reload command"},
-	}
-	items := make([]opsToolSummary, 0, len(data))
-	for _, row := range data {
-		items = append(items, opsToolSummary{Name: row.name, Category: "command", Status: "contract", Description: row.desc, Source: "nexus-command-contract", Metadata: map[string]any{"risk": row.risk}})
-	}
 	return items
 }
 

@@ -12,9 +12,7 @@ import (
 	"sync"
 
 	"github.com/uvwt/nexusdock/internal/auth"
-	"github.com/uvwt/nexusdock/internal/commands"
 	"github.com/uvwt/nexusdock/internal/config"
-	"github.com/uvwt/nexusdock/internal/devices"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
@@ -26,8 +24,6 @@ type Server struct {
 	store     *recall.Store
 	syncer    *syncer.Manager
 	logger    *slog.Logger
-	devices   *devices.Service
-	commands  *commands.Service
 	auth      *auth.Service
 	embedding *recall.EmbeddingService
 }
@@ -44,13 +40,6 @@ func WithWebAuthentication(authService *auth.Service) ServerOption {
 
 func WithEmbeddingService(service *recall.EmbeddingService) ServerOption {
 	return func(server *Server) { server.embedding = service }
-}
-
-func WithControlPlane(deviceService *devices.Service, commandService *commands.Service) ServerOption {
-	return func(server *Server) {
-		server.devices = deviceService
-		server.commands = commandService
-	}
 }
 
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
@@ -97,9 +86,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/recall/", protected(s.readRecall))
 	mux.HandleFunc("PATCH /v1/recall/", protected(s.patchRecall))
 	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteRecall))
-	if s.devices != nil && s.commands != nil {
-		s.registerControlPlaneRoutes(mux)
-	}
 	mux.HandleFunc("GET /v1/", http.NotFound)
 	mux.HandleFunc("GET /api/", http.NotFound)
 	return logRequests(mux, s.logger)

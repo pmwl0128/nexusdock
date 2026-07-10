@@ -16,7 +16,7 @@ Nexus 数据库，也不创建 Task、执行设备命令或修改 Skill。
 - scope：`profile|global|project|device|agent|ops|inbox`
 - status：`active|stale|conflicted|unverified|deprecated`
 - confidence：`unknown|low|medium|high`
-- conflict source：`device_snapshot|skill_run|user_edit|git_merge|agent_repair`
+- conflict source：`runtime_observation|skill_run|user_edit|git_merge|agent_repair`
 
 所有新增字段应先作为 optional 字段进入 V1 契约，避免破坏旧 Recall 数据。
 

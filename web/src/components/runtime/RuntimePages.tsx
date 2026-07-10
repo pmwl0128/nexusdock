@@ -12,7 +12,7 @@ type OpsSkill = { id: string; title: string; source: string; path: string; descr
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
-type OpsTool = { name: string; category: string; status: string; description: string; source?: string; device_id?: string; device_name?: string; version?: string; metadata?: Record<string, unknown> };
+type OpsTool = { name: string; category: string; status: string; description: string; source?: string; version?: string; metadata?: Record<string, unknown> };
 type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
 type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail; source?: string };
@@ -128,7 +128,7 @@ export function CapabilitiesPage({ refreshToken }: { refreshToken: number }) {
   const availableTools = resource.data.tools.filter((tool) => tool.status === 'available').length;
   const workflowTotal = Number(workflowCounts.published || 0) + Number(workflowCounts.drafts || 0) + Number(workflowCounts.retired || 0);
   return <OpsShell title="Capability" subtitle="把当前可用工具、任务、Skill、模板和路径整理成能力矩阵，并可查看选中能力的来源信息。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 从 AgentDock Runtime API 和设备心跳看见什么、能操作什么。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
+    <section className="cap-hero"><div><span>CAPABILITY MATRIX</span><h3>{availableTools} / {resource.data.tools.length} 个工具可用</h3><p>能力页用于判断当前 Nexus 从 AgentDock Runtime API 看见什么、能操作什么。</p></div><StatusBadge tone={availableTools ? 'ok' : 'warn'}>{availableTools ? 'available' : 'empty'}</StatusBadge></section>
     <section className="cap-summary-grid">
       <CapabilitySummary title="Runtime 任务" value={String(counts.tasks ?? 0)} detail="持久化任务记录" tone="warn" />
       <CapabilitySummary title="Skill Runtime" value={String(counts.skills ?? 0)} detail="本机可见 Skill" tone="ok" />
@@ -163,7 +163,7 @@ function SkillDetail({ skill, detail, loading, error }: { skill?: OpsSkill; deta
 
 function CapabilityDetail({ tool, counts, paths, workflowCounts }: { tool?: OpsTool; counts: Record<string, unknown>; paths: OpsPaths; workflowCounts: Record<string, unknown> }) {
   if (!tool) return <article className="cap-mini-panel"><h3>能力详情</h3><EmptyOps text="请选择一个工具能力。" /></article>;
-  return <article className="cap-mini-panel cap-detail-panel"><h3>{tool.name}</h3><p>{tool.description}</p><div className="ops-key-values is-compact"><Info label="分类" value={tool.category || 'other'} /><Info label="状态" value={tool.status} /><Info label="来源" value={tool.source || 'unknown'} /><Info label="设备" value={tool.device_name || tool.device_id || '—'} /><Info label="版本" value={tool.version || '—'} /><Info label="任务" value={String(counts.tasks ?? 0)} /><Info label="Skill" value={String(counts.skills ?? 0)} /><Info label="Published 模板" value={String(workflowCounts.published ?? 0)} /></div><MetadataChips metadata={tool.metadata} /><section className="ops-detail-section"><h4>相关路径</h4><div className="ops-key-values is-compact"><Info label="AgentDock" value={paths.agentdock || '未配置'} /><Info label="Workspace" value={paths.workspace || '未配置'} /><Info label="Workflows" value={paths.workflows || '未配置'} /></div></section></article>;
+  return <article className="cap-mini-panel cap-detail-panel"><h3>{tool.name}</h3><p>{tool.description}</p><div className="ops-key-values is-compact"><Info label="分类" value={tool.category || 'other'} /><Info label="状态" value={tool.status} /><Info label="来源" value={tool.source || 'unknown'} /><Info label="版本" value={tool.version || '—'} /><Info label="任务" value={String(counts.tasks ?? 0)} /><Info label="Skill" value={String(counts.skills ?? 0)} /><Info label="Published 模板" value={String(workflowCounts.published ?? 0)} /></div><MetadataChips metadata={tool.metadata} /><section className="ops-detail-section"><h4>相关路径</h4><div className="ops-key-values is-compact"><Info label="AgentDock" value={paths.agentdock || '未配置'} /><Info label="Workspace" value={paths.workspace || '未配置'} /><Info label="Workflows" value={paths.workflows || '未配置'} /></div></section></article>;
 }
 
 type ReadableItem = { title: string; meta?: string; detail?: string };
@@ -206,8 +206,8 @@ function MetadataChips({ metadata }: { metadata?: Record<string, unknown> }) {
   return <section className="ops-detail-section"><h4>补充信息</h4><div className="ops-chip-row">{entries.slice(0, 12).map(([key, value]) => <span key={key}>{key}: {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? '已配置' : String(value)}</span>)}</div></section>;
 }
 
-function toolKey(tool: Pick<OpsTool, 'name' | 'category' | 'source' | 'device_id'>): string {
-  return [tool.source || 'unknown', tool.category || 'other', tool.name, tool.device_id || ''].join(':');
+function toolKey(tool: Pick<OpsTool, 'name' | 'category' | 'source'>): string {
+  return [tool.source || 'unknown', tool.category || 'other', tool.name].join(':');
 }
 function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
   return <details className="ops-json-panel"><summary>{title}</summary><pre>{JSON.stringify(value, null, 2)}</pre></details>;

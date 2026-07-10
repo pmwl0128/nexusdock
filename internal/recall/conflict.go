@@ -14,16 +14,16 @@ import (
 type ConflictSource string
 
 const (
-	ConflictSourceDeviceSnapshot ConflictSource = "device_snapshot"
-	ConflictSourceSkillRun       ConflictSource = "skill_run"
-	ConflictSourceUserEdit       ConflictSource = "user_edit"
-	ConflictSourceGitMerge       ConflictSource = "git_merge"
-	ConflictSourceAgentRepair    ConflictSource = "agent_repair"
+	ConflictSourceRuntimeObservation ConflictSource = "runtime_observation"
+	ConflictSourceSkillRun           ConflictSource = "skill_run"
+	ConflictSourceUserEdit           ConflictSource = "user_edit"
+	ConflictSourceGitMerge           ConflictSource = "git_merge"
+	ConflictSourceAgentRepair        ConflictSource = "agent_repair"
 )
 
 func (s ConflictSource) Valid() bool {
 	switch s {
-	case ConflictSourceDeviceSnapshot, ConflictSourceSkillRun, ConflictSourceUserEdit, ConflictSourceGitMerge, ConflictSourceAgentRepair:
+	case ConflictSourceRuntimeObservation, ConflictSourceSkillRun, ConflictSourceUserEdit, ConflictSourceGitMerge, ConflictSourceAgentRepair:
 		return true
 	default:
 		return false

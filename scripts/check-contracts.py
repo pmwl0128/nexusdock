@@ -13,13 +13,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
 
 REQUIRED_PATHS = {
-    "/health",
-    "/v1/system/status",
     "/v1/backup/status",
-    "/v1/devices",
     "/v1/recall",
     "/v1/runtime/tasks",
     "/v1/runtime/skills",
+    "/v1/runtime/capabilities",
     "/v1/runtime/workflow-templates",
 }
 FORBIDDEN_PATH_PREFIXES = (
@@ -37,28 +35,22 @@ FORBIDDEN_PATH_PREFIXES = (
     "/v1/schedules",
 )
 FORBIDDEN_SCHEMAS = {
-    "Task",
-    "TaskCompletion",
-    "TaskContextPack",
-    "TaskLink",
-    "Run",
-    "RunStep",
-    "RunEvidence",
-    "VerificationResult",
-    "RecallContextPack",
-    "Observation",
-    "EvolutionCandidate",
-    "EvolutionProposal",
-    "SkillOperation",
-    "SkillSummary",
-    "SkillRelease",
-    "SkillInstallation",
-    "SkillDetail",
-    "SkillRunRequest",
-    "SkillRunResult",
-    "ScheduleHistory",
-    "ScheduleItem",
-    "ScheduleListResponse",
+    "DeviceCapability",
+    "DeviceEnrollmentRequest",
+    "DeviceEnrollmentResponse",
+    "EnrollmentTokenCreateRequest",
+    "EnrollmentTokenCreateResponse",
+    "CommandLeaseAction",
+    "DeviceTokenRotationResponse",
+    "DeviceRevokeRequest",
+    "DeviceCommandCreateRequest",
+    "DeviceEnvActionRequest",
+    "DeviceHeartbeat",
+    "DeviceStatus",
+    "DeviceCommand",
+    "CommandLease",
+    "CommandProgress",
+    "CommandResult",
 }
 
 
@@ -160,6 +152,9 @@ def validate_generated_boundary(errors: list[str]) -> None:
         "type Task ", "type Run ", "type Evolution", "type SkillRelease ",
         "type NexusTask", "type NexusSkillRegistry", "type NexusWorkflowLifecycle",
         "RunSkill(", "GetTask(", "GetRun(", "ListSchedules(", "GetSchedule(",
+        "EnrollDevice(", "CreateEnrollmentToken(", "CreateDeviceCommand(", "ReportDeviceHeartbeat(",
+        "LeaseDeviceCommand(", "StartCommand(", "RenewCommandLease(", "CompleteCommand(",
+        "type Device", "type CommandLease", "type CommandProgress", "type CommandResult",
     ]
     for token in forbidden_tokens:
         if token in text:

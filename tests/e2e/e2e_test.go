@@ -98,7 +98,7 @@ func TestBuiltFrontendContainsNexusSectionsAndResponsiveRules(t *testing.T) {
 			t.Errorf("frontend bundle missing section label %q", label)
 		}
 	}
-	for _, rule := range []string{"nexus-sidebar.is-open", "grid-template-columns:1fr", "nexus-mobile-menu", "nexus-scrim", "runtime-tabs", "nx-device-detail-tabs"} {
+	for _, rule := range []string{"nexus-sidebar.is-open", "grid-template-columns:1fr", "nexus-mobile-menu", "nexus-scrim", "runtime-tabs", "settings-grid"} {
 		if !strings.Contains(styles.String(), rule) {
 			t.Errorf("frontend stylesheet missing responsive rule %q", rule)
 		}

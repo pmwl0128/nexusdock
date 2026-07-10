@@ -23,9 +23,9 @@ func writeFixture(t *testing.T, store *Store, path, content string) {
 
 func TestMetadataScopesAndVerification(t *testing.T) {
 	store := newTestStore(t)
-	writeFixture(t, store, "recall/docs/devices/dockmini.md", "---\nscope: device\nstatus: active\nsource_device: DockMini\nsource_agent: agent-1\nconfidence: high\nverified_at: 2026-06-05T12:00:00Z\nverification_run_id: run-1\n---\n\n# DockMini\n")
+	writeFixture(t, store, "recall/docs/runtime/dockmini.md", "---\nscope: device\nstatus: active\nsource_device: DockMini\nsource_agent: agent-1\nconfidence: high\nverified_at: 2026-06-05T12:00:00Z\nverification_run_id: run-1\n---\n\n# DockMini\n")
 	svc, _ := NewService(store)
-	record, err := svc.Read(context.Background(), "recall/docs/devices/dockmini.md")
+	record, err := svc.Read(context.Background(), "recall/docs/runtime/dockmini.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 		"profile.md":                                    "---\nscope: profile\nstatus: active\n---\n\n# Profile\nowner\n",
 		"recall/docs/projects/nexus/project.md":         "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Nexus\nproject facts\n",
 		"recall/docs/projects/nexus/runbooks/deploy.md": "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Deploy\nsteps\n",
-		"recall/docs/devices/dockmini.md":               "---\nscope: device\nstatus: active\ndevice: dockmini\n---\n\n# Device\nstate\n",
+		"recall/docs/runtime/dockmini.md":               "---\nscope: device\nstatus: active\ndevice: dockmini\n---\n\n# Device\nstate\n",
 		"recall/docs/ops/old.md":                        "---\nscope: ops\nstatus: deprecated\n---\n\n# Old\nignore\n",
 	}
 	for path, content := range fixtures {
@@ -72,10 +72,10 @@ func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
 
 func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 	store := newTestStore(t)
-	writeFixture(t, store, "recall/docs/devices/dockmini.md", "# Device\nport: 18766\n")
+	writeFixture(t, store, "recall/docs/runtime/dockmini.md", "# Device\nport: 18766\n")
 	repo := NewInRecallConflictRepository()
 	svc, _ := NewService(store, WithConflictRepository(repo))
-	fact := ObservedFact{RecallPath: "recall/docs/devices/dockmini.md", Key: "port", RecallValue: "18766", ObservedValue: "18767", Source: ConflictSourceDeviceSnapshot, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
+	fact := ObservedFact{RecallPath: "recall/docs/runtime/dockmini.md", Key: "port", RecallValue: "18766", ObservedValue: "18767", Source: ConflictSourceRuntimeObservation, SourceID: "snapshot-1", Device: "dockmini", Confidence: ConfidenceHigh}
 	first, err := svc.DetectConflict(context.Background(), DetectConflictRequest{Facts: []ObservedFact{fact}})
 	if err != nil || len(first) != 1 {
 		t.Fatalf("first=%#v err=%v", first, err)
