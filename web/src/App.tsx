@@ -192,29 +192,32 @@ export default function App() {
   }
 
   const active = NAV.find((item) => item.id === section) ?? NAV[0];
+  const sessionName = session?.display_name || session?.username || 'Admin';
   return (
     <div className="nexus-app">
       <aside className={`nexus-sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="nexus-brand">
           <span className="nexus-brand-mark"><Sparkles size={19} /></span>
-          <span><strong>AgentDock</strong><small>Nexus</small></span>
+          <span><strong>Nexus</strong><small>AgentDock Console</small></span>
         </div>
         <nav aria-label="主导航">
+          <span className="nexus-nav-title">Workspace</span>
           {NAV.map((item) => {
             const Icon = item.icon;
             return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
           })}
         </nav>
-        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span>个人控制台</span></div>
+        <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span><strong>Private workspace</strong><small>Local-first console</small></span></div>
       </aside>
       {menuOpen && <button type="button" className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
       <main className="nexus-main">
         <header className="nexus-topbar">
           <button type="button" className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
-          <div><span className="nexus-eyebrow">NexusDock</span><h1>{active.label}</h1></div>
+          <div><span className="nexus-eyebrow">Nexus / control surface</span><h1>{active.label}</h1></div>
           <div className="nexus-top-actions">
+            <span className="nexus-environment"><i />运行中</span>
             <button type="button" className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
-            <span className="nexus-session-user" title={session?.username || '管理员会话'}>{session?.display_name || session?.username || 'Admin'}</span>
+            <span className="nexus-session-user" title={session?.username || '管理员会话'}><span className="nexus-avatar">{sessionName.charAt(0).toUpperCase()}</span><span>{sessionName}</span></span>
           </div>
         </header>
         <div className={`nexus-content nexus-section-${section}`}>
