@@ -1,13 +1,13 @@
 # NexusDock
 
-NexusDock is the personal AgentDock control plane. It manages devices, Recall content, backups, administrator sessions, and a Runtime view backed by AgentDock Runtime APIs.
+NexusDock is the personal AgentDock control plane. Recall is NexusDock's memory module: Git-backed Markdown content, notes, cards, embeddings, and sync live inside this service alongside backups, administrator sessions, and Runtime views backed by AgentDock Runtime APIs.
 
 ## Product Boundary
 
 Top-level product areas:
 
 - Overview: backup status and high-priority runtime availability signals.
-- Recall: unified memory, notes, cards, inbox, Markdown editing, Git review, and sync.
+- Recall: NexusDock memory module for unified memory, notes, cards, inbox, Markdown editing, Git review, embeddings, and sync.
 - Runtime: AgentDock Runtime task, skill, workflow, capability, and log views through AgentDock Runtime APIs.
 - Settings: administrator account, browser sessions, Nexus data health, Recall repository location, and backup status.
 
@@ -17,7 +17,7 @@ Nexus does not own AgentDock Task, Skill, or Workflow lifecycle state. Those sys
 
 ```text
 cmd/nexusdock          production service entrypoint
-internal/recall    Recall Markdown content, notes, cards, and Git sync
+internal/recall    NexusDock Recall memory module: Markdown content, notes, cards, embeddings, and Git sync
 internal/auth      administrator sessions and device authentication
 internal/httpx     Nexus HTTP API, Runtime API facade, and embedded Web UI
 web                React Nexus console

@@ -5,9 +5,9 @@
 
 ## Decision
 
-Nexus is the personal AgentDock control plane. Recall is a Git-backed content repository for memory, notes, cards, inbox, and sync. AgentDock Runtime owns Task, Skill, and Workflow lifecycles.
+NexusDock is the personal AgentDock control plane. Recall is NexusDock's memory module and Git-backed content repository for memory, notes, cards, inbox, embeddings, and sync. AgentDock Runtime owns Task, Skill, and Workflow lifecycles.
 
-Nexus stores its system state in `NEXUS_DATA_DIR`. Recall content is stored in `RECALL_REPO_DIR`. The two directories must be configurable independently.
+NexusDock stores control-plane system state in `NEXUS_DATA_DIR`. NexusDock Recall stores content in `RECALL_REPO_DIR`. The two data domains remain configurable independently even though they are served by the same NexusDock process.
 
 Runtime data must enter Nexus through AgentDock Runtime APIs. Nexus must not create independent Task, Skill, or Workflow lifecycle tables, registries, state files, or direct filesystem writers.
 
