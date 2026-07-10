@@ -132,7 +132,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
   return <aside className="mem-lite-browser">
     <div className="mem-lite-panel-head">
       <div><h2>文件</h2><p>{state.query ? `搜索结果 · ${resultSummary}` : `文件管理器 · ${resultSummary}`}</p></div>
-      <button type="button" className="icon" onClick={actions.startNew} title="新建召回条目"><Plus size={17} /></button>
+      <button type="button" className="icon" onClick={actions.startNew} title="新建召回条目" aria-label="新建召回条目"><Plus size={17} /></button>
     </div>
     <form className="mem-lite-search" onSubmit={actions.searchMemories}>
       <Search size={15} />

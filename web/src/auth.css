@@ -122,3 +122,71 @@
 /* Settings page light touch */
 :root{color-scheme:light}.security-panel{border:1px solid #e2e8f0!important;background:#fff!important;color:#172033!important;box-shadow:0 8px 28px rgba(37,53,78,.045)!important}.security-head{border-bottom-color:#edf0f4!important;background:#fbfcfe!important}.security-head p,.security-profile span,.session-toolbar span,.session-copy span,.session-copy small,.session-empty{color:#687386!important}.security-icon{color:#476ee7!important;background:#edf2ff!important;border:1px solid #dfe7ff}.security-secondary,.security-actions button,.session-toolbar button{border-color:#dfe5ee!important;background:#fff!important;color:#4f5d73!important}.security-secondary:hover,.security-actions button:hover,.session-toolbar button:hover{background:#f4f7fb!important;color:#304eb6!important}.security-profile{background:#fff!important}.session-toolbar{background:#f8fafc!important;border-top-color:#edf0f4!important;border-bottom-color:#edf0f4!important}.session-row{border-bottom-color:#edf0f4!important}.session-client{background:#edf2ff!important;color:#476ee7!important}.session-copy em{color:#16845c!important;background:#e9f8f1!important}.session-revoke{color:#8791a0!important}.session-revoke:hover{color:#bd3c48!important;background:#fff0f1!important}.auth-error{background:#fff0f1!important;border-color:#ffd3d9!important;color:#ad2937!important}
 @media(max-width:860px){.security-panel{border-radius:14px}.security-head{padding:16px}.security-profile,.session-toolbar{padding:15px 16px}.session-list{padding:5px 16px 12px}}
+
+
+/* Responsive settings security panel */
+@media (max-width: 560px) {
+  .security-panel {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .security-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px;
+  }
+  .security-head>div { min-width: 0; gap: 10px; }
+  .security-head h2 { font-size: 15px; }
+  .security-head p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .security-icon {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+  }
+  .security-secondary {
+    min-height: 34px;
+    padding: 7px 9px;
+    white-space: nowrap;
+  }
+  .security-profile {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px;
+  }
+  .security-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .security-actions button {
+    min-width: 0;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .session-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .session-toolbar button {
+    padding: 7px 9px;
+    white-space: nowrap;
+  }
+  .session-list {
+    min-width: 0;
+    padding: 4px 14px 10px;
+  }
+  .session-row,
+  .session-copy { min-width: 0; }
+  .session-row { gap: 10px; padding: 13px 0; }
+}

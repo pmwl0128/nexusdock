@@ -174,12 +174,12 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <section className="workflow-layout workflow-runtime-layout">
       <aside className="workflow-list-panel workflow-runtime-list-panel">
         <div className="workflow-toolbar">
-          <label><span>状态</span><select value={location} onChange={(event) => setLocation(event.target.value as WorkflowLocation | 'all')}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label className="workflow-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 id、标题、关键词" /></label>
+          <label><span>状态</span><select aria-label="筛选模板状态" value={location} onChange={(event) => setLocation(event.target.value as WorkflowLocation | 'all')}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 Workflow 模板" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 id、标题、关键词" /></label>
         </div>
         <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>当前列表</span><em>{location === 'all' ? '全部状态' : locationLabel(location)}</em></div>
         <div className="workflow-list workflow-runtime-list">
-          {loading ? <p className="empty-mini">正在读取Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} onClick={() => void openTemplate(item)}>
+          {loading ? <p className="empty-mini">正在读取Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
             <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>

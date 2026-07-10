@@ -85,7 +85,7 @@ export default function AccountSecurity() {
           <article className={`session-row ${item.current ? 'is-current' : ''}`} key={item.id}>
             <span className="session-client">{/iOS|Android/.test(item.user_agent_summary) ? <Smartphone size={18} /> : <Laptop size={18} />}</span>
             <div className="session-copy"><div><strong>{item.user_agent_summary || '未知客户端'}</strong>{item.current && <em>当前</em>}</div><span>{item.ip_prefix || '未知网络'} · {item.remember_me ? '记住我' : '浏览器会话'}</span><small><Clock3 size={12} />最近活动 {formatTime(item.last_seen_at, { fallback: '未知' })}</small></div>
-            {!item.current && <button type="button" className="session-revoke" title="撤销会话" onClick={() => void revoke(item.id)} disabled={Boolean(actionBusy)}><Trash2 size={16} /></button>}
+            {!item.current && <button type="button" className="session-revoke" title="撤销会话" aria-label={`撤销 ${item.user_agent_summary || '未知客户端'} 会话`} onClick={() => void revoke(item.id)} disabled={Boolean(actionBusy)}><Trash2 size={16} /></button>}
           </article>
         ))}
         {!loading && sessions.length === 0 && <p className="session-empty">没有可显示的活动会话。</p>}

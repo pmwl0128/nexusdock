@@ -809,3 +809,56 @@
   .mem-lite-tree-row{grid-template-columns:16px 20px minmax(0,1fr) !important;padding-left:calc(7px + var(--tree-depth) * 12px) !important;}
   .mem-lite-tree-row em{display:none !important;}
 }
+
+
+/* Mobile Recall detail header: keep filename readable and actions evenly sized. */
+@media (max-width: 760px) {
+  .mem-lite.is-detail-open .mem-lite-panel-head {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 8px;
+    padding: 13px;
+  }
+  .mem-lite.is-detail-open .mem-lite-panel-head>div:first-child {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .mem-lite.is-detail-open .mem-lite-panel-head h2 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .mem-lite.is-detail-open .mem-lite-panel-head p {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mem-lite.is-detail-open .mem-lite-mobile-back {
+    grid-column: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .mem-lite.is-detail-open .mem-lite-editor-actions {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    width: auto;
+    min-width: 0;
+    gap: 7px;
+  }
+  .mem-lite.is-detail-open .mem-lite-editor-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 6px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+}

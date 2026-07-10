@@ -60,8 +60,9 @@ type SystemStatus = {
 
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 
-type SectionMeta = { id: Section; label: string; icon: typeof Home };
+type SectionMeta = { id: Section; label: string; icon: typeof Home; scope: string };
 type RuntimeSectionMeta = { id: RuntimeSection; label: string; icon: typeof Home };
+type NavGroup = { label: string; items: SectionMeta[] };
 
 const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
   { id: 'tasks', label: '任务', icon: ListChecks },
@@ -70,10 +71,16 @@ const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
 ];
 
 const NAV: SectionMeta[] = [
-  { id: 'home', label: '总览', icon: Home },
-  { id: 'recall', label: 'Recall', icon: Database },
-  ...RUNTIME_SECTIONS,
-  { id: 'settings', label: '设置', icon: Settings },
+  { id: 'home', label: '总览', icon: Home, scope: 'workspace' },
+  { id: 'recall', label: 'Recall', icon: Database, scope: 'workspace' },
+  ...RUNTIME_SECTIONS.map((item) => ({ ...item, scope: 'runtime' })),
+  { id: 'settings', label: '设置', icon: Settings, scope: 'system' },
+];
+
+const NAV_GROUPS: NavGroup[] = [
+  { label: 'Workspace', items: NAV.filter((item) => item.scope === 'workspace') },
+  { label: 'Runtime', items: NAV.filter((item) => item.scope === 'runtime') },
+  { label: 'System', items: NAV.filter((item) => item.scope === 'system') },
 ];
 
 const LEGACY_RUNTIME_SECTIONS: Record<string, RuntimeSection> = {
@@ -195,28 +202,30 @@ export default function App() {
   const sessionName = session?.display_name || session?.username || 'Admin';
   return (
     <div className="nexus-app">
-      <aside className={`nexus-sidebar ${menuOpen ? 'is-open' : ''}`}>
+      <aside id="nexus-primary-navigation" className={`nexus-sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="nexus-brand">
           <span className="nexus-brand-mark"><Sparkles size={19} /></span>
           <span><strong>Nexus</strong><small>AgentDock Console</small></span>
         </div>
         <nav aria-label="主导航">
-          <span className="nexus-nav-title">Workspace</span>
-          {NAV.map((item) => {
-            const Icon = item.icon;
-            return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
-          })}
+          {NAV_GROUPS.map((group) => <div className="nexus-nav-group" key={group.label}>
+            <span className="nexus-nav-title">{group.label}</span>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} aria-current={section === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}><Icon size={18} /><span>{item.label}</span></button>;
+            })}
+          </div>)}
         </nav>
         <div className="nexus-sidebar-foot"><ShieldCheck size={16} /><span><strong>Private workspace</strong><small>Local-first console</small></span></div>
       </aside>
       {menuOpen && <button type="button" className="nexus-scrim" aria-label="关闭菜单" onClick={() => setMenuOpen(false)} />}
       <main className="nexus-main">
         <header className="nexus-topbar">
-          <button type="button" className="nexus-mobile-menu" aria-label="切换菜单" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
-          <div><span className="nexus-eyebrow">Nexus / control surface</span><h1>{active.label}</h1></div>
+          <button type="button" className="nexus-mobile-menu" aria-label="切换菜单" aria-expanded={menuOpen} aria-controls="nexus-primary-navigation" onClick={() => setMenuOpen((value) => !value)}>{menuOpen ? <X /> : <Menu />}</button>
+          <div><span className="nexus-eyebrow">Nexus / {active.scope}</span><h1>{active.label}</h1></div>
           <div className="nexus-top-actions">
             <span className="nexus-environment"><i />运行中</span>
-            <button type="button" className="icon-button" title="刷新" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
+            <button type="button" className="icon-button" title="刷新" aria-label="刷新当前页面" onClick={() => setRefreshToken((value) => value + 1)}><RefreshCw size={17} /></button>
             <span className="nexus-session-user" title={session?.username || '管理员会话'}><span className="nexus-avatar">{sessionName.charAt(0).toUpperCase()}</span><span>{sessionName}</span></span>
           </div>
         </header>
@@ -256,27 +265,33 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   return <>
     <section className="nexus-hero nexus-workbench-hero">
       <div><span className="nexus-kicker">个人控制台</span><h2>Recall、备份和运行时集中管理</h2><p>旧控制协议已经下线，NexusDock 只保留当前真实使用的管理入口。</p></div>
-      <div className="hero-health-stack"><StatusBadge tone={errors.length ? 'danger' : systemTone}>{errors.length ? '部分数据不可用' : '控制台正常'}</StatusBadge><span>数据库 {system.data.database || 'unknown'}</span><span>{backup?.state ? `备份 ${backup.state}` : '备份待确认'}</span></div>
+      <aside className="hero-health-stack" aria-label="控制台运行状态">
+        <div className="hero-health-head"><span>运行状态</span><StatusBadge tone={errors.length ? 'danger' : systemTone}>{errors.length ? '部分数据不可用' : '控制台正常'}</StatusBadge></div>
+        <dl>
+          <div><dt>数据库</dt><dd>{system.data.database || 'unknown'}</dd></div>
+          <div><dt>备份</dt><dd>{backup?.state || '待确认'}</dd></div>
+        </dl>
+      </aside>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
     <section className="metric-grid compact-metrics">
-      <MetricButton label="控制台" value={system.data.ok ? 1 : 0} tone={systemTone} onClick={() => navigate('settings')} />
-      <MetricButton label="Recall" value={1} tone="ok" onClick={() => navigate('recall')} />
-      <MetricButton label="任务" value={1} tone="ok" onClick={() => navigate('tasks')} />
-      <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} onClick={() => navigate('settings')} />
+      <MetricButton label="控制台" value={system.data.ok ? 1 : 0} tone={systemTone} icon={ShieldCheck} onClick={() => navigate('settings')} />
+      <MetricButton label="Recall" value={1} tone="ok" icon={Database} onClick={() => navigate('recall')} />
+      <MetricButton label="任务" value={1} tone="ok" icon={ListChecks} onClick={() => navigate('tasks')} />
+      <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} icon={CircleAlert} onClick={() => navigate('settings')} />
     </section>
 
     <section className="dashboard-grid-nexus">
-      <Panel title="系统状态" subtitle="NexusDock 运行与 SQLite 健康">
+      <Panel className="dashboard-system-panel" icon={Activity} title="系统状态" subtitle="NexusDock 运行与 SQLite 健康">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
         <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
       </Panel>
-      <BackupPanel backup={backup} />
-      <Panel title="需要处理" subtitle="只聚合系统和备份异常">
+      <BackupPanel backup={backup} className="dashboard-backup-panel" />
+      <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只聚合系统和备份异常">
         {system.data.ok && backup?.state !== 'failed' ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
@@ -292,7 +307,7 @@ function isRuntimeSection(section: Section): section is RuntimeSection {
 
 function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refreshToken: number }) {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    <div className="runtime-inline-note"><strong>AgentDock Runtime owns this lifecycle.</strong><span>Nexus displays Runtime API state and can only perform writes through controlled Runtime endpoints.</span></div>
+    <aside className="runtime-inline-note" aria-label="Runtime 数据边界"><ShieldCheck size={17} /><div><strong>生命周期由 AgentDock Runtime 管理</strong><span>Nexus 只展示 Runtime API 状态，写操作仅通过受控 Runtime 接口执行。</span></div></aside>
     {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
@@ -305,20 +320,20 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
-      <Panel title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
+      <Panel className="settings-system-panel" icon={Activity} title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
         <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
       </Panel>
-      <BackupPanel backup={backup.data} />
+      <BackupPanel backup={backup.data} className="settings-backup-panel" />
     </section>
   </>;
 }
 
-function BackupPanel({ backup }: { backup?: BackupStatus }) {
-  return <Panel title="备份状态" subtitle={backup ? `${backup.host} · ${backup.schedule}` : '等待备份状态'}>
+function BackupPanel({ backup, className }: { backup?: BackupStatus; className?: string }) {
+  return <Panel className={className} icon={Database} title="备份状态" subtitle={backup ? `${backup.host} · ${backup.schedule}` : '等待备份状态'}>
     {backup ? <>
       <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
@@ -333,8 +348,8 @@ function BackupPanel({ backup }: { backup?: BackupStatus }) {
   </Panel>;
 }
 
-function MetricButton({ label, value, tone, onClick }: { label: string; value: number; tone: Tone; onClick: () => void }) { return <button type="button" className="metric-card" onClick={onClick}><span className={`metric-icon tone-${tone}`}><Activity size={20} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
-function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) { return <article className="nexus-panel"><header><div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
+function MetricButton({ label, value, tone, icon: Icon, onClick }: { label: string; value: number; tone: Tone; icon: typeof Home; onClick: () => void }) { return <button type="button" className="metric-card" aria-label={`${label}：${value}`} onClick={onClick}><span className={`metric-icon tone-${tone}`}><Icon size={19} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
+function Panel({ title, subtitle, icon: Icon, className = '', children }: { title: string; subtitle: string; icon?: typeof Home; className?: string; children: ReactNode }) { return <article className={`nexus-panel ${className}`.trim()}><header>{Icon && <span className="nexus-panel-icon"><Icon size={17} /></span>}<div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }
 function EmptyMini({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }
