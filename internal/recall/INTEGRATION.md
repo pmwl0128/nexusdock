@@ -3,7 +3,7 @@
 ## 所有权与边界
 
 本目录由 T2 维护。Recall 模块继续以 Markdown 文件和 Git 作为内容权威源，不访问
-Nexus 数据库，也不创建 Task、执行设备命令或修改 Skill。
+Nexus 数据库，也不创建 Task、执行命令队列或修改 Skill。
 
 `RecallService` 是 T3、T8 与 API 层唯一应依赖的业务端口。旧 `Store` API 仅作为内部实现保留，
 用于兼容现有 Recall HTTP/MCP 行为。

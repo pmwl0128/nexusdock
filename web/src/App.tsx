@@ -1,7 +1,7 @@
 import { formatTime, timeZoneLabel } from './lib/time';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Activity, Boxes, ChevronRight,
+  Activity, ChevronRight,
   CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
   Settings, ShieldCheck, Sparkles, Wrench, X,
 } from 'lucide-react';
@@ -34,7 +34,7 @@ type BackupStatus = {
   title: string;
   description?: string;
   provider: string;
-  device: string;
+  host: string;
   enabled: boolean;
   schedule: string;
   state: string;
@@ -315,7 +315,7 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function BackupPanel({ backup }: { backup?: BackupStatus }) {
-  return <Panel title="备份状态" subtitle={backup ? `${backup.device} · ${backup.schedule}` : '等待备份状态'}>
+  return <Panel title="备份状态" subtitle={backup ? `${backup.host} · ${backup.schedule}` : '等待备份状态'}>
     {backup ? <>
       <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />

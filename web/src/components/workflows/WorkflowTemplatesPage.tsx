@@ -325,7 +325,7 @@ function stepViews(value: unknown): StepView[] {
 }
 
 function matchViews(match: Record<string, unknown>): MatchView[] {
-  const labels: Record<string, string> = { keywords: '关键词', devices: '设备', task_types: '任务类型', projects: '项目', tools: '工具', skills: 'Skill', priority: '优先级' };
+  const labels: Record<string, string> = { keywords: '关键词', devices: '运行端', task_types: '任务类型', projects: '项目', tools: '工具', skills: 'Skill', priority: '优先级' };
   return Object.entries(match).reduce<MatchView[]>((rows, [key, value]) => {
     const values = stringValues(value);
     if (values.length > 0) rows.push({ label: labels[key] || key, values });

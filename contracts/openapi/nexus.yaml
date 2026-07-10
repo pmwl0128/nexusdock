@@ -3,7 +3,7 @@
   "info": {
     "title": "NexusDock API",
     "version": "1.0.0",
-    "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。"
+    "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖 Recall、备份、账号会话和 AgentDock Runtime 视图。"
   },
   "servers": [
     {
@@ -4052,7 +4052,7 @@
           },
           "host": {
             "type": "string",
-            "description": "执行设备。"
+            "description": "执行主机。"
           },
           "archive": {
             "type": "string",
@@ -4097,9 +4097,9 @@
             "type": "string",
             "description": "计划执行提供方。"
           },
-          "device": {
+          "host": {
             "type": "string",
-            "description": "执行设备。"
+            "description": "执行主机。"
           },
           "enabled": {
             "type": "boolean",
@@ -4174,7 +4174,7 @@
           "id",
           "title",
           "provider",
-          "device",
+          "host",
           "enabled",
           "schedule",
           "state",

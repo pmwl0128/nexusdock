@@ -32,7 +32,7 @@ type backupStatus struct {
 	Title           string          `json:"title"`
 	Description     string          `json:"description"`
 	Provider        string          `json:"provider"`
-	Device          string          `json:"device"`
+	Host            string          `json:"host"`
 	Enabled         bool            `json:"enabled"`
 	Schedule        string          `json:"schedule"`
 	ScheduleType    string          `json:"schedule_type"`
@@ -69,7 +69,7 @@ func loadBackupStatus(dir string, now time.Time) backupStatus {
 		Title:        "AgentDock + Nexus 云端备份",
 		Description:  "备份 AgentDock、Nexus 源码和运行配置到天翼云盘",
 		Provider:     "launchd",
-		Device:       "DockMini",
+		Host:         "DockMini",
 		Enabled:      true,
 		Schedule:     "每天 03:30",
 		ScheduleType: "calendar",

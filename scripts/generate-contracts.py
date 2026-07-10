@@ -2,7 +2,7 @@
 """Generate Nexus OpenAPI, JSON Schemas, event schemas and Go client DTOs.
 
 The generator intentionally uses only the Python standard library so every
-AgentDock development device can reproduce the checked-in output.
+AgentDock development host can reproduce the checked-in output.
 """
 
 from __future__ import annotations
@@ -143,7 +143,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "message": scalar("string", "状态说明。"),
             "started_at": TIMESTAMP,
             "completed_at": TIMESTAMP,
-            "host": scalar("string", "执行设备。"),
+            "host": scalar("string", "执行主机。"),
             "archive": scalar("string", "归档文件名。"),
             "archive_size": scalar("integer", "归档字节数。", minimum=0),
             "sha256": scalar("string", "归档 SHA-256。"),
@@ -158,7 +158,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "title": scalar("string", "备份名称。"),
             "description": scalar("string", "备份内容说明。"),
             "provider": scalar("string", "计划执行提供方。"),
-            "device": scalar("string", "执行设备。"),
+            "host": scalar("string", "执行主机。"),
             "enabled": scalar("boolean", "备份是否启用。"),
             "schedule": scalar("string", "可读计划。"),
             "schedule_type": scalar("string", "计划类型。"),
@@ -173,7 +173,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "remote_path": scalar("string", "脱敏后的远端路径。"),
             "history": array("最近备份历史。", ref("BackupHistory")),
         },
-        ("id", "title", "provider", "device", "enabled", "schedule", "state", "next_run_at", "history"),
+        ("id", "title", "provider", "host", "enabled", "schedule", "state", "next_run_at", "history"),
     )
     schemas["RecallEntry"] = obj(
         "Markdown 召回条目。",
@@ -290,7 +290,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "info": {
             "title": "NexusDock API",
             "version": "1.0.0",
-            "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖设备、Recall、加密文件、备份、账号会话和 AgentDock Runtime 视图。",
+            "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖 Recall、备份、账号会话和 AgentDock Runtime 视图。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,

@@ -72,7 +72,7 @@ type BackupHistory struct {
 	StartedAt *string `json:"started_at,omitempty"`
 	// CompletedAt RFC 3339 UTC 时间。
 	CompletedAt *string `json:"completed_at,omitempty"`
-	// Host 执行设备。
+	// Host 执行主机。
 	Host *string `json:"host,omitempty"`
 	// Archive 归档文件名。
 	Archive *string `json:"archive,omitempty"`
@@ -94,8 +94,8 @@ type BackupStatus struct {
 	Description *string `json:"description,omitempty"`
 	// Provider 计划执行提供方。
 	Provider string `json:"provider"`
-	// Device 执行设备。
-	Device string `json:"device"`
+	// Host 执行主机。
+	Host string `json:"host"`
 	// Enabled 备份是否启用。
 	Enabled bool `json:"enabled"`
 	// Schedule 可读计划。
