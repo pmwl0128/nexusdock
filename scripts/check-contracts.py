@@ -34,6 +34,7 @@ FORBIDDEN_PATH_PREFIXES = (
     "/v1/events",
     "/v1/schedules",
 )
+FORBIDDEN_FIELDS = {"recall_root"}
 FORBIDDEN_SCHEMAS = {
     "DeviceCapability",
     "DeviceEnrollmentRequest",
@@ -102,6 +103,11 @@ def validate_openapi(errors: list[str]) -> None:
     retired_schemas = sorted(FORBIDDEN_SCHEMAS & set(schemas))
     if retired_schemas:
         errors.append("retired product schemas are still public: " + ", ".join(retired_schemas))
+    for schema_name, schema in schemas.items():
+        properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
+        retired_fields = sorted(FORBIDDEN_FIELDS & set(properties))
+        if retired_fields:
+            errors.append(f"{schema_name}: retired fields still public: " + ", ".join(retired_fields))
     for reference in collect_refs(document):
         prefix = "#/components/schemas/"
         if reference.startswith(prefix) and reference[len(prefix):] not in schemas:
@@ -132,6 +138,15 @@ def validate_json_schemas(errors: list[str]) -> None:
         if not document.get("$id"):
             errors.append(f"{path.name}: missing $id")
         defs = document.get("$defs", {})
+        properties = document.get("properties", {}) if isinstance(document, dict) else {}
+        retired_fields = sorted(FORBIDDEN_FIELDS & set(properties))
+        if retired_fields:
+            errors.append(f"{path.name}: retired fields still public: " + ", ".join(retired_fields))
+        for def_name, definition in defs.items():
+            properties = definition.get("properties", {}) if isinstance(definition, dict) else {}
+            retired_fields = sorted(FORBIDDEN_FIELDS & set(properties))
+            if retired_fields:
+                errors.append(f"{path.name}#$defs/{def_name}: retired fields still public: " + ", ".join(retired_fields))
         for reference in collect_refs(document):
             prefix = "#/$defs/"
             if reference.startswith(prefix) and reference[len(prefix):] not in defs:
@@ -155,6 +170,7 @@ def validate_generated_boundary(errors: list[str]) -> None:
         "EnrollDevice(", "CreateEnrollmentToken(", "CreateDeviceCommand(", "ReportDeviceHeartbeat(",
         "LeaseDeviceCommand(", "StartCommand(", "RenewCommandLease(", "CompleteCommand(",
         "type Device", "type CommandLease", "type CommandProgress", "type CommandResult",
+        "RecallRoot", "recall_root",
     ]
     for token in forbidden_tokens:
         if token in text:

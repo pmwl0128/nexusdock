@@ -132,7 +132,6 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "schema_version": scalar("integer", "数据库 Schema 版本。", minimum=0),
             "nexus_data_dir": scalar("string", "Nexus 系统状态目录。"),
             "recall_repo_dir": scalar("string", "Recall Git Markdown 仓库目录。"),
-            "recall_root": scalar("string", "已废弃兼容字段；请使用 recall_repo_dir。"),
         },
         ("ok", "service", "database", "schema_version", "nexus_data_dir", "recall_repo_dir"),
     )

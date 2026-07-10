@@ -31,7 +31,7 @@ func TestResolveRejectsTraversalAbsoluteAndGitPaths(t *testing.T) {
 
 	for _, path := range []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/nexusdock.md", "inbox/old.md"} {
 		if _, err := store.resolve(path); !errors.Is(err, ErrDisallowedPath) {
-			t.Fatalf("expected legacy root %q to be disallowed, got %v", path, err)
+			t.Fatalf("expected reserved root %q to be disallowed, got %v", path, err)
 		}
 	}
 }

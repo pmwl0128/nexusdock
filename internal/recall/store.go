@@ -710,7 +710,7 @@ func (s *Store) resolve(rel string) (string, error) {
 	if hasHiddenSegment(clean) {
 		return "", ErrInvalidPath
 	}
-	if isLegacyRecallRoot(filepath.ToSlash(clean)) {
+	if isReservedRecallPath(filepath.ToSlash(clean)) {
 		return "", ErrDisallowedPath
 	}
 	abs := filepath.Clean(filepath.Join(s.root, clean))
@@ -721,7 +721,7 @@ func (s *Store) resolve(rel string) (string, error) {
 	return abs, nil
 }
 
-func isLegacyRecallRoot(rel string) bool {
+func isReservedRecallPath(rel string) bool {
 	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "/")))
 	for _, root := range []string{"cards", "notes", "projects", "devices", "ops", "inbox"} {
 		if rel == root || strings.HasPrefix(rel, root+"/") {

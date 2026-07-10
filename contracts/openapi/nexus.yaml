@@ -4105,10 +4105,6 @@
           "recall_repo_dir": {
             "type": "string",
             "description": "Recall Git Markdown 仓库目录。"
-          },
-          "recall_root": {
-            "type": "string",
-            "description": "已废弃兼容字段；请使用 recall_repo_dir。"
           }
         },
         "required": [

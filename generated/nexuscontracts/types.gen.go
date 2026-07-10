@@ -58,8 +58,6 @@ type SystemStatus struct {
 	NexusDataDir string `json:"nexus_data_dir"`
 	// RecallRepoDir Recall Git Markdown 仓库目录。
 	RecallRepoDir string `json:"recall_repo_dir"`
-	// RecallRoot 已废弃兼容字段；请使用 recall_repo_dir。
-	RecallRoot *string `json:"recall_root,omitempty"`
 }
 
 // BackupHistory 一次备份执行的脱敏结果。

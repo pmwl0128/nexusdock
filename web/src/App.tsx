@@ -56,7 +56,6 @@ type SystemStatus = {
   schema_version: number;
   nexus_data_dir?: string;
   recall_repo_dir?: string;
-  recall_root?: string;
 };
 
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
@@ -247,7 +246,7 @@ function SessionExpiredDialog() {
 }
 
 function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const backup = backupResource.data;
   const errors = [system.error, backupResource.error].filter(Boolean) as string[];
@@ -273,7 +272,7 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
-        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || system.data.recall_root || '暂无'} mono />
+        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup} />
       <Panel title="需要处理" subtitle="只聚合系统和备份异常">
@@ -301,7 +300,7 @@ function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refr
 }
 
 function SettingsPage({ refreshToken }: { refreshToken: number }) {
-  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '', recall_root: '' }, refreshToken);
+  const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
@@ -311,7 +310,7 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
         <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
-        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || system.data.recall_root || '暂无'} mono />
+        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
       </Panel>
       <BackupPanel backup={backup.data} />
     </section>
