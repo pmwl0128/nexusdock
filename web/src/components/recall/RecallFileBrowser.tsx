@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Plus, Search } from 'lucide-react';
 import type { RecallEntry, RecallWorkspaceViewModel } from './types';
 import { nameOf, normalizePath } from './utils';
@@ -71,12 +71,35 @@ function treeIndent(depth: number): CSSProperties {
   return { '--tree-depth': depth } as CSSProperties;
 }
 
+function collectFolderPaths(node: RecallTreeNode): string[] {
+  return node.folders.flatMap((folder) => [folder.path, ...collectFolderPaths(folder)]);
+}
+
+function defaultCollapsedFolders(root: RecallTreeNode): Set<string> {
+  const collapsed = new Set<string>();
+  function visit(folder: RecallTreeNode, depth: number) {
+    if (depth >= 1) collapsed.add(folder.path);
+    folder.folders.forEach((child) => visit(child, depth + 1));
+  }
+  root.folders.forEach((folder) => visit(folder, 0));
+  return collapsed;
+}
+
 export default function RecallFileBrowser({ state, fileEntries, actions }: Props) {
   const { root, folderCount } = useMemo(() => buildRecallTree(fileEntries), [fileEntries]);
+  const folderPaths = useMemo(() => collectFolderPaths(root), [root]);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
+  const initializedTree = useRef(false);
+  const allCollapsed = folderPaths.length > 0 && folderPaths.every((path) => collapsedFolders.has(path));
   const resultSummary = state.query
     ? `${fileEntries.length} 个结果 / ${folderCount} 个文件夹`
     : `${folderCount} 个文件夹 / ${fileEntries.length} 个文件`;
+
+  useEffect(() => {
+    if (initializedTree.current || fileEntries.length === 0) return;
+    setCollapsedFolders(defaultCollapsedFolders(root));
+    initializedTree.current = true;
+  }, [fileEntries.length, root]);
 
   function toggleFolder(path: string) {
     setCollapsedFolders((current) => {
@@ -86,6 +109,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
     });
   }
 
+  function toggleAllFolders() {
+    setCollapsedFolders(allCollapsed ? new Set() : new Set(folderPaths));
+  }
+
   function renderFiles(files: RecallEntry[], depth: number) {
     return files.map((entry) => (
       <button
@@ -93,6 +120,9 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         key={entry.path}
         className={`mem-lite-tree-row mem-lite-tree-file ${state.current?.path === entry.path ? 'active' : ''}`}
         style={treeIndent(depth)}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={state.current?.path === entry.path}
         title={entry.path}
         onClick={() => actions.openRecall(entry.path)}
       >
@@ -113,7 +143,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         type="button"
         className="mem-lite-tree-row mem-lite-tree-folder-row"
         style={treeIndent(depth)}
+        role="treeitem"
+        aria-level={depth + 1}
         aria-expanded={!collapsed}
+        aria-label={`${folder.name} 文件夹，${folder.fileCount} 个文件`}
         title={folder.path}
         onClick={() => toggleFolder(folder.path)}
       >
@@ -139,6 +172,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
       <input aria-label="搜索召回内容" value={state.query} onChange={(event) => actions.setQuery(event.target.value)} placeholder="搜索召回内容" />
       <button type="submit">搜索</button>
     </form>
+    <div className="mem-lite-tree-toolbar">
+      <span><FolderOpen size={14} />召回目录</span>
+      <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>
+    </div>
     <div className="mem-lite-files mem-lite-tree" role="tree" aria-label="召回库文件树">
       {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的召回文件。</p> : <>
         {root.folders.map((folder) => renderFolder(folder, 0))}

@@ -188,7 +188,7 @@
 
 .mem-lite-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
 }
@@ -263,13 +263,58 @@
 .mem-lite-files {
   max-height: 660px;
   overflow: auto;
-  padding: 0 8px 10px;
+  padding: 4px 10px 14px;
+}
+
+.mem-lite-tree-toolbar {
+  margin: 0 12px 4px;
+  padding: 8px 4px 6px;
+  border-top: 1px solid #edf0f4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #748096;
+}
+
+.mem-lite-tree-toolbar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+
+.mem-lite-tree-toolbar button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #647287;
+  font-size: 11px;
+}
+
+.mem-lite-tree-toolbar button:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #263349;
+}
+
+.mem-lite-tree > .mem-lite-tree-folder > .mem-lite-tree-folder-row {
+  min-height: 38px;
+  margin-top: 3px;
+  background: #f7f9fb;
+}
+
+.mem-lite-tree > .mem-lite-tree-folder > .mem-lite-tree-folder-row:hover {
+  background: #edf2f6;
 }
 
 
 
 .mem-lite-tree {
-  padding: 2px 8px 10px;
+  padding: 4px 10px 14px;
 }
 
 .mem-lite-tree-folder,
@@ -279,34 +324,38 @@
 
 .mem-lite-tree-children {
   display: grid;
+  position: relative;
   gap: 1px;
+  margin-left: calc(14px + var(--tree-depth, 0) * 0px);
+  padding-left: 7px;
+  border-left: 1px solid #e3e9f1;
 }
 
 .mem-lite-tree-row {
   --tree-depth: 0;
   width: 100%;
   min-width: 0;
-  min-height: 32px;
+  min-height: 34px;
   border: 0;
-  border-radius: 8px;
-  padding: 5px 8px 5px calc(7px + var(--tree-depth) * 16px);
+  border-radius: 7px;
+  padding: 6px 8px 6px calc(5px + var(--tree-depth) * 12px);
   background: transparent;
   display: grid;
   grid-template-columns: 14px 17px minmax(0, 1fr) auto;
-  gap: 6px;
+  gap: 7px;
   text-align: left;
   align-items: center;
   color: #33405a;
 }
 
 .mem-lite-tree-row:hover {
-  background: #f4f7fb;
+  background: #f1f5f9;
 }
 
 .mem-lite-tree-file.active {
-  background: #e9f0ff;
-  color: #1f3c88;
-  box-shadow: inset 2px 0 0 #5d7fda;
+  background: #e7f3f0;
+  color: #145f54;
+  box-shadow: inset 2px 0 0 #15937f;
 }
 
 .mem-lite-tree-folder-row {
@@ -314,15 +363,15 @@
 }
 
 .mem-lite-tree-folder-row svg {
-  color: #5c72a6;
+  color: #b7832c;
 }
 
 .mem-lite-tree-file svg {
-  color: #7d8da8;
+  color: #7f8da2;
 }
 
 .mem-lite-tree-file.active svg {
-  color: #486fca;
+  color: #168a78;
 }
 
 .mem-lite-tree-spacer {
@@ -340,20 +389,20 @@
   text-overflow: ellipsis;
   color: inherit;
   font-size: 12px;
-  font-weight: 560;
+  font-weight: 520;
   line-height: 1.25;
 }
 
 .mem-lite-tree-folder-row .mem-lite-tree-label strong {
-  font-weight: 680;
+  font-weight: 650;
 }
 
 .mem-lite-tree-row em {
   min-width: 20px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #edf1f7;
-  color: #7b879a;
+  background: #eef2f5;
+  color: #7d8795;
   font-size: 10px;
   font-style: normal;
   line-height: 1.5;
@@ -760,7 +809,8 @@
   .mem-lite-panel-head p{margin-top:3px;font-size:11px;}
   .mem-lite-search{height:40px;margin:10px;border-radius:12px;}
   .mem-lite-search button{height:38px;border-radius:0 11px 11px 0;}
-  .mem-lite-files{padding:0 8px 10px;}
+  .mem-lite-tree-toolbar{margin:0 10px 4px;padding:7px 3px 5px;}
+  .mem-lite-files{padding:2px 8px 10px;}
   .mem-lite-tree-row{min-height:38px;padding-top:7px;padding-bottom:7px;border-radius:10px;grid-template-columns:15px 19px minmax(0,1fr) auto;}
   .mem-lite-tree-label strong{font-size:13px;}
   .mem-lite-tree-row em{font-size:10px;}
@@ -861,4 +911,21 @@
     justify-content: center;
     white-space: nowrap;
   }
+}
+
+/* File-manager rows must not inherit the generic outlined button chrome. */
+.mem-lite .mem-lite-tree-row {
+  border: 0;
+  box-shadow: none;
+}
+
+.mem-lite .mem-lite-tree-row:hover:not(:disabled) {
+  border: 0;
+  box-shadow: none;
+  transform: none;
+}
+
+.mem-lite .mem-lite-tree-file.active {
+  border: 0;
+  box-shadow: inset 2px 0 0 #15937f;
 }
