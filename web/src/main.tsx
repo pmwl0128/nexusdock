@@ -4,6 +4,7 @@ import { LoginPage } from './Auth';
 import CredentialUpdatePage from './CredentialUpdatePage';
 import './styles.css';
 import './recall-nexus.css';
+import './components/recall/recall-explorer.css';
 
 const page = window.location.pathname === '/login'
   ? <LoginPage />

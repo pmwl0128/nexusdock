@@ -138,11 +138,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
     const ToggleIcon = collapsed ? ChevronRight : ChevronDown;
     const FolderIcon = collapsed ? Folder : FolderOpen;
 
-    return <div className="mem-lite-tree-folder" key={folder.path}>
+    return <div className="mem-lite-tree-folder" key={folder.path} style={treeIndent(depth)}>
       <button
         type="button"
         className="mem-lite-tree-row mem-lite-tree-folder-row"
-        style={treeIndent(depth)}
         role="treeitem"
         aria-level={depth + 1}
         aria-expanded={!collapsed}
@@ -155,7 +154,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         <span className="mem-lite-tree-label"><strong>{folder.name}</strong></span>
         <em>{folder.fileCount}</em>
       </button>
-      {!collapsed && <div className="mem-lite-tree-children">
+      {!collapsed && <div className="mem-lite-tree-children" role="group">
         {folder.folders.map((child) => renderFolder(child, depth + 1))}
         {renderFiles(folder.files, depth + 1)}
       </div>}
@@ -163,24 +162,26 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
   }
 
   return <aside className="mem-lite-browser">
-    <div className="mem-lite-panel-head">
-      <div><h2>文件</h2><p>{state.query ? `搜索结果 · ${resultSummary}` : `文件管理器 · ${resultSummary}`}</p></div>
-      <button type="button" className="icon" onClick={actions.startNew} title="新建召回条目" aria-label="新建召回条目"><Plus size={17} /></button>
+    <div className="mem-lite-panel-head mem-lite-browser-head">
+      <div><h2>召回内容</h2><p>{state.query ? `搜索结果 · ${resultSummary}` : resultSummary}</p></div>
+      <button type="button" className="mem-lite-new" onClick={actions.startNew} title="新建召回条目"><Plus size={16} /><span>新建</span></button>
     </div>
-    <form className="mem-lite-search" onSubmit={actions.searchMemories}>
-      <Search size={15} />
-      <input aria-label="搜索召回内容" value={state.query} onChange={(event) => actions.setQuery(event.target.value)} placeholder="搜索召回内容" />
-      <button type="submit">搜索</button>
-    </form>
-    <div className="mem-lite-tree-toolbar">
-      <span><FolderOpen size={14} />召回目录</span>
-      <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>
+    <div className="mem-lite-browser-tools">
+      <form className="mem-lite-search" onSubmit={actions.searchMemories}>
+        <Search size={15} />
+        <input aria-label="搜索召回内容" value={state.query} onChange={(event) => actions.setQuery(event.target.value)} placeholder="搜索召回内容" />
+        <button type="submit">搜索</button>
+      </form>
+      <div className="mem-lite-tree-toolbar">
+        <span><FolderOpen size={14} />目录</span>
+        <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>
+      </div>
     </div>
     <div className="mem-lite-files mem-lite-tree" role="tree" aria-label="召回库文件树">
-      {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的召回文件。</p> : <>
+      {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的召回文件。</p> : <div className="mem-lite-tree-root">
         {root.folders.map((folder) => renderFolder(folder, 0))}
         {renderFiles(root.files, 0)}
-      </>}
+      </div>}
     </div>
   </aside>;
 }

@@ -1,0 +1,408 @@
+/* Recall 文件浏览器的主从布局与移动端视觉。基础控件样式仍由 recall-nexus.css 提供。 */
+.mem-lite {
+  padding: 24px;
+  background: radial-gradient(circle at 82% 0, rgba(67, 105, 194, .10), transparent 28%), #f3f6f8;
+}
+
+.mem-lite-header {
+  min-height: 104px;
+  margin-bottom: 12px;
+  padding: 20px 22px;
+  border-radius: 16px;
+  align-items: center;
+  background: linear-gradient(128deg, #1a3151, #2f4d7d 58%, #425a8e);
+  box-shadow: 0 14px 36px rgba(31, 49, 79, .14);
+}
+
+.mem-lite-header h1 {
+  margin: 5px 0 0;
+  font-size: 27px;
+  letter-spacing: -.02em;
+}
+
+.mem-lite-stats {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mem-lite-stats > div {
+  min-height: 68px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(35, 50, 74, .035);
+}
+
+.mem-lite-stats strong { font-size: 19px; }
+
+.mem-lite-grid {
+  grid-template-columns: minmax(440px, 520px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.mem-lite:not(.is-detail-open) .mem-lite-grid { grid-template-columns: minmax(0, 1fr); }
+.mem-lite:not(.is-detail-open) .mem-lite-editor { display: none; }
+
+.mem-lite-browser,
+.mem-lite-editor {
+  border-color: #dfe5ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(27, 44, 69, .055);
+}
+
+.mem-lite-browser { min-height: 560px; }
+.mem-lite:not(.is-detail-open) .mem-lite-browser { min-height: 0; }
+.mem-lite-editor,
+.mem-lite.is-detail-open .mem-lite-browser { min-height: 640px; }
+
+.mem-lite-browser-head {
+  min-height: 66px;
+  padding: 15px 18px;
+  align-items: center;
+}
+
+.mem-lite-browser-head h2 {
+  font-size: 17px;
+  letter-spacing: -.01em;
+}
+
+.mem-lite-browser-head p {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mem-lite-new {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border-color: #cce3dd;
+  color: #245f55;
+  background: #edf8f5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mem-lite-new:hover:not(:disabled) {
+  border-color: #a8d4c9;
+  background: #e4f4ef;
+}
+
+.mem-lite-browser-tools {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid #eef1f4;
+  background: #fbfcfd;
+}
+
+.mem-lite-search {
+  height: 42px;
+  margin: 0;
+  border-color: #dbe2ea;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.mem-lite-search button {
+  height: 40px;
+  border-radius: 0 10px 10px 0;
+}
+
+.mem-lite-tree-toolbar {
+  margin: 7px 0 0;
+  padding: 6px 2px 0;
+  border-top: 0;
+}
+
+.mem-lite-tree-toolbar span {
+  color: #5f6d82;
+  font-size: 11px;
+}
+
+.mem-lite-tree-toolbar button {
+  min-height: 26px;
+  padding: 3px 7px;
+}
+
+.mem-lite-files,
+.mem-lite-tree {
+  max-height: none;
+  padding: 14px;
+}
+
+.mem-lite-tree-root {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.mem-lite-tree-root > .mem-lite-tree-folder,
+.mem-lite-tree-root > .mem-lite-tree-file {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e4e9ef !important;
+  border-radius: 13px !important;
+  background: #fcfdfd;
+}
+
+.mem-lite-tree-root > .mem-lite-tree-folder > .mem-lite-tree-folder-row,
+.mem-lite-tree-root > .mem-lite-tree-file {
+  min-height: 44px;
+  margin: 0;
+  padding-right: 13px;
+  padding-left: 13px;
+  border-radius: 0;
+  background: #f7f9fa;
+}
+
+.mem-lite-tree-root > .mem-lite-tree-folder > .mem-lite-tree-folder-row:hover,
+.mem-lite-tree-root > .mem-lite-tree-file:hover:not(:disabled) {
+  border-color: #d9e1e8 !important;
+  background: #f0f4f5;
+}
+
+.mem-lite-tree-root > .mem-lite-tree-file.active {
+  border-color: #bddfd7 !important;
+  box-shadow: inset 2px 0 0 #15937f;
+}
+
+.mem-lite-tree-root > .mem-lite-tree-folder > .mem-lite-tree-children {
+  margin: 0;
+  padding: 8px 8px 9px 14px;
+  border-top: 1px solid #edf1f3;
+  border-left: 0;
+  background: #fff;
+}
+
+.mem-lite-tree-children {
+  gap: 2px;
+  margin-left: 13px;
+  padding-left: 9px;
+  border-left-color: #dfe7eb;
+}
+
+.mem-lite-tree-row {
+  min-height: 36px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-radius: 8px;
+  color: #344257;
+}
+
+.mem-lite-tree-folder-row { color: #2f3d52; }
+.mem-lite-tree-folder-row svg { color: #a97926; }
+
+.mem-lite-tree-file.active {
+  color: #145f54;
+  background: #eaf5f2;
+}
+
+.mem-lite-tree-label strong {
+  font-size: 12px;
+  font-weight: 540;
+}
+
+.mem-lite-tree-folder-row .mem-lite-tree-label strong { font-weight: 680; }
+
+.mem-lite-tree-row em {
+  color: #6f7b8b;
+  background: #edf1f3;
+}
+
+.mem-lite.is-detail-open .mem-lite-files {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.mem-lite.is-detail-open .mem-lite-tree-root { gap: 7px; }
+
+.mem-lite.is-detail-open .mem-lite-tree-root > .mem-lite-tree-folder,
+.mem-lite.is-detail-open .mem-lite-tree-root > .mem-lite-tree-file { border-radius: 10px !important; }
+
+.mem-lite-empty.large {
+  min-height: 500px;
+  background: radial-gradient(circle at center, rgba(64, 111, 196, .07), transparent 34%), #fff;
+}
+
+@media (min-width: 1000px) {
+  .mem-lite:not(.is-detail-open) .mem-lite-tree-root {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mem-lite:not(.is-detail-open) .mem-lite-tree-root > .mem-lite-tree-file { min-height: 52px; }
+}
+
+@media (min-width: 761px) {
+  .mem-lite .mem-lite-mobile-back { display: none !important; }
+
+  .mem-lite-editor > .mem-lite-panel-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mem-lite-editor > .mem-lite-panel-head > div:first-child { min-width: 0; }
+
+  .mem-lite-editor > .mem-lite-panel-head h2,
+  .mem-lite-editor > .mem-lite-panel-head p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mem-lite-editor-actions {
+    flex-wrap: nowrap;
+  }
+
+  .mem-lite-editor-actions button { white-space: nowrap; }
+}
+
+@media (max-width: 900px) {
+  .mem-lite {
+    padding: 8px 10px calc(70px + env(safe-area-inset-bottom)) !important;
+    background: #f3f6f8;
+  }
+
+  .mem-lite-header {
+    min-height: 0;
+    margin-bottom: 8px;
+    padding: 12px 13px !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    border-radius: 15px !important;
+  }
+
+  .mem-lite-kicker { display: none; }
+
+  .mem-lite-header h1 {
+    margin: 0 !important;
+    font-size: 21px !important;
+    line-height: 1 !important;
+  }
+
+  .mem-lite-header-actions {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    gap: 6px;
+  }
+
+  .mem-lite-header-actions button {
+    min-height: 34px;
+    padding: 7px 8px;
+    border-radius: 9px;
+    font-size: 11px;
+  }
+
+  .mem-lite-health {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .mem-lite-grid,
+  .mem-lite:not(.is-detail-open) .mem-lite-grid { display: block; }
+
+  .mem-lite-browser,
+  .mem-lite-editor { border-radius: 15px; }
+
+  .mem-lite-browser { min-height: 0; }
+
+  .mem-lite-browser-head {
+    min-height: 58px;
+    padding: 12px 13px;
+  }
+
+  .mem-lite-browser-head h2 { font-size: 16px; }
+  .mem-lite-browser-head p { font-size: 10px; }
+
+  .mem-lite-new {
+    min-height: 34px;
+    padding: 7px 10px;
+  }
+
+  .mem-lite-browser-tools { padding: 10px 10px 7px; }
+
+  .mem-lite-search { height: 40px; }
+  .mem-lite-search button { height: 38px; }
+
+  .mem-lite-tree-toolbar {
+    margin-top: 6px;
+    padding-top: 5px;
+  }
+
+  .mem-lite-files,
+  .mem-lite-tree { padding: 9px; }
+
+  .mem-lite-tree-root { gap: 8px; }
+
+  .mem-lite-tree-root > .mem-lite-tree-folder,
+  .mem-lite-tree-root > .mem-lite-tree-file { border-radius: 11px !important; }
+
+  .mem-lite-tree-root > .mem-lite-tree-folder > .mem-lite-tree-folder-row,
+  .mem-lite-tree-root > .mem-lite-tree-file {
+    min-height: 42px;
+    padding-right: 10px;
+    padding-left: 10px !important;
+  }
+
+  .mem-lite-tree-root > .mem-lite-tree-folder > .mem-lite-tree-children {
+    padding: 6px 6px 7px 10px;
+  }
+
+  .mem-lite-tree-children {
+    margin-left: 10px;
+    padding-left: 7px;
+  }
+
+  .mem-lite-tree-row {
+    min-height: 39px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    padding-left: calc(5px + var(--tree-depth) * 9px) !important;
+    border-radius: 8px;
+  }
+
+  .mem-lite-tree-label strong { font-size: 12px; }
+
+  .mem-lite-tree-file .mem-lite-tree-label strong {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    text-overflow: clip;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-height: 1.35;
+  }
+
+  .mem-lite-advanced { margin-top: 8px; }
+
+  .mem-lite-advanced > summary {
+    padding: 10px 11px;
+    border-radius: 13px;
+  }
+
+  .mem-lite-advanced > summary strong { font-size: 13px; }
+  .mem-lite-advanced > summary span { font-size: 10px; }
+}
+
+@media (max-width: 430px) {
+  .mem-lite-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .mem-lite-header-actions {
+    grid-template-columns: auto 34px 34px;
+    gap: 6px;
+  }
+
+  .mem-lite-header-actions button {
+    width: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  .mem-lite-header-actions button span { display: none; }
+}

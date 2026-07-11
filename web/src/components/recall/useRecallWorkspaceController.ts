@@ -23,8 +23,12 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
   const directoryCount = useMemo(() => {
     const directories = new Set<string>();
     for (const entry of fileEntries) {
-      const directory = normalizePath(entry.path).split('/').slice(0, -1).join('/');
-      if (directory) directories.add(directory);
+      const parts = normalizePath(entry.path).split('/').slice(0, -1);
+      let current = '';
+      for (const part of parts) {
+        current = current ? `${current}/${part}` : part;
+        directories.add(current);
+      }
     }
     return directories.size;
   }, [fileEntries]);
