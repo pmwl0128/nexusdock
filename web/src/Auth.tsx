@@ -105,18 +105,18 @@ export function LoginPage() {
         <div className="auth-security-note"><ShieldCheck size={18} /><span>HttpOnly Session · SameSite Strict · CSRF 防护</span></div>
       </section>
       <section className="auth-panel">
-        <form className="auth-card" onSubmit={submit}>
-          <header><span className="auth-card-icon"><LockKeyhole size={21} /></span><div><h2>登录控制台</h2><p>使用 NexusDock 管理员账号继续</p></div></header>
-          {params.get('changed') === '1' && <div className="auth-success"><CheckCircle2 size={17} />密码已更新，请重新登录。</div>}
-          {initialized === false && <div className="auth-error">管理员尚未初始化。请在 DockMini 本机运行管理命令后刷新。</div>}
-          {error && <div className="auth-error" role="alert">{error}</div>}
-          <label><span>用户名</span><input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} disabled={submitting || initialized === false} required /></label>
-          <label><span>密码</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || initialized === false} required /></label>
-          <label className="auth-check"><input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>记住我 30 天</span></label>
-          <button className="auth-primary" type="submit" disabled={submitting || initialized !== true || !username || !password}>
+        <form className="auth-card" aria-labelledby="login-title" onSubmit={submit}>
+          <header><span className="auth-card-icon"><LockKeyhole size={21} /></span><div><h2 id="login-title">登录控制台</h2><p>使用 NexusDock 管理员账号继续</p></div></header>
+          {params.get('changed') === '1' && <div className="auth-success" role="status"><CheckCircle2 size={17} />密码已更新，请重新登录。</div>}
+          {initialized === false && <div className="auth-error" role="alert">管理员尚未初始化。请在 DockMini 本机运行管理命令后刷新。</div>}
+          {error && <div id="login-error" className="auth-error" role="alert">{error}</div>}
+          <label htmlFor="login-username"><span>用户名</span><input id="login-username" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} aria-invalid={Boolean(error)} aria-describedby={error ? 'login-error' : undefined} value={username} onChange={(event) => setUsername(event.target.value)} disabled={submitting || initialized === false} required /></label>
+          <label htmlFor="login-password"><span>密码</span><input id="login-password" name="password" type="password" autoComplete="current-password" aria-invalid={Boolean(error)} aria-describedby={error ? 'login-error' : undefined} value={password} onChange={(event) => setPassword(event.target.value)} disabled={submitting || initialized === false} required /></label>
+          <label className="auth-check" htmlFor="login-remember"><input id="login-remember" name="remember_me" type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} /><span>记住我 30 天</span></label>
+          <button className="auth-primary" type="submit" aria-busy={submitting} disabled={submitting || initialized !== true || !username || !password}>
             {submitting ? <><RefreshCw className="spin" size={17} />正在验证</> : <>进入 Nexus<ArrowRight size={17} /></>}
           </button>
-          <p className="auth-help">忘记密码时，请在 DockMini 本机使用管理员恢复命令。Nexus 不提供公网找回入口。</p>
+          <p id="login-help" className="auth-help">忘记密码时，请在 DockMini 本机使用管理员恢复命令。Nexus 不提供公网找回入口。</p>
         </form>
       </section>
     </main>

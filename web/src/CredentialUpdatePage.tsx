@@ -49,14 +49,14 @@ export default function CredentialUpdatePage() {
   return (
     <main className="auth-shell auth-shell-single">
       <section className="auth-panel">
-        <form className="auth-card" onSubmit={submit}>
-          <header><span className="auth-card-icon"><KeyRound size={21} /></span><div><h2>{session?.must_change_password ? '首次登录安全更新' : '修改管理员密码'}</h2><p>更新后所有浏览器会话都会立即退出</p></div></header>
-          {error && <div className="auth-error" role="alert">{error}</div>}
-          <label><span>当前密码</span><input type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} required /></label>
-          <label><span>新密码</span><input type="password" autoComplete="new-password" value={next} onChange={(event) => setNext(event.target.value)} minLength={12} required /></label>
-          <label><span>确认新密码</span><input type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} minLength={12} required /></label>
-          <p className="auth-policy">至少 12 个字符；支持密码管理器生成的长密码或密码短语。</p>
-          <button className="auth-primary" type="submit" disabled={submitting || !session || !current || !next || !confirm}>{submitting ? '正在更新…' : '更新并重新登录'}</button>
+        <form className="auth-card" aria-labelledby="credential-title" aria-busy={!session || submitting} onSubmit={submit}>
+          <header><span className="auth-card-icon"><KeyRound size={21} /></span><div><h2 id="credential-title">{session?.must_change_password ? '首次登录安全更新' : '修改管理员密码'}</h2><p>更新后所有浏览器会话都会立即退出</p></div></header>
+          {error && <div id="credential-error" className="auth-error" role="alert">{error}</div>}
+          <label htmlFor="credential-current"><span>当前密码</span><input id="credential-current" name="current_password" type="password" autoComplete="current-password" aria-invalid={Boolean(error)} aria-describedby={error ? 'credential-error' : undefined} value={current} onChange={(event) => setCurrent(event.target.value)} required /></label>
+          <label htmlFor="credential-next"><span>新密码</span><input id="credential-next" name="new_password" type="password" autoComplete="new-password" aria-invalid={Boolean(error)} aria-describedby={error ? 'credential-policy credential-error' : 'credential-policy'} value={next} onChange={(event) => setNext(event.target.value)} minLength={12} required /></label>
+          <label htmlFor="credential-confirm"><span>确认新密码</span><input id="credential-confirm" name="confirm_password" type="password" autoComplete="new-password" aria-invalid={Boolean(error)} aria-describedby={error ? 'credential-policy credential-error' : 'credential-policy'} value={confirm} onChange={(event) => setConfirm(event.target.value)} minLength={12} required /></label>
+          <p id="credential-policy" className="auth-policy">至少 12 个字符；支持密码管理器生成的长密码或密码短语。</p>
+          <button className="auth-primary" type="submit" aria-busy={submitting} disabled={submitting || !session || !current || !next || !confirm}>{submitting ? '正在更新…' : '更新并重新登录'}</button>
         </form>
       </section>
     </main>
