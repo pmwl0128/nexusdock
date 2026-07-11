@@ -7,6 +7,7 @@ type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
 
 const taskStatusLabels: Record<TaskStatus, string> = { all: '全部', active: '进行中', completed: '已完成', blocked: '阻塞' };
+const runtimeTaskListLimit = 200;
 function taskStatusLabel(status?: string): string { return taskStatusLabels[status as TaskStatus] || status || '未知'; }
 
 type OpsTask = { id: string; title: string; goal: string; status: string; phase: string; review_status: string; blocker?: string; updated_at: string; created_at: string; template_id?: string; template_version?: string; condition_count: number; step_count: number; attempt_count: number; event_count: number; cleanable: boolean; file_name: string };
@@ -75,9 +76,9 @@ function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: numb
 export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
-  const path = `/v1/runtime/tasks?status=${status}&limit=300${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
+  const path = `/v1/runtime/tasks?status=${status}&limit=${runtimeTaskListLimit}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
-  const allResource = useOpsResource<TaskListResponse>('/v1/runtime/tasks?status=all&limit=300', emptyTasks, refreshToken);
+  const allResource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
   const tasks = resource.data.items;
   const [selectedId, setSelectedId] = useState('');
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
@@ -98,7 +99,7 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<TaskListResponse>('/v1/runtime/tasks?status=active&limit=500', emptyTasks, refreshToken);
+  const resource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=active&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
   const candidates = resource.data.items.filter((item) => item.cleanable);
   return <OpsShell title="任务清理" subtitle="AgentDock Runtime API 当前只开放只读接口，Nexus 不再直接修改 AgentDock Runtime 状态。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
     <section className="ops-cleanup-hero is-large"><div><span>READ ONLY</span><strong>{candidates.length}</strong><p>这些任务已经 final_review pass，但写入动作需要 AgentDock 暴露受控写接口后再启用。</p></div><div className="ops-actions"><button type="button" className="nx-button is-secondary" disabled title="Runtime 写接口未启用"><CheckCircle2 size={15} />预览已禁用</button><button type="button" className="nx-button is-danger" disabled title="Runtime 写接口未启用"><Trash2 size={15} />清理已禁用</button></div></section>

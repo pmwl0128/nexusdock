@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const runtimeTaskListLimit = 200
+
 type opsTaskSummary struct {
 	ID              string `json:"id"`
 	Title           string `json:"title"`
@@ -103,7 +105,7 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 }
 
 func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
-	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), 300)
+	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), runtimeTaskListLimit)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
 	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0, "cleanable": 0}
 	for _, task := range tasks {
@@ -130,9 +132,9 @@ func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	limit := queryInt(r, "limit", 200)
-	if limit > 800 {
-		limit = 800
+	limit := queryInt(r, "limit", runtimeTaskListLimit)
+	if limit > runtimeTaskListLimit {
+		limit = runtimeTaskListLimit
 	}
 	items, err := s.collectOpsTasksFromRuntime(r.Context(), limit)
 	if err != nil {
@@ -197,7 +199,7 @@ func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {
-	items, err := s.collectOpsTasksFromRuntime(context.Background(), 500)
+	items, err := s.collectOpsTasksFromRuntime(context.Background(), runtimeTaskListLimit)
 	if err != nil {
 		return nil
 	}

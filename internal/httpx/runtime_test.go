@@ -15,6 +15,9 @@ func TestRuntimeTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 		if r.URL.Path != "/internal/runtime/tasks" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
 		}
+		if r.URL.Query().Get("limit") != "20" {
+			t.Fatalf("unexpected runtime limit: %s", r.URL.RawQuery)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "tasks": []map[string]any{{"id": "tsk_demo", "title": "Demo Task", "goal": "show details", "status": "active", "phase": "execute", "review_status": "not_started", "condition_count": 1, "step_count": 2, "event_count": 3, "updated_at": "2026-07-06T01:02:03Z"}}, "count": 1})
 	}))
 	defer runtime.Close()
@@ -35,6 +38,26 @@ func TestRuntimeTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 	}
 	if len(decoded.Items) != 1 || decoded.Items[0].ID != "tsk_demo" || decoded.Items[0].FileName != "tsk_demo" || decoded.Items[0].ConditionCount != 1 {
 		t.Fatalf("unexpected tasks: %+v", decoded.Items)
+	}
+}
+
+func TestRuntimeTasksClampsLimitToRuntimeMaximum(t *testing.T) {
+	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("limit"); got != "200" {
+			t.Fatalf("runtime limit = %q, want 200", got)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tasks": []any{}, "count": 0})
+	}))
+	defer runtime.Close()
+
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks?limit=300", nil)
+	response := httptest.NewRecorder()
+
+	server.runtimeTasks(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 }
 
