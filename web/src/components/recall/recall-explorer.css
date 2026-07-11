@@ -207,6 +207,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
+  justify-content: stretch;
   gap: 10px;
   text-align: left;
 }
@@ -367,12 +368,17 @@
   border-left-color: #dfe7eb;
 }
 
-.mem-lite-tree-row {
+.mem-lite .mem-lite-tree-row {
   min-height: 36px;
   padding-top: 7px;
   padding-bottom: 7px;
   border-radius: 8px;
   color: #344257;
+  display: grid;
+  grid-template-columns: 14px 17px minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+  text-align: left;
 }
 
 .mem-lite-tree-folder-row { color: #2f3d52; }
