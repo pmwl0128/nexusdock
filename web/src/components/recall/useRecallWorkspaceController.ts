@@ -7,22 +7,33 @@ import type {
   EmbeddingStatus, GitCommit, GitDiff, Recall, RecallEntry, RecallWorkspaceViewModel, SyncStatus,
 } from './types';
 import {
-  NEW_RECALL_TEMPLATE, csvTags, initialPath, isCompactViewport,
+  NEW_RECALL_TEMPLATE, csvTags, initialPath, usesSinglePaneRecallLayout,
   messageOf, nameOf, normalizePath, updateRoute,
 } from './utils';
 
-export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
+export function useRecallWorkspaceController(refreshToken: number): RecallWorkspaceViewModel {
   const [state, dispatch] = useReducer(recallReducer, undefined, initialRecallState);
   const editorRef = useRef<HTMLElement | null>(null);
   const refreshAllRef = useRef<(path?: string) => Promise<void>>(async () => undefined);
+  // 搜索可能被连续触发；用序号拒绝迟到响应，确保最后一次操作获胜且不制造取消请求噪声。
+  const entryRequestRef = useRef(0);
+  const loadingRequestRef = useRef(0);
+  const detailRequestRef = useRef(0);
+  const externalRefreshTokenRef = useRef(refreshToken);
+  const draftSnapshotRef = useRef({ editing: false, path: '', content: '' });
 
-  const fileEntries = useMemo(
-    () => state.entries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
-    [state.entries],
+  const fileEntries = useMemo(() => {
+    const files = state.entries.filter((entry) => entry.type === 'file');
+    return state.appliedQuery ? files : files.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN'));
+  }, [state.appliedQuery, state.entries]);
+  const libraryFileEntries = useMemo(
+    () => state.libraryEntries.filter((entry) => entry.type === 'file').sort((a, b) => a.path.localeCompare(b.path, 'zh-CN')),
+    [state.libraryEntries],
   );
+  const libraryFileCount = libraryFileEntries.length;
   const directoryCount = useMemo(() => {
     const directories = new Set<string>();
-    for (const entry of fileEntries) {
+    for (const entry of libraryFileEntries) {
       const parts = normalizePath(entry.path).split('/').slice(0, -1);
       let current = '';
       for (const part of parts) {
@@ -31,11 +42,12 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
       }
     }
     return directories.size;
-  }, [fileEntries]);
+  }, [libraryFileEntries]);
   const changedCount = state.gitDiff?.files?.length ?? 0;
   const dirty = Boolean(state.gitDiff?.dirty || state.syncStatus?.dirty || state.syncStatus?.pending_push);
   const hasUnsavedChanges = state.editing && (state.draftPath !== (state.current?.path || '') || state.draftContent !== (state.current?.content || ''));
   const detailOpen = Boolean(state.current || state.editing);
+  draftSnapshotRef.current = { editing: state.editing, path: state.draftPath, content: state.draftContent };
 
   useEffect(() => {
     void refreshAllRef.current(initialPath());
@@ -47,15 +59,69 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
     return () => window.clearTimeout(timer);
   }, [state.editing, state.draftPath, state.draftContent]);
 
+  useEffect(() => () => {
+    const draft = draftSnapshotRef.current;
+    if (draft.editing) saveRecallDraft(draft.path, draft.content);
+  }, []);
+
   useEffect(() => {
     if (!state.notice) return;
     const timer = window.setTimeout(() => dispatch({ type: 'notice', notice: null }), 3500);
     return () => window.clearTimeout(timer);
   }, [state.notice]);
 
-  async function loadList() {
+  async function fetchLibraryEntries(): Promise<RecallEntry[]> {
     const response = await api<{ entries: RecallEntry[] }>('/v1/recall?max_entries=500');
-    dispatch({ type: 'entries', entries: response.entries || [] });
+    return response.entries || [];
+  }
+
+  async function fetchSearchEntries(query: string): Promise<RecallEntry[]> {
+    const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/recall/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, prefix: '', max_results: 100 }),
+    });
+    return (response.results || []).map((item) => ({
+      path: item.path,
+      name: nameOf(item.path),
+      type: 'file',
+      size_bytes: item.size_bytes,
+    }));
+  }
+
+  async function refreshEntries(query = state.appliedQuery): Promise<boolean> {
+    const requestID = ++entryRequestRef.current;
+    try {
+      const libraryPromise = fetchLibraryEntries();
+      const entriesPromise = query ? fetchSearchEntries(query) : libraryPromise;
+      const [libraryEntries, entries] = await Promise.all([libraryPromise, entriesPromise]);
+      if (requestID !== entryRequestRef.current) return false;
+      dispatch({ type: 'libraryEntries', entries: libraryEntries });
+      dispatch({ type: 'searchApplied', query, entries });
+      return true;
+    } catch (reason) {
+      if (requestID !== entryRequestRef.current) return false;
+      throw reason;
+    }
+  }
+
+  async function applySearch(query: string): Promise<boolean> {
+    const requestID = ++entryRequestRef.current;
+    try {
+      if (query) {
+        const entries = await fetchSearchEntries(query);
+        if (requestID !== entryRequestRef.current) return false;
+        dispatch({ type: 'searchApplied', query, entries });
+        return true;
+      }
+      const entries = state.libraryEntries.length > 0 ? state.libraryEntries : await fetchLibraryEntries();
+      if (requestID !== entryRequestRef.current) return false;
+      if (state.libraryEntries.length === 0) dispatch({ type: 'libraryEntries', entries });
+      dispatch({ type: 'searchApplied', query: '', entries });
+      return true;
+    } catch (reason) {
+      if (requestID !== entryRequestRef.current) return false;
+      throw reason;
+    }
   }
 
   async function loadSyncState() {
@@ -76,50 +142,114 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
     dispatch({ type: 'embedding:status', status: response });
   }
 
-  async function openRecall(path: string) {
-    const response = await api<{ recall: Recall }>(`/v1/recall/${encodeURIComponent(path)}`);
-    clearRecallDraft();
-    dispatch({ type: 'opened', recall: response.recall, query: state.query });
-    updateRoute(response.recall.path, state.query.trim());
-    if (isCompactViewport()) {
-      window.setTimeout(() => editorRef.current?.scrollIntoView({ block: 'start' }), 0);
+  function revealCompactEditor() {
+    if (!usesSinglePaneRecallLayout()) return;
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'auto' }), 0);
+  }
+
+  async function openRecall(path: string): Promise<boolean> {
+    const requestID = ++detailRequestRef.current;
+    try {
+      const response = await api<{ recall: Recall }>(`/v1/recall/${encodeURIComponent(path)}`);
+      if (requestID !== detailRequestRef.current) return false;
+      const preserveDraftAvailable = state.draftAvailable && !state.editing;
+      if (state.editing) clearRecallDraft();
+      dispatch({ type: 'opened', recall: response.recall, preserveDraftAvailable });
+      updateRoute(response.recall.path, state.appliedQuery);
+      revealCompactEditor();
+      return true;
+    } catch (reason) {
+      if (requestID !== detailRequestRef.current) return false;
+      throw reason;
     }
   }
 
+  function blockIfRecoveryPending(): boolean {
+    if (!state.draftAvailable || state.editing) return false;
+    dispatch({ type: 'notice', notice: { text: '请先恢复或丢弃检测到的草稿。', danger: true } });
+    return true;
+  }
+
+  function blockIfUnsaved(): boolean {
+    if (!hasUnsavedChanges) return false;
+    dispatch({ type: 'notice', notice: { text: '请先保存或取消当前编辑。', danger: true } });
+    return true;
+  }
+
+  function openRecallFromUI(path: string) {
+    if (blockIfUnsaved()) return;
+    dispatch({ type: 'notice', notice: null });
+    void openRecall(path).catch((reason) => {
+      dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+    });
+  }
+
   async function refreshAll(path = state.current?.path || '') {
+    const loadingID = ++loadingRequestRef.current;
     dispatch({ type: 'load:start' });
     try {
-      await Promise.all([loadList(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
-      if (path) await openRecall(path);
+      const [entriesCurrent] = await Promise.all([refreshEntries(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
+      if (path && entriesCurrent && loadingID === loadingRequestRef.current) {
+        try {
+          await openRecall(path);
+        } catch (reason) {
+          detailRequestRef.current += 1;
+          dispatch({ type: 'clearSelection' });
+          updateRoute('', state.appliedQuery);
+          throw reason;
+        }
+      }
     } catch (reason) {
-      dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+      if (loadingID === loadingRequestRef.current) {
+        dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+      }
     } finally {
-      dispatch({ type: 'load:finish' });
+      if (loadingID === loadingRequestRef.current) dispatch({ type: 'load:finish' });
     }
   }
   refreshAllRef.current = refreshAll;
 
   async function searchMemories(event?: FormEvent) {
     event?.preventDefault();
+    dispatch({ type: 'notice', notice: null });
+    detailRequestRef.current += 1;
     const query = state.query.trim();
-    if (!query) {
-      await loadList();
-      updateRoute(state.current?.path || '', '');
-      return;
+    const loadingID = ++loadingRequestRef.current;
+    dispatch({ type: 'load:start' });
+    try {
+      if (await applySearch(query)) updateRoute(state.current?.path || '', query);
+    } catch (reason) {
+      if (loadingID === loadingRequestRef.current) {
+        dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+      }
+    } finally {
+      if (loadingID === loadingRequestRef.current) dispatch({ type: 'load:finish' });
     }
-    const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/recall/search', {
-      method: 'POST',
-      body: JSON.stringify({ query, prefix: '', max_results: 100 }),
-    });
-    dispatch({ type: 'entries', entries: (response.results || []).map((item) => ({ path: item.path, name: nameOf(item.path), type: 'file', size_bytes: item.size_bytes })) });
-    updateRoute(state.current?.path || '', query);
+  }
+
+  async function clearSearch() {
+    dispatch({ type: 'notice', notice: null });
+    detailRequestRef.current += 1;
+    const loadingID = ++loadingRequestRef.current;
+    dispatch({ type: 'query', query: '' });
+    dispatch({ type: 'load:start' });
+    try {
+      if (await applySearch('')) updateRoute(state.current?.path || '', '');
+    } catch (reason) {
+      if (loadingID === loadingRequestRef.current) {
+        dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+      }
+    } finally {
+      if (loadingID === loadingRequestRef.current) dispatch({ type: 'load:finish' });
+    }
   }
 
   function startNew() {
+    if (blockIfUnsaved() || blockIfRecoveryPending()) return;
+    dispatch({ type: 'notice', notice: null });
+    detailRequestRef.current += 1;
     dispatch({ type: 'newDraft', path: 'inbox/new-recall.md', content: NEW_RECALL_TEMPLATE });
-    if (isCompactViewport()) {
-      window.setTimeout(() => editorRef.current?.scrollIntoView({ block: 'start' }), 0);
-    }
+    revealCompactEditor();
   }
 
   function cancelEdit() {
@@ -127,20 +257,38 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
     dispatch({ type: 'cancelEdit' });
   }
 
-  function backToFileList() {
-    if (hasUnsavedChanges) {
-      dispatch({ type: 'notice', notice: { text: '请先保存或取消当前编辑。', danger: true } });
-      return;
-    }
-    dispatch({ type: 'clearSelection', query: state.query.trim() });
-    updateRoute('', state.query.trim());
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  function startEdit() {
+    if (blockIfRecoveryPending()) return;
+    dispatch({ type: 'editCurrent' });
   }
 
-  function restoreDraft() {
+  function backToFileList() {
+    if (blockIfUnsaved()) return;
+    detailRequestRef.current += 1;
+    dispatch({ type: 'clearSelection' });
+    updateRoute('', state.appliedQuery);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  async function restoreDraft() {
     const saved = loadRecallDraft();
     if (!saved) return;
-    dispatch({ type: 'restoreDraft', path: saved.path || 'inbox/recovered-recall.md', content: saved.content });
+    const path = normalizePath(saved.path) || 'inbox/recovered-recall.md';
+    detailRequestRef.current += 1;
+    dispatch({ type: 'busy', busy: true });
+    try {
+      const exists = state.libraryEntries.some((entry) => entry.type === 'file' && normalizePath(entry.path) === path);
+      const current = exists
+        ? (await api<{ recall: Recall }>(`/v1/recall/${encodeURIComponent(path)}`)).recall
+        : undefined;
+      dispatch({ type: 'restoreDraft', path, content: saved.content, current });
+      dispatch({ type: 'notice', notice: { text: current ? '已恢复已有文件的编辑草稿' : '已恢复新建草稿' } });
+      revealCompactEditor();
+    } catch (reason) {
+      dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
+    } finally {
+      dispatch({ type: 'busy', busy: false });
+    }
   }
 
   async function saveRecall() {
@@ -163,7 +311,7 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
       });
       clearRecallDraft();
       dispatch({ type: 'draftAvailable', available: false });
-      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
       await openRecall(response.recall.path);
       dispatch({ type: 'notice', notice: { text: '召回内容已保存' } });
     } catch (reason) {
@@ -192,7 +340,7 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
         body: JSON.stringify({ from_path: pending.path, to_path: normalized, confirmed: true, overwrite: false }),
       });
       dispatch({ type: 'pending', pendingAction: null });
-      await loadList();
+      await refreshEntries();
       await openRecall(response.recall.path);
       dispatch({ type: 'notice', notice: { text: '召回内容已移动' } });
     } catch (reason) {
@@ -205,13 +353,14 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
   async function confirmDelete() {
     const pending = state.pendingAction;
     if (!pending || pending.kind !== 'delete') return;
+    detailRequestRef.current += 1;
     dispatch({ type: 'busy', busy: true });
     try {
       await api(`/v1/recall/${encodeURIComponent(pending.path)}?confirmed=true`, { method: 'DELETE' });
       dispatch({ type: 'pending', pendingAction: null });
-      dispatch({ type: 'clearSelection', query: state.query.trim() });
-      updateRoute('', state.query.trim());
-      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
+      dispatch({ type: 'clearSelection' });
+      updateRoute('', state.appliedQuery);
+      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
       dispatch({ type: 'notice', notice: { text: '召回内容已删除' } });
     } catch (reason) {
       dispatch({ type: 'pendingError', error: messageOf(reason) });
@@ -258,6 +407,7 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
   }
 
   async function writeCard() {
+    if (blockIfUnsaved()) return;
     if (!state.card.capture) {
       dispatch({ type: 'notice', notice: { text: '请先生成候选卡片。', danger: true } });
       return;
@@ -272,7 +422,7 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
         method: 'POST',
         body: JSON.stringify(cardPayload({ confirmed: true, overwrite: false, allow_warnings: state.card.allowWarnings })),
       });
-      await Promise.all([loadList(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
+      await Promise.all([refreshEntries(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
       await openRecall(result.recall.path);
       dispatch({ type: 'card:capture', capture: null });
       dispatch({ type: 'notice', notice: { text: `卡片已写入：${result.card.path}` } });
@@ -322,12 +472,21 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
   }
 
   async function syncNow(action: 'pull' | 'push' | 'now' = 'now') {
+    const currentPath = state.current?.path || '';
     dispatch({ type: 'busy', busy: true });
     try {
       const response = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST', body: '{}' });
       dispatch({ type: 'syncState', syncStatus: response, gitDiff: state.gitDiff });
-      await Promise.all([loadList(), loadSyncState(), loadHistory()]);
-      if (state.current?.path) await openRecall(state.current.path).catch(() => dispatch({ type: 'clearSelection', query: state.query.trim() }));
+      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
+      if (currentPath && initialPath() === currentPath) {
+        try {
+          await openRecall(currentPath);
+        } catch {
+          detailRequestRef.current += 1;
+          dispatch({ type: 'clearSelection' });
+          updateRoute('', state.appliedQuery);
+        }
+      }
       dispatch({ type: 'notice', notice: { text: action === 'pull' ? '已从远端更新' : action === 'push' ? '已保存到远端' : '召回库已同步' } });
     } catch (reason) {
       dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
@@ -336,21 +495,41 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
     }
   }
 
+  function refreshAllFromUI() {
+    if (blockIfUnsaved()) return;
+    dispatch({ type: 'notice', notice: null });
+    void refreshAll();
+  }
+
+  function syncNowFromUI(action?: 'pull' | 'push' | 'now') {
+    if (blockIfUnsaved()) return;
+    dispatch({ type: 'notice', notice: null });
+    void syncNow(action);
+  }
+
+  useEffect(() => {
+    if (externalRefreshTokenRef.current === refreshToken) return;
+    externalRefreshTokenRef.current = refreshToken;
+    refreshAllFromUI();
+  }, [refreshToken]);
+
   const actions = {
-    refreshAll: () => { void refreshAll(); },
-    syncNow: (action?: 'pull' | 'push' | 'now') => { void syncNow(action); },
-    restoreDraft,
+    refreshAll: refreshAllFromUI,
+    syncNow: syncNowFromUI,
+    restoreDraft: () => { void restoreDraft(); },
     discardDraft: () => dispatch({ type: 'draftAvailable', available: false }),
+    clearNotice: () => dispatch({ type: 'notice', notice: null }),
     closePendingAction: () => dispatch({ type: 'pending', pendingAction: null }),
     updatePendingMovePath: (value: string) => dispatch({ type: 'pendingMovePath', path: value }),
     confirmMove: () => { void confirmMove(); },
     confirmDelete: () => { void confirmDelete(); },
     searchMemories: (event?: FormEvent) => { void searchMemories(event); },
+    clearSearch: () => { void clearSearch(); },
     setQuery: (value: string) => dispatch({ type: 'query', query: value }),
-    openRecall: (path: string) => { void openRecall(path); },
+    openRecall: openRecallFromUI,
     startNew,
     backToFileList,
-    startEdit: () => dispatch({ type: 'editCurrent' }),
+    startEdit,
     requestMove: () => { if (state.current?.path) dispatch({ type: 'pending', pendingAction: { kind: 'move', path: state.current.path, nextPath: state.current.path } }); },
     requestDelete: () => { if (state.current?.path) dispatch({ type: 'pending', pendingAction: { kind: 'delete', path: state.current.path } }); },
     cancelEdit,
@@ -361,11 +540,11 @@ export function useRecallWorkspaceController(): RecallWorkspaceViewModel {
     setAllowCardWarnings: (allowWarnings: boolean) => dispatch({ type: 'card:allowWarnings', allowWarnings }),
     captureCard: (event?: FormEvent) => { void captureCard(event); },
     writeCard: () => { void writeCard(); },
-    openSimilarCard: (path: string) => { void openRecall(path); },
+    openSimilarCard: openRecallFromUI,
     setEmbeddingQuery: (query: string) => dispatch({ type: 'embedding:query', query }),
     searchCardEmbeddings: (event?: FormEvent) => { void searchCardEmbeddings(event); },
     reindexCards: () => { void reindexCards(); },
   };
 
-  return { state, fileEntries, directoryCount, changedCount, dirty, hasUnsavedChanges, detailOpen, editorRef, actions };
+  return { state, fileEntries, libraryFileCount, directoryCount, changedCount, dirty, hasUnsavedChanges, detailOpen, editorRef, actions };
 }

@@ -11,8 +11,8 @@ export default function RecallHeader({ state, changedCount, dirty, actions }: Pr
     </div>
     <div className="mem-lite-header-actions">
       <span className={`mem-lite-health ${dirty ? 'warn' : 'ok'}`}>{dirty ? `${changedCount} 项待同步` : '已同步'}</span>
-      <button type="button" onClick={actions.refreshAll} disabled={state.loading || state.busy}><RefreshCw size={15} /><span>刷新</span></button>
-      <button type="button" className="primary" onClick={() => actions.syncNow()} disabled={state.busy}><UploadCloud size={15} /><span>立即同步</span></button>
+      <button type="button" aria-label="刷新召回库" title="刷新召回库" aria-busy={state.loading} onClick={actions.refreshAll} disabled={state.loading || state.busy}><RefreshCw size={15} /><span>刷新</span></button>
+      <button type="button" className="primary" aria-label="立即同步召回库" title="立即同步召回库" aria-busy={state.busy} onClick={() => actions.syncNow()} disabled={state.busy}><UploadCloud size={15} /><span>立即同步</span></button>
     </div>
   </header>;
 }

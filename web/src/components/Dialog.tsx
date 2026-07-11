@@ -17,7 +17,10 @@ export default function Dialog({ title, description, children, onClose, wide = f
     const previous = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
-    panelRef.current?.querySelector<HTMLElement>('button, input, select, textarea')?.focus();
+    const initialFocus = panelRef.current?.querySelector<HTMLElement>(
+      '[data-dialog-initial-focus], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled):not(.nx-icon-button)',
+    );
+    initialFocus?.focus();
     document.body.classList.add('nexus-modal-open');
     return () => {
       document.body.classList.remove('nexus-modal-open');

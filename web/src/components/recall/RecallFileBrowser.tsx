@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, FileText, Folder, FolderOpen, Plus, Search, X } from 'lucide-react';
 import type { RecallEntry, RecallWorkspaceViewModel } from './types';
 import { nameOf, normalizePath } from './utils';
 
@@ -85,21 +85,134 @@ function defaultCollapsedFolders(root: RecallTreeNode): Set<string> {
   return collapsed;
 }
 
+function parentFolderPaths(path: string): string[] {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  parts.pop();
+  let current = '';
+  return parts.map((part) => {
+    current = current ? `${current}/${part}` : part;
+    return current;
+  });
+}
+
+function parentPath(path: string): string {
+  const parts = normalizePath(path).split('/').filter(Boolean);
+  parts.pop();
+  return parts.join('/') || '根目录';
+}
+
 export default function RecallFileBrowser({ state, fileEntries, actions }: Props) {
+  const searchActive = Boolean(state.appliedQuery);
   const { root, folderCount } = useMemo(() => buildRecallTree(fileEntries), [fileEntries]);
   const folderPaths = useMemo(() => collectFolderPaths(root), [root]);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const initializedTree = useRef(false);
+  const treeRef = useRef<HTMLDivElement | null>(null);
   const allCollapsed = folderPaths.length > 0 && folderPaths.every((path) => collapsedFolders.has(path));
-  const resultSummary = state.query
-    ? `${fileEntries.length} 个结果 / ${folderCount} 个文件夹`
+  const resultSummary = searchActive
+    ? `“${state.appliedQuery}” · ${fileEntries.length} 个结果`
     : `${folderCount} 个文件夹 / ${fileEntries.length} 个文件`;
 
   useEffect(() => {
-    if (initializedTree.current || fileEntries.length === 0) return;
+    if (initializedTree.current || searchActive || fileEntries.length === 0) return;
     setCollapsedFolders(defaultCollapsedFolders(root));
     initializedTree.current = true;
-  }, [fileEntries.length, root]);
+  }, [fileEntries.length, root, searchActive]);
+
+  useEffect(() => {
+    if (searchActive || !state.current?.path) return;
+    const ancestors = parentFolderPaths(state.current.path);
+    if (ancestors.length === 0) return;
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      let changed = false;
+      for (const path of ancestors) {
+        if (!next.delete(path)) continue;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [searchActive, state.current?.path]);
+
+  useEffect(() => {
+    if (searchActive || !state.current?.path) return;
+    const timer = window.setTimeout(() => {
+      const tree = treeRef.current;
+      const active = Array.from(tree?.querySelectorAll<HTMLButtonElement>('[data-recall-path]') || [])
+        .find((item) => item.dataset.recallPath === state.current?.path);
+      const scroller = tree?.closest<HTMLElement>('.mem-lite-files');
+      if (!active || !scroller) return;
+
+      const itemRect = active.getBoundingClientRect();
+      const scrollerRect = scroller.getBoundingClientRect();
+      if (itemRect.top < scrollerRect.top + 8) {
+        scroller.scrollTop -= scrollerRect.top + 8 - itemRect.top;
+      } else if (itemRect.bottom > scrollerRect.bottom - 8) {
+        scroller.scrollTop += itemRect.bottom - scrollerRect.bottom + 8;
+      }
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [searchActive, state.current?.path]);
+
+  function handleTreeKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement) || target.getAttribute('role') !== 'treeitem') return;
+
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="treeitem"]'))
+      .filter((item) => !item.disabled && item.offsetParent !== null);
+    const index = items.indexOf(target);
+    if (index < 0) return;
+
+    const focusItem = (nextIndex: number) => {
+      const item = items[nextIndex];
+      if (!item) return;
+      event.preventDefault();
+      item.focus();
+    };
+
+    if (event.key === 'ArrowDown') {
+      focusItem(Math.min(index + 1, items.length - 1));
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      focusItem(Math.max(index - 1, 0));
+      return;
+    }
+    if (event.key === 'Home') {
+      focusItem(0);
+      return;
+    }
+    if (event.key === 'End') {
+      focusItem(items.length - 1);
+      return;
+    }
+
+    const level = Number(target.getAttribute('aria-level') || '1');
+    const expanded = target.getAttribute('aria-expanded');
+    if (event.key === 'ArrowRight') {
+      if (expanded === 'false') {
+        event.preventDefault();
+        target.click();
+        return;
+      }
+      if (expanded === 'true') {
+        const childIndex = items.findIndex((item, itemIndex) => itemIndex > index && Number(item.getAttribute('aria-level') || '1') === level + 1);
+        if (childIndex >= 0) focusItem(childIndex);
+      }
+      return;
+    }
+    if (event.key !== 'ArrowLeft') return;
+    if (expanded === 'true') {
+      event.preventDefault();
+      target.click();
+      return;
+    }
+    for (let itemIndex = index - 1; itemIndex >= 0; itemIndex -= 1) {
+      if (Number(items[itemIndex].getAttribute('aria-level') || '1') !== level - 1) continue;
+      focusItem(itemIndex);
+      return;
+    }
+  }
 
   function toggleFolder(path: string) {
     setCollapsedFolders((current) => {
@@ -114,23 +227,26 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
   }
 
   function renderFiles(files: RecallEntry[], depth: number) {
-    return files.map((entry) => (
-      <button
+    return files.map((entry) => {
+      const active = state.current?.path === entry.path;
+      return <button
         type="button"
         key={entry.path}
-        className={`mem-lite-tree-row mem-lite-tree-file ${state.current?.path === entry.path ? 'active' : ''}`}
+        className={`mem-lite-tree-row mem-lite-tree-file ${active ? 'active' : ''}`}
         style={treeIndent(depth)}
         role="treeitem"
         aria-level={depth + 1}
-        aria-selected={state.current?.path === entry.path}
+        aria-selected={active}
+        aria-current={active ? 'page' : undefined}
         title={entry.path}
+        data-recall-path={entry.path}
         onClick={() => actions.openRecall(entry.path)}
       >
         <span className="mem-lite-tree-spacer" />
         <FileText size={15} />
         <span className="mem-lite-tree-label"><strong>{nameOf(entry.path)}</strong></span>
-      </button>
-    ));
+      </button>;
+    });
   }
 
   function renderFolder(folder: RecallTreeNode, depth: number) {
@@ -161,27 +277,85 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
     </div>;
   }
 
-  return <aside className="mem-lite-browser">
+  function renderSearchResults() {
+    return <ul className="mem-lite-search-results" aria-label={`“${state.appliedQuery}”的搜索结果`}>
+      {fileEntries.map((entry) => {
+        const active = state.current?.path === entry.path;
+        return <li key={entry.path}>
+          <button
+            type="button"
+            className={active ? 'active' : ''}
+            aria-current={active ? 'page' : undefined}
+            title={entry.path}
+            onClick={() => actions.openRecall(entry.path)}
+          >
+            <span className="mem-lite-search-result-icon"><FileText size={16} /></span>
+            <span><strong>{nameOf(entry.path)}</strong><small>{parentPath(entry.path)}</small></span>
+            <ChevronRight size={16} />
+          </button>
+        </li>;
+      })}
+    </ul>;
+  }
+
+  const canClearSearch = Boolean(state.query || state.appliedQuery);
+  const initializingLibrary = state.loading && state.libraryEntries.length === 0;
+
+  return <aside className="mem-lite-browser" aria-busy={state.loading}>
     <div className="mem-lite-panel-head mem-lite-browser-head">
-      <div><h2>召回内容</h2><p>{state.query ? `搜索结果 · ${resultSummary}` : resultSummary}</p></div>
+      <div><h2>召回内容</h2><p aria-live="polite">{resultSummary}</p></div>
       <button type="button" className="mem-lite-new" onClick={actions.startNew} title="新建召回条目"><Plus size={16} /><span>新建</span></button>
     </div>
     <div className="mem-lite-browser-tools">
-      <form className="mem-lite-search" onSubmit={actions.searchMemories}>
+      <form
+        className="mem-lite-search"
+        role="search"
+        aria-label="搜索召回内容"
+        onSubmit={(event) => {
+          if (initializingLibrary) {
+            event.preventDefault();
+            return;
+          }
+          actions.searchMemories(event);
+        }}
+      >
         <Search size={15} />
-        <input aria-label="搜索召回内容" value={state.query} onChange={(event) => actions.setQuery(event.target.value)} placeholder="搜索召回内容" />
-        <button type="submit">搜索</button>
+        <input
+          aria-label="搜索召回内容"
+          value={state.query}
+          onChange={(event) => actions.setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape' || !canClearSearch) return;
+            event.preventDefault();
+            actions.clearSearch();
+          }}
+          placeholder="搜索召回内容"
+        />
+        <span className="mem-lite-search-actions">
+          {canClearSearch && <button type="button" className="mem-lite-search-clear" aria-label="清除搜索" title="清除搜索" disabled={initializingLibrary} onClick={actions.clearSearch}><X size={14} /></button>}
+          <button type="submit" disabled={initializingLibrary} aria-label={state.loading ? '重新执行搜索' : '执行搜索'}>{state.loading ? '搜索中' : '搜索'}</button>
+        </span>
       </form>
       <div className="mem-lite-tree-toolbar">
-        <span><FolderOpen size={14} />目录</span>
-        <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>
+        <span>{searchActive ? <><Search size={14} />搜索结果</> : <><FolderOpen size={14} />目录</>}</span>
+        {searchActive
+          ? <small role="status">{fileEntries.length} 个结果</small>
+          : <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>}
       </div>
     </div>
-    <div className="mem-lite-files mem-lite-tree" role="tree" aria-label="召回库文件树">
-      {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p> : fileEntries.length === 0 ? <p className="mem-lite-empty">没有匹配的召回文件。</p> : <div className="mem-lite-tree-root">
-        {root.folders.map((folder) => renderFolder(folder, 0))}
-        {renderFiles(root.files, 0)}
-      </div>}
+    <div className="mem-lite-files">
+      {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p>
+        : fileEntries.length === 0 ? <div className="mem-lite-search-empty">
+          <Search size={22} />
+          <strong>{searchActive ? '没有匹配的召回内容' : '召回库还是空的'}</strong>
+          <span>{searchActive ? `没有找到与“${state.appliedQuery}”匹配的文件。` : '创建第一条召回内容，之后可以在这里浏览。'}</span>
+          {searchActive && <button type="button" onClick={actions.clearSearch}>查看全部文件</button>}
+        </div>
+        : searchActive ? renderSearchResults()
+          : <div ref={treeRef} className="mem-lite-tree" role="tree" aria-label="召回库文件树" onKeyDown={handleTreeKeyDown}><div className="mem-lite-tree-root">
+            {root.folders.map((folder) => renderFolder(folder, 0))}
+            {renderFiles(root.files, 0)}
+          </div></div>}
     </div>
   </aside>;
 }

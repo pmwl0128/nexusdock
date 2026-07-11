@@ -231,7 +231,7 @@ export default function App() {
         </header>
         <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
-          {section === 'recall' && <RecallWorkspace />}
+          {section === 'recall' && <RecallWorkspace refreshToken={refreshToken} />}
           {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
         </div>

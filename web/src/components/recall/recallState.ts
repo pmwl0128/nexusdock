@@ -22,14 +22,17 @@ function initialEmbedding(): EmbeddingPanelState {
 
 export function initialRecallState(): RecallWorkspaceState {
   const saved = loadRecallDraft();
+  const initialQuery = new URLSearchParams(window.location.search).get('q') || '';
   return {
     entries: [],
+    libraryEntries: [],
     current: null,
     draftPath: '',
     draftContent: '',
     editing: false,
     creating: false,
-    query: new URLSearchParams(window.location.search).get('q') || '',
+    query: initialQuery,
+    appliedQuery: initialQuery,
     syncStatus: null,
     gitDiff: null,
     commits: [],
@@ -48,21 +51,22 @@ type RecallAction =
   | { type: 'load:finish' }
   | { type: 'busy'; busy: boolean }
   | { type: 'notice'; notice: Notice }
-  | { type: 'entries'; entries: RecallEntry[] }
+  | { type: 'libraryEntries'; entries: RecallEntry[] }
+  | { type: 'searchApplied'; query: string; entries: RecallEntry[] }
   | { type: 'syncState'; syncStatus: SyncStatus | null; gitDiff: GitDiff | null }
   | { type: 'commits'; commits: GitCommit[] }
   | { type: 'embedding:status'; status: EmbeddingPanelState['status'] }
   | { type: 'embedding:query'; query: string }
   | { type: 'embedding:results'; results: EmbeddingPanelState['results'] }
   | { type: 'query'; query: string }
-  | { type: 'opened'; recall: Recall; query: string }
+  | { type: 'opened'; recall: Recall; preserveDraftAvailable?: boolean }
   | { type: 'newDraft'; path: string; content: string }
   | { type: 'editCurrent' }
   | { type: 'draft:path'; path: string }
   | { type: 'draft:content'; content: string }
   | { type: 'cancelEdit' }
-  | { type: 'clearSelection'; query: string }
-  | { type: 'restoreDraft'; path: string; content: string }
+  | { type: 'clearSelection' }
+  | { type: 'restoreDraft'; path: string; content: string; current?: Recall }
   | { type: 'draftAvailable'; available: boolean }
   | { type: 'pending'; pendingAction: PendingRecallAction }
   | { type: 'pendingMovePath'; path: string }
@@ -81,8 +85,14 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
       return { ...state, busy: action.busy };
     case 'notice':
       return { ...state, notice: action.notice };
-    case 'entries':
-      return { ...state, entries: action.entries };
+    case 'libraryEntries':
+      return {
+        ...state,
+        libraryEntries: action.entries,
+        entries: state.appliedQuery ? state.entries : action.entries,
+      };
+    case 'searchApplied':
+      return { ...state, query: action.query, appliedQuery: action.query, entries: action.entries };
     case 'syncState':
       return { ...state, syncStatus: action.syncStatus, gitDiff: action.gitDiff };
     case 'commits':
@@ -103,8 +113,7 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
         draftContent: action.recall.content,
         editing: false,
         creating: false,
-        draftAvailable: false,
-        query: action.query,
+        draftAvailable: action.preserveDraftAvailable ? state.draftAvailable : false,
       };
     case 'newDraft':
       return { ...state, current: null, draftPath: action.path, draftContent: action.content, editing: true, creating: true };
@@ -125,9 +134,17 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
         draftAvailable: false,
       };
     case 'clearSelection':
-      return { ...state, current: null, draftPath: '', draftContent: '', editing: false, creating: false, query: action.query };
+      return { ...state, current: null, draftPath: '', draftContent: '', editing: false, creating: false };
     case 'restoreDraft':
-      return { ...state, current: null, draftPath: action.path, draftContent: action.content, editing: true, creating: true, draftAvailable: false };
+      return {
+        ...state,
+        current: action.current ?? null,
+        draftPath: action.path,
+        draftContent: action.content,
+        editing: true,
+        creating: !action.current,
+        draftAvailable: false,
+      };
     case 'draftAvailable':
       return { ...state, draftAvailable: action.available };
     case 'pending':

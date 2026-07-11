@@ -79,12 +79,14 @@ export type EmbeddingPanelState = {
 
 export type RecallWorkspaceState = {
   entries: RecallEntry[];
+  libraryEntries: RecallEntry[];
   current: Recall | null;
   draftPath: string;
   draftContent: string;
   editing: boolean;
   creating: boolean;
   query: string;
+  appliedQuery: string;
   syncStatus: SyncStatus | null;
   gitDiff: GitDiff | null;
   commits: GitCommit[];
@@ -102,11 +104,13 @@ export type RecallWorkspaceActions = {
   syncNow: (action?: 'pull' | 'push' | 'now') => void;
   restoreDraft: () => void;
   discardDraft: () => void;
+  clearNotice: () => void;
   closePendingAction: () => void;
   updatePendingMovePath: (value: string) => void;
   confirmMove: () => void;
   confirmDelete: () => void;
   searchMemories: (event?: FormEvent) => void;
+  clearSearch: () => void;
   setQuery: (value: string) => void;
   openRecall: (path: string) => void;
   startNew: () => void;
@@ -131,6 +135,7 @@ export type RecallWorkspaceActions = {
 export type RecallWorkspaceViewModel = {
   state: RecallWorkspaceState;
   fileEntries: RecallEntry[];
+  libraryFileCount: number;
   directoryCount: number;
   changedCount: number;
   dirty: boolean;

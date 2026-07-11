@@ -43,8 +43,8 @@ export function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : '操作失败';
 }
 
-export function isCompactViewport(): boolean {
-  return window.matchMedia('(max-width: 760px)').matches;
+export function usesSinglePaneRecallLayout(): boolean {
+  return window.matchMedia('(max-width: 980px)').matches;
 }
 
 export function csvTags(value: string): string[] {

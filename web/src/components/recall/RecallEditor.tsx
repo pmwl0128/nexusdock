@@ -9,9 +9,9 @@ export default function RecallEditor({ state, hasUnsavedChanges, editorRef, acti
     ? state.creating ? '新建召回条目' : '编辑召回条目'
     : state.current ? nameOf(state.current.path) : '选择一条召回内容';
   const subtitle = state.editing ? state.draftPath : state.current?.path || '从左侧文件列表打开，或新建一条召回内容。';
-  return <article className="mem-lite-editor" ref={editorRef}>
+  return <article className="mem-lite-editor" ref={editorRef} aria-labelledby="recall-editor-title" aria-busy={state.busy}>
     <div className="mem-lite-panel-head">
-      <div><h2>{title}</h2><p>{subtitle}</p></div>
+      <div><h2 id="recall-editor-title" title={title}>{title}</h2><p title={subtitle}>{subtitle}</p></div>
       <button className="mem-lite-mobile-back" type="button" onClick={actions.backToFileList}>返回文件</button>
       <div className="mem-lite-editor-actions">
         {!state.editing && state.current && <button type="button" onClick={actions.startEdit}><Pencil size={15} />编辑</button>}
@@ -23,9 +23,9 @@ export default function RecallEditor({ state, hasUnsavedChanges, editorRef, acti
     </div>
     {state.editing ? (
       <div className="mem-lite-edit-body">
-        <label><span>路径</span><input value={state.draftPath} onChange={(event) => actions.setDraftPath(event.target.value)} disabled={!state.creating} /></label>
-        <label className="content"><span>内容</span><textarea value={state.draftContent} onChange={(event) => actions.setDraftContent(event.target.value)} spellCheck={false} /></label>
-        <small>{state.draftContent.length.toLocaleString()} 字符 · 草稿自动保存在当前浏览器会话</small>
+        <label htmlFor="recall-draft-path"><span>路径</span><input id="recall-draft-path" name="path" autoComplete="off" spellCheck={false} value={state.draftPath} onChange={(event) => actions.setDraftPath(event.target.value)} disabled={!state.creating || state.busy} /></label>
+        <label className="content" htmlFor="recall-draft-content"><span>内容</span><textarea id="recall-draft-content" name="content" aria-describedby="recall-draft-meta" value={state.draftContent} onChange={(event) => actions.setDraftContent(event.target.value)} disabled={state.busy} spellCheck={false} /></label>
+        <small id="recall-draft-meta" aria-live="polite">{state.draftContent.length.toLocaleString()} 字符 · 草稿自动保存在当前浏览器会话</small>
       </div>
     ) : state.current ? (
       <pre className="mem-lite-preview">{state.current.content}</pre>
