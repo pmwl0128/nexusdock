@@ -2183,3 +2183,294 @@ dialog.nx-dialog-backdrop::backdrop {
   .ops-task-step { grid-template-columns: auto minmax(0, 1fr); }
   .ops-task-step small { grid-column: 2; }
 }
+
+/* Focused information hierarchy: primary actions stay visible, implementation details fold away. */
+.nexus-content {
+  max-width: 1440px;
+  padding: 24px;
+}
+.section-heading {
+  align-items: center;
+  margin-bottom: 14px;
+}
+.section-heading h2 { font-size: 22px; }
+.section-heading p { max-width: 680px; margin-top: 5px; font-size: 12px; }
+
+.nexus-overview-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 118px;
+  border: 1px solid #dfe6ef;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff, #f6f8ff);
+  padding: 22px 24px;
+  box-shadow: 0 12px 34px rgba(31, 48, 75, .055);
+}
+.nexus-overview-strip h2 {
+  margin: 5px 0 6px;
+  color: #202b40;
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -.035em;
+}
+.nexus-overview-strip p { margin: 0; color: var(--nx-muted); font-size: 13px; }
+.nexus-overview-strip .nexus-kicker { color: #62739a; }
+.nexus-overview-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.dashboard-focus-grid {
+  grid-template-columns: 1.15fr 1fr 1fr;
+  align-items: start;
+  margin-top: 16px;
+}
+.dashboard-focus-grid .dashboard-attention-panel { order: -1; }
+.dashboard-focus-grid .panel-body,
+.compact-settings .panel-body { gap: 0; }
+
+.nexus-technical-details,
+.backup-history-details,
+.ops-secondary-details,
+.workflow-secondary-details {
+  margin-top: 10px;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fbfcfe;
+  overflow: hidden;
+}
+.nexus-technical-details>summary,
+.backup-history-details>summary,
+.ops-secondary-details>summary,
+.workflow-secondary-details>summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 11px 13px;
+  color: #526074;
+  font-size: 11px;
+  font-weight: 800;
+}
+.nexus-technical-details>summary::-webkit-details-marker,
+.backup-history-details>summary::-webkit-details-marker,
+.ops-secondary-details>summary::-webkit-details-marker,
+.workflow-secondary-details>summary::-webkit-details-marker { display: none; }
+.nexus-technical-details[open]>summary,
+.backup-history-details[open]>summary,
+.ops-secondary-details[open]>summary,
+.workflow-secondary-details[open]>summary { border-bottom: 1px solid #e8edf3; background: #f7f9fc; }
+.nexus-technical-details .setting-value { padding: 9px 12px; }
+.backup-history-details .backup-history { padding: 4px 12px 10px; }
+.settings-grid.compact-settings { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+
+.runtime-standalone-page { gap: 0; }
+.ops-toolbar { margin-bottom: 12px; }
+.skill-toolbar { grid-template-columns: minmax(240px, 1fr) auto; }
+.skill-toolbar .ops-search { max-width: 520px; }
+.skills-layout { grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); gap: 12px; }
+.runtime-skills-page .ops-skill-rail {
+  max-height: calc(100vh - 190px);
+  padding: 7px;
+}
+.ops-skill-rail .ops-task-line {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 52px;
+  padding: 8px 9px;
+}
+.ops-skill-rail .ops-card-icon { width: 30px; height: 30px; border-radius: 9px; }
+.ops-skill-detail {
+  min-height: 540px;
+  padding: 18px;
+}
+.ops-skill-detail>header { padding-bottom: 13px; }
+.ops-skill-detail h3 { margin: 5px 0 6px; font-size: 22px; }
+.ops-skill-detail>header p { max-width: 820px; font-size: 13px; line-height: 1.5; }
+.ops-skill-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.ops-skill-summary>div {
+  border: 1px solid #e7ebf1;
+  border-radius: 11px;
+  background: #fbfcfe;
+  padding: 9px 11px;
+}
+.ops-skill-summary span,
+.ops-skill-summary strong { display: block; }
+.ops-skill-summary span { color: var(--nx-muted); font-size: 10px; }
+.ops-skill-summary strong { margin-top: 4px; color: #26334a; font-size: 12px; overflow-wrap: anywhere; }
+.ops-skill-files {
+  display: grid;
+  grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  min-height: 430px;
+  border: 1px solid #e1e7ef;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+.ops-skill-file-browser {
+  min-width: 0;
+  border-right: 1px solid #e7ebf1;
+  background: #fafbfd;
+  padding: 10px;
+}
+.ops-skill-file-browser>header,
+.ops-skill-file-preview>header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  padding: 2px 2px 10px;
+}
+.ops-skill-file-browser h4 { margin: 0; font-size: 12px; }
+.ops-skill-file-browser>header>span { color: var(--nx-muted); font-size: 10px; letter-spacing: 0; text-transform: none; }
+.ops-skill-file-browser .ops-file-list { gap: 4px; max-height: 390px; overflow: auto; }
+.ops-skill-file-browser .ops-file-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: initial;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  padding: 8px;
+  color: #34405a;
+  text-align: left;
+  cursor: pointer;
+}
+.ops-skill-file-browser .ops-file-row:hover { background: #f2f5fa; }
+.ops-skill-file-browser .ops-file-row.is-active { border-color: #cfdbff; background: #eef3ff; color: #315cbd; }
+.ops-skill-file-browser .ops-file-row strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ops-skill-file-browser .ops-file-row small { margin-top: 2px; font-size: 9px; }
+.ops-skill-file-preview { min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: #fff; }
+.ops-skill-file-preview>header { padding: 11px 14px; border-bottom: 1px solid #e7ebf1; }
+.ops-skill-file-preview>header strong,
+.ops-skill-file-preview>header span { display: block; }
+.ops-skill-file-preview>header strong { color: #26334a; font-size: 12px; overflow-wrap: anywhere; }
+.ops-skill-file-preview>header span { margin-top: 3px; color: var(--nx-muted); font-size: 10px; }
+.ops-skill-file-preview>header em { color: #9a650f; font-size: 10px; font-style: normal; }
+.ops-skill-file-preview>pre {
+  margin: 0;
+  min-height: 0;
+  max-height: 520px;
+  overflow: auto;
+  background: #111827;
+  color: #dbe4f3;
+  padding: 16px;
+  font: 11px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ops-skill-file-preview>.empty-mini,
+.ops-skill-file-preview>.nx-alert { align-self: center; justify-self: center; margin: 20px; }
+.ops-secondary-details { margin-top: 12px; }
+.ops-secondary-details>.ops-detail-grid { margin: 0; padding: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ops-secondary-details>.ops-chip-row { padding: 0 12px 12px; }
+.ops-secondary-details .ops-json-panel { margin: 10px 12px 12px; }
+
+.workflow-focus-page::before { display: none; }
+.workflow-focus-page { gap: 0; }
+.workflow-focus-page .workflow-runtime-layout { grid-template-columns: 310px minmax(0, 1fr); gap: 12px; }
+.workflow-focus-page .workflow-runtime-list-panel { top: 90px; padding: 10px; }
+.workflow-focus-page .workflow-list-summary { margin-bottom: 8px; padding: 8px 9px; border-radius: 10px; }
+.workflow-focus-page .workflow-list-summary strong { width: 28px; height: 28px; border-radius: 8px; font-size: 13px; }
+.workflow-focus-page .workflow-runtime-list button { padding: 8px; min-height: 50px; }
+.workflow-focus-page .workflow-runtime-head {
+  padding: 18px 20px;
+  align-items: center;
+}
+.workflow-focus-page .workflow-runtime-head h3 { margin: 4px 0 5px; font-size: 22px; }
+.workflow-focus-page .workflow-runtime-head p { max-width: 780px; font-size: 12px; line-height: 1.5; }
+.workflow-focus-page .workflow-runtime-actions { min-width: 0; }
+.workflow-step-count {
+  border-radius: 999px;
+  background: #f0f3f8;
+  color: #5d697d;
+  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.workflow-focus-page .workflow-runtime-meta { padding: 10px 20px; }
+.workflow-focus-page .workflow-runtime-meta>span { padding: 5px 8px; font-size: 10px; }
+.workflow-focus-page .workflow-runtime-section { padding: 17px 20px; gap: 11px; }
+.workflow-focus-page .workflow-section-title h4 { font-size: 14px; }
+.workflow-focus-page .workflow-section-title p { margin-top: 3px; }
+.workflow-focus-page .workflow-phase-block { grid-template-columns: 92px minmax(0, 1fr); gap: 10px; }
+.workflow-focus-page .workflow-phase-block>header { padding: 10px; border-radius: 11px; }
+.workflow-focus-page .workflow-step-card { padding: 11px 12px 11px 15px; border-radius: 11px; gap: 5px; }
+.workflow-focus-page .workflow-step-card>div span { width: 23px; height: 23px; border-radius: 7px; }
+.workflow-focus-page .workflow-step-card footer { margin: 0; }
+.workflow-focus-page .workflow-condition-list div { padding: 10px; border-radius: 11px; }
+.workflow-secondary-details {
+  margin: 16px 20px 20px;
+  background: #fff;
+}
+.workflow-secondary-body { display: grid; gap: 14px; padding: 14px; }
+.workflow-secondary-body>section { display: grid; gap: 10px; }
+.workflow-secondary-body .workflow-runtime-grid { padding: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.workflow-secondary-body .workflow-runtime-json { margin: 0; }
+.workflow-technical-actions { display: flex; justify-content: flex-end; }
+
+@media (max-width: 1180px) {
+  .dashboard-focus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-focus-grid .dashboard-attention-panel { grid-column: 1 / -1; }
+  .skills-layout { grid-template-columns: 1fr; }
+  .runtime-skills-page .ops-skill-rail { max-height: 300px !important; overflow: auto !important; }
+  .workflow-focus-page .workflow-runtime-layout { grid-template-columns: 280px minmax(0, 1fr); }
+}
+
+@media (max-width: 820px) {
+  .nexus-content { padding: 14px; }
+  .nexus-overview-strip { min-height: 0; padding: 16px; border-radius: 15px; }
+  .nexus-overview-strip h2 { font-size: 22px; }
+  .dashboard-focus-grid,
+  .settings-grid.compact-settings { grid-template-columns: 1fr; }
+  .dashboard-focus-grid .dashboard-attention-panel { grid-column: auto; }
+  .skills-layout { gap: 9px; }
+  .ops-skill-summary { grid-template-columns: 1fr 1fr; }
+  .ops-skill-summary>div:last-child { grid-column: 1 / -1; }
+  .ops-skill-files { grid-template-columns: 1fr; min-height: 0; }
+  .ops-skill-file-browser { border-right: 0; border-bottom: 1px solid #e7ebf1; }
+  .ops-skill-file-browser .ops-file-list { max-height: 220px; }
+  .ops-skill-file-preview>pre { max-height: 420px; }
+  .workflow-focus-page .workflow-runtime-layout { grid-template-columns: 1fr; }
+  .workflow-focus-page .workflow-runtime-list-panel { position: static; }
+  .workflow-focus-page .workflow-phase-block { grid-template-columns: 1fr; }
+  .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 560px) {
+  .nexus-overview-strip { display: grid; gap: 12px; }
+  .nexus-overview-status { justify-content: flex-start; }
+  .section-heading { align-items: flex-start; }
+  .skill-toolbar { grid-template-columns: 1fr; }
+  .ops-skill-detail { padding: 12px; }
+  .ops-skill-detail h3 { font-size: 19px; }
+  .ops-skill-summary { grid-template-columns: 1fr; }
+  .ops-skill-summary>div:last-child { grid-column: auto; }
+  .ops-secondary-details>.ops-detail-grid,
+  .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr; }
+  .workflow-focus-page .workflow-runtime-head,
+  .workflow-focus-page .workflow-runtime-section,
+  .workflow-focus-page .workflow-runtime-meta { padding-left: 13px; padding-right: 13px; }
+  .workflow-secondary-details { margin: 12px 13px 13px; }
+}
+
+/* Mobile Runtime lists must remain bounded despite older broad !important rules. */
+@media (max-width: 1180px) {
+  .runtime-skills-page .ops-skill-rail {
+    max-height: 320px !important;
+    overflow: auto !important;
+  }
+}
+@media (max-width: 560px) {
+  .runtime-skills-page .ops-skill-rail {
+    max-height: 280px !important;
+  }
+}

@@ -261,42 +261,31 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   const backup = backupResource.data;
   const errors = [system.error, backupResource.error].filter(Boolean) as string[];
   const systemTone = system.data.ok ? 'ok' : 'danger';
+  const needsAttention = !system.data.ok || backup?.state === 'failed' || errors.length > 0;
 
   return <>
-    <section className="nexus-hero nexus-workbench-hero">
-      <div><span className="nexus-kicker">个人控制台</span><h2>Recall、备份和运行时集中管理</h2><p>旧控制协议已经下线，NexusDock 只保留当前真实使用的管理入口。</p></div>
-      <aside className="hero-health-stack" aria-label="控制台运行状态">
-        <div className="hero-health-head"><span>运行状态</span><StatusBadge tone={errors.length ? 'danger' : systemTone}>{errors.length ? '部分数据不可用' : '控制台正常'}</StatusBadge></div>
-        <dl>
-          <div><dt>数据库</dt><dd>{system.data.database || 'unknown'}</dd></div>
-          <div><dt>备份</dt><dd>{backup?.state || '待确认'}</dd></div>
-        </dl>
-      </aside>
+    <section className="nexus-overview-strip">
+      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 备份 {backup?.state || '待确认'}</p></div>
+      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={toneForStatus(backup?.state)}>备份</StatusBadge></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
-    <section className="metric-grid compact-metrics">
-      <MetricButton label="控制台" value={system.data.ok ? 1 : 0} tone={systemTone} icon={ShieldCheck} onClick={() => navigate('settings')} />
-      <MetricButton label="Recall" value={1} tone="ok" icon={Database} onClick={() => navigate('recall')} />
-      <MetricButton label="任务" value={1} tone="ok" icon={ListChecks} onClick={() => navigate('tasks')} />
-      <MetricButton label="备份失败" value={backup?.state === 'failed' ? 1 : 0} tone={backup?.state === 'failed' ? 'danger' : 'muted'} icon={CircleAlert} onClick={() => navigate('settings')} />
-    </section>
-
-    <section className="dashboard-grid-nexus">
-      <Panel className="dashboard-system-panel" icon={Activity} title="系统状态" subtitle="NexusDock 运行与 SQLite 健康">
-        <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
-        <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
-        <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
-        <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
-        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
-      </Panel>
-      <BackupPanel backup={backup} className="dashboard-backup-panel" />
-      <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只聚合系统和备份异常">
-        {system.data.ok && backup?.state !== 'failed' ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
+    <section className="dashboard-grid-nexus dashboard-focus-grid">
+      <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只显示会影响使用的问题">
+        {!needsAttention ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
+          {errors.map((message) => <div className="nx-alert is-error" key={message}>{message}</div>)}
         </>}
       </Panel>
+
+      <Panel className="dashboard-system-panel" icon={Activity} title="系统" subtitle="NexusDock 与数据库">
+        <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
+        <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
+        <details className="nexus-technical-details"><summary>技术信息</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
+      </Panel>
+
+      <BackupPanel backup={backup} className="dashboard-backup-panel" />
     </section>
   </>;
 }
@@ -307,7 +296,6 @@ function isRuntimeSection(section: Section): section is RuntimeSection {
 
 function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refreshToken: number }) {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    {active !== 'tasks' && <aside className="runtime-inline-note" aria-label="Runtime 数据边界"><ShieldCheck size={17} /><div><strong>生命周期由 AgentDock Runtime 管理</strong><span>Nexus 只展示 Runtime API 状态，写操作仅通过受控 Runtime 接口执行。</span></div></aside>}
     {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
@@ -320,12 +308,10 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
   return <>
     <AccountSecurity />
     <section className="settings-grid compact-settings">
-      <Panel className="settings-system-panel" icon={Activity} title="系统状态" subtitle="Nexus 运行与 SQLite 健康">
+      <Panel className="settings-system-panel" icon={Activity} title="系统" subtitle="运行状态与数据位置">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
-        <SettingValue label="Schema" value={String(system.data.schema_version || 0)} />
-        <SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono />
-        <SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono />
+        <details className="nexus-technical-details"><summary>数据与版本</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
       </Panel>
       <BackupPanel backup={backup.data} className="settings-backup-panel" />
     </section>
@@ -333,22 +319,18 @@ function SettingsPage({ refreshToken }: { refreshToken: number }) {
 }
 
 function BackupPanel({ backup, className }: { backup?: BackupStatus; className?: string }) {
-  return <Panel className={className} icon={Database} title="备份状态" subtitle={backup ? `${backup.host} · ${backup.schedule}` : '等待备份状态'}>
+  return <Panel className={className} icon={Database} title="备份" subtitle="自动备份状态">
     {backup ? <>
       <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
       <SettingValue label="下次运行" value={formatTime(backup.next_run_at)} />
-      <SettingValue label="显示时区" value={timeZoneLabel()} />
-      <SettingValue label="归档大小" value={formatBytes(backup.archive_size)} />
-      <SettingValue label="远端路径" value={backup.remote_path || '暂无'} mono />
-      <SettingValue label="SHA256" value={backup.sha256 || '暂无'} mono />
       {backup.message && <div className="nx-alert is-info">{backup.message}</div>}
-      {backup.history?.length ? <div className="backup-history"><h4>最近备份</h4>{backup.history.slice(0, 5).map((item, index) => <div key={`${item.started_at || index}:${item.state}`}><StatusBadge tone={toneForStatus(item.state)}>{item.state}</StatusBadge><span><strong>{formatTime(item.completed_at || item.started_at)}</strong><small>{item.archive || item.remote_path || item.message || '暂无详情'}</small></span></div>)}</div> : null}
+      <details className="nexus-technical-details"><summary>备份详情</summary><SettingValue label="主机" value={backup.host || '暂无'} /><SettingValue label="计划" value={backup.schedule || '暂无'} /><SettingValue label="显示时区" value={timeZoneLabel()} /><SettingValue label="归档大小" value={formatBytes(backup.archive_size)} /><SettingValue label="远端路径" value={backup.remote_path || '暂无'} mono /><SettingValue label="SHA256" value={backup.sha256 || '暂无'} mono /></details>
+      {backup.history?.length ? <details className="backup-history-details"><summary>最近备份（{backup.history.length}）</summary><div className="backup-history">{backup.history.slice(0, 5).map((item, index) => <div key={`${item.started_at || index}:${item.state}`}><StatusBadge tone={toneForStatus(item.state)}>{item.state}</StatusBadge><span><strong>{formatTime(item.completed_at || item.started_at)}</strong><small>{item.archive || item.remote_path || item.message || '暂无详情'}</small></span></div>)}</div></details> : null}
     </> : <EmptyMini text="暂无备份状态。" />}
   </Panel>;
 }
 
-function MetricButton({ label, value, tone, icon: Icon, onClick }: { label: string; value: number; tone: Tone; icon: typeof Home; onClick: () => void }) { return <button type="button" className="metric-card" aria-label={`${label}：${value}`} onClick={onClick}><span className={`metric-icon tone-${tone}`}><Icon size={19} /></span><span className="metric-value">{value}</span><span className="metric-label">{label}</span><ChevronRight size={17} className="metric-arrow" /></button>; }
 function Panel({ title, subtitle, icon: Icon, className = '', children }: { title: string; subtitle: string; icon?: typeof Home; className?: string; children: ReactNode }) { return <article className={`nexus-panel ${className}`.trim()}><header>{Icon && <span className="nexus-panel-icon"><Icon size={17} /></span>}<div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function InlineAlert({ tone, title, message }: { tone: Tone; title: string; message: string }) { return <div className={`nexus-inline-alert tone-${tone}`}><strong>{title}</strong><span>{message}</span></div>; }

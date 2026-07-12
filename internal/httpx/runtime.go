@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -12,9 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
-const runtimeTaskListLimit = 200
+const (
+	runtimeTaskListLimit    = 200
+	maxSkillFilePreviewSize = 256 * 1024
+)
 
 type opsTaskStep struct {
 	ID     string `json:"id"`
@@ -87,6 +92,15 @@ type opsSkillDetail struct {
 	RuntimeState map[string]any `json:"runtime_state,omitempty"`
 }
 
+type opsSkillFileContent struct {
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	SizeBytes int64  `json:"size_bytes"`
+	UpdatedAt string `json:"updated_at"`
+	Content   string `json:"content"`
+	Truncated bool   `json:"truncated"`
+}
+
 type opsSkillRuntimeState struct {
 	ActiveVersion string            `json:"active_version"`
 	Channels      map[string]string `json:"channels"`
@@ -108,6 +122,7 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 	mux.HandleFunc("GET /v1/runtime/tasks/{fileName}", protected(s.runtimeTaskDetail))
 	mux.HandleFunc("DELETE /v1/runtime/tasks/{fileName}", protected(s.runtimeDeleteTask))
 	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
+	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}/files/{filePath...}", protected(s.runtimeSkillFile))
 	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
@@ -217,6 +232,72 @@ func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail, "source": "agentdock-runtime-api"})
+}
+
+func (s *Server) runtimeSkillFile(w http.ResponseWriter, r *http.Request) {
+	skillID, err := cleanOpsName(r.PathValue("skillID"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
+		return
+	}
+	detail, err := s.runtimeSkillDetailFromRuntime(r.Context(), skillID)
+	if err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		return
+	}
+	relativePath := filepath.Clean(filepath.FromSlash(strings.TrimSpace(r.PathValue("filePath"))))
+	if relativePath == "." || filepath.IsAbs(relativePath) || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
+		writeError(w, http.StatusBadRequest, "INVALID_SKILL_FILE", "Skill 文件路径无效")
+		return
+	}
+	if detail.Root == "" || detail.Root == "agentdock-runtime-api" {
+		if strings.EqualFold(filepath.ToSlash(relativePath), "SKILL.md") && detail.SkillDoc != "" {
+			content := opsSkillFileContent{Path: "SKILL.md", Kind: "doc", SizeBytes: int64(len(detail.SkillDoc)), UpdatedAt: detail.UpdatedAt, Content: detail.SkillDoc}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "file": content})
+			return
+		}
+		writeError(w, http.StatusNotFound, "SKILL_FILES_UNAVAILABLE", "Skill 文件目录不可用")
+		return
+	}
+	target := filepath.Join(detail.Root, relativePath)
+	rootResolved, rootErr := filepath.EvalSymlinks(detail.Root)
+	targetResolved, targetErr := filepath.EvalSymlinks(target)
+	if rootErr != nil || targetErr != nil {
+		writeError(w, http.StatusNotFound, "SKILL_FILE_NOT_FOUND", "Skill 文件不存在")
+		return
+	}
+	resolved, err := filepath.Rel(rootResolved, targetResolved)
+	if err != nil || resolved == ".." || strings.HasPrefix(resolved, ".."+string(os.PathSeparator)) {
+		writeError(w, http.StatusBadRequest, "INVALID_SKILL_FILE", "Skill 文件路径超出安装目录")
+		return
+	}
+	target = targetResolved
+	info, err := os.Stat(target)
+	if err != nil || info.IsDir() {
+		writeError(w, http.StatusNotFound, "SKILL_FILE_NOT_FOUND", "Skill 文件不存在")
+		return
+	}
+	file, err := os.Open(target)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "SKILL_FILE_READ_FAILED", err.Error())
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxSkillFilePreviewSize+1))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "SKILL_FILE_READ_FAILED", err.Error())
+		return
+	}
+	truncated := len(data) > maxSkillFilePreviewSize
+	if truncated {
+		data = data[:maxSkillFilePreviewSize]
+	}
+	if !utf8.Valid(data) {
+		writeError(w, http.StatusUnsupportedMediaType, "SKILL_FILE_BINARY", "该文件不是可预览的文本文件")
+		return
+	}
+	content := opsSkillFileContent{Path: filepath.ToSlash(relativePath), Kind: skillFileKind(relativePath), SizeBytes: info.Size(), UpdatedAt: modTime(info), Content: string(data), Truncated: truncated}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "file": content})
 }
 
 func (s *Server) collectOpsTasks() []opsTaskSummary {
@@ -338,7 +419,8 @@ func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSum
 		channels := opsStringMap(firstNonNil(m["channels"], selection["channels"]))
 		active := firstNonEmptyString(opsString(m["active_version"]), opsString(selection["active_version"]))
 		versions := opsStringArray(m["versions"])
-		items = append(items, opsSkillSummary{ID: id, Title: id, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", id)), UpdatedAt: firstNonEmptyString(opsString(m["updated_at"]), opsString(selection["updated_at"])), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels})
+		summary := opsSkillSummary{ID: id, Title: id, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", id)), UpdatedAt: firstNonEmptyString(opsString(m["updated_at"]), opsString(selection["updated_at"])), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels}
+		items = append(items, s.enrichOpsSkillSummary(summary))
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 	return items, nil
@@ -349,16 +431,65 @@ func (s *Server) runtimeSkillDetailFromRuntime(ctx context.Context, skillID stri
 	if err != nil {
 		return opsSkillDetail{}, err
 	}
-	manifest := opsMap(body["manifest"])
-	metadata := opsMap(manifest["metadata"])
+	document := opsMap(body["document"])
 	selection := opsMap(body["selection"])
 	versions := opsStringArray(body["versions"])
 	channels := opsStringMap(selection["channels"])
-	active := firstNonEmptyString(opsString(body["version"]), opsString(selection["active_version"]))
-	title := firstNonEmptyString(opsString(metadata["displayName"]), opsString(metadata["display_name"]), opsString(metadata["title"]), opsString(metadata["name"]), skillID)
-	desc := firstNonEmptyString(opsString(metadata["description"]), opsString(manifest["description"]))
-	summary := opsSkillSummary{ID: skillID, Title: title, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", skillID)), Description: desc, UpdatedAt: opsString(selection["updated_at"]), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels, FileCount: 0}
-	return opsSkillDetail{opsSkillSummary: summary, Root: "agentdock-runtime-api", Files: []opsSkillFile{}, RuntimeState: body}, nil
+	active := firstNonEmptyString(opsString(body["version"]), opsString(selection["active_version"]), opsString(document["version"]))
+	title := firstNonEmptyString(opsString(document["name"]), skillID)
+	desc := opsString(document["description"])
+	summary := s.enrichOpsSkillSummary(opsSkillSummary{ID: skillID, Title: title, Source: "agentdock-api", Path: filepath.ToSlash(filepath.Join("agentdock-api", skillID)), Description: desc, UpdatedAt: opsString(selection["updated_at"]), Status: "installed", ActiveVersion: active, Versions: versions, Channels: channels})
+	detail := opsSkillDetail{opsSkillSummary: summary, Root: "agentdock-runtime-api", SkillDoc: skillDocumentText(document), Files: []opsSkillFile{}, RuntimeState: body}
+	if root := s.opsSkillPackageRoot(skillID, active); root != "" {
+		detail.Root = filepath.ToSlash(root)
+		detail.SkillDoc = readSmallText(filepath.Join(root, "SKILL.md"), 32000)
+		detail.Files = collectOpsSkillFiles(root, 4, 160)
+	} else if detail.SkillDoc != "" {
+		detail.Files = []opsSkillFile{{Path: "SKILL.md", Kind: "doc", SizeBytes: int64(len(detail.SkillDoc)), UpdatedAt: summary.UpdatedAt}}
+	}
+	detail.FileCount = len(detail.Files)
+	return detail, nil
+}
+
+func skillDocumentText(document map[string]any) string {
+	name := strings.TrimSpace(opsString(document["name"]))
+	description := strings.TrimSpace(opsString(document["description"]))
+	version := strings.TrimSpace(opsString(document["version"]))
+	body := strings.TrimSpace(opsString(document["body"]))
+	if name == "" || description == "" || version == "" || body == "" {
+		return ""
+	}
+	return fmt.Sprintf("---\nname: %s\ndescription: %s\nversion: %s\n---\n\n%s\n", strconv.Quote(name), strconv.Quote(description), strconv.Quote(version), body)
+}
+
+func (s *Server) enrichOpsSkillSummary(summary opsSkillSummary) opsSkillSummary {
+	root := s.opsSkillPackageRoot(summary.ID, summary.ActiveVersion)
+	if root == "" {
+		return summary
+	}
+	title, description := readSkillDoc(filepath.Join(root, "SKILL.md"))
+	summary.Title = firstNonEmptyString(title, summary.Title, summary.ID)
+	summary.Description = firstNonEmptyString(description, summary.Description)
+	summary.FileCount = len(collectOpsSkillFiles(root, 4, 160))
+	summary.DocRoot = filepath.ToSlash(root)
+	if info, err := os.Stat(root); err == nil {
+		summary.UpdatedAt = firstNonEmptyString(summary.UpdatedAt, modTime(info))
+	}
+	return summary
+}
+
+func (s *Server) opsSkillPackageRoot(skillID, version string) string {
+	if strings.TrimSpace(s.cfg.AgentDockDir) == "" {
+		return ""
+	}
+	version = strings.TrimSpace(version)
+	if version != "" && filepath.Base(version) == version && !strings.Contains(version, "..") {
+		candidate := s.agentDockPath("skill-store", "installed", skillID, version)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return s.findOpsSkillDocRoot(skillID)
 }
 
 func (s *Server) workflowCountsFromRuntime(ctx context.Context) map[string]int {
@@ -654,7 +785,10 @@ func collectOpsSkillFiles(root string, maxDepth, maxItems int) []opsSkillFile {
 		if d.IsDir() && depth > maxDepth {
 			return fs.SkipDir
 		}
-		if d.IsDir() {
+		if d.IsDir() || d.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if d.Name() == ".agentdock-install.json" || d.Name() == "_meta.json" {
 			return nil
 		}
 		info, err := d.Info()
@@ -669,8 +803,9 @@ func collectOpsSkillFiles(root string, maxDepth, maxItems int) []opsSkillFile {
 		return nil
 	})
 	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].Kind != items[j].Kind {
-			return items[i].Kind < items[j].Kind
+		left, right := skillFileKindRank(items[i]), skillFileKindRank(items[j])
+		if left != right {
+			return left < right
 		}
 		return items[i].Path < items[j].Path
 	})
@@ -691,6 +826,22 @@ func skillFileKind(path string) string {
 		return "config"
 	default:
 		return "asset"
+	}
+}
+
+func skillFileKindRank(file opsSkillFile) int {
+	if strings.EqualFold(file.Path, "SKILL.md") {
+		return 0
+	}
+	switch file.Kind {
+	case "doc":
+		return 1
+	case "code":
+		return 2
+	case "config", "manifest":
+		return 3
+	default:
+		return 4
 	}
 }
 
