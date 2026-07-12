@@ -250,6 +250,10 @@ func (s *Server) runtimeSkillFile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_SKILL_FILE", "Skill 文件路径无效")
 		return
 	}
+	if isPrivateSkillFilePath(relativePath) {
+		writeError(w, http.StatusNotFound, "SKILL_FILE_NOT_FOUND", "Skill 文件不存在")
+		return
+	}
 	if detail.Root == "" || detail.Root == "agentdock-runtime-api" {
 		if strings.EqualFold(filepath.ToSlash(relativePath), "SKILL.md") && detail.SkillDoc != "" {
 			content := opsSkillFileContent{Path: "SKILL.md", Kind: "doc", SizeBytes: int64(len(detail.SkillDoc)), UpdatedAt: detail.UpdatedAt, Content: detail.SkillDoc}
@@ -788,14 +792,14 @@ func collectOpsSkillFiles(root string, maxDepth, maxItems int) []opsSkillFile {
 		if d.IsDir() || d.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
-		if d.Name() == ".agentdock-install.json" || d.Name() == "_meta.json" {
+		rel := trimKnownRoot(path, root)
+		if isPrivateSkillFilePath(rel) {
 			return nil
 		}
 		info, err := d.Info()
 		if err != nil {
 			return nil
 		}
-		rel := trimKnownRoot(path, root)
 		items = append(items, opsSkillFile{Path: rel, Kind: skillFileKind(rel), SizeBytes: info.Size(), UpdatedAt: modTime(info)})
 		if len(items) >= maxItems {
 			return fs.SkipAll
@@ -810,6 +814,16 @@ func collectOpsSkillFiles(root string, maxDepth, maxItems int) []opsSkillFile {
 		return items[i].Path < items[j].Path
 	})
 	return items
+}
+
+func isPrivateSkillFilePath(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		name := strings.ToLower(strings.TrimSpace(segment))
+		if name == "" || strings.HasPrefix(name, ".") || name == "_meta.json" {
+			return true
+		}
+	}
+	return false
 }
 
 func skillFileKind(path string) string {

@@ -230,9 +230,7 @@ func TestRuntimeSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 	if err := os.WriteFile(outsideFile, []byte("must not be exposed"), 0o644); err != nil {
 		t.Fatalf("write outside file: %v", err)
 	}
-	if err := os.Symlink(outsideFile, filepath.Join(packageDir, "outside-link.txt")); err != nil {
-		t.Fatalf("create outside symlink: %v", err)
-	}
+	symlinkCreated := os.Symlink(outsideFile, filepath.Join(packageDir, "outside-link.txt")) == nil
 
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL, AgentDockDir: agentDockDir}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill", nil)
@@ -258,13 +256,24 @@ func TestRuntimeSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 		t.Fatalf("unexpected Skill files: %+v", decoded.Skill.Files)
 	}
 
-	linkRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/outside-link.txt", nil)
-	linkRequest.SetPathValue("skillID", "demo-skill")
-	linkRequest.SetPathValue("filePath", "outside-link.txt")
-	linkResponse := httptest.NewRecorder()
-	server.runtimeSkillFile(linkResponse, linkRequest)
-	if linkResponse.Code != http.StatusBadRequest {
-		t.Fatalf("outside symlink status = %d, want 400; body=%s", linkResponse.Code, linkResponse.Body.String())
+	metadataRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/.agentdock-install.json", nil)
+	metadataRequest.SetPathValue("skillID", "demo-skill")
+	metadataRequest.SetPathValue("filePath", ".agentdock-install.json")
+	metadataResponse := httptest.NewRecorder()
+	server.runtimeSkillFile(metadataResponse, metadataRequest)
+	if metadataResponse.Code != http.StatusNotFound {
+		t.Fatalf("private metadata status = %d, want 404; body=%s", metadataResponse.Code, metadataResponse.Body.String())
+	}
+
+	if symlinkCreated {
+		linkRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/outside-link.txt", nil)
+		linkRequest.SetPathValue("skillID", "demo-skill")
+		linkRequest.SetPathValue("filePath", "outside-link.txt")
+		linkResponse := httptest.NewRecorder()
+		server.runtimeSkillFile(linkResponse, linkRequest)
+		if linkResponse.Code != http.StatusBadRequest {
+			t.Fatalf("outside symlink status = %d, want 400; body=%s", linkResponse.Code, linkResponse.Body.String())
+		}
 	}
 }
 
