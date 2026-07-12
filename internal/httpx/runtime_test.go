@@ -18,7 +18,7 @@ func TestRuntimeTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 		if r.URL.Query().Get("limit") != "20" {
 			t.Fatalf("unexpected runtime limit: %s", r.URL.RawQuery)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "tasks": []map[string]any{{"id": "tsk_demo", "title": "Demo Task", "goal": "show details", "status": "active", "phase": "execute", "review_status": "not_started", "condition_count": 1, "step_count": 2, "event_count": 3, "updated_at": "2026-07-06T01:02:03Z"}}, "count": 1})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "tasks": []map[string]any{{"id": "tsk_demo", "title": "Demo Task", "goal": "show details", "status": "active", "phase": "execute", "review_status": "not_started", "summary": "正在验证页面", "condition_count": 1, "completed_step_count": 1, "step_count": 2, "current_step": map[string]any{"id": "verify", "title": "验证页面", "status": "in_progress"}, "event_count": 3, "updated_at": "2026-07-06T01:02:03Z"}}, "count": 1})
 	}))
 	defer runtime.Close()
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
@@ -39,6 +39,10 @@ func TestRuntimeTasksUsesAgentDockRuntimeAPI(t *testing.T) {
 	if len(decoded.Items) != 1 || decoded.Items[0].ID != "tsk_demo" || decoded.Items[0].FileName != "tsk_demo" || decoded.Items[0].ConditionCount != 1 {
 		t.Fatalf("unexpected tasks: %+v", decoded.Items)
 	}
+	item := decoded.Items[0]
+	if item.CompletedStepCount != 1 || item.StepCount != 2 || item.Summary != "正在验证页面" || item.CurrentStep == nil || item.CurrentStep.ID != "verify" || item.CurrentStep.Status != "in_progress" {
+		t.Fatalf("task progress was not preserved: %+v", item)
+	}
 }
 
 func TestRuntimeTasksClampsLimitToRuntimeMaximum(t *testing.T) {
@@ -58,6 +62,43 @@ func TestRuntimeTasksClampsLimitToRuntimeMaximum(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestRuntimeTaskDetailDerivesProgressFromSteps(t *testing.T) {
+	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/runtime/tasks/tsk_demo" {
+			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": map[string]any{
+			"id": "tsk_demo", "title": "Demo Task", "goal": "show progress", "status": "active", "phase": "execute", "summary": "正在实现进度条",
+			"steps": []map[string]any{
+				{"id": "check", "title": "检查现状", "status": "completed"},
+				{"id": "implement", "title": "实现进度条", "status": "in_progress"},
+				{"id": "verify", "title": "验证页面", "status": "pending"},
+			},
+		}})
+	}))
+	defer runtime.Close()
+
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
+	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks/tsk_demo", nil)
+	request.SetPathValue("fileName", "tsk_demo")
+	response := httptest.NewRecorder()
+
+	server.runtimeTaskDetail(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var decoded struct {
+		Task opsTaskDetail `json:"task"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if decoded.Task.CompletedStepCount != 1 || decoded.Task.StepCount != 3 || decoded.Task.CurrentStep == nil || decoded.Task.CurrentStep.ID != "implement" || decoded.Task.Summary != "正在实现进度条" {
+		t.Fatalf("unexpected task progress: %+v", decoded.Task)
 	}
 }
 

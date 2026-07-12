@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Activity, CheckCircle2, Layers, RefreshCw, Search, ShieldAlert, Trash2, type LucideIcon } from 'lucide-react';
+import { CheckCircle2, Circle, Layers, LoaderCircle, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
-import { formatTime, timeZoneLabel } from '../../lib/time';
+import { formatTime } from '../../lib/time';
 import Dialog from '../Dialog';
 
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
@@ -11,12 +11,12 @@ const taskStatusLabels: Record<TaskStatus, string> = { all: '全部', active: '�
 const runtimeTaskListLimit = 200;
 function taskStatusLabel(status?: string): string { return taskStatusLabels[status as TaskStatus] || status || '未知'; }
 
-type OpsTask = { id: string; title: string; goal: string; status: string; phase: string; review_status: string; blocker?: string; updated_at: string; created_at: string; template_id?: string; template_version?: string; condition_count: number; step_count: number; attempt_count: number; event_count: number; file_name: string };
-type OpsTaskDetail = OpsTask & { path?: string; content?: string; json?: Record<string, unknown>; conditions?: unknown[]; steps?: unknown[]; attempts?: unknown[]; events?: unknown[]; final_review?: Record<string, unknown> };
+type TaskStep = { id: string; title: string; status: string };
+type OpsTask = { id: string; title: string; goal: string; status: string; summary?: string; blocker?: string; current_step?: TaskStep; completed_step_count: number; step_count: number; updated_at: string; file_name: string };
+type OpsTaskDetail = OpsTask & { steps?: unknown[] };
 type OpsSkill = { id: string; title: string; source: string; path: string; description?: string; updated_at: string; file_count: number; status: string; active_version?: string; versions?: string[]; channels?: Record<string, string>; runtime_state_path?: string; doc_root?: string };
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
-type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
 type TaskCounts = { active: number; blocked: number; completed: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
 type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail; source?: string };
@@ -27,7 +27,7 @@ type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail; source?: string
 const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0, root: '' };
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
-function toneForTask(task: Pick<OpsTask, 'status' | 'phase' | 'review_status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.phase === 'closeout' && task.review_status === 'pass') return 'warn'; if (task.status === 'active') return 'warn'; return 'muted'; }
+function toneForTask(task: Pick<OpsTask, 'status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.status === 'active') return 'warn'; return 'muted'; }
 function countTasks(tasks: OpsTask[]): TaskCounts { return { active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length }; }
 
 function taskDisplayTitle(task?: Pick<OpsTask, 'title' | 'goal' | 'id'>): string {
@@ -37,11 +37,26 @@ function taskDisplayTitle(task?: Pick<OpsTask, 'title' | 'goal' | 'id'>): string
   if (goal) return goal.split(/[。.!?！？\n]/)[0] || goal;
   return task?.id || '未命名任务';
 }
-function taskListMeta(task: OpsTask): string {
-  return [task.phase || 'no phase', task.template_id || '', formatTime(task.updated_at)].filter(Boolean).join(' · ');
+
+type TaskProgressState = { completed: number; total: number; percent: number; determinate: boolean; label: string };
+function taskProgress(task: Pick<OpsTask, 'status' | 'completed_step_count' | 'step_count'>): TaskProgressState {
+  const total = Math.max(0, Number(task.step_count) || 0);
+  if (total === 0) {
+    return { completed: 0, total: 0, percent: 0, determinate: false, label: task.status === 'completed' ? '已完成' : '未拆分步骤' };
+  }
+  const reported = Math.max(0, Number(task.completed_step_count) || 0);
+  const completed = task.status === 'completed' ? total : Math.min(reported, total);
+  return { completed, total, percent: Math.round((completed / total) * 100), determinate: true, label: `${completed} / ${total}` };
+}
+
+function taskCurrentText(task: OpsTask): string {
+  if (task.status === 'blocked' && task.blocker) return `阻塞：${task.blocker}`;
+  if (task.current_step?.title) return `当前：${task.current_step.title}`;
+  if (task.summary) return task.summary;
+  if (task.status === 'completed') return '任务已完成';
+  return task.step_count > 0 ? '等待下一步' : '未拆分执行步骤';
 }
 function toneForStatus(status?: string): Tone { if (!status) return 'muted'; if (['ok', 'healthy', 'available', 'installed', 'active', 'success', 'completed'].includes(status)) return 'ok'; if (['failed', 'blocked', 'offline', 'unknown'].includes(status)) return 'danger'; if (['pending', 'draft', 'running', 'degraded'].includes(status)) return 'warn'; return 'muted'; }
-function shortHash(value?: string): string { return value ? value.slice(0, 8) : 'unknown'; }
 
 function useOpsResource<T>(path: string, fallback: T, refreshToken: number) {
   const fallbackRef = useRef(fallback);
@@ -89,12 +104,9 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const tasks = resource.data.items;
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
-  const visibleStats = useMemo(() => countTasks(tasks), [tasks]);
   const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
   const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
-  const healthStats = totalCount ? totalStats : visibleStats;
-  const healthTone: Tone = healthStats.blocked ? 'danger' : healthStats.active ? 'warn' : 'ok';
-  const healthText = healthStats.blocked ? `${healthStats.blocked} 个阻塞` : healthStats.active ? `${healthStats.active} 个进行中` : '运行正常';
+  const statusCounts: Record<TaskStatus, number> = { ...totalStats, all: totalCount };
 
   function reloadTasks() {
     resource.reload();
@@ -120,12 +132,10 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   }
 
   return <>
-    <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示和删除任务记录。删除操作不可恢复，时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading || allResource.loading} error={resource.error || allResource.error} onReload={reloadTasks}>
+    <OpsShell title="任务进度" subtitle="查看当前步骤和最近进展。" loading={resource.loading || allResource.loading} error={resource.error || allResource.error} onReload={reloadTasks}>
       {notice && <div className="nx-alert is-success" role="status">{notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}
-      <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{totalCount} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={healthTone}>{healthText}</StatusBadge></section>
-      <section className="ops-metrics is-dashboard"><Metric label="进行中" value={String(totalStats.active)} tone={totalStats.active ? 'warn' : 'muted'} icon={Activity} /><Metric label="阻塞" value={String(totalStats.blocked)} tone={totalStats.blocked ? 'danger' : 'muted'} icon={ShieldAlert} /><Metric label="已完成" value={String(totalStats.completed)} tone="ok" icon={CheckCircle2} /><Metric label="总任务" value={String(totalCount)} tone="muted" icon={Layers} /></section>
-      <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => setStatus(item)}>{taskStatusLabels[item]}</button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">当前 {resource.data.count} / 全部 {totalCount}</span></div>
-      <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{taskDisplayTitle(task)}</strong><small>{taskListMeta(task)}</small></span></button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} deleting={deletingId === selected?.id} onDelete={(task) => { setDeleteError(''); setPendingDelete(task); }} /></section>
+      <div className="ops-toolbar is-console ops-task-toolbar"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => setStatus(item)}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><span className="ops-count">显示 {resource.data.count} 条</span></div>
+      <section className="ops-master-detail ops-task-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => setSelectedId(task.id)}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} deleting={deletingId === selected?.id} onDelete={(task) => { setDeleteError(''); setPendingDelete(task); }} /></section>
     </OpsShell>
     {pendingDelete && <Dialog title="删除任务" description="任务记录和步骤将被永久删除，此操作不可恢复。" onClose={() => { if (!deletingId) setPendingDelete(null); }}>
       <div className="ops-delete-dialog">
@@ -163,12 +173,12 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
 function TaskDetail({ task, detail, loading, error, deleting, onDelete }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string; deleting: boolean; onDelete: (task: OpsTask) => void }) {
   if (!task) return <article className="ops-detail-empty"><EmptyOps text="请选择一个任务。" /></article>;
   const full = detail?.id ? detail : task;
-  const conditionItems = readableItems(detail?.conditions, '条件');
-  const stepItems = readableItems(detail?.steps, '步骤');
-  const eventItems = readableItems(detail?.events, '事件');
-  return <article className="ops-task-detail">
+  const steps = taskSteps(detail?.steps);
+  const currentStep = full.current_step || steps.find((step) => step.status === 'in_progress') || steps.find((step) => step.status === 'pending');
+  const currentTitle = currentStep?.title || (full.status === 'completed' ? '任务已完成' : full.status === 'blocked' ? '任务已阻塞' : '等待下一步');
+  return <article className="ops-task-detail ops-task-detail-simple">
     <header>
-      <div><span>任务详情</span><h3>{taskDisplayTitle(full)}</h3><p>{full.goal || '暂无目标描述。'}</p></div>
+      <div><span>任务</span><h3>{taskDisplayTitle(full)}</h3>{full.goal && <p>{full.goal}</p>}</div>
       <div className="ops-task-detail-actions">
         <StatusBadge tone={toneForTask(full)}>{taskStatusLabel(full.status)}</StatusBadge>
         <button type="button" className="nx-button is-danger is-small" aria-label={`删除任务 ${taskDisplayTitle(full)}`} onClick={() => onDelete(full)} disabled={deleting}><Trash2 size={15} />{deleting ? '删除中…' : '删除'}</button>
@@ -177,13 +187,14 @@ function TaskDetail({ task, detail, loading, error, deleting, onDelete }: { task
     {loading && <div className="nx-alert is-info">正在读取任务详情…</div>}
     {error && <div className="nx-alert is-error">{error}</div>}
     {full.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{full.blocker}</div>}
-    <div className="ops-detail-grid"><Info label="阶段" value={full.phase || 'none'} /><Info label="Review" value={full.review_status || 'not_started'} /><Info label="条件" value={String(full.condition_count)} /><Info label="步骤" value={String(full.step_count)} /><Info label="事件" value={String(full.event_count)} /><Info label="更新" value={formatTime(full.updated_at)} /></div>
-    <section className="ops-detail-section"><h4>Runtime 任务记录</h4><div className="ops-key-values"><Info label="ID" value={full.id} /><Info label="记录 ID" value={full.file_name} /><Info label="来源" value={detail?.path || 'AgentDock Runtime API'} /><Info label="创建" value={formatTime(full.created_at)} />{full.template_id && <Info label="模板" value={`${full.template_id}@${full.template_version || 'unknown'}`} />}</div></section>
-    <ReviewSummary review={detail?.final_review} />
-    <ReadableList title="完成条件" items={conditionItems} empty="没有条件详情。" />
-    <ReadableList title="执行步骤" items={stepItems} empty="没有步骤详情。" />
-    <ReadableList title="最近事件" items={eventItems.slice(0, 8)} empty="没有事件记录。" />
-    <footer><code>{full.id}</code>{full.template_id && <code>{full.template_id}@{full.template_version}</code>}</footer>
+    <TaskProgress task={full} />
+    <section className="ops-current-step" aria-label="当前进展">
+      <span>{full.status === 'completed' ? '结果' : full.status === 'blocked' ? '当前状态' : '当前步骤'}</span>
+      <strong>{currentTitle}</strong>
+      {full.summary && full.summary !== currentTitle && <p>{full.summary}</p>}
+    </section>
+    <TaskStepList steps={steps} status={full.status} />
+    <footer className="ops-task-updated">更新于 {formatTime(full.updated_at)}</footer>
   </article>;
 }
 
@@ -197,18 +208,48 @@ function SkillDetail({ skill, detail, loading, error }: { skill?: OpsSkill; deta
   return <article className="ops-task-detail ops-skill-detail"><header><div><span>Runtime Skill</span><h3>{full.title || full.id}</h3><p>{full.description || '来自 AgentDock Runtime API。'}</p></div><StatusBadge tone={toneForStatus(full.status)}>{full.status}</StatusBadge></header>{loading && <div className="nx-alert is-info">正在读取 Skill Runtime 详情…</div>}{error && <div className="nx-alert is-error">{error}</div>}<div className="ops-detail-grid"><Info label="ID" value={full.id} /><Info label="来源" value={full.source || 'agentdock-api'} /><Info label="当前版本" value={full.active_version || 'unknown'} /><Info label="版本数" value={String((full.versions || []).length)} /><Info label="更新" value={formatTime(full.updated_at)} /><Info label="逻辑路径" value={full.path || 'agentdock-api'} /></div><section className="ops-detail-section"><h4>Runtime Selection</h4><div className="ops-key-values"><Info label="Active" value={full.active_version || pickText(selection || {}, ['active_version']) || 'unknown'} /><Info label="版本历史" value={(full.versions || []).slice(0, 6).join(' → ') || '暂无'} /><Info label="Binding" value={String(raw?.binding_configured ?? 'unknown')} /><Info label="Root" value={detail?.root || 'agentdock-runtime-api'} /></div><ChannelChips channels={full.channels} /></section>{manifest && <section className="ops-detail-section"><h4>Manifest 摘要</h4><div className="ops-key-values"><Info label="metadata" value={Object.keys(asRecord(manifest.metadata) || {}).join(', ') || '无'} /><Info label="operations" value={String((manifest.operations as unknown[] | undefined)?.length || 0)} /><Info label="permissions" value={Object.keys(asRecord(manifest.permissions) || {}).join(', ') || '无'} /><Info label="env" value={String((manifest.env as unknown[] | undefined)?.length || 0)} /></div></section>}<section className="ops-detail-section"><h4>文件清单</h4>{files.length === 0 ? <EmptyOps text="Runtime API 当前不返回安装包文件清单。" /> : <div className="ops-file-list">{files.map((file) => <div key={file.path} className="ops-file-row"><span><strong>{file.path}</strong><small>{file.kind} · {formatTime(file.updated_at)}</small></span><em>{formatBytes(file.size_bytes)}</em></div>)}</div>}</section>{raw && <RawJsonPanel title="Runtime 原始响应" value={raw} />}</article>;
 }
 
-type ReadableItem = { title: string; meta?: string; detail?: string };
-function readableItems(values?: unknown[], fallback = '条目'): ReadableItem[] {
+function taskSteps(values?: unknown[]): TaskStep[] {
   if (!Array.isArray(values)) return [];
-  return values.map((value, index) => {
+  return values.flatMap((value, index) => {
     const record = asRecord(value);
-    if (!record) return { title: `${fallback} ${index + 1}`, detail: String(value) };
-    const title = pickText(record, ['text', 'title', 'name', 'id', 'type', 'summary']) || `${fallback} ${index + 1}`;
-    const meta = [pickText(record, ['status', 'phase', 'outcome']), pickText(record, ['updated_at', 'created_at', 'occurred_at', 'time'])].filter(Boolean).join(' · ');
-    const detail = pickText(record, ['summary', 'evidence', 'message', 'diagnosis', 'result', 'reason', 'description']);
-    return { title, meta, detail };
+    if (!record) return [];
+    const title = pickText(record, ['title', 'name', 'text']) || `步骤 ${index + 1}`;
+    return [{ id: pickText(record, ['id']) || `step-${index + 1}`, title, status: pickText(record, ['status']) || 'pending' }];
   });
 }
+
+function TaskProgress({ task, compact = false }: { task: OpsTask; compact?: boolean }) {
+  const progress = taskProgress(task);
+  const progressText = progress.determinate ? `${progress.label} · ${progress.percent}%` : progress.label;
+  return <div className={`ops-task-progress ${compact ? 'is-compact' : ''}`}>
+    {!compact && <div className="ops-task-progress-head"><strong>进度</strong><span>{progressText}</span></div>}
+    <div className={`ops-progress-track tone-${toneForTask(task)} ${progress.determinate ? '' : 'is-undetermined'}`} role="progressbar" aria-label="任务进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.determinate ? progress.percent : undefined} aria-valuetext={progressText}>
+      <i style={{ width: `${progress.percent}%` }} />
+    </div>
+    {compact && <span className="ops-progress-count">{progressText}</span>}
+  </div>;
+}
+
+function taskStepStatusLabel(status: string): string {
+  if (status === 'completed') return '已完成';
+  if (status === 'in_progress') return '进行中';
+  return '待处理';
+}
+
+function TaskStepList({ steps, status }: { steps: TaskStep[]; status: string }) {
+  return <section className="ops-task-steps">
+    <header><h4>步骤</h4><span>{steps.length} 项</span></header>
+    {steps.length === 0 ? <p className="ops-no-steps">该任务未拆分步骤，只能显示任务状态。</p> : <div className="ops-task-step-list">{steps.map((step) => {
+      const stepStatus = status === 'completed' ? 'completed' : step.status;
+      return <div className={`ops-task-step is-${stepStatus}`} key={step.id}>
+        <span className="ops-task-step-icon">{stepStatus === 'completed' ? <CheckCircle2 size={17} /> : stepStatus === 'in_progress' ? <LoaderCircle size={17} /> : <Circle size={17} />}</span>
+        <strong>{step.title}</strong>
+        <small>{taskStepStatusLabel(stepStatus)}</small>
+      </div>;
+    })}</div>}
+  </section>;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function pickText(record: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
@@ -218,32 +259,16 @@ function pickText(record: Record<string, unknown>, keys: string[]): string {
   }
   return '';
 }
-function ReadableList({ title, items, empty }: { title: string; items: ReadableItem[]; empty: string }) {
-  return <section className="ops-detail-section"><h4>{title}</h4>{items.length === 0 ? <EmptyOps text={empty} /> : <div className="ops-readable-list">{items.map((item, index) => <div className="ops-readable-row" key={`${item.title}:${index}`}><strong>{item.title}</strong>{item.meta && <small>{item.meta}</small>}{item.detail && item.detail !== item.title && <p>{item.detail}</p>}</div>)}</div>}</section>;
-}
-function ReviewSummary({ review }: { review?: Record<string, unknown> }) {
-  if (!review || Object.keys(review).length === 0) return null;
-  const status = pickText(review, ['status', 'review_status']) || 'unknown';
-  return <section className="ops-detail-section"><h4>Final Review</h4><div className="ops-key-values"><Info label="状态" value={status} /><Info label="摘要" value={pickText(review, ['summary']) || '暂无'} /><Info label="已验证" value={String(review.verified_fact_count ?? 0)} /><Info label="风险" value={String(review.open_risk_count ?? 0)} /></div></section>;
-}
 function ChannelChips({ channels }: { channels?: Record<string, string> }) {
   const entries = Object.entries(channels || {});
   if (entries.length === 0) return null;
   return <div className="ops-chip-row">{entries.map(([name, version]) => <span key={name}>{name}: {version}</span>)}</div>;
 }
-function MetadataChips({ metadata }: { metadata?: Record<string, unknown> }) {
-  const entries = Object.entries(metadata || {}).filter(([, value]) => value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0));
-  if (entries.length === 0) return null;
-  return <section className="ops-detail-section"><h4>补充信息</h4><div className="ops-chip-row">{entries.slice(0, 12).map(([key, value]) => <span key={key}>{key}: {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? '已配置' : String(value)}</span>)}</div></section>;
-}
-
 function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
   return <details className="ops-json-panel"><summary>{title}</summary><pre>{JSON.stringify(value, null, 2)}</pre></details>;
 }
 
 function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button type="button" className="nx-button is-secondary" aria-label={`刷新${title}`} onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
-function Metric({ label, value, icon: Icon, tone = 'muted' }: { label: string; value: string; icon: LucideIcon; tone?: Tone }) { return <article aria-label={`${label}：${value}`}><span className={`metric-icon tone-${tone}`}><Icon size={18} /></span><strong>{value}</strong><small>{label}</small></article>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
-function StatusDot({ tone }: { tone: Tone }) { return <i className={`ops-dot tone-${tone}`} />; }
 function EmptyOps({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }

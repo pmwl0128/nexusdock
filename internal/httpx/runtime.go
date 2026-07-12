@@ -16,23 +16,32 @@ import (
 
 const runtimeTaskListLimit = 200
 
+type opsTaskStep struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
 type opsTaskSummary struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	Goal            string `json:"goal"`
-	Status          string `json:"status"`
-	Phase           string `json:"phase"`
-	ReviewStatus    string `json:"review_status"`
-	Blocker         string `json:"blocker,omitempty"`
-	UpdatedAt       string `json:"updated_at"`
-	CreatedAt       string `json:"created_at"`
-	TemplateID      string `json:"template_id,omitempty"`
-	TemplateVersion string `json:"template_version,omitempty"`
-	ConditionCount  int    `json:"condition_count"`
-	StepCount       int    `json:"step_count"`
-	AttemptCount    int    `json:"attempt_count"`
-	EventCount      int    `json:"event_count"`
-	FileName        string `json:"file_name"`
+	ID                 string       `json:"id"`
+	Title              string       `json:"title"`
+	Goal               string       `json:"goal"`
+	Status             string       `json:"status"`
+	Phase              string       `json:"phase"`
+	ReviewStatus       string       `json:"review_status"`
+	Summary            string       `json:"summary,omitempty"`
+	Blocker            string       `json:"blocker,omitempty"`
+	CurrentStep        *opsTaskStep `json:"current_step,omitempty"`
+	CompletedStepCount int          `json:"completed_step_count"`
+	UpdatedAt          string       `json:"updated_at"`
+	CreatedAt          string       `json:"created_at"`
+	TemplateID         string       `json:"template_id,omitempty"`
+	TemplateVersion    string       `json:"template_version,omitempty"`
+	ConditionCount     int          `json:"condition_count"`
+	StepCount          int          `json:"step_count"`
+	AttemptCount       int          `json:"attempt_count"`
+	EventCount         int          `json:"event_count"`
+	FileName           string       `json:"file_name"`
 }
 
 type opsTaskDetail struct {
@@ -143,7 +152,11 @@ func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
 		if status != "" && status != "all" && item.Status != status {
 			continue
 		}
-		if query != "" && !strings.Contains(strings.ToLower(strings.Join([]string{item.ID, item.Title, item.Goal, item.Status, item.Phase, item.ReviewStatus, item.Blocker, item.TemplateID}, " ")), query) {
+		currentStep := ""
+		if item.CurrentStep != nil {
+			currentStep = item.CurrentStep.Title
+		}
+		if query != "" && !strings.Contains(strings.ToLower(strings.Join([]string{item.ID, item.Title, item.Goal, item.Status, item.Summary, item.Blocker, currentStep}, " ")), query) {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -226,7 +239,15 @@ func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]o
 		if id == "" {
 			continue
 		}
-		summary := opsTaskSummary{ID: id, Title: opsString(m["title"]), Goal: opsString(m["goal"]), Status: firstNonEmptyString(opsString(m["status"]), "unknown"), Phase: opsString(m["phase"]), ReviewStatus: firstNonEmptyString(opsString(m["review_status"]), "not_started"), Blocker: opsString(m["blocker"]), UpdatedAt: opsString(m["updated_at"]), CreatedAt: opsString(m["created_at"]), TemplateID: opsString(m["template_id"]), TemplateVersion: opsString(m["template_version"]), ConditionCount: opsInt(m["condition_count"]), StepCount: opsInt(m["step_count"]), AttemptCount: opsInt(m["attempt_count"]), EventCount: opsInt(m["event_count"]), FileName: id}
+		summary := opsTaskSummary{
+			ID: id, Title: opsString(m["title"]), Goal: opsString(m["goal"]),
+			Status: firstNonEmptyString(opsString(m["status"]), "unknown"), Phase: opsString(m["phase"]), ReviewStatus: firstNonEmptyString(opsString(m["review_status"]), "not_started"),
+			Summary: opsString(m["summary"]), Blocker: opsString(m["blocker"]), CurrentStep: opsTaskStepFromValue(m["current_step"]),
+			CompletedStepCount: opsInt(m["completed_step_count"]), StepCount: opsInt(m["step_count"]),
+			UpdatedAt: opsString(m["updated_at"]), CreatedAt: opsString(m["created_at"]),
+			TemplateID: opsString(m["template_id"]), TemplateVersion: opsString(m["template_version"]),
+			ConditionCount: opsInt(m["condition_count"]), AttemptCount: opsInt(m["attempt_count"]), EventCount: opsInt(m["event_count"]), FileName: id,
+		}
 		items = append(items, summary)
 	}
 	return items, nil
@@ -250,7 +271,55 @@ func opsTaskSummaryFromMap(task map[string]any) opsTaskSummary {
 	finalReview := opsMap(task["final_review"])
 	review := firstNonEmptyString(opsString(task["review_status"]), opsString(finalReview["status"]), "not_started")
 	template := opsMap(task["template"])
-	return opsTaskSummary{ID: opsString(task["id"]), Title: opsString(task["title"]), Goal: opsString(task["goal"]), Status: firstNonEmptyString(opsString(task["status"]), "unknown"), Phase: opsString(task["phase"]), ReviewStatus: review, Blocker: opsString(task["blocker"]), UpdatedAt: opsString(task["updated_at"]), CreatedAt: opsString(task["created_at"]), TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]), ConditionCount: len(opsArray(task["conditions"])), StepCount: len(opsArray(task["steps"])), AttemptCount: len(opsArray(task["attempts"])), EventCount: len(opsArray(task["events"])), FileName: opsString(task["id"])}
+	steps := opsArray(task["steps"])
+	completedSteps, currentStep := opsTaskProgress(steps)
+	return opsTaskSummary{
+		ID: opsString(task["id"]), Title: opsString(task["title"]), Goal: opsString(task["goal"]),
+		Status: firstNonEmptyString(opsString(task["status"]), "unknown"), Phase: opsString(task["phase"]), ReviewStatus: review,
+		Summary: opsString(task["summary"]), Blocker: opsString(task["blocker"]), CurrentStep: currentStep, CompletedStepCount: completedSteps,
+		UpdatedAt: opsString(task["updated_at"]), CreatedAt: opsString(task["created_at"]),
+		TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]),
+		ConditionCount: len(opsArray(task["conditions"])), StepCount: len(steps), AttemptCount: len(opsArray(task["attempts"])), EventCount: len(opsArray(task["events"])), FileName: opsString(task["id"]),
+	}
+}
+
+func opsTaskStepFromValue(value any) *opsTaskStep {
+	step := opsMap(value)
+	if len(step) == 0 {
+		return nil
+	}
+	result := &opsTaskStep{ID: opsString(step["id"]), Title: opsString(step["title"]), Status: opsString(step["status"])}
+	if result.ID == "" && result.Title == "" {
+		return nil
+	}
+	return result
+}
+
+func opsTaskProgress(steps []any) (int, *opsTaskStep) {
+	completed := 0
+	var current, pending *opsTaskStep
+	for _, raw := range steps {
+		step := opsTaskStepFromValue(raw)
+		if step == nil {
+			continue
+		}
+		switch step.Status {
+		case "completed":
+			completed++
+		case "in_progress":
+			if current == nil {
+				current = step
+			}
+		case "pending":
+			if pending == nil {
+				pending = step
+			}
+		}
+	}
+	if current != nil {
+		return completed, current
+	}
+	return completed, pending
 }
 
 func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSummary, error) {
@@ -348,17 +417,8 @@ func readOpsTask(path string) (map[string]any, opsTaskSummary, error) {
 	if err := json.Unmarshal(raw, &body); err != nil {
 		return nil, opsTaskSummary{}, err
 	}
-	finalReview := opsMap(body["final_review"])
-	review := firstNonEmptyString(opsString(body["review_status"]), opsString(finalReview["status"]), "not_started")
-	template := opsMap(body["template"])
-	summary := opsTaskSummary{
-		ID: opsString(body["id"]), Title: opsString(body["title"]), Goal: opsString(body["goal"]),
-		Status: firstNonEmptyString(opsString(body["status"]), "unknown"), Phase: opsString(body["phase"]), ReviewStatus: review,
-		Blocker: opsString(body["blocker"]), UpdatedAt: opsString(body["updated_at"]), CreatedAt: opsString(body["created_at"]),
-		TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]),
-		ConditionCount: len(opsArray(body["conditions"])), StepCount: len(opsArray(body["steps"])), AttemptCount: len(opsArray(body["attempts"])), EventCount: len(opsArray(body["events"])),
-		FileName: filepath.Base(path),
-	}
+	summary := opsTaskSummaryFromMap(body)
+	summary.FileName = filepath.Base(path)
 	return body, summary, nil
 }
 

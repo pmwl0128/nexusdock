@@ -307,7 +307,7 @@ function isRuntimeSection(section: Section): section is RuntimeSection {
 
 function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refreshToken: number }) {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    <aside className="runtime-inline-note" aria-label="Runtime 数据边界"><ShieldCheck size={17} /><div><strong>生命周期由 AgentDock Runtime 管理</strong><span>Nexus 只展示 Runtime API 状态，写操作仅通过受控 Runtime 接口执行。</span></div></aside>
+    {active !== 'tasks' && <aside className="runtime-inline-note" aria-label="Runtime 数据边界"><ShieldCheck size={17} /><div><strong>生命周期由 AgentDock Runtime 管理</strong><span>Nexus 只展示 Runtime API 状态，写操作仅通过受控 Runtime 接口执行。</span></div></aside>}
     {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
     {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
