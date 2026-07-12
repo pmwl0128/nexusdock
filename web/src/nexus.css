@@ -1944,3 +1944,46 @@ dialog.nx-dialog-backdrop::backdrop {
     background: rgba(255, 255, 255, .07);
   }
 }
+
+.ops-task-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ops-delete-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.ops-delete-dialog p {
+  margin: 0;
+  color: var(--nx-text);
+  line-height: 1.6;
+}
+
+.ops-delete-dialog code {
+  display: block;
+  overflow-wrap: anywhere;
+  border-radius: 10px;
+  background: #f4f6f9;
+  color: #4c596d;
+  padding: 10px 12px;
+}
+
+.ops-delete-dialog .nx-dialog-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .ops-task-detail-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .ops-delete-dialog .nx-dialog-actions,
+  .ops-delete-dialog .nx-dialog-actions .nx-button {
+    width: 100%;
+  }
+}

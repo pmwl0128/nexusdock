@@ -18,6 +18,7 @@ type agentDockRuntimeClient struct {
 }
 
 type agentDockRuntimeError struct {
+	Status  int    `json:"-"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -45,22 +46,31 @@ func (s *Server) agentDockRuntimeClient() (*agentDockRuntimeClient, error) {
 }
 
 func (s *Server) runtimeGet(ctx context.Context, path string, query url.Values) (map[string]any, error) {
+	return s.runtimeRequest(ctx, http.MethodGet, path, query)
+}
+
+func (s *Server) runtimeDelete(ctx context.Context, path string) (map[string]any, error) {
+	return s.runtimeRequest(ctx, http.MethodDelete, path, nil)
+}
+
+func (s *Server) runtimeRequest(ctx context.Context, method, path string, query url.Values) (map[string]any, error) {
 	client, err := s.agentDockRuntimeClient()
 	if err != nil {
 		return nil, err
 	}
-	return client.get(ctx, path, query)
+	return client.request(ctx, method, path, query)
 }
 
-func (c *agentDockRuntimeClient) get(ctx context.Context, path string, query url.Values) (map[string]any, error) {
+func (c *agentDockRuntimeClient) request(ctx context.Context, method, path string, query url.Values) (map[string]any, error) {
 	u := c.endpoint + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, method, u, nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Accept", "application/json")
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
@@ -71,10 +81,10 @@ func (c *agentDockRuntimeClient) get(ctx context.Context, path string, query url
 	defer resp.Body.Close()
 	var body map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return nil, agentDockRuntimeError{Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
+		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, agentDockRuntimeError{Code: firstNonEmptyString(opsString(body["code"]), fmt.Sprintf("HTTP_%d", resp.StatusCode)), Message: firstNonEmptyString(opsString(body["error"]), resp.Status)}
+		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: firstNonEmptyString(opsString(body["code"]), fmt.Sprintf("HTTP_%d", resp.StatusCode)), Message: firstNonEmptyString(opsString(body["error"]), resp.Status)}
 	}
 	return body, nil
 }
@@ -108,4 +118,20 @@ func runtimeUnavailablePayload(err error) map[string]any {
 		}
 	}
 	return map[string]any{"ok": false, "available": false, "source": "agentdock-runtime-api", "code": code, "error": message}
+}
+
+func runtimeErrorHTTPStatus(err error) int {
+	status := http.StatusServiceUnavailable
+	switch converted := err.(type) {
+	case agentDockRuntimeError:
+		status = converted.Status
+	case *agentDockRuntimeError:
+		status = converted.Status
+	}
+	switch status {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict:
+		return status
+	default:
+		return http.StatusServiceUnavailable
+	}
 }

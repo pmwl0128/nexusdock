@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Activity, Archive, CheckCircle2, Layers, RefreshCw, Search, ShieldAlert, Trash2, type LucideIcon } from 'lucide-react';
+import { Activity, CheckCircle2, Layers, RefreshCw, Search, ShieldAlert, Trash2, type LucideIcon } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
 import { formatTime, timeZoneLabel } from '../../lib/time';
+import Dialog from '../Dialog';
 
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
@@ -10,16 +11,16 @@ const taskStatusLabels: Record<TaskStatus, string> = { all: '全部', active: '�
 const runtimeTaskListLimit = 200;
 function taskStatusLabel(status?: string): string { return taskStatusLabels[status as TaskStatus] || status || '未知'; }
 
-type OpsTask = { id: string; title: string; goal: string; status: string; phase: string; review_status: string; blocker?: string; updated_at: string; created_at: string; template_id?: string; template_version?: string; condition_count: number; step_count: number; attempt_count: number; event_count: number; cleanable: boolean; file_name: string };
+type OpsTask = { id: string; title: string; goal: string; status: string; phase: string; review_status: string; blocker?: string; updated_at: string; created_at: string; template_id?: string; template_version?: string; condition_count: number; step_count: number; attempt_count: number; event_count: number; file_name: string };
 type OpsTaskDetail = OpsTask & { path?: string; content?: string; json?: Record<string, unknown>; conditions?: unknown[]; steps?: unknown[]; attempts?: unknown[]; events?: unknown[]; final_review?: Record<string, unknown> };
 type OpsSkill = { id: string; title: string; source: string; path: string; description?: string; updated_at: string; file_count: number; status: string; active_version?: string; versions?: string[]; channels?: Record<string, string>; runtime_state_path?: string; doc_root?: string };
 type OpsSkillFile = { path: string; kind: string; size_bytes: number; updated_at: string };
 type OpsSkillDetail = OpsSkill & { root?: string; skill_doc?: string; files?: OpsSkillFile[]; runtime_state?: Record<string, unknown> };
 type OpsPaths = { agentdock?: string; workspace?: string; workflows?: string };
-type TaskCounts = { active: number; blocked: number; completed: number; cleanable: number };
+type TaskCounts = { active: number; blocked: number; completed: number };
 type TaskListResponse = { ok: boolean; items: OpsTask[]; count: number; total: number; root?: string; source?: string };
 type TaskDetailResponse = { ok: boolean; task: OpsTaskDetail; source?: string };
-type CleanupResponse = { ok: boolean; dry_run: boolean; changed: OpsTask[]; count: number };
+type DeleteTaskResponse = { ok: boolean; task_id: string; deleted_task?: OpsTask; source?: string };
 type SkillsResponse = { ok: boolean; items: OpsSkill[]; count: number; root?: string; source?: string };
 type SkillDetailResponse = { ok: boolean; skill: OpsSkillDetail; source?: string };
 
@@ -27,7 +28,7 @@ const emptyTasks: TaskListResponse = { ok: false, items: [], count: 0, total: 0,
 function formatBytes(value?: number): string { if (value === undefined) return '暂无'; const units = ['B', 'KiB', 'MiB', 'GiB']; let size = value; let unit = 0; while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; } return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`; }
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
 function toneForTask(task: Pick<OpsTask, 'status' | 'phase' | 'review_status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.phase === 'closeout' && task.review_status === 'pass') return 'warn'; if (task.status === 'active') return 'warn'; return 'muted'; }
-function countTasks(tasks: OpsTask[]): TaskCounts { return { active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length, cleanable: tasks.filter((item) => item.cleanable).length }; }
+function countTasks(tasks: OpsTask[]): TaskCounts { return { active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length }; }
 
 function taskDisplayTitle(task?: Pick<OpsTask, 'title' | 'goal' | 'id'>): string {
   const title = task?.title?.trim();
@@ -76,36 +77,68 @@ function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: numb
 export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<OpsTask | null>(null);
+  const [deletingId, setDeletingId] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [notice, setNotice] = useState('');
+
   const path = `/v1/runtime/tasks?status=${status}&limit=${runtimeTaskListLimit}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
   const allResource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
   const tasks = resource.data.items;
-  const [selectedId, setSelectedId] = useState('');
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const visibleStats = useMemo(() => countTasks(tasks), [tasks]);
   const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
   const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
   const healthStats = totalCount ? totalStats : visibleStats;
-  const healthTone: Tone = healthStats.blocked ? 'danger' : healthStats.cleanable ? 'warn' : 'ok';
-  const healthText = healthStats.blocked ? `${healthStats.blocked} 个阻塞` : healthStats.cleanable ? `${healthStats.cleanable} 个可清理` : '运行正常';
+  const healthTone: Tone = healthStats.blocked ? 'danger' : healthStats.active ? 'warn' : 'ok';
+  const healthText = healthStats.blocked ? `${healthStats.blocked} 个阻塞` : healthStats.active ? `${healthStats.active} 个进行中` : '运行正常';
 
-  return <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示任务状态、阶段、review、条件、步骤和事件。时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading || allResource.loading} error={resource.error || allResource.error} onReload={() => { resource.reload(); allResource.reload(); }}>
-    <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{totalCount} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={healthTone}>{healthText}</StatusBadge></section>
-    <section className="ops-metrics is-dashboard"><Metric label="进行中" value={String(totalStats.active)} tone={totalStats.active ? 'warn' : 'muted'} icon={Activity} /><Metric label="阻塞" value={String(totalStats.blocked)} tone={totalStats.blocked ? 'danger' : 'muted'} icon={ShieldAlert} /><Metric label="已完成" value={String(totalStats.completed)} tone="ok" icon={CheckCircle2} /><Metric label="可清理" value={String(totalStats.cleanable)} tone={totalStats.cleanable ? 'warn' : 'muted'} icon={Archive} /></section>
-    <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => setStatus(item)}>{taskStatusLabels[item]}</button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">当前 {resource.data.count} / 全部 {totalCount}</span></div>
-    <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{taskDisplayTitle(task)}</strong><small>{taskListMeta(task)}</small></span>{task.cleanable && <em>清理</em>}</button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} /></section>
-  </OpsShell>;
-}
+  function reloadTasks() {
+    resource.reload();
+    allResource.reload();
+  }
 
-function TaskCleanupPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=active&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
-  const candidates = resource.data.items.filter((item) => item.cleanable);
-  return <OpsShell title="任务清理" subtitle="AgentDock Runtime API 当前只开放只读接口，Nexus 不再直接修改 AgentDock Runtime 状态。" loading={resource.loading} error={resource.error} onReload={resource.reload}>
-    <section className="ops-cleanup-hero is-large"><div><span>READ ONLY</span><strong>{candidates.length}</strong><p>这些任务已经 final_review pass，但写入动作需要 AgentDock 暴露受控写接口后再启用。</p></div><div className="ops-actions"><button type="button" className="nx-button is-secondary" disabled title="Runtime 写接口未启用"><CheckCircle2 size={15} />预览已禁用</button><button type="button" className="nx-button is-danger" disabled title="Runtime 写接口未启用"><Trash2 size={15} />清理已禁用</button></div></section>
-    <div className="nx-alert is-warning">任务清理已切换为只读模式：Nexus 不再直接改 AgentDock 内部文件，避免绕过 Runtime 状态机。</div>
-    <section className="ops-grid cards">{candidates.length === 0 ? <EmptyOps text="当前没有可清理任务。" /> : candidates.map((task) => <TaskCard key={task.id} task={task} />)}</section>
-  </OpsShell>;
+  async function confirmDelete() {
+    if (!pendingDelete || deletingId) return;
+    const task = pendingDelete;
+    setDeletingId(task.id);
+    setDeleteError('');
+    try {
+      await api<DeleteTaskResponse>(`/v1/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE' });
+      setPendingDelete(null);
+      setSelectedId('');
+      setNotice(`任务「${taskDisplayTitle(task)}」已删除。`);
+      reloadTasks();
+    } catch (error) {
+      setDeleteError(apiMessage(error));
+    } finally {
+      setDeletingId('');
+    }
+  }
+
+  return <>
+    <OpsShell title="任务中心" subtitle={`通过 AgentDock Runtime API 展示和删除任务记录。删除操作不可恢复，时间按 ${timeZoneLabel()} 显示。`} loading={resource.loading || allResource.loading} error={resource.error || allResource.error} onReload={reloadTasks}>
+      {notice && <div className="nx-alert is-success" role="status">{notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}
+      <section className="ops-command-hero"><div><span>AGENTDOCK TASKS</span><h3>{totalCount} 条任务记录</h3><p>{resource.data.source || resource.data.root || 'AgentDock Runtime API'} · 当前筛选 {resource.data.count} 条</p></div><StatusBadge tone={healthTone}>{healthText}</StatusBadge></section>
+      <section className="ops-metrics is-dashboard"><Metric label="进行中" value={String(totalStats.active)} tone={totalStats.active ? 'warn' : 'muted'} icon={Activity} /><Metric label="阻塞" value={String(totalStats.blocked)} tone={totalStats.blocked ? 'danger' : 'muted'} icon={ShieldAlert} /><Metric label="已完成" value={String(totalStats.completed)} tone="ok" icon={CheckCircle2} /><Metric label="总任务" value={String(totalCount)} tone="muted" icon={Layers} /></section>
+      <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => setStatus(item)}>{taskStatusLabels[item]}</button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题、目标、模板、阻塞原因" /></label><span className="ops-count">当前 {resource.data.count} / 全部 {totalCount}</span></div>
+      <section className="ops-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => setSelectedId(task.id)}><StatusDot tone={toneForTask(task)} /><span><strong>{taskDisplayTitle(task)}</strong><small>{taskListMeta(task)}</small></span></button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} deleting={deletingId === selected?.id} onDelete={(task) => { setDeleteError(''); setPendingDelete(task); }} /></section>
+    </OpsShell>
+    {pendingDelete && <Dialog title="删除任务" description="任务记录和步骤将被永久删除，此操作不可恢复。" onClose={() => { if (!deletingId) setPendingDelete(null); }}>
+      <div className="ops-delete-dialog">
+        <p>确定删除任务「{taskDisplayTitle(pendingDelete)}」？</p>
+        <code>{pendingDelete.id}</code>
+        {deleteError && <div className="nx-alert is-error" role="alert">{deleteError}</div>}
+        <div className="nx-dialog-actions">
+          <button type="button" className="nx-button is-secondary" data-dialog-initial-focus onClick={() => setPendingDelete(null)} disabled={Boolean(deletingId)}>取消</button>
+          <button type="button" className="nx-button is-danger" aria-busy={Boolean(deletingId)} onClick={() => { void confirmDelete(); }} disabled={Boolean(deletingId)}><Trash2 size={15} />{deletingId ? '正在删除…' : '确认删除'}</button>
+        </div>
+      </div>
+    </Dialog>}
+  </>;
 }
 
 export function SkillsPage({ refreshToken }: { refreshToken: number }) {
@@ -127,13 +160,31 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   </OpsShell>;
 }
 
-function TaskDetail({ task, detail, loading, error }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string }) {
+function TaskDetail({ task, detail, loading, error, deleting, onDelete }: { task?: OpsTask; detail?: OpsTaskDetail; loading: boolean; error?: string; deleting: boolean; onDelete: (task: OpsTask) => void }) {
   if (!task) return <article className="ops-detail-empty"><EmptyOps text="请选择一个任务。" /></article>;
   const full = detail?.id ? detail : task;
   const conditionItems = readableItems(detail?.conditions, '条件');
   const stepItems = readableItems(detail?.steps, '步骤');
   const eventItems = readableItems(detail?.events, '事件');
-  return <article className="ops-task-detail"><header><div><span>任务详情</span><h3>{taskDisplayTitle(full)}</h3><p>{full.goal || '暂无目标描述。'}</p></div><StatusBadge tone={toneForTask(full)}>{taskStatusLabel(full.status)}</StatusBadge></header>{loading && <div className="nx-alert is-info">正在读取任务详情…</div>}{error && <div className="nx-alert is-error">{error}</div>}{full.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{full.blocker}</div>}<div className="ops-detail-grid"><Info label="阶段" value={full.phase || 'none'} /><Info label="Review" value={full.review_status || 'not_started'} /><Info label="条件" value={String(full.condition_count)} /><Info label="步骤" value={String(full.step_count)} /><Info label="事件" value={String(full.event_count)} /><Info label="更新" value={formatTime(full.updated_at)} /></div><section className="ops-detail-section"><h4>Runtime 任务记录</h4><div className="ops-key-values"><Info label="ID" value={full.id} /><Info label="记录 ID" value={full.file_name} /><Info label="来源" value={detail?.path || 'AgentDock Runtime API'} /><Info label="创建" value={formatTime(full.created_at)} />{full.template_id && <Info label="模板" value={`${full.template_id}@${full.template_version || 'unknown'}`} />}</div></section><ReviewSummary review={detail?.final_review} /><ReadableList title="完成条件" items={conditionItems} empty="没有条件详情。" /><ReadableList title="执行步骤" items={stepItems} empty="没有步骤详情。" /><ReadableList title="最近事件" items={eventItems.slice(0, 8)} empty="没有事件记录。" /><footer><code>{full.id}</code>{full.template_id && <code>{full.template_id}@{full.template_version}</code>}{full.cleanable && <StatusBadge tone="warn">可清理</StatusBadge>}</footer></article>;
+  return <article className="ops-task-detail">
+    <header>
+      <div><span>任务详情</span><h3>{taskDisplayTitle(full)}</h3><p>{full.goal || '暂无目标描述。'}</p></div>
+      <div className="ops-task-detail-actions">
+        <StatusBadge tone={toneForTask(full)}>{taskStatusLabel(full.status)}</StatusBadge>
+        <button type="button" className="nx-button is-danger is-small" aria-label={`删除任务 ${taskDisplayTitle(full)}`} onClick={() => onDelete(full)} disabled={deleting}><Trash2 size={15} />{deleting ? '删除中…' : '删除'}</button>
+      </div>
+    </header>
+    {loading && <div className="nx-alert is-info">正在读取任务详情…</div>}
+    {error && <div className="nx-alert is-error">{error}</div>}
+    {full.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{full.blocker}</div>}
+    <div className="ops-detail-grid"><Info label="阶段" value={full.phase || 'none'} /><Info label="Review" value={full.review_status || 'not_started'} /><Info label="条件" value={String(full.condition_count)} /><Info label="步骤" value={String(full.step_count)} /><Info label="事件" value={String(full.event_count)} /><Info label="更新" value={formatTime(full.updated_at)} /></div>
+    <section className="ops-detail-section"><h4>Runtime 任务记录</h4><div className="ops-key-values"><Info label="ID" value={full.id} /><Info label="记录 ID" value={full.file_name} /><Info label="来源" value={detail?.path || 'AgentDock Runtime API'} /><Info label="创建" value={formatTime(full.created_at)} />{full.template_id && <Info label="模板" value={`${full.template_id}@${full.template_version || 'unknown'}`} />}</div></section>
+    <ReviewSummary review={detail?.final_review} />
+    <ReadableList title="完成条件" items={conditionItems} empty="没有条件详情。" />
+    <ReadableList title="执行步骤" items={stepItems} empty="没有步骤详情。" />
+    <ReadableList title="最近事件" items={eventItems.slice(0, 8)} empty="没有事件记录。" />
+    <footer><code>{full.id}</code>{full.template_id && <code>{full.template_id}@{full.template_version}</code>}</footer>
+  </article>;
 }
 
 function SkillDetail({ skill, detail, loading, error }: { skill?: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string }) {
@@ -190,7 +241,6 @@ function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
   return <details className="ops-json-panel"><summary>{title}</summary><pre>{JSON.stringify(value, null, 2)}</pre></details>;
 }
 
-function TaskCard({ task }: { task: OpsTask }) { return <article className="ops-task-card"><header><div><strong>{taskDisplayTitle(task)}</strong><small>{task.id} · {formatTime(task.updated_at)}</small></div><StatusBadge tone={toneForTask(task)}>{taskStatusLabel(task.status)}</StatusBadge></header><p>{task.goal}</p>{task.blocker && <div className="ops-blocker"><ShieldAlert size={15} />{task.blocker}</div>}<footer><span>{task.phase || 'no phase'}</span><span>review: {task.review_status}</span><span>{task.condition_count} 条件 / {task.step_count} 步骤</span>{task.template_id && <span>{task.template_id}@{task.template_version}</span>}{task.cleanable && <strong>可清理</strong>}</footer></article>; }
 function OpsShell({ title, subtitle, loading, error, onReload, children }: { title: string; subtitle: string; loading: boolean; error?: string; onReload: () => void; children: ReactNode }) { return <section className="ops-page ops-console"><div className="section-heading ops-heading"><div><h2>{title}</h2><p>{subtitle}</p></div><button type="button" className="nx-button is-secondary" aria-label={`刷新${title}`} onClick={onReload} disabled={loading}><RefreshCw size={15} className={loading ? 'nx-spin' : ''} />刷新</button></div>{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
 function Metric({ label, value, icon: Icon, tone = 'muted' }: { label: string; value: string; icon: LucideIcon; tone?: Tone }) { return <article aria-label={`${label}：${value}`}><span className={`metric-icon tone-${tone}`}><Icon size={18} /></span><strong>{value}</strong><small>{label}</small></article>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }

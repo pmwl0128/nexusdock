@@ -32,7 +32,6 @@ type opsTaskSummary struct {
 	StepCount       int    `json:"step_count"`
 	AttemptCount    int    `json:"attempt_count"`
 	EventCount      int    `json:"event_count"`
-	Cleanable       bool   `json:"cleanable"`
 	FileName        string `json:"file_name"`
 }
 
@@ -98,6 +97,7 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 	mux.HandleFunc("GET /v1/runtime/overview", protected(s.runtimeOverview))
 	mux.HandleFunc("GET /v1/runtime/tasks", protected(s.runtimeTasks))
 	mux.HandleFunc("GET /v1/runtime/tasks/{fileName}", protected(s.runtimeTaskDetail))
+	mux.HandleFunc("DELETE /v1/runtime/tasks/{fileName}", protected(s.runtimeDeleteTask))
 	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
 	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
 	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
@@ -107,12 +107,9 @@ func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.H
 func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
 	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), runtimeTaskListLimit)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
-	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0, "cleanable": 0}
+	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0}
 	for _, task := range tasks {
 		counts[task.Status]++
-		if task.Cleanable {
-			counts["cleanable"]++
-		}
 	}
 	payload := map[string]any{
 		"ok":         taskErr == nil && skillErr == nil,
@@ -165,14 +162,25 @@ func (s *Server) runtimeTaskDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	detail, err := s.runtimeTaskDetailFromRuntime(r.Context(), id)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail, "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) runtimeCleanupTasks(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "AGENTDOCK_TASK_WRITE_API_REQUIRED", "任务清理不能再直接修改 AgentDock 内部文件；需要 AgentDock 暴露受控写接口后再启用。")
+func (s *Server) runtimeDeleteTask(w http.ResponseWriter, r *http.Request) {
+	id, err := cleanOpsTaskID(r.PathValue("fileName"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_TASK_ID", err.Error())
+		return
+	}
+	payload, err := s.runtimeDelete(r.Context(), "/internal/runtime/tasks/"+urlPath(id))
+	if err != nil {
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
+		return
+	}
+	payload["source"] = "agentdock-runtime-api"
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) runtimeSkills(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +227,6 @@ func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]o
 			continue
 		}
 		summary := opsTaskSummary{ID: id, Title: opsString(m["title"]), Goal: opsString(m["goal"]), Status: firstNonEmptyString(opsString(m["status"]), "unknown"), Phase: opsString(m["phase"]), ReviewStatus: firstNonEmptyString(opsString(m["review_status"]), "not_started"), Blocker: opsString(m["blocker"]), UpdatedAt: opsString(m["updated_at"]), CreatedAt: opsString(m["created_at"]), TemplateID: opsString(m["template_id"]), TemplateVersion: opsString(m["template_version"]), ConditionCount: opsInt(m["condition_count"]), StepCount: opsInt(m["step_count"]), AttemptCount: opsInt(m["attempt_count"]), EventCount: opsInt(m["event_count"]), FileName: id}
-		summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
 		items = append(items, summary)
 	}
 	return items, nil
@@ -243,9 +250,7 @@ func opsTaskSummaryFromMap(task map[string]any) opsTaskSummary {
 	finalReview := opsMap(task["final_review"])
 	review := firstNonEmptyString(opsString(task["review_status"]), opsString(finalReview["status"]), "not_started")
 	template := opsMap(task["template"])
-	summary := opsTaskSummary{ID: opsString(task["id"]), Title: opsString(task["title"]), Goal: opsString(task["goal"]), Status: firstNonEmptyString(opsString(task["status"]), "unknown"), Phase: opsString(task["phase"]), ReviewStatus: review, Blocker: opsString(task["blocker"]), UpdatedAt: opsString(task["updated_at"]), CreatedAt: opsString(task["created_at"]), TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]), ConditionCount: len(opsArray(task["conditions"])), StepCount: len(opsArray(task["steps"])), AttemptCount: len(opsArray(task["attempts"])), EventCount: len(opsArray(task["events"])), FileName: opsString(task["id"])}
-	summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
-	return summary
+	return opsTaskSummary{ID: opsString(task["id"]), Title: opsString(task["title"]), Goal: opsString(task["goal"]), Status: firstNonEmptyString(opsString(task["status"]), "unknown"), Phase: opsString(task["phase"]), ReviewStatus: review, Blocker: opsString(task["blocker"]), UpdatedAt: opsString(task["updated_at"]), CreatedAt: opsString(task["created_at"]), TemplateID: opsString(template["id"]), TemplateVersion: opsString(template["version"]), ConditionCount: len(opsArray(task["conditions"])), StepCount: len(opsArray(task["steps"])), AttemptCount: len(opsArray(task["attempts"])), EventCount: len(opsArray(task["events"])), FileName: opsString(task["id"])}
 }
 
 func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSummary, error) {
@@ -354,7 +359,6 @@ func readOpsTask(path string) (map[string]any, opsTaskSummary, error) {
 		ConditionCount: len(opsArray(body["conditions"])), StepCount: len(opsArray(body["steps"])), AttemptCount: len(opsArray(body["attempts"])), EventCount: len(opsArray(body["events"])),
 		FileName: filepath.Base(path),
 	}
-	summary.Cleanable = summary.Status == "active" && summary.Phase == "closeout" && summary.ReviewStatus == "pass"
 	return body, summary, nil
 }
 

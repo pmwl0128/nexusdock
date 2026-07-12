@@ -77,6 +77,61 @@ func TestRuntimeTaskDetailDoesNotReadFilesWhenRuntimeAPIUnconfigured(t *testing.
 	}
 }
 
+func TestRuntimeDeleteTaskUsesAgentDockRuntimeAPI(t *testing.T) {
+	var gotMethod, gotPath, gotAuth string
+	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": true, "action": "delete", "task_id": "tsk_demo",
+			"deleted_task": map[string]any{"id": "tsk_demo", "title": "Demo Task"},
+		})
+	}))
+	defer runtime.Close()
+
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL, AgentDockToken: "runtime-secret"}}
+	request := httptest.NewRequest(http.MethodDelete, "/v1/runtime/tasks/tsk_demo", nil)
+	request.SetPathValue("fileName", "tsk_demo")
+	response := httptest.NewRecorder()
+
+	server.runtimeDeleteTask(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if gotMethod != http.MethodDelete || gotPath != "/internal/runtime/tasks/tsk_demo" {
+		t.Fatalf("unexpected upstream request: %s %s", gotMethod, gotPath)
+	}
+	if gotAuth != "Bearer runtime-secret" {
+		t.Fatalf("authorization = %q", gotAuth)
+	}
+	if !strings.Contains(response.Body.String(), `"action":"delete"`) || !strings.Contains(response.Body.String(), `"source":"agentdock-runtime-api"`) {
+		t.Fatalf("unexpected response body: %s", response.Body.String())
+	}
+}
+
+func TestRuntimeDeleteTaskMapsMissingTaskToNotFound(t *testing.T) {
+	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "code": "TASK_NOT_FOUND", "error": "task not found"})
+	}))
+	defer runtime.Close()
+
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
+	request := httptest.NewRequest(http.MethodDelete, "/v1/runtime/tasks/tsk_missing", nil)
+	request.SetPathValue("fileName", "tsk_missing")
+	response := httptest.NewRecorder()
+
+	server.runtimeDeleteTask(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"code":"TASK_NOT_FOUND"`) {
+		t.Fatalf("body should preserve upstream task error: %s", response.Body.String())
+	}
+}
+
 func TestRuntimeSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/internal/runtime/skills" {
