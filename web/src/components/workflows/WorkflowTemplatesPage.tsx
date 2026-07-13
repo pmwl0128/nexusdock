@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, Copy, FileJson, Search } from 'lucide-react';
 import { api } from '../../api/client';
 import { formatTime } from '../../lib/time';
+import MobileDrilldownBar from '../MobileDrilldownBar';
 
 type WorkflowLocation = 'drafts' | 'published' | 'retired';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
@@ -85,6 +86,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   const [location, setLocation] = useState<WorkflowLocation | 'all'>('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<WorkflowTemplateDetail | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -123,12 +125,13 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     }
   }
 
-  async function openTemplate(template: WorkflowTemplateSummary) {
+  async function openTemplate(template: WorkflowTemplateSummary, revealOnMobile = false) {
     setNotice(null);
     try {
       const result = await api<DetailResponse>(`/v1/runtime/workflow-templates/${template.location}/${template.file_name}`);
       setSelected(result.template);
       setContent(result.template.content);
+      if (revealOnMobile) setMobileDetailOpen(true);
     } catch (error) {
       setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '模板详情读取失败' });
     }
@@ -143,15 +146,15 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   return <section className="workflow-page workflow-runtime-page workflow-focus-page">
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
 
-    <section className="workflow-layout workflow-runtime-layout">
-      <aside className="workflow-list-panel workflow-runtime-list-panel">
+    <section className={`workflow-layout workflow-runtime-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+      <aside className="workflow-list-panel workflow-runtime-list-panel mobile-drilldown-list">
         <div className="workflow-toolbar">
-          <label><span>状态</span><select aria-label="筛选模板状态" value={location} onChange={(event) => setLocation(event.target.value as WorkflowLocation | 'all')}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 Workflow 模板" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题或关键词" /></label>
+          <label><span>状态</span><select aria-label="筛选模板状态" value={location} onChange={(event) => { setLocation(event.target.value as WorkflowLocation | 'all'); setMobileDetailOpen(false); }}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 Workflow 模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
         </div>
         <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个模板</span><em>{location === 'all' ? '全部' : locationLabel(location)}</em></div>
         <div className="workflow-list workflow-runtime-list">
-          {loading ? <p className="empty-mini">正在读取 Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item)}>
+          {loading ? <p className="empty-mini">正在读取 Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item, true)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
             <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>
@@ -159,7 +162,8 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         </div>
       </aside>
 
-      <main className="workflow-runtime-viewer">
+      <main className="workflow-runtime-viewer mobile-drilldown-detail">
+        {selected && <MobileDrilldownBar label="模板详情" title={templateDisplayTitle(selected)} meta={selected.version || selected.status} backLabel="返回模板列表" onBack={() => setMobileDetailOpen(false)} />}
         {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个模板查看执行步骤。</p></div> : <RuntimeTemplateViewer selected={selected} parsed={parsed} onCopy={copyPath} />}
       </main>
     </section>

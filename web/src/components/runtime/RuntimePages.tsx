@@ -3,6 +3,7 @@ import { CheckCircle2, Circle, FileText, Layers, LoaderCircle, Search, ShieldAle
 import { ApiError, api } from '../../api/client';
 import { formatTime } from '../../lib/time';
 import Dialog from '../Dialog';
+import MobileDrilldownBar from '../MobileDrilldownBar';
 
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
@@ -95,6 +96,7 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<OpsTask | null>(null);
   const [deletingId, setDeletingId] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -124,6 +126,7 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
       await api<DeleteTaskResponse>(`/v1/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE' });
       setPendingDelete(null);
       setSelectedId('');
+      setMobileDetailOpen(false);
       setNotice(`任务「${taskDisplayTitle(task)}」已删除。`);
       reloadTasks();
     } catch (error) {
@@ -136,8 +139,16 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   return <>
     <OpsShell error={resource.error || allResource.error}>
       {notice && <div className="nx-alert is-success" role="status">{notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}
-      <div className="ops-toolbar is-console ops-task-toolbar"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => setStatus(item)}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><span className="ops-count">显示 {resource.data.count} 条</span></div>
-      <section className="ops-master-detail ops-task-master-detail"><div className="ops-task-rail">{tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => setSelectedId(task.id)}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}</div><TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} deleting={deletingId === selected?.id} onDelete={(task) => { setDeleteError(''); setPendingDelete(task); }} /></section>
+      <div className={`ops-toolbar is-console ops-task-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => { setStatus(item); setMobileDetailOpen(false); }}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><span className="ops-count">显示 {resource.data.count} 条</span></div>
+      <section className={`ops-master-detail ops-task-master-detail mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+        <div className="ops-task-rail mobile-drilldown-list">
+          {tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => { setSelectedId(task.id); setMobileDetailOpen(true); }}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}
+        </div>
+        <div className="mobile-drilldown-detail">
+          {selected && <MobileDrilldownBar label="任务详情" title={taskDisplayTitle(selected)} meta={taskStatusLabel(selected.status)} backLabel="返回任务列表" onBack={() => setMobileDetailOpen(false)} />}
+          <TaskDetail task={selected} detail={detail.data.task} loading={detail.loading} error={detail.error} deleting={deletingId === selected?.id} onDelete={(task) => { setDeleteError(''); setPendingDelete(task); }} />
+        </div>
+      </section>
     </OpsShell>
     {pendingDelete && <Dialog title="删除任务" description="任务记录和步骤将被永久删除，此操作不可恢复。" onClose={() => { if (!deletingId) setPendingDelete(null); }}>
       <div className="ops-delete-dialog">
@@ -157,6 +168,7 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<SkillsResponse>('/v1/runtime/skills', { ok: false, items: [], count: 0, root: '' }, refreshToken);
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return resource.data.items;
@@ -165,17 +177,19 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const selected = filtered.find((item) => `${item.source}:${item.id}` === selectedKey) || filtered[0];
   const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/runtime/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell error={resource.error}>
-    <div className="ops-toolbar skill-toolbar">
-      <label className="ops-mobile-skill-picker">
-        <span>当前 Skill</span>
-        <select aria-label="选择 Skill" value={selected ? `${selected.source}:${selected.id}` : ''} onChange={(event) => setSelectedKey(event.target.value)} disabled={filtered.length === 0}>
-          {filtered.length === 0 ? <option value="">没有匹配的 Skill</option> : filtered.map((skill) => <option key={`${skill.source}:${skill.id}`} value={`${skill.source}:${skill.id}`}>{skill.title || skill.id} · {skill.active_version || '未标记版本'}</option>)}
-        </select>
-      </label>
-      <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称或说明" /></label>
+    <div className={`ops-toolbar skill-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}>
+      <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索名称或说明" /></label>
       <span className="ops-count">{filtered.length} / {resource.data.count}</span>
     </div>
-    <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} /></section>
+    <section className={`ops-master-detail skills-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+      <div className="ops-task-rail ops-skill-rail mobile-drilldown-list">
+        {filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => { setSelectedKey(`${skill.source}:${skill.id}`); setMobileDetailOpen(true); }}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}
+      </div>
+      <div className="mobile-drilldown-detail">
+        {selected && <MobileDrilldownBar label="Skill" title={selected.title || selected.id} meta={selected.active_version || selected.status} backLabel="返回 Skill 列表" onBack={() => setMobileDetailOpen(false)} />}
+        <SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} />
+      </div>
+    </section>
   </OpsShell>;
 }
 
@@ -242,7 +256,7 @@ function SkillDetailContent({ skill, detail, loading, error, refreshToken }: { s
       <div className="ops-skill-file-browser">
         <header><h4>文件</h4><span>{files.length}</span></header>
         {files.length === 0 ? <EmptyOps text="当前安装包没有可展示的文件。" /> : <>
-          <label className="ops-mobile-file-picker"><FileText size={15} /><select aria-label="选择文件" value={activePath} onChange={(event) => setSelectedPath(event.target.value)}>{files.map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
+          <div className="ops-mobile-file-tabs" role="tablist" aria-label="选择文件">{files.map((file) => <button type="button" role="tab" aria-selected={activePath === file.path} key={file.path} className={activePath === file.path ? 'is-active' : ''} onClick={() => setSelectedPath(file.path)}><FileText size={13} /><span>{file.path}</span></button>)}</div>
           <div className="ops-file-list">{files.map((file) => <button type="button" key={file.path} className={`ops-file-row ${activePath === file.path ? 'is-active' : ''}`} onClick={() => setSelectedPath(file.path)}><FileText size={15} /><span><strong>{file.path}</strong><small>{fileKindLabel(file.kind)} · {formatBytes(file.size_bytes)}</small></span></button>)}</div>
         </>}
       </div>

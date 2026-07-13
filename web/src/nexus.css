@@ -2263,8 +2263,8 @@ dialog.nx-dialog-backdrop::backdrop {
 .ops-toolbar { margin-bottom: 12px; }
 .skill-toolbar { grid-template-columns: minmax(240px, 1fr) auto; }
 .skill-toolbar .ops-search { max-width: 520px; }
-.ops-mobile-skill-picker,
-.ops-mobile-file-picker { display: none; }
+.mobile-drilldown-bar,
+.ops-mobile-file-tabs { display: none; }
 .skills-layout { grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); gap: 12px; }
 .runtime-skills-page .ops-skill-rail {
   max-height: calc(100vh - 190px);
@@ -2434,89 +2434,6 @@ dialog.nx-dialog-backdrop::backdrop {
   .dashboard-focus-grid,
   .settings-grid.compact-settings { grid-template-columns: 1fr; }
   .dashboard-focus-grid .dashboard-attention-panel { grid-column: auto; }
-  .runtime-skills-page { padding-top: 74px; }
-  .runtime-skills-page .skill-toolbar {
-    position: fixed;
-    top: 70px;
-    left: 14px;
-    right: 14px;
-    z-index: 25;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    padding: 8px;
-    background: rgba(255, 255, 255, .96);
-    backdrop-filter: blur(14px);
-    box-shadow: 0 8px 24px rgba(31, 49, 82, .12);
-  }
-  .runtime-skills-page .skill-toolbar .ops-search { display: none; }
-  .runtime-skills-page .ops-mobile-skill-picker {
-    display: grid;
-    min-width: 0;
-    gap: 4px;
-  }
-  .runtime-skills-page .ops-mobile-skill-picker>span {
-    padding-left: 2px;
-    color: var(--nx-muted);
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-  }
-  .runtime-skills-page .ops-mobile-skill-picker select {
-    height: 40px;
-    min-width: 0;
-    border-color: #cfd8e6;
-    background: #fff;
-    font-size: 13px;
-    font-weight: 750;
-  }
-  .runtime-skills-page .ops-count {
-    min-width: 42px;
-    padding: 18px 3px 0;
-    text-align: center;
-    white-space: nowrap;
-  }
-  .runtime-skills-page .skills-layout { display: block; }
-  .runtime-skills-page .ops-skill-rail { display: none !important; }
-  .ops-skill-summary { grid-template-columns: 1fr 1fr; }
-  .ops-skill-summary>div:last-child { display: none; }
-  .ops-skill-files { grid-template-columns: 1fr; min-height: 0; }
-  .ops-skill-file-browser {
-    border-right: 0;
-    border-bottom: 1px solid #e7ebf1;
-    padding: 8px 10px 10px;
-  }
-  .ops-skill-file-browser>header { padding-bottom: 6px; }
-  .ops-skill-file-browser .ops-file-list { display: none; }
-  .ops-mobile-file-picker {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    color: #60708a;
-  }
-  .ops-mobile-file-picker select {
-    width: 100%;
-    height: 38px;
-    min-width: 0;
-    border: 1px solid #d7dee9;
-    border-radius: 9px;
-    background: #fff;
-    color: #26334a;
-    padding: 0 10px;
-    font-size: 12px;
-    font-weight: 700;
-  }
-  .ops-skill-file-preview>pre {
-    min-height: min(420px, 54vh);
-    max-height: 58vh;
-  }
-  .workflow-focus-page .workflow-runtime-layout { grid-template-columns: 1fr; }
-  .workflow-focus-page .workflow-runtime-list-panel { position: static; }
-  .workflow-focus-page .workflow-phase-block { grid-template-columns: 1fr; }
-  .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -2545,14 +2462,246 @@ dialog.nx-dialog-backdrop::backdrop {
   .workflow-secondary-details { margin: 12px 13px 13px; }
 }
 
-/* Tablet keeps the list bounded; phones use the compact selectors above. */
+/* Tablet keeps the Skill list bounded; mobile uses the drill-down flow below. */
 @media (min-width: 821px) and (max-width: 1180px) {
   .runtime-skills-page .ops-skill-rail {
     max-height: 320px !important;
     overflow: auto !important;
   }
 }
+
+/* Unified mobile drill-down: lists and details never compete for one viewport. */
+.mobile-drilldown-detail { min-width: 0; }
+
+@media (max-width: 820px) {
+  .runtime-skills-page { padding-top: 0; }
+  .runtime-skills-page .skill-toolbar {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin: 0 0 10px;
+    padding: 9px;
+    background: #fff;
+    backdrop-filter: none;
+    box-shadow: 0 8px 22px rgba(31, 49, 82, .05);
+  }
+  .runtime-skills-page .skill-toolbar .ops-search { display: block; }
+  .mobile-list-toolbar.is-detail-open { display: none !important; }
+
+  .mobile-drilldown {
+    display: block !important;
+    min-width: 0;
+  }
+  .mobile-drilldown.is-list-open>.mobile-drilldown-detail,
+  .mobile-drilldown.is-detail-open>.mobile-drilldown-list {
+    display: none !important;
+  }
+  .mobile-drilldown.is-detail-open>.mobile-drilldown-detail {
+    display: block !important;
+  }
+  .mobile-drilldown-list {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .mobile-drilldown-bar {
+    position: sticky;
+    top: 70px;
+    z-index: 24;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 58px;
+    margin: 0 0 10px;
+    border: 1px solid #dfe6ef;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 10px 28px rgba(31, 49, 82, .10);
+    padding: 8px 10px;
+    backdrop-filter: blur(16px);
+  }
+  .mobile-drilldown-bar>button {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #dfe5ee;
+    border-radius: 11px;
+    background: #f7f9fc;
+    color: #334056;
+    cursor: pointer;
+  }
+  .mobile-drilldown-bar>div { min-width: 0; }
+  .mobile-drilldown-bar span,
+  .mobile-drilldown-bar strong { display: block; }
+  .mobile-drilldown-bar span {
+    color: #8390a2;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+  }
+  .mobile-drilldown-bar strong {
+    overflow: hidden;
+    margin-top: 3px;
+    color: #202b40;
+    font-size: 13px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-drilldown-bar em {
+    max-width: 88px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef3ff;
+    color: #4768c9;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-drilldown.is-list-open .ops-task-line.is-selected,
+  .mobile-drilldown.is-list-open .workflow-runtime-list button.is-active {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .runtime-tasks-page .ops-task-rail,
+  .runtime-skills-page .ops-skill-rail,
+  .runtime-templates-page .workflow-runtime-list-panel {
+    display: grid !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 16px !important;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 10px 28px rgba(31, 49, 82, .055);
+  }
+  .runtime-tasks-page .ops-task-line,
+  .runtime-skills-page .ops-skill-rail .ops-task-line {
+    min-height: 64px;
+    border-bottom: 1px solid #edf1f6;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .runtime-tasks-page .ops-task-line:last-child,
+  .runtime-skills-page .ops-skill-rail .ops-task-line:last-child {
+    border-bottom-color: transparent;
+  }
+  .runtime-skills-page .ops-skill-rail { padding: 7px !important; }
+  .runtime-skills-page .ops-skill-rail .ops-task-line strong { font-size: 13px; }
+  .runtime-skills-page .ops-skill-rail .ops-task-line small { margin-top: 4px; }
+
+  .mobile-drilldown-detail>.ops-task-detail,
+  .mobile-drilldown-detail>.ops-detail-empty,
+  .mobile-drilldown-detail>.workflow-runtime-card {
+    min-height: 0;
+    border-radius: 16px;
+    box-shadow: 0 12px 34px rgba(31, 49, 82, .06);
+  }
+  .mobile-drilldown-detail .ops-task-detail>header>div:first-child>span,
+  .mobile-drilldown-detail .ops-task-detail>header>div:first-child>h3,
+  .runtime-standalone-page .workflow-runtime-page .mobile-drilldown-detail .workflow-runtime-head {
+    display: none !important;
+  }
+  .mobile-drilldown-detail .ops-task-detail>header>div:first-child>p {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  .mobile-drilldown-detail .ops-task-detail-actions .status-badge,
+  .mobile-drilldown-detail .ops-skill-head>.status-badge,
+  .mobile-drilldown-detail .workflow-runtime-actions .status-badge {
+    display: none;
+  }
+
+  .ops-skill-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ops-skill-summary>div:last-child { display: none; }
+  .ops-skill-files { grid-template-columns: 1fr; min-height: 0; }
+  .ops-skill-file-browser {
+    border-right: 0;
+    border-bottom: 1px solid #e7ebf1;
+    padding: 9px 10px 10px;
+  }
+  .ops-skill-file-browser .ops-file-list { display: none; }
+  .ops-mobile-file-tabs {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding: 1px 1px 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ops-mobile-file-tabs::-webkit-scrollbar { display: none; }
+  .ops-mobile-file-tabs button {
+    flex: 0 0 auto;
+    max-width: 220px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #e0e6ef;
+    border-radius: 10px;
+    background: #fff;
+    color: #536077;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+  .ops-mobile-file-tabs button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ops-mobile-file-tabs button.is-active {
+    border-color: #bfcfff;
+    background: #eef3ff;
+    color: #315cbd;
+    box-shadow: 0 5px 14px rgba(64, 91, 166, .10);
+  }
+  .ops-skill-file-preview>pre {
+    min-height: 360px;
+    max-height: calc(100dvh - 300px);
+  }
+
+  .runtime-templates-page .workflow-runtime-layout { display: block !important; }
+  .runtime-templates-page .workflow-runtime-list-panel { position: static; padding: 9px !important; }
+  .runtime-templates-page .workflow-runtime-list { max-height: none !important; overflow: visible !important; }
+  .runtime-templates-page .workflow-runtime-list button {
+    min-height: 62px;
+    border-bottom: 1px solid #edf1f6;
+    padding: 11px 9px;
+  }
+  .runtime-templates-page .workflow-runtime-list button:last-child { border-bottom-color: transparent; }
+  .runtime-templates-page .workflow-list-summary { display: grid !important; }
+  .workflow-focus-page .workflow-phase-block { grid-template-columns: 1fr; }
+  .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 700px) {
+  .mobile-drilldown-bar { top: 62px; }
+}
+
+@media (max-width: 560px) {
+  .mobile-drilldown-detail>.ops-task-detail { padding: 13px; }
+  .workflow-focus-page .workflow-runtime-head,
+  .workflow-focus-page .workflow-runtime-section,
+  .workflow-focus-page .workflow-runtime-meta { padding-left: 13px; padding-right: 13px; }
+  .workflow-secondary-details { margin: 12px 13px 13px; }
+  .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 430px) {
-  .runtime-skills-page { padding-top: 70px; }
-  .runtime-skills-page .skill-toolbar { top: 58px; left: 10px; right: 10px; }
+  .runtime-skills-page { padding-top: 0; }
+  .runtime-skills-page .skill-toolbar { inset: auto; }
+  .mobile-drilldown-bar { top: 58px; }
 }
