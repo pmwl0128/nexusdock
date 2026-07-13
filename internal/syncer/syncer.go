@@ -87,6 +87,7 @@ type Manager struct {
 
 	mu          sync.Mutex
 	pendingPush bool
+	pendingHead string
 	lastPullAt  time.Time
 	lastPushAt  time.Time
 	lastError   string
@@ -127,8 +128,18 @@ func (m *Manager) Start(ctx context.Context) {
 }
 
 func (m *Manager) MarkChanged(ctx context.Context) {
+	head := ""
+	if m.IsGitRepo() {
+		if out, err := m.git(ctx, "rev-parse", "HEAD"); err == nil {
+			head = strings.TrimSpace(out)
+		}
+	}
+
 	m.mu.Lock()
 	m.pendingPush = true
+	if m.pendingHead == "" {
+		m.pendingHead = head
+	}
 	if !m.cfg.AutoSync || !m.isGitRepoLocked() {
 		m.mu.Unlock()
 		return
@@ -164,6 +175,7 @@ func (m *Manager) Status(ctx context.Context) Status {
 	if !m.lastPushAt.IsZero() {
 		status.LastPushAt = m.lastPushAt.Format(time.RFC3339)
 	}
+	pendingHead := m.pendingHead
 	m.mu.Unlock()
 
 	if status.GitRepo {
@@ -175,6 +187,18 @@ func (m *Manager) Status(ctx context.Context) Status {
 			if len(parts) == 2 {
 				status.Ahead = parts[0]
 				status.Behind = parts[1]
+			}
+		}
+		if status.PendingPush && !status.Dirty && status.Ahead == "0" && pendingHead != "" {
+			if out, err := m.git(ctx, "rev-parse", "HEAD"); err == nil && strings.TrimSpace(out) != pendingHead {
+				// Recall 也允许由外部 Git 流程提交；HEAD 已变化且远端同步完成时，清除进程内待推送标志。
+				status.PendingPush = false
+				m.mu.Lock()
+				if m.pendingHead == pendingHead {
+					m.pendingPush = false
+					m.pendingHead = ""
+				}
+				m.mu.Unlock()
 			}
 		}
 	}
@@ -267,6 +291,7 @@ func (m *Manager) Discard(ctx context.Context, path string, confirmed bool) (Sta
 	if dirty, err := m.isDirty(ctx); err == nil && !dirty {
 		m.mu.Lock()
 		m.pendingPush = false
+		m.pendingHead = ""
 		m.lastError = ""
 		m.conflict = false
 		m.mu.Unlock()
@@ -499,6 +524,7 @@ func (m *Manager) Push(ctx context.Context) error {
 	if !dirty {
 		m.mu.Lock()
 		m.pendingPush = false
+		m.pendingHead = ""
 		m.mu.Unlock()
 		return nil
 	}
@@ -528,6 +554,7 @@ func (m *Manager) Push(ctx context.Context) error {
 	}
 	m.mu.Lock()
 	m.pendingPush = false
+	m.pendingHead = ""
 	m.lastPushAt = time.Now()
 	m.lastError = ""
 	m.conflict = false

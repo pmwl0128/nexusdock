@@ -265,3 +265,24 @@ func TestPushRejectsSuspiciousBulkMarkdownDeletion(t *testing.T) {
 		t.Fatalf("expected dirty conflict status after rejected push: %#v", status)
 	}
 }
+
+func TestStatusClearsPendingAfterExternalCommitAndPush(t *testing.T) {
+	dir := initRepo(t)
+	mgr := NewManager(Config{RepoDir: dir, AutoSync: false}, slog.Default())
+	ctx := context.Background()
+
+	if err := os.WriteFile(filepath.Join(dir, "profile.md"), []byte("# Profile\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mgr.MarkChanged(ctx)
+	runGit(t, dir, "add", "profile.md")
+	runGit(t, dir, "commit", "-m", "external recall update")
+
+	if status := mgr.Status(ctx); !status.PendingPush || status.Ahead != "1" {
+		t.Fatalf("external commit must remain pending until pushed: %#v", status)
+	}
+	runGit(t, dir, "push")
+	if status := mgr.Status(ctx); status.PendingPush || status.Dirty || status.Ahead != "0" {
+		t.Fatalf("external commit and push should clear pending state: %#v", status)
+	}
+}
