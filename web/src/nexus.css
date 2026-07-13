@@ -563,8 +563,12 @@
   }
   .nexus-section-settings .settings-grid{gap:9px!important;}
   .nexus-section-settings .setting-row,.nexus-section-settings .setting-value{min-height:34px;padding:8px 0!important;}
+  /* 列表页使用文档自然滚动，避免固定高度容器在手机底部留下大块空白。 */
   .runtime-standalone-page .ops-task-rail,
-  .runtime-standalone-page .workflow-runtime-list-panel{max-height:240px!important;}
+  .runtime-standalone-page .workflow-runtime-list-panel{
+    max-height:none!important;
+    overflow:visible!important;
+  }
   .ops-task-line{min-height:46px!important;}
   .ops-command-hero,.workflow-runtime-banner{padding:13px!important;border-radius:14px!important;}
   .ops-json-panel pre,.ops-doc-preview{max-height:260px!important;}
@@ -748,13 +752,11 @@ dialog.session-expired-overlay {
   .runtime-standalone-page .workflow-runtime-page .workflow-runtime-list{
     display:grid!important;
     gap:8px!important;
-    max-height:260px!important;
+    max-height:none!important;
     min-height:0!important;
-    overflow-x:hidden!important;
-    overflow-y:auto!important;
+    overflow:visible!important;
     padding:0!important;
     margin:0!important;
-    -webkit-overflow-scrolling:touch;
   }
   .runtime-standalone-page .workflow-runtime-page .workflow-runtime-list button{
     width:100%!important;
