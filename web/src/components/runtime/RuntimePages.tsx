@@ -130,11 +130,15 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
   const allResource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
   const tasks = recentOnly ? resource.data.items.filter((task) => taskUpdatedRecently(task)) : resource.data.items;
+  const recentTasks = useMemo(() => allResource.data.items.filter((task) => taskUpdatedRecently(task)), [allResource.data.items]);
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
+  const recentStats = useMemo(() => countTasks(recentTasks), [recentTasks]);
   const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
-  const statusCounts: Record<TaskStatus, number> = { ...totalStats, all: totalCount };
+  const statusCounts: Record<TaskStatus, number> = recentOnly
+    ? { ...recentStats, all: recentTasks.length }
+    : { ...totalStats, all: totalCount };
 
   const reloadTasks = useCallback((options: ReloadOptions = {}) => {
     resource.reload(options);
