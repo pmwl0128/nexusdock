@@ -438,7 +438,8 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     try {
       await api('/v1/embeddings/reindex', {
         method: 'POST',
-        body: JSON.stringify({ prefix: 'cards', max_entries: 1000 }),
+        body: JSON.stringify({ prefix: 'recall/managed/cards', max_entries: 1000 }),
+        timeoutMs: 120_000,
       });
       await loadEmbeddingStatus();
       dispatch({ type: 'notice', notice: { text: 'cards 向量索引已重建。' } });
@@ -460,7 +461,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     try {
       const response = await api<EmbeddingSearchResponse>('/v1/embeddings/search', {
         method: 'POST',
-        body: JSON.stringify({ query: text, prefix: 'cards', max_results: 8 }),
+        body: JSON.stringify({ query: text, prefix: 'recall/managed/cards', max_results: 8 }),
       });
       dispatch({ type: 'embedding:results', results: response.results || [] });
       dispatch({ type: 'notice', notice: { text: `向量搜索返回 ${response.count ?? response.results?.length ?? 0} 条结果。` } });

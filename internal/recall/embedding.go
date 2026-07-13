@@ -20,6 +20,7 @@ import (
 
 const DefaultEmbeddingModel = "BAAI/bge-m3"
 const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
+const embeddingBatchSize = 5
 
 type EmbeddingConfig struct {
 	Enabled   bool
@@ -200,9 +201,15 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 		docs = append(docs, embeddingDocument{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Text: text, Frontmatter: mem.Frontmatter, UpdatedAt: time.Now().UTC()})
 		texts = append(texts, text)
 	}
-	vectors, err := s.embed(ctx, texts)
-	if err != nil {
-		return EmbeddingReindexResult{}, err
+	// BGE-M3 对大批量长文本的单次请求耗时会明显放大；小批次可让重建稳定落在 API 超时窗口内。
+	vectors := make([][]float64, 0, len(texts))
+	for start := 0; start < len(texts); start += embeddingBatchSize {
+		end := min(start+embeddingBatchSize, len(texts))
+		batch, err := s.embed(ctx, texts[start:end])
+		if err != nil {
+			return EmbeddingReindexResult{}, err
+		}
+		vectors = append(vectors, batch...)
 	}
 	if len(vectors) != len(docs) {
 		return EmbeddingReindexResult{}, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(docs))

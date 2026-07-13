@@ -3,6 +3,7 @@ package recall
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -83,4 +84,53 @@ func fakeEmbeddingVector(text string) []float64 {
 		return []float64{1, 0}
 	}
 	return []float64{0, 1}
+}
+
+func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
+	store := newTestStore(t)
+	for i := 0; i < embeddingBatchSize*2+2; i++ {
+		if _, err := store.WriteCard(CardRequest{
+			Title:     fmt.Sprintf("Card %02d", i),
+			Content:   fmt.Sprintf("Reusable recall content %02d", i),
+			Type:      CardRunbook,
+			Scope:     ScopeProject,
+			Project:   "agentdock",
+			Status:    StatusInbox,
+			Confirmed: true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	requestSizes := []int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		requestSizes = append(requestSizes, len(req.Input))
+		if len(req.Input) > embeddingBatchSize {
+			t.Fatalf("embedding batch too large: %d", len(req.Input))
+		}
+		data := make([]map[string]any, 0, len(req.Input))
+		for i, text := range req.Input {
+			data = append(data, map[string]any{"index": i, "embedding": fakeEmbeddingVector(text)})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer server.Close()
+
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
+	indexed, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{Prefix: "recall/managed/cards"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if indexed.Count != embeddingBatchSize*2+2 {
+		t.Fatalf("unexpected indexed count %d", indexed.Count)
+	}
+	if len(requestSizes) != 3 || requestSizes[0] != embeddingBatchSize || requestSizes[1] != embeddingBatchSize || requestSizes[2] != 2 {
+		t.Fatalf("unexpected embedding batches: %#v", requestSizes)
+	}
 }
