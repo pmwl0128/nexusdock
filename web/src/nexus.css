@@ -1993,9 +1993,41 @@ dialog.nx-dialog-backdrop::backdrop {
 /* Task center: progress first, internal runtime details hidden. */
 .runtime-tasks-page .ops-heading { margin-bottom: 16px; }
 .runtime-tasks-page .ops-task-toolbar {
-  grid-template-columns: minmax(310px, auto) minmax(240px, 1fr) auto;
+  grid-template-columns: minmax(310px, auto) minmax(240px, 1fr) auto auto;
   margin: 0 0 14px;
 }
+.ops-recent-filter {
+  min-height: 38px;
+  align-self: end;
+  white-space: nowrap;
+}
+.ops-recent-filter.is-active {
+  border-color: #a8e0d4;
+  background: #e8faf5;
+  color: #087d6c;
+}
+.ops-task-toolbar-meta {
+  display: grid;
+  align-self: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.ops-auto-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #178a79;
+  font-size: 10px;
+  font-weight: 750;
+}
+.ops-auto-refresh i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #20a779;
+  box-shadow: 0 0 0 4px rgba(32, 167, 121, .12);
+}
+.ops-task-toolbar-meta .ops-count { padding: 0; }
 .ops-task-toolbar .ops-segmented button {
   display: inline-flex;
   align-items: center;
@@ -2179,6 +2211,7 @@ dialog.nx-dialog-backdrop::backdrop {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .ops-recent-filter { width: 100%; }
   .ops-task-toolbar .ops-count { padding: 0 2px; }
   .runtime-tasks-page .ops-task-rail { max-height: 360px; }
   .ops-task-detail-simple .ops-task-detail-actions { width: 100%; }

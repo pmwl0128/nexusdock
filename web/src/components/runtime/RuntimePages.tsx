@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCircle2, Circle, FileText, Layers, LoaderCircle, Search, ShieldAlert, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CheckCircle2, Circle, Clock3, FileText, Layers, LoaderCircle, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
 import { formatTime } from '../../lib/time';
 import Dialog from '../Dialog';
@@ -10,6 +10,8 @@ type TaskStatus = 'all' | 'active' | 'completed' | 'blocked';
 
 const taskStatusLabels: Record<TaskStatus, string> = { all: '全部', active: '进行中', completed: '已完成', blocked: '阻塞' };
 const runtimeTaskListLimit = 200;
+const taskPollIntervalMs = 2000;
+const recentTaskWindowMs = 24 * 60 * 60 * 1000;
 function taskStatusLabel(status?: string): string { return taskStatusLabels[status as TaskStatus] || status || '未知'; }
 
 type TaskStep = { id: string; title: string; status: string };
@@ -32,6 +34,10 @@ function formatBytes(value?: number): string { if (value === undefined) return '
 function apiMessage(error: unknown): string { if (error instanceof ApiError) return `${error.code || error.status}：${error.message}`; return error instanceof Error ? error.message : '请求失败'; }
 function toneForTask(task: Pick<OpsTask, 'status'>): Tone { if (task.status === 'completed') return 'ok'; if (task.status === 'blocked') return 'danger'; if (task.status === 'active') return 'warn'; return 'muted'; }
 function countTasks(tasks: OpsTask[]): TaskCounts { return { active: tasks.filter((item) => item.status === 'active').length, blocked: tasks.filter((item) => item.status === 'blocked').length, completed: tasks.filter((item) => item.status === 'completed').length }; }
+function taskUpdatedRecently(task: Pick<OpsTask, 'updated_at'>, now = Date.now()): boolean {
+  const updatedAt = Date.parse(task.updated_at);
+  return Number.isFinite(updatedAt) && updatedAt >= now - recentTaskWindowMs;
+}
 
 function taskDisplayTitle(task?: Pick<OpsTask, 'title' | 'goal' | 'id'>): string {
   const title = task?.title?.trim();
@@ -61,40 +67,58 @@ function taskCurrentText(task: OpsTask): string {
 }
 function toneForStatus(status?: string): Tone { if (!status) return 'muted'; if (['ok', 'healthy', 'available', 'installed', 'active', 'success', 'completed'].includes(status)) return 'ok'; if (['failed', 'blocked', 'offline', 'unknown'].includes(status)) return 'danger'; if (['pending', 'draft', 'running', 'degraded'].includes(status)) return 'warn'; return 'muted'; }
 
+type ReloadOptions = { silent?: boolean };
+
 function useOpsResource<T>(path: string, fallback: T, refreshToken: number) {
   const fallbackRef = useRef(fallback);
+  const silentReloadRef = useRef(false);
   fallbackRef.current = fallback;
   const [localToken, setLocalToken] = useState(0);
   const [state, setState] = useState<{ data: T; loading: boolean; error?: string }>({ data: fallback, loading: true });
   useEffect(() => {
+    const silent = silentReloadRef.current;
+    silentReloadRef.current = false;
     let cancelled = false;
-    setState((current) => ({ ...current, loading: true, error: undefined }));
-    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallbackRef.current, loading: false, error: apiMessage(error) }); });
+    if (!silent) setState((current) => ({ ...current, loading: true, error: undefined }));
+    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState((current) => ({ data: current.data, loading: false, error: apiMessage(error) })); });
     return () => { cancelled = true; };
   }, [path, refreshToken, localToken]);
-  return { ...state, reload: () => setLocalToken((value) => value + 1) };
+  const reload = useCallback((options: ReloadOptions = {}) => {
+    silentReloadRef.current = Boolean(options.silent);
+    setLocalToken((value) => value + 1);
+  }, []);
+  return { ...state, reload };
 }
 
 function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: number) {
   const fallbackRef = useRef(fallback);
+  const silentReloadRef = useRef(false);
   fallbackRef.current = fallback;
+  const [localToken, setLocalToken] = useState(0);
   const [state, setState] = useState<{ data: T; loading: boolean; error?: string }>({ data: fallback, loading: false });
   useEffect(() => {
     if (!path) {
       setState({ data: fallbackRef.current, loading: false });
       return undefined;
     }
+    const silent = silentReloadRef.current;
+    silentReloadRef.current = false;
     let cancelled = false;
-    setState((current) => ({ ...current, loading: true, error: undefined }));
-    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState({ data: fallbackRef.current, loading: false, error: apiMessage(error) }); });
+    if (!silent) setState((current) => ({ ...current, loading: true, error: undefined }));
+    api<T>(path).then((data) => { if (!cancelled) setState({ data, loading: false }); }).catch((error) => { if (!cancelled) setState((current) => ({ data: current.data, loading: false, error: apiMessage(error) })); });
     return () => { cancelled = true; };
-  }, [path, refreshToken]);
-  return state;
+  }, [path, refreshToken, localToken]);
+  const reload = useCallback((options: ReloadOptions = {}) => {
+    silentReloadRef.current = Boolean(options.silent);
+    setLocalToken((value) => value + 1);
+  }, []);
+  return { ...state, reload };
 }
 
 export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
+  const [recentOnly, setRecentOnly] = useState(false);
   const [selectedId, setSelectedId] = useState('');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<OpsTask | null>(null);
@@ -105,17 +129,31 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const path = `/v1/runtime/tasks?status=${status}&limit=${runtimeTaskListLimit}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
   const allResource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
-  const tasks = resource.data.items;
+  const tasks = recentOnly ? resource.data.items.filter((task) => taskUpdatedRecently(task)) : resource.data.items;
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
   const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
   const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
   const statusCounts: Record<TaskStatus, number> = { ...totalStats, all: totalCount };
 
-  function reloadTasks() {
-    resource.reload();
-    allResource.reload();
-  }
+  const reloadTasks = useCallback((options: ReloadOptions = {}) => {
+    resource.reload(options);
+    allResource.reload(options);
+    detail.reload(options);
+  }, [allResource.reload, detail.reload, resource.reload]);
+
+  useEffect(() => {
+    // 与 ChatDock 保持一致：页面可见时静默轮询，切回标签页时立即补一次刷新。
+    const refreshVisibleTasks = () => {
+      if (document.visibilityState === 'visible') reloadTasks({ silent: true });
+    };
+    const timer = window.setInterval(refreshVisibleTasks, taskPollIntervalMs);
+    document.addEventListener('visibilitychange', refreshVisibleTasks);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshVisibleTasks);
+    };
+  }, [reloadTasks]);
 
   async function confirmDelete() {
     if (!pendingDelete || deletingId) return;
@@ -139,10 +177,10 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   return <>
     <OpsShell error={resource.error || allResource.error}>
       {notice && <div className="nx-alert is-success" role="status">{notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}
-      <div className={`ops-toolbar is-console ops-task-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => { setStatus(item); setMobileDetailOpen(false); }}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><span className="ops-count">显示 {resource.data.count} 条</span></div>
+      <div className={`ops-toolbar is-console ops-task-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => { setStatus(item); setMobileDetailOpen(false); }}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><button type="button" className={`nx-button is-secondary is-small ops-recent-filter ${recentOnly ? 'is-active' : ''}`} aria-pressed={recentOnly} onClick={() => { setRecentOnly((current) => !current); setMobileDetailOpen(false); }}><Clock3 size={15} />最近 24 小时</button><span className="ops-task-toolbar-meta"><span className="ops-auto-refresh"><i aria-hidden="true" />自动刷新</span><span className="ops-count">显示 {tasks.length} 条</span></span></div>
       <section className={`ops-master-detail ops-task-master-detail mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
         <div className="ops-task-rail mobile-drilldown-list">
-          {tasks.length === 0 ? <EmptyOps text="没有匹配任务。" /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => { setSelectedId(task.id); setMobileDetailOpen(true); }}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}
+          {tasks.length === 0 ? <EmptyOps text={recentOnly ? '最近 24 小时没有匹配任务。' : '没有匹配任务。'} /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => { setSelectedId(task.id); setMobileDetailOpen(true); }}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}
         </div>
         <div className="mobile-drilldown-detail">
           {selected && <MobileDrilldownBar label="任务详情" title={taskDisplayTitle(selected)} meta={taskStatusLabel(selected.status)} backLabel="返回任务列表" onBack={() => setMobileDetailOpen(false)} />}
