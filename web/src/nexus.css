@@ -2263,6 +2263,8 @@ dialog.nx-dialog-backdrop::backdrop {
 .ops-toolbar { margin-bottom: 12px; }
 .skill-toolbar { grid-template-columns: minmax(240px, 1fr) auto; }
 .skill-toolbar .ops-search { max-width: 520px; }
+.ops-mobile-skill-picker,
+.ops-mobile-file-picker { display: none; }
 .skills-layout { grid-template-columns: minmax(280px, 330px) minmax(0, 1fr); gap: 12px; }
 .runtime-skills-page .ops-skill-rail {
   max-height: calc(100vh - 190px);
@@ -2432,13 +2434,85 @@ dialog.nx-dialog-backdrop::backdrop {
   .dashboard-focus-grid,
   .settings-grid.compact-settings { grid-template-columns: 1fr; }
   .dashboard-focus-grid .dashboard-attention-panel { grid-column: auto; }
-  .skills-layout { gap: 9px; }
+  .runtime-skills-page { padding-top: 74px; }
+  .runtime-skills-page .skill-toolbar {
+    position: fixed;
+    top: 70px;
+    left: 14px;
+    right: 14px;
+    z-index: 25;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 8px;
+    background: rgba(255, 255, 255, .96);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 24px rgba(31, 49, 82, .12);
+  }
+  .runtime-skills-page .skill-toolbar .ops-search { display: none; }
+  .runtime-skills-page .ops-mobile-skill-picker {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+  .runtime-skills-page .ops-mobile-skill-picker>span {
+    padding-left: 2px;
+    color: var(--nx-muted);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .runtime-skills-page .ops-mobile-skill-picker select {
+    height: 40px;
+    min-width: 0;
+    border-color: #cfd8e6;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .runtime-skills-page .ops-count {
+    min-width: 42px;
+    padding: 18px 3px 0;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .runtime-skills-page .skills-layout { display: block; }
+  .runtime-skills-page .ops-skill-rail { display: none !important; }
   .ops-skill-summary { grid-template-columns: 1fr 1fr; }
-  .ops-skill-summary>div:last-child { grid-column: 1 / -1; }
+  .ops-skill-summary>div:last-child { display: none; }
   .ops-skill-files { grid-template-columns: 1fr; min-height: 0; }
-  .ops-skill-file-browser { border-right: 0; border-bottom: 1px solid #e7ebf1; }
-  .ops-skill-file-browser .ops-file-list { max-height: 220px; }
-  .ops-skill-file-preview>pre { max-height: 420px; }
+  .ops-skill-file-browser {
+    border-right: 0;
+    border-bottom: 1px solid #e7ebf1;
+    padding: 8px 10px 10px;
+  }
+  .ops-skill-file-browser>header { padding-bottom: 6px; }
+  .ops-skill-file-browser .ops-file-list { display: none; }
+  .ops-mobile-file-picker {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    color: #60708a;
+  }
+  .ops-mobile-file-picker select {
+    width: 100%;
+    height: 38px;
+    min-width: 0;
+    border: 1px solid #d7dee9;
+    border-radius: 9px;
+    background: #fff;
+    color: #26334a;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .ops-skill-file-preview>pre {
+    min-height: min(420px, 54vh);
+    max-height: 58vh;
+  }
   .workflow-focus-page .workflow-runtime-layout { grid-template-columns: 1fr; }
   .workflow-focus-page .workflow-runtime-list-panel { position: static; }
   .workflow-focus-page .workflow-phase-block { grid-template-columns: 1fr; }
@@ -2451,9 +2525,18 @@ dialog.nx-dialog-backdrop::backdrop {
   .section-heading { align-items: flex-start; }
   .skill-toolbar { grid-template-columns: 1fr; }
   .ops-skill-detail { padding: 12px; }
+  .ops-skill-detail>header { gap: 8px; padding-bottom: 10px; }
   .ops-skill-detail h3 { font-size: 19px; }
-  .ops-skill-summary { grid-template-columns: 1fr; }
-  .ops-skill-summary>div:last-child { grid-column: auto; }
+  .ops-skill-detail>header p {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .ops-skill-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 9px 0; }
+  .ops-skill-summary>div:last-child { display: none; }
   .ops-secondary-details>.ops-detail-grid,
   .workflow-secondary-body .workflow-runtime-grid { grid-template-columns: 1fr; }
   .workflow-focus-page .workflow-runtime-head,
@@ -2462,15 +2545,14 @@ dialog.nx-dialog-backdrop::backdrop {
   .workflow-secondary-details { margin: 12px 13px 13px; }
 }
 
-/* Mobile Runtime lists must remain bounded despite older broad !important rules. */
-@media (max-width: 1180px) {
+/* Tablet keeps the list bounded; phones use the compact selectors above. */
+@media (min-width: 821px) and (max-width: 1180px) {
   .runtime-skills-page .ops-skill-rail {
     max-height: 320px !important;
     overflow: auto !important;
   }
 }
-@media (max-width: 560px) {
-  .runtime-skills-page .ops-skill-rail {
-    max-height: 280px !important;
-  }
+@media (max-width: 430px) {
+  .runtime-skills-page { padding-top: 70px; }
+  .runtime-skills-page .skill-toolbar { top: 58px; left: 10px; right: 10px; }
 }

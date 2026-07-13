@@ -165,7 +165,16 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
   const selected = filtered.find((item) => `${item.source}:${item.id}` === selectedKey) || filtered[0];
   const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/runtime/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell error={resource.error}>
-    <div className="ops-toolbar skill-toolbar"><label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称或说明" /></label><span className="ops-count">{filtered.length} / {resource.data.count}</span></div>
+    <div className="ops-toolbar skill-toolbar">
+      <label className="ops-mobile-skill-picker">
+        <span>当前 Skill</span>
+        <select aria-label="选择 Skill" value={selected ? `${selected.source}:${selected.id}` : ''} onChange={(event) => setSelectedKey(event.target.value)} disabled={filtered.length === 0}>
+          {filtered.length === 0 ? <option value="">没有匹配的 Skill</option> : filtered.map((skill) => <option key={`${skill.source}:${skill.id}`} value={`${skill.source}:${skill.id}`}>{skill.title || skill.id} · {skill.active_version || '未标记版本'}</option>)}
+        </select>
+      </label>
+      <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索名称或说明" /></label>
+      <span className="ops-count">{filtered.length} / {resource.data.count}</span>
+    </div>
     <section className="ops-master-detail skills-layout"><div className="ops-task-rail ops-skill-rail">{filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => setSelectedKey(`${skill.source}:${skill.id}`)}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}</div><SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} /></section>
   </OpsShell>;
 }
@@ -232,7 +241,10 @@ function SkillDetailContent({ skill, detail, loading, error, refreshToken }: { s
     <section className="ops-skill-files">
       <div className="ops-skill-file-browser">
         <header><h4>文件</h4><span>{files.length}</span></header>
-        {files.length === 0 ? <EmptyOps text="当前安装包没有可展示的文件。" /> : <div className="ops-file-list">{files.map((file) => <button type="button" key={file.path} className={`ops-file-row ${activePath === file.path ? 'is-active' : ''}`} onClick={() => setSelectedPath(file.path)}><FileText size={15} /><span><strong>{file.path}</strong><small>{fileKindLabel(file.kind)} · {formatBytes(file.size_bytes)}</small></span></button>)}</div>}
+        {files.length === 0 ? <EmptyOps text="当前安装包没有可展示的文件。" /> : <>
+          <label className="ops-mobile-file-picker"><FileText size={15} /><select aria-label="选择文件" value={activePath} onChange={(event) => setSelectedPath(event.target.value)}>{files.map((file) => <option key={file.path} value={file.path}>{file.path}</option>)}</select></label>
+          <div className="ops-file-list">{files.map((file) => <button type="button" key={file.path} className={`ops-file-row ${activePath === file.path ? 'is-active' : ''}`} onClick={() => setSelectedPath(file.path)}><FileText size={15} /><span><strong>{file.path}</strong><small>{fileKindLabel(file.kind)} · {formatBytes(file.size_bytes)}</small></span></button>)}</div>
+        </>}
       </div>
       <div className="ops-skill-file-preview">
         {!activePath ? <EmptyOps text="选择文件后在这里查看内容。" /> : preview.loading ? <EmptyOps text="正在读取文件…" /> : preview.error ? <div className="nx-alert is-error">{preview.error}</div> : preview.data.file ? <>
