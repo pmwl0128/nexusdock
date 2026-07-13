@@ -1,0 +1,888 @@
+/*
+ * Nexus 视觉主题层。
+ * 结构与响应式布局仍由各页面原样式负责；这里集中定义颜色、表面、边界、阴影和交互状态，
+ * 避免页面继续各自叠加一套色板。
+ */
+:root {
+  color-scheme: light;
+  --nx-bg: #f3f4f8;
+  --nx-panel: rgba(255, 255, 255, .96);
+  --nx-surface: #ffffff;
+  --nx-surface-soft: #f8f8fc;
+  --nx-text: #191b2a;
+  --nx-text-soft: #3f4355;
+  --nx-muted: #6d7284;
+  --nx-subtle: #9297a6;
+  --nx-line: #e3e5ed;
+  --nx-border: #e3e5ed;
+  --nx-sidebar: #111425;
+  --nx-primary: #5b5bd6;
+  --nx-primary-strong: #4848bd;
+  --nx-primary-soft: #efefff;
+  --nx-primary-line: #cdcff8;
+  --nx-blue: #4777d9;
+  --nx-violet: #7c63dc;
+  --nx-success: #16805f;
+  --nx-success-soft: #e9f7f1;
+  --nx-warning: #a96f18;
+  --nx-warning-soft: #fff5e4;
+  --nx-danger: #bf4258;
+  --nx-danger-soft: #fff0f3;
+  --nx-shadow: 0 12px 32px rgba(28, 31, 55, .07);
+  --nx-shadow-raised: 0 20px 54px rgba(28, 31, 55, .12);
+}
+
+html,
+body,
+#root {
+  background: var(--nx-bg);
+}
+
+body {
+  color: var(--nx-text);
+  background:
+    radial-gradient(circle at 78% -12%, rgba(91, 91, 214, .08), transparent 31rem),
+    radial-gradient(circle at 30% 116%, rgba(71, 119, 217, .06), transparent 34rem),
+    var(--nx-bg);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(91, 91, 214, .22);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(91, 91, 214, .2);
+}
+
+/* 应用骨架 */
+.nexus-app {
+  grid-template-columns: 252px minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 84% -8%, rgba(91, 91, 214, .09), transparent 30rem),
+    radial-gradient(circle at 42% 112%, rgba(71, 119, 217, .07), transparent 34rem),
+    var(--nx-bg);
+}
+
+.nexus-sidebar {
+  border-right: 1px solid rgba(255, 255, 255, .07);
+  background:
+    radial-gradient(circle at 10% 2%, rgba(124, 99, 220, .24), transparent 15rem),
+    radial-gradient(circle at 95% 78%, rgba(71, 119, 217, .16), transparent 20rem),
+    linear-gradient(165deg, #171a31 0%, #111425 52%, #0c0f1d 100%);
+  box-shadow: 14px 0 38px rgba(17, 20, 37, .08);
+}
+
+.nexus-brand {
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(255, 255, 255, .055);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035);
+}
+
+.nexus-brand-mark {
+  background: linear-gradient(145deg, #7c6fe5, #5d72dc 55%, #3f86d9);
+  box-shadow: 0 10px 26px rgba(91, 91, 214, .34);
+}
+
+.nexus-brand small,
+.nexus-nav-title,
+.nexus-sidebar-foot {
+  color: #8d92ad;
+}
+
+.nexus-sidebar nav button {
+  color: #b4b8cd;
+}
+
+.nexus-sidebar nav button::before {
+  background: #8a86ef;
+  box-shadow: 0 0 0 4px rgba(138, 134, 239, .12);
+}
+
+.nexus-sidebar nav button:hover {
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(255, 255, 255, .065);
+  color: #ffffff;
+}
+
+.nexus-sidebar nav button.active {
+  border-color: rgba(151, 147, 244, .24);
+  background: linear-gradient(100deg, rgba(103, 96, 216, .3), rgba(71, 119, 217, .16));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 9px 24px rgba(0, 0, 0, .14);
+}
+
+.nexus-sidebar-foot {
+  border-color: rgba(255, 255, 255, .09);
+}
+
+.nexus-sidebar-foot svg {
+  color: #9995f3;
+}
+
+.nexus-sidebar-foot strong {
+  color: #d7d9e8;
+}
+
+.nexus-main {
+  background: linear-gradient(120deg, rgba(255, 255, 255, .28), transparent 30%);
+}
+
+.nexus-topbar {
+  border-color: rgba(221, 223, 233, .86);
+  background: rgba(248, 249, 252, .84);
+  box-shadow: 0 1px rgba(255, 255, 255, .9);
+  backdrop-filter: blur(20px) saturate(130%);
+}
+
+.nexus-eyebrow {
+  color: #777c90;
+}
+
+.nexus-environment {
+  border-color: #cde9dd;
+  background: rgba(239, 250, 245, .88);
+  color: #176c52;
+}
+
+.nexus-environment i {
+  background: #29aa7d;
+  box-shadow: 0 0 0 4px rgba(41, 170, 125, .12);
+}
+
+.icon-button,
+.nexus-mobile-menu,
+.nexus-session-user {
+  border-color: #dddfe8;
+  background: rgba(255, 255, 255, .86);
+  color: #4d5265;
+  box-shadow: 0 5px 16px rgba(28, 31, 55, .05);
+}
+
+.icon-button:hover,
+.nexus-mobile-menu:hover {
+  border-color: var(--nx-primary-line);
+  color: var(--nx-primary-strong);
+  box-shadow: 0 10px 24px rgba(51, 53, 103, .1);
+}
+
+.nexus-avatar {
+  background: linear-gradient(145deg, #dddafe, #a9c4f8);
+  color: #37388b;
+}
+
+/* 公共表面与控件 */
+.nexus-panel,
+.workflow-list-panel,
+.workflow-editor-panel,
+.workflow-runtime-card,
+.ops-task-rail,
+.ops-task-detail,
+.ops-detail-empty,
+.ops-paths.is-rich,
+.ops-card,
+.security-panel {
+  border-color: var(--nx-line) !important;
+  background: var(--nx-surface) !important;
+  box-shadow: var(--nx-shadow) !important;
+}
+
+.nexus-panel>header,
+.workflow-editor-head,
+.ops-card>header,
+.security-head {
+  border-color: #ececf2 !important;
+  background: linear-gradient(90deg, #fafaff, #ffffff) !important;
+}
+
+.nexus-panel-icon,
+.metric-icon,
+.ops-card-icon,
+.workflow-file-icon,
+.security-icon,
+.session-client {
+  border-color: #dddef9 !important;
+  background: var(--nx-primary-soft) !important;
+  color: var(--nx-primary) !important;
+}
+
+.nexus-panel h3,
+.workflow-editor-head h3,
+.ops-card h3,
+.setting-value strong {
+  color: var(--nx-text);
+}
+
+.nexus-panel p,
+.section-heading p,
+.setting-value>span,
+.empty-mini,
+.empty-state,
+.ops-count,
+.workflow-runtime-head p,
+.workflow-section-title p {
+  color: var(--nx-muted);
+}
+
+.setting-value,
+.object-row,
+.attention-row,
+.ops-detail-grid div,
+.workflow-info-tile,
+.workflow-phase-block,
+.workflow-step-card,
+.ops-task-step,
+.ops-skill-summary>div,
+.ops-skill-files,
+.nexus-technical-details,
+.backup-history-details,
+.ops-secondary-details,
+.workflow-secondary-details {
+  border-color: var(--nx-line) !important;
+}
+
+.object-row,
+.attention-row,
+.ops-detail-grid div,
+.workflow-info-tile,
+.workflow-phase-block,
+.workflow-step-card,
+.ops-task-step,
+.ops-skill-summary>div,
+.nexus-technical-details,
+.backup-history-details,
+.ops-secondary-details,
+.workflow-secondary-details {
+  background: var(--nx-surface-soft) !important;
+}
+
+.attention-row:hover {
+  border-color: var(--nx-primary-line) !important;
+  background: #f6f6ff !important;
+  box-shadow: 0 8px 20px rgba(46, 48, 86, .06) !important;
+}
+
+.empty-mini,
+.empty-state {
+  border-color: #d7d9e4;
+  background: #fafafe;
+}
+
+.nx-button,
+.auth-primary,
+.session-expired-dialog button {
+  border-color: var(--nx-primary);
+  background: linear-gradient(135deg, #6464df, #5151c8);
+  color: #ffffff;
+  box-shadow: 0 9px 22px rgba(91, 91, 214, .2);
+}
+
+.nx-button:hover:not(:disabled),
+.auth-primary:hover:not(:disabled),
+.session-expired-dialog button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5959d2, #4646b8);
+}
+
+.nx-button.is-secondary,
+.nx-icon-button,
+.security-secondary,
+.security-actions button,
+.session-toolbar button {
+  border-color: #dcdee8 !important;
+  background: #ffffff !important;
+  color: #4e5366 !important;
+  box-shadow: none !important;
+}
+
+.nx-button.is-secondary:hover,
+.nx-icon-button:hover,
+.security-secondary:hover,
+.security-actions button:hover,
+.session-toolbar button:hover {
+  border-color: var(--nx-primary-line) !important;
+  background: #f6f6ff !important;
+  color: var(--nx-primary-strong) !important;
+}
+
+.nx-button.is-danger {
+  border-color: var(--nx-danger);
+  background: var(--nx-danger);
+  box-shadow: 0 8px 18px rgba(191, 66, 88, .18);
+}
+
+.tone-ok,
+.ops-task-state.tone-ok {
+  color: var(--nx-success) !important;
+  background: var(--nx-success-soft) !important;
+}
+
+.tone-warn,
+.ops-task-state.tone-warn {
+  color: var(--nx-warning) !important;
+  background: var(--nx-warning-soft) !important;
+}
+
+.tone-danger,
+.ops-task-state.tone-danger {
+  color: var(--nx-danger) !important;
+  background: var(--nx-danger-soft) !important;
+}
+
+.tone-muted,
+.ops-task-state.tone-muted {
+  color: #6d7284 !important;
+  background: #f0f1f5 !important;
+}
+
+.nx-alert.is-info,
+.nexus-inline-alert.tone-muted {
+  border-color: #d9daf6;
+  background: #f5f5ff;
+  color: #474993;
+}
+
+.nx-alert.is-success {
+  border-color: #cce8dc;
+  background: var(--nx-success-soft);
+  color: var(--nx-success);
+}
+
+.nx-alert.is-error,
+.auth-error {
+  border-color: #f0cbd2 !important;
+  background: var(--nx-danger-soft) !important;
+  color: #a93449 !important;
+}
+
+/* 总览与设置 */
+.nexus-overview-strip {
+  border-color: rgba(160, 164, 231, .28);
+  background:
+    radial-gradient(circle at 86% 12%, rgba(137, 132, 239, .34), transparent 22%),
+    radial-gradient(circle at 68% 120%, rgba(71, 119, 217, .32), transparent 38%),
+    linear-gradient(126deg, #20233f 0%, #30345f 54%, #48549a 100%);
+  box-shadow: 0 22px 56px rgba(32, 35, 63, .22);
+}
+
+.nexus-overview-strip h2 {
+  color: #ffffff;
+}
+
+.nexus-overview-strip p {
+  color: #d6d8eb;
+}
+
+.nexus-overview-strip .nexus-kicker {
+  color: #b9b8ff !important;
+}
+
+.nexus-overview-strip .tone-muted {
+  color: #d9dbea !important;
+  background: rgba(255, 255, 255, .1) !important;
+}
+
+.nexus-overview-strip .tone-ok {
+  color: #bcf0dc !important;
+  background: rgba(40, 170, 125, .18) !important;
+}
+
+.dashboard-focus-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas: "attention system backup";
+}
+
+.dashboard-grid-nexus .nexus-panel>header,
+.settings-grid .nexus-panel>header {
+  border-color: #ececf3;
+  background: linear-gradient(90deg, #fafaff, #ffffff);
+}
+
+.backup-history-details[open]>summary,
+.nexus-technical-details[open]>summary,
+.ops-secondary-details[open]>summary,
+.workflow-secondary-details[open]>summary {
+  border-color: #e8e9f0;
+  background: #f6f6fb;
+}
+
+/* Runtime：任务、Skill、模板 */
+.ops-command-hero,
+.nexus-workbench-hero {
+  border-color: rgba(168, 164, 242, .22);
+  background:
+    radial-gradient(circle at 84% 8%, rgba(137, 132, 239, .38), transparent 22%),
+    radial-gradient(circle at 62% 120%, rgba(71, 119, 217, .34), transparent 38%),
+    linear-gradient(124deg, #20233f 0%, #30345f 56%, #46559b 100%) !important;
+  box-shadow: 0 24px 62px rgba(32, 35, 63, .22);
+}
+
+.ops-command-hero.is-soft {
+  border-color: var(--nx-line);
+  background: linear-gradient(135deg, #ffffff, #f6f6ff 72%, #f0f4ff) !important;
+  color: var(--nx-text);
+  box-shadow: var(--nx-shadow);
+}
+
+.ops-command-hero span,
+.nexus-kicker,
+.ops-command-hero.is-soft span {
+  color: #7776df !important;
+}
+
+.ops-command-hero:not(.is-soft) span,
+.nexus-workbench-hero .nexus-kicker {
+  color: #b8b7ff !important;
+}
+
+.ops-toolbar,
+.workflow-toolbar,
+.runtime-skills-page .skill-toolbar {
+  border-color: var(--nx-line);
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 8px 24px rgba(28, 31, 55, .045);
+}
+
+.ops-toolbar select,
+.ops-toolbar input,
+.workflow-toolbar select,
+.workflow-toolbar input,
+.ops-search,
+.mem-lite-search {
+  border-color: #dddfe8;
+  background: #ffffff;
+  color: var(--nx-text);
+}
+
+.ops-segmented button {
+  border-color: #dddfe8;
+  background: #ffffff;
+  color: #5e6375;
+}
+
+.ops-segmented button:hover {
+  border-color: var(--nx-primary-line);
+  background: #f8f8ff;
+}
+
+.ops-segmented button.is-active,
+.ops-recent-filter.is-active {
+  border-color: var(--nx-primary-line);
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+}
+
+.ops-task-toolbar .ops-segmented button.is-active em {
+  background: #dbdcff;
+  color: #4848bd;
+}
+
+.ops-auto-refresh {
+  color: var(--nx-success);
+}
+
+.ops-auto-refresh i {
+  background: #29aa7d;
+  box-shadow: 0 0 0 4px rgba(41, 170, 125, .12);
+}
+
+.ops-task-line:hover,
+.ops-skill-file-browser .ops-file-row:hover {
+  background: #f7f7fc;
+}
+
+.ops-task-line.is-selected,
+.workflow-list button.is-active,
+.workflow-runtime-list button.is-active,
+.ops-skill-file-browser .ops-file-row.is-active,
+.ops-mobile-file-tabs button.is-active {
+  border-color: var(--nx-primary-line) !important;
+  background: linear-gradient(90deg, #efefff, #fafaff) !important;
+  color: var(--nx-primary-strong) !important;
+  box-shadow: inset 3px 0 var(--nx-primary) !important;
+}
+
+.ops-skill-rail .ops-task-line.is-selected {
+  box-shadow: inset 3px 0 var(--nx-primary) !important;
+}
+
+.ops-progress-track,
+.progress-track {
+  background: #e9eaf0;
+}
+
+.ops-progress-track i,
+.ops-progress i,
+.progress-track span {
+  background: linear-gradient(90deg, #6565dc, #4777d9);
+}
+
+.ops-progress-track.tone-ok i {
+  background: #2a9d76;
+}
+
+.ops-progress-track.tone-warn i {
+  background: #d49a39;
+}
+
+.ops-progress-track.tone-danger i {
+  background: #ca5165;
+}
+
+.ops-current-step {
+  border-color: #d9daf7;
+  background: #f5f5ff;
+}
+
+.ops-current-step span,
+.ops-current-step strong {
+  color: #3f4382;
+}
+
+.ops-task-step.is-in_progress {
+  border-color: #d5d7f7;
+  background: #f7f7ff;
+}
+
+.ops-task-step.is-in_progress .ops-task-step-icon {
+  color: var(--nx-primary);
+}
+
+.ops-task-step.is-completed .ops-task-step-icon {
+  color: var(--nx-success);
+}
+
+.ops-skill-files,
+.ops-skill-file-preview {
+  background: #ffffff;
+}
+
+.ops-skill-file-browser {
+  border-color: var(--nx-line);
+  background: #f8f8fb;
+}
+
+.ops-skill-file-preview>header {
+  border-color: var(--nx-line);
+}
+
+.ops-skill-file-preview>pre,
+.workflow-runtime-json pre,
+.ops-json-panel pre {
+  background: #141728;
+  color: #dfe2f2;
+}
+
+.workflow-runtime-banner {
+  border-color: rgba(166, 162, 240, .24);
+  background: linear-gradient(122deg, #252844, #39406f 65%, #4e60a6) !important;
+  box-shadow: 0 16px 40px rgba(37, 40, 68, .18);
+}
+
+.workflow-runtime-banner>div>span {
+  color: #b7b7ff;
+}
+
+.workflow-runtime-banner p {
+  color: #d0d3e8;
+}
+
+.workflow-step-count,
+.workflow-list-summary strong,
+.workflow-phase-block>header,
+.workflow-step-card>div span {
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary-strong);
+}
+
+/* Recall */
+.mem-lite {
+  background:
+    radial-gradient(circle at 82% -8%, rgba(91, 91, 214, .09), transparent 30rem),
+    var(--nx-bg);
+  color: var(--nx-text);
+}
+
+.mem-lite button {
+  border-color: #dddfe8;
+  background: #ffffff;
+  color: #4e5366;
+}
+
+.mem-lite button:hover:not(:disabled) {
+  border-color: var(--nx-primary-line);
+  background: #f7f7ff;
+}
+
+.mem-lite button.primary {
+  border-color: var(--nx-primary);
+  background: var(--nx-primary);
+  color: #ffffff;
+}
+
+.mem-lite-header {
+  border: 1px solid rgba(167, 164, 239, .22);
+  background:
+    radial-gradient(circle at 86% 4%, rgba(139, 132, 239, .35), transparent 24%),
+    linear-gradient(128deg, #20233f, #343967 58%, #4b58a0);
+  box-shadow: 0 20px 52px rgba(32, 35, 63, .2);
+}
+
+.mem-lite-header p {
+  color: #d6d8ea;
+}
+
+.mem-lite-kicker {
+  color: #bbbaff;
+}
+
+.mem-lite-header-actions button.primary {
+  color: var(--nx-primary-strong);
+}
+
+.mem-lite-stats>div,
+.mem-lite-browser,
+.mem-lite-editor,
+.mem-lite-sync,
+.mem-lite-history,
+.mem-card-console,
+.mem-lite-advanced {
+  border-color: var(--nx-line) !important;
+  background: var(--nx-surface) !important;
+  box-shadow: var(--nx-shadow) !important;
+}
+
+.mem-lite-stats svg,
+.mem-lite-search-result-icon,
+.mem-card-review>strong {
+  color: var(--nx-primary) !important;
+}
+
+.mem-lite-panel-head,
+.mem-lite-browser-head,
+.mem-lite-tree-toolbar {
+  border-color: #ececf2 !important;
+  background: #fafaff !important;
+}
+
+.mem-lite-tree-file.active {
+  border-color: var(--nx-primary-line) !important;
+  background: var(--nx-primary-soft) !important;
+  color: var(--nx-primary-strong) !important;
+  box-shadow: inset 2px 0 var(--nx-primary) !important;
+}
+
+.mem-lite-tree-file.active svg {
+  color: var(--nx-primary) !important;
+}
+
+.mem-lite-edit-body input:focus,
+.mem-lite-edit-body textarea:focus,
+.mem-lite-dialog-body input:focus,
+.mem-lite-dialog-form input:focus,
+.mem-card-form input:focus,
+.mem-card-form select:focus,
+.mem-card-form textarea:focus,
+.mem-card-search input:focus {
+  border-color: #8b89e5 !important;
+  box-shadow: 0 0 0 3px rgba(91, 91, 214, .14) !important;
+}
+
+.mem-lite-notice {
+  border-color: #cce8dc;
+  background: var(--nx-success-soft);
+  color: var(--nx-success);
+}
+
+.mem-lite-notice.danger {
+  border-color: #f0cbd2;
+  background: var(--nx-danger-soft);
+  color: var(--nx-danger);
+}
+
+/* 登录与账号安全 */
+.auth-shell {
+  color-scheme: dark;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(91, 91, 214, .24), transparent 34%),
+    radial-gradient(circle at 82% 10%, rgba(71, 119, 217, .16), transparent 31%),
+    #0c0f18;
+  color: #f1f2f8;
+}
+
+.auth-story {
+  border-color: rgba(255, 255, 255, .07);
+}
+
+.auth-story::after {
+  border-color: rgba(147, 143, 240, .16);
+  box-shadow: 0 0 0 80px rgba(91, 91, 214, .03), 0 0 0 160px rgba(71, 119, 217, .018);
+}
+
+.auth-brand>span {
+  background: linear-gradient(145deg, #8580eb, #5f6bdc 58%, #4688d4);
+  box-shadow: 0 10px 28px rgba(91, 91, 214, .34);
+}
+
+.auth-kicker {
+  color: #aaa7ff;
+}
+
+.auth-story-copy>p:last-child,
+.auth-security-note {
+  color: #9ea3b5;
+}
+
+.auth-card {
+  border-color: rgba(255, 255, 255, .09);
+  background: rgba(20, 23, 37, .88);
+  box-shadow: 0 28px 78px rgba(0, 0, 0, .38);
+}
+
+.auth-card header p,
+.auth-card label>span,
+.auth-check,
+.auth-help,
+.auth-policy {
+  color: #9ca1b3;
+}
+
+.auth-card-icon {
+  border-color: rgba(158, 154, 242, .18);
+  background: rgba(112, 106, 224, .14);
+  color: #b7b4ff;
+}
+
+.auth-card input[type='text'],
+.auth-card input[type='password'],
+.auth-card input:not([type]) {
+  border-color: rgba(255, 255, 255, .11);
+  background: #111420;
+  color: #f5f5fa;
+}
+
+.auth-card input:focus {
+  border-color: #8f8bea;
+  box-shadow: 0 0 0 3px rgba(91, 91, 214, .18);
+}
+
+.auth-check input {
+  accent-color: #7773e3;
+}
+
+.auth-success {
+  border-color: rgba(77, 197, 148, .22);
+  background: rgba(45, 163, 118, .12);
+  color: #a9e7c9;
+}
+
+.security-panel {
+  color: var(--nx-text) !important;
+}
+
+.security-profile,
+.session-toolbar {
+  background: #ffffff !important;
+}
+
+.session-toolbar {
+  border-color: #ececf2 !important;
+}
+
+.session-row {
+  border-color: #ececf2 !important;
+}
+
+.session-copy em {
+  color: var(--nx-success) !important;
+  background: var(--nx-success-soft) !important;
+}
+
+.session-expired-overlay::backdrop,
+dialog.nx-dialog-backdrop::backdrop {
+  background: rgba(10, 12, 24, .66);
+}
+
+.session-expired-dialog,
+.nx-dialog {
+  border-color: #dfe0ea;
+  background: #ffffff;
+  color: var(--nx-text);
+  box-shadow: 0 30px 90px rgba(15, 18, 35, .28);
+}
+
+.session-expired-dialog p {
+  color: var(--nx-muted);
+}
+
+/* 小屏只收敛视觉密度，不改现有钻取交互。 */
+@media (max-width: 820px) {
+  .nexus-sidebar {
+    box-shadow: 24px 0 64px rgba(10, 12, 24, .38);
+  }
+
+  .nexus-scrim {
+    background: rgba(10, 12, 24, .58);
+  }
+
+  .nexus-topbar {
+    background: rgba(248, 249, 252, .94);
+  }
+
+  .nexus-content {
+    background: transparent;
+  }
+
+  .dashboard-focus-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "system"
+      "backup"
+      "attention";
+  }
+
+  .runtime-skills-page .skill-toolbar,
+  .mobile-drilldown-bar,
+  .runtime-tasks-page .ops-task-rail,
+  .runtime-skills-page .ops-skill-rail,
+  .runtime-templates-page .workflow-runtime-list-panel {
+    border-color: var(--nx-line) !important;
+    background: rgba(255, 255, 255, .96) !important;
+    box-shadow: var(--nx-shadow) !important;
+  }
+
+  .mobile-drilldown-bar>button {
+    border-color: #dddfe8;
+    background: #f7f7fb;
+    color: #4e5366;
+  }
+
+  .mobile-drilldown-bar strong {
+    color: var(--nx-text);
+  }
+
+  .mobile-drilldown-bar em {
+    background: var(--nx-primary-soft);
+    color: var(--nx-primary-strong);
+  }
+
+  .runtime-tasks-page .ops-task-line,
+  .runtime-skills-page .ops-skill-rail .ops-task-line,
+  .runtime-templates-page .workflow-runtime-list button {
+    border-color: #ececf2;
+  }
+}
+
+@media (max-width: 560px) {
+  .nexus-overview-strip {
+    background:
+      radial-gradient(circle at 92% 0%, rgba(137, 132, 239, .34), transparent 42%),
+      linear-gradient(132deg, #20233f, #384172 72%, #495a9e);
+  }
+
+  .auth-card {
+    box-shadow: 0 20px 54px rgba(0, 0, 0, .32);
+  }
+}
