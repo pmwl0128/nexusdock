@@ -13,19 +13,21 @@ import (
 
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 type Server struct {
-	mu        sync.RWMutex
-	cfg       config.Config
-	db        *sql.DB
-	store     *recall.Store
-	syncer    *syncer.Manager
-	logger    *slog.Logger
-	auth      *auth.Service
-	embedding *recall.EmbeddingService
+	mu           sync.RWMutex
+	cfg          config.Config
+	db           *sql.DB
+	store        *recall.Store
+	privateNotes *privatenotes.Store
+	syncer       *syncer.Manager
+	logger       *slog.Logger
+	auth         *auth.Service
+	embedding    *recall.EmbeddingService
 }
 
 type ServerOption func(*Server)
@@ -40,6 +42,10 @@ func WithWebAuthentication(authService *auth.Service) ServerOption {
 
 func WithEmbeddingService(service *recall.EmbeddingService) ServerOption {
 	return func(server *Server) { server.embedding = service }
+}
+
+func WithPrivateNotes(store *privatenotes.Store) ServerOption {
+	return func(server *Server) { server.privateNotes = store }
 }
 
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
@@ -60,6 +66,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	s.registerRuntimeRoutes(mux, protected)
 	s.registerWorkflowTemplateRoutes(mux, protected)
+	if s.privateNotes != nil {
+		s.registerPrivateNoteRoutes(mux, protected)
+	}
 	s.registerWebAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
 	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))

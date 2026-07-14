@@ -3,6 +3,7 @@ module github.com/uvwt/nexusdock
 go 1.26.3
 
 require (
+	filippo.io/age v1.2.1
 	golang.org/x/crypto v0.37.0
 	modernc.org/sqlite v1.39.1
 )

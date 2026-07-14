@@ -128,6 +128,12 @@ func (s *Store) List(prefix string, maxEntries int) ([]Entry, error) {
 		if path == base {
 			return nil
 		}
+		if d.IsDir() {
+			rel, _ := filepath.Rel(s.root, path)
+			if isPrivateNotesPath(filepath.ToSlash(rel)) {
+				return filepath.SkipDir
+			}
+		}
 		name := d.Name()
 		if strings.HasPrefix(name, ".") {
 			if d.IsDir() {
@@ -214,6 +220,10 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 			return walkErr
 		}
 		if d.IsDir() {
+			rel, _ := filepath.Rel(s.root, path)
+			if isPrivateNotesPath(filepath.ToSlash(rel)) {
+				return filepath.SkipDir
+			}
 			if d.Name() == ".git" || strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
@@ -710,6 +720,9 @@ func (s *Store) resolve(rel string) (string, error) {
 	if hasHiddenSegment(clean) {
 		return "", ErrInvalidPath
 	}
+	if isPrivateNotesPath(filepath.ToSlash(clean)) {
+		return "", ErrDisallowedPath
+	}
 	if isReservedRecallPath(filepath.ToSlash(clean)) {
 		return "", ErrDisallowedPath
 	}
@@ -719,6 +732,11 @@ func (s *Store) resolve(rel string) (string, error) {
 		return "", ErrInvalidPath
 	}
 	return abs, nil
+}
+
+func isPrivateNotesPath(rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "/")))
+	return rel == "private-notes" || strings.HasPrefix(rel, "private-notes/")
 }
 
 func isReservedRecallPath(rel string) bool {

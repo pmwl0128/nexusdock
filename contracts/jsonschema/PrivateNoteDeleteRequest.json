@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteDeleteRequest.json",
+  "title": "PrivateNoteDeleteRequest",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,20 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "同时删除私密笔记明文和 age 密文的请求。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "path": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "notes/ 下的私密笔记相对路径。"
     },
-    "message": {
-      "type": "string",
-      "description": "面向调用方的错误说明。"
-    },
-    "request_id": {
-      "type": "string",
-      "description": "请求关联 ID。"
-    },
-    "details": {
-      "type": "array",
-      "description": "可选字段级错误。",
-      "items": {
-        "$ref": "#/$defs/ErrorDetail"
-      }
+    "confirmed": {
+      "type": "boolean",
+      "description": "真实删除必须为 true。"
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "path",
+    "confirmed"
   ]
 }

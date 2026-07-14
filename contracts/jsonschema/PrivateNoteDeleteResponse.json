@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteDeleteResponse.json",
+  "title": "PrivateNoteDeleteResponse",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,40 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "私密笔记明文与 age 密文删除结果。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "action": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "固定为 delete。"
     },
-    "message": {
+    "root": {
       "type": "string",
-      "description": "面向调用方的错误说明。"
+      "description": "Nexus 私密笔记根目录。"
     },
-    "request_id": {
+    "path": {
       "type": "string",
-      "description": "请求关联 ID。"
+      "description": "明文相对路径。"
     },
-    "details": {
-      "type": "array",
-      "description": "可选字段级错误。",
-      "items": {
-        "$ref": "#/$defs/ErrorDetail"
-      }
+    "encrypted_path": {
+      "type": "string",
+      "description": "age 密文相对路径。"
+    },
+    "deleted_plaintext": {
+      "type": "boolean",
+      "description": "明文是否删除。"
+    },
+    "deleted_encrypted": {
+      "type": "boolean",
+      "description": "密文是否删除。"
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "action",
+    "root",
+    "path",
+    "encrypted_path",
+    "deleted_plaintext",
+    "deleted_encrypted"
   ]
 }

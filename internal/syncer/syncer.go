@@ -387,6 +387,34 @@ func (m *Manager) CommitDetail(ctx context.Context, hash string) (CommitDetail, 
 	return resp, nil
 }
 
+func isPrivateNotePlaintextOrKeyPath(rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "./")))
+	return rel == "private-notes/notes" || strings.HasPrefix(rel, "private-notes/notes/") ||
+		rel == "private-notes/.keys" || strings.HasPrefix(rel, "private-notes/.keys/")
+}
+
+func (m *Manager) guardPrivateNotesNotTracked(ctx context.Context) error {
+	out, err := m.git(ctx, "ls-files", "--cached", "--others", "--exclude-standard", "--", "private-notes/notes", "private-notes/.keys")
+	if err != nil {
+		return err
+	}
+	unsafe := []string{}
+	for _, rel := range strings.Split(out, "\n") {
+		rel = filepath.ToSlash(strings.TrimSpace(rel))
+		if rel == "" {
+			continue
+		}
+		unsafe = append(unsafe, rel)
+		if len(unsafe) >= 20 {
+			break
+		}
+	}
+	if len(unsafe) > 0 {
+		return fmt.Errorf("refusing to sync tracked or non-ignored private note plaintext or keys: %s", strings.Join(unsafe, ", "))
+	}
+	return nil
+}
+
 func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
 	out, err := m.git(ctx, "ls-files", "*.md")
 	if err != nil {
@@ -436,6 +464,9 @@ func (m *Manager) stageRecallChanges(ctx context.Context) error {
 		rel = filepath.ToSlash(strings.TrimSpace(rel))
 		if rel == "" || strings.HasPrefix(rel, ".nexus/") {
 			continue
+		}
+		if isPrivateNotePlaintextOrKeyPath(rel) {
+			return fmt.Errorf("refusing to stage private note plaintext or key: %s", rel)
 		}
 		batch = append(batch, rel)
 		if len(batch) >= 100 {
@@ -527,6 +558,10 @@ func (m *Manager) Push(ctx context.Context) error {
 		m.pendingHead = ""
 		m.mu.Unlock()
 		return nil
+	}
+	if err := m.guardPrivateNotesNotTracked(ctx); err != nil {
+		m.setError(err)
+		return err
 	}
 	if err := m.guardSafeMarkdownSync(ctx); err != nil {
 		m.setError(err)

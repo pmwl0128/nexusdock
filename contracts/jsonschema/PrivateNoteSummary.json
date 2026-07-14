@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteSummary.json",
+  "title": "PrivateNoteSummary",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,55 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "私密笔记安全元数据；不包含正文或正文片段。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "path": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "notes/ 下的私密笔记相对路径。"
     },
-    "message": {
+    "encrypted_path": {
       "type": "string",
-      "description": "面向调用方的错误说明。"
+      "description": "对应 age 密文相对路径。"
     },
-    "request_id": {
+    "category": {
       "type": "string",
-      "description": "请求关联 ID。"
+      "description": "私密笔记分类。"
     },
-    "details": {
+    "title": {
+      "type": "string",
+      "description": "私密笔记标题。"
+    },
+    "summary": {
+      "type": "string",
+      "description": "人工维护的安全简介。"
+    },
+    "tags": {
       "type": "array",
-      "description": "可选字段级错误。",
+      "description": "安全标签。",
       "items": {
-        "$ref": "#/$defs/ErrorDetail"
+        "type": "string",
+        "description": "标签。"
       }
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "RFC 3339 UTC 时间。",
+      "format": "date-time"
+    },
+    "contains_secret": {
+      "type": "boolean",
+      "description": "正文是否被标记为含敏感信息。"
+    },
+    "score": {
+      "type": "integer",
+      "description": "元数据检索匹配分数。",
+      "minimum": 0
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "path",
+    "encrypted_path",
+    "contains_secret"
   ]
 }

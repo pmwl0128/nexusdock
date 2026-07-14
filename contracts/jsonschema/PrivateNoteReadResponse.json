@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteReadResponse.json",
+  "title": "PrivateNoteReadResponse",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,45 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "显式私密笔记明文读取结果。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "action": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "固定为 read。"
     },
-    "message": {
+    "root": {
       "type": "string",
-      "description": "面向调用方的错误说明。"
+      "description": "Nexus 私密笔记根目录。"
     },
-    "request_id": {
+    "path": {
       "type": "string",
-      "description": "请求关联 ID。"
+      "description": "明文相对路径。"
     },
-    "details": {
-      "type": "array",
-      "description": "可选字段级错误。",
-      "items": {
-        "$ref": "#/$defs/ErrorDetail"
-      }
+    "encrypted_path": {
+      "type": "string",
+      "description": "age 密文相对路径。"
+    },
+    "content": {
+      "type": "string",
+      "description": "私密笔记明文，仅显式读取接口返回。"
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "正文是否被截断。"
+    },
+    "contains_secret": {
+      "type": "boolean",
+      "description": "正文是否被标记为含敏感信息。"
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "action",
+    "root",
+    "path",
+    "encrypted_path",
+    "content",
+    "truncated",
+    "contains_secret"
   ]
 }

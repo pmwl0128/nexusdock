@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteWriteRequest.json",
+  "title": "PrivateNoteWriteRequest",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,48 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "创建或覆盖私密笔记请求。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "path": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "可选的 notes/ 相对路径。"
     },
-    "message": {
+    "category": {
       "type": "string",
-      "description": "面向调用方的错误说明。"
+      "description": "未传 path 时使用的分类。"
     },
-    "request_id": {
+    "title": {
       "type": "string",
-      "description": "请求关联 ID。"
+      "description": "标题，也可用于生成路径。"
     },
-    "details": {
+    "summary": {
+      "type": "string",
+      "description": "可安全检索的人工简介。"
+    },
+    "tags": {
       "type": "array",
-      "description": "可选字段级错误。",
+      "description": "可安全检索的标签。",
       "items": {
-        "$ref": "#/$defs/ErrorDetail"
+        "type": "string",
+        "description": "标签。"
       }
+    },
+    "content": {
+      "type": "string",
+      "description": "私密笔记正文。"
+    },
+    "confirmed": {
+      "type": "boolean",
+      "description": "真实写入必须为 true。"
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "是否覆盖已有笔记。"
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "content",
+    "confirmed"
   ]
 }

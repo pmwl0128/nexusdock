@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
@@ -24,7 +26,11 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 		cfg.StoreDir = store.Root()
 	}
 	mgr := syncer.NewManager(syncer.Config{RepoDir: store.Root()}, slog.Default())
-	return NewServer(cfg, store, mgr, slog.Default()).Handler()
+	privateNotes, err := privatenotes.New(filepath.Join(store.Root(), "private-notes"))
+	if err != nil {
+		t.Fatalf("New private notes store: %v", err)
+	}
+	return NewServer(cfg, store, mgr, slog.Default(), WithPrivateNotes(privateNotes)).Handler()
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path string, body string) *httptest.ResponseRecorder {

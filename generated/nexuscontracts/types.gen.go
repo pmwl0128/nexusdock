@@ -135,3 +135,191 @@ type RecallEntry struct {
 	// ModifiedAt RFC 3339 UTC 时间。
 	ModifiedAt *string `json:"modified_at,omitempty"`
 }
+
+// PrivateNoteSummary 私密笔记安全元数据；不包含正文或正文片段。
+type PrivateNoteSummary struct {
+	// Path notes/ 下的私密笔记相对路径。
+	Path string `json:"path"`
+	// EncryptedPath 对应 age 密文相对路径。
+	EncryptedPath string `json:"encrypted_path"`
+	// Category 私密笔记分类。
+	Category *string `json:"category,omitempty"`
+	// Title 私密笔记标题。
+	Title *string `json:"title,omitempty"`
+	// Summary 人工维护的安全简介。
+	Summary *string `json:"summary,omitempty"`
+	// Tags 安全标签。
+	Tags []string `json:"tags,omitempty"`
+	// UpdatedAt RFC 3339 UTC 时间。
+	UpdatedAt *string `json:"updated_at,omitempty"`
+	// ContainsSecret 正文是否被标记为含敏感信息。
+	ContainsSecret bool `json:"contains_secret"`
+	// Score 元数据检索匹配分数。
+	Score *int64 `json:"score,omitempty"`
+}
+
+// PrivateNoteSearchRequest 私密笔记元数据检索请求。
+type PrivateNoteSearchRequest struct {
+	// Query 仅匹配标题、简介、标签、分类和路径的查询。
+	Query string `json:"query"`
+	// MaxResults 最大结果数。
+	MaxResults *int64 `json:"max_results,omitempty"`
+}
+
+// PrivateNoteSearchResponse 私密笔记元数据检索结果。
+type PrivateNoteSearchResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Action 固定为 search。
+	Action string `json:"action"`
+	// Query 原始查询。
+	Query string `json:"query"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Results 仅含安全元数据的结果。
+	Results []PrivateNoteSummary `json:"results"`
+	// Count 结果数。
+	Count int64 `json:"count"`
+	// MetadataOnly 固定为 true。
+	MetadataOnly bool `json:"metadata_only"`
+	// Policy 检索安全策略说明。
+	Policy *string `json:"policy,omitempty"`
+}
+
+// PrivateNoteReadRequest 显式读取私密笔记正文的请求。
+type PrivateNoteReadRequest struct {
+	// Path notes/ 下的私密笔记相对路径。
+	Path string `json:"path"`
+	// MaxBytes 最大返回字节数。
+	MaxBytes *int64 `json:"max_bytes,omitempty"`
+}
+
+// PrivateNoteReadResponse 显式私密笔记明文读取结果。
+type PrivateNoteReadResponse struct {
+	// Action 固定为 read。
+	Action string `json:"action"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Path 明文相对路径。
+	Path string `json:"path"`
+	// EncryptedPath age 密文相对路径。
+	EncryptedPath string `json:"encrypted_path"`
+	// Content 私密笔记明文，仅显式读取接口返回。
+	Content string `json:"content"`
+	// Truncated 正文是否被截断。
+	Truncated bool `json:"truncated"`
+	// ContainsSecret 正文是否被标记为含敏感信息。
+	ContainsSecret bool `json:"contains_secret"`
+}
+
+// PrivateNoteWriteRequest 创建或覆盖私密笔记请求。
+type PrivateNoteWriteRequest struct {
+	// Path 可选的 notes/ 相对路径。
+	Path *string `json:"path,omitempty"`
+	// Category 未传 path 时使用的分类。
+	Category *string `json:"category,omitempty"`
+	// Title 标题，也可用于生成路径。
+	Title *string `json:"title,omitempty"`
+	// Summary 可安全检索的人工简介。
+	Summary *string `json:"summary,omitempty"`
+	// Tags 可安全检索的标签。
+	Tags []string `json:"tags,omitempty"`
+	// Content 私密笔记正文。
+	Content string `json:"content"`
+	// Confirmed 真实写入必须为 true。
+	Confirmed bool `json:"confirmed"`
+	// Overwrite 是否覆盖已有笔记。
+	Overwrite *bool `json:"overwrite,omitempty"`
+}
+
+// PrivateNoteWriteResponse 私密笔记明文与 age 密文原子写入结果。
+type PrivateNoteWriteResponse struct {
+	// Action 固定为 write。
+	Action string `json:"action"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Path 明文相对路径。
+	Path string `json:"path"`
+	// EncryptedPath age 密文相对路径。
+	EncryptedPath string `json:"encrypted_path"`
+	// Written 明文是否写入。
+	Written bool `json:"written"`
+	// Encrypted 密文是否写入。
+	Encrypted bool `json:"encrypted"`
+	// Algorithm 加密算法。
+	Algorithm string `json:"algorithm"`
+}
+
+// PrivateNoteDeleteRequest 同时删除私密笔记明文和 age 密文的请求。
+type PrivateNoteDeleteRequest struct {
+	// Path notes/ 下的私密笔记相对路径。
+	Path string `json:"path"`
+	// Confirmed 真实删除必须为 true。
+	Confirmed bool `json:"confirmed"`
+}
+
+// PrivateNoteDeleteResponse 私密笔记明文与 age 密文删除结果。
+type PrivateNoteDeleteResponse struct {
+	// Action 固定为 delete。
+	Action string `json:"action"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Path 明文相对路径。
+	Path string `json:"path"`
+	// EncryptedPath age 密文相对路径。
+	EncryptedPath string `json:"encrypted_path"`
+	// DeletedPlaintext 明文是否删除。
+	DeletedPlaintext bool `json:"deleted_plaintext"`
+	// DeletedEncrypted 密文是否删除。
+	DeletedEncrypted bool `json:"deleted_encrypted"`
+}
+
+// PrivateNoteStatusRequest 读取私密笔记状态或安全元数据列表。
+type PrivateNoteStatusRequest struct {
+	// Action 状态动作。
+	Action string `json:"action"`
+}
+
+// PrivateNoteStatusResponse 私密笔记加密和 Git 忽略状态。
+type PrivateNoteStatusResponse struct {
+	// Action 执行的状态动作。
+	Action string `json:"action"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Notes 私密笔记安全元数据。
+	Notes []PrivateNoteSummary `json:"notes,omitempty"`
+	// Count 列表项数。
+	Count *int64 `json:"count,omitempty"`
+	// NotesCount 明文笔记数。
+	NotesCount *int64 `json:"notes_count,omitempty"`
+	// MissingEncrypted 缺失的 age 密文路径。
+	MissingEncrypted []string `json:"missing_encrypted,omitempty"`
+	// EncryptedBackupOk 每条明文是否都有密文。
+	EncryptedBackupOk bool `json:"encrypted_backup_ok"`
+	// PlaintextGitIgnored notes/ 是否由仓库规则忽略。
+	PlaintextGitIgnored bool `json:"plaintext_git_ignored"`
+	// KeysGitIgnored .keys/ 是否由仓库规则忽略。
+	KeysGitIgnored bool `json:"keys_git_ignored"`
+}
+
+// PrivateNoteMaintenanceRequest 私密笔记加密维护请求。
+type PrivateNoteMaintenanceRequest struct {
+	// Action 维护动作。
+	Action string `json:"action"`
+}
+
+// PrivateNoteMaintenanceResponse 私密笔记加密初始化或全量重加密结果。
+type PrivateNoteMaintenanceResponse struct {
+	// Action 执行的维护动作。
+	Action string `json:"action"`
+	// Root Nexus 私密笔记根目录。
+	Root string `json:"root"`
+	// Recipient age 公钥接收者。
+	Recipient *string `json:"recipient,omitempty"`
+	// IdentityCreated 是否新建 identity。
+	IdentityCreated *bool `json:"identity_created,omitempty"`
+	// EncryptedCount 生成的密文数量。
+	EncryptedCount *int64 `json:"encrypted_count,omitempty"`
+	// Algorithm 加密算法。
+	Algorithm string `json:"algorithm"`
+}

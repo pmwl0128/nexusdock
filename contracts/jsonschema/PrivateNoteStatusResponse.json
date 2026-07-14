@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/ErrorResponse.json",
-  "title": "ErrorResponse",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/PrivateNoteStatusResponse.json",
+  "title": "PrivateNoteStatusResponse",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -828,32 +828,60 @@
     }
   },
   "type": "object",
-  "description": "统一错误响应。",
+  "description": "私密笔记加密和 Git 忽略状态。",
   "additionalProperties": false,
   "properties": {
-    "code": {
+    "action": {
       "type": "string",
-      "description": "稳定错误码。"
+      "description": "执行的状态动作。"
     },
-    "message": {
+    "root": {
       "type": "string",
-      "description": "面向调用方的错误说明。"
+      "description": "Nexus 私密笔记根目录。"
     },
-    "request_id": {
-      "type": "string",
-      "description": "请求关联 ID。"
-    },
-    "details": {
+    "notes": {
       "type": "array",
-      "description": "可选字段级错误。",
+      "description": "私密笔记安全元数据。",
       "items": {
-        "$ref": "#/$defs/ErrorDetail"
+        "$ref": "#/$defs/PrivateNoteSummary"
       }
+    },
+    "count": {
+      "type": "integer",
+      "description": "列表项数。",
+      "minimum": 0
+    },
+    "notes_count": {
+      "type": "integer",
+      "description": "明文笔记数。",
+      "minimum": 0
+    },
+    "missing_encrypted": {
+      "type": "array",
+      "description": "缺失的 age 密文路径。",
+      "items": {
+        "type": "string",
+        "description": "密文路径。"
+      }
+    },
+    "encrypted_backup_ok": {
+      "type": "boolean",
+      "description": "每条明文是否都有密文。"
+    },
+    "plaintext_git_ignored": {
+      "type": "boolean",
+      "description": "notes/ 是否由仓库规则忽略。"
+    },
+    "keys_git_ignored": {
+      "type": "boolean",
+      "description": ".keys/ 是否由仓库规则忽略。"
     }
   },
   "required": [
-    "code",
-    "message",
-    "request_id"
+    "action",
+    "root",
+    "encrypted_backup_ok",
+    "plaintext_git_ignored",
+    "keys_git_ignored"
   ]
 }

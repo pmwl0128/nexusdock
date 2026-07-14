@@ -15,6 +15,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/core"
 	"github.com/uvwt/nexusdock/internal/httpx"
+	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
@@ -39,6 +40,11 @@ func Main(args []string) {
 	store, err := recall.NewStore(cfg.RecallRepoDir)
 	if err != nil {
 		logger.Error("failed to initialize store", "error", err)
+		os.Exit(1)
+	}
+	privateNoteStore, err := privatenotes.New(filepath.Join(cfg.RecallRepoDir, "private-notes"))
+	if err != nil {
+		logger.Error("failed to initialize private notes", "error", err)
 		os.Exit(1)
 	}
 
@@ -103,6 +109,7 @@ func Main(args []string) {
 		httpx.WithSystemDatabase(controlDB),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithEmbeddingService(embeddingService),
+		httpx.WithPrivateNotes(privateNoteStore),
 	)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr(),
