@@ -154,6 +154,45 @@ func TestRuntimeTaskDetailRequiresExistingNode(t *testing.T) {
 	}
 }
 
+func TestRuntimeClientDoesNotFollowRedirects(t *testing.T) {
+	targetCalls := 0
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetCalls++
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}))
+	defer target.Close()
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer redirect.Close()
+
+	server := newRuntimeTestServer(t, redirect.URL, "runtime-secret")
+	_, err := server.runtimeGet(t.Context(), runtimeTestNodeID, "/internal/runtime/tasks", nil)
+	payload := runtimeUnavailablePayload(err)
+	if err == nil || payload["code"] != "AGENTDOCK_RUNTIME_BAD_RESPONSE" {
+		t.Fatalf("redirect error = %v payload=%v", err, payload)
+	}
+	if targetCalls != 0 {
+		t.Fatalf("runtime client followed redirect, target calls=%d", targetCalls)
+	}
+}
+
+func TestRuntimeClientRejectsOversizedResponses(t *testing.T) {
+	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":"`))
+		_, _ = w.Write([]byte(strings.Repeat("a", maxAgentDockRuntimeResponseBytes+1)))
+		_, _ = w.Write([]byte(`"}`))
+	}))
+	defer runtime.Close()
+
+	server := newRuntimeTestServer(t, runtime.URL, "runtime-secret")
+	_, err := server.runtimeGet(t.Context(), runtimeTestNodeID, "/internal/runtime/tasks", nil)
+	if err == nil || !strings.Contains(err.Error(), "超过 8 MiB") {
+		t.Fatalf("oversized response error = %v", err)
+	}
+}
+
 func TestRuntimeDeleteTaskUsesAgentDockRuntimeAPI(t *testing.T) {
 	var gotMethod, gotPath, gotAuth string
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

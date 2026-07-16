@@ -105,9 +105,13 @@ func TestStoreLifecycleEncryptsToken(t *testing.T) {
 func TestStoreRejectsInvalidAndDuplicateNodes(t *testing.T) {
 	store, _ := newTestStore(t)
 	ctx := context.Background()
-	valid := CreateInput{ID: "dockmini", Name: "DockMini", Endpoint: "https://dockmini.example.com", Token: "secret"}
-	if _, err := store.Create(ctx, valid); err != nil {
+	valid := CreateInput{ID: "dockmini", Name: "DockMini", Endpoint: "https://DOCKMINI.EXAMPLE.COM", Token: "secret"}
+	node, err := store.Create(ctx, valid)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if node.Endpoint != "https://dockmini.example.com" {
+		t.Fatalf("endpoint = %q, want normalized lower-case host", node.Endpoint)
 	}
 	duplicate := valid
 	duplicate.ID = "dockair"
@@ -123,6 +127,48 @@ func TestStoreRejectsInvalidAndDuplicateNodes(t *testing.T) {
 		if _, err := store.Create(ctx, input); err == nil {
 			t.Fatalf("invalid input accepted: %#v", input)
 		}
+	}
+}
+
+func TestStoreUpdateRequiresFieldsAndValidTimeout(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
+	if _, err := store.Create(ctx, CreateInput{ID: "dockmini", Name: "DockMini", Endpoint: "https://dockmini.example.com", Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Update(ctx, "dockmini", UpdateInput{}); err == nil {
+		t.Fatal("empty update was accepted")
+	}
+	zero := 0
+	if _, err := store.Update(ctx, "dockmini", UpdateInput{TimeoutSeconds: &zero}); err == nil {
+		t.Fatal("zero timeout was accepted for update")
+	}
+}
+
+func TestStoreRepairsMissingCredentialRowWhenTokenIsReplaced(t *testing.T) {
+	store, db := newTestStore(t)
+	ctx := context.Background()
+	if _, err := store.Create(ctx, CreateInput{ID: "dockmini", Name: "DockMini", Endpoint: "https://dockmini.example.com", Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM agentdock_node_secrets WHERE node_id = 'dockmini'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Credentials(ctx, "dockmini"); !errors.Is(err, ErrNodeCredentialsAbsent) {
+		t.Fatalf("credentials error = %v, want ErrNodeCredentialsAbsent", err)
+	}
+
+	replacement := "replacement-secret"
+	updated, err := store.Update(ctx, "dockmini", UpdateInput{Token: &replacement})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.TokenConfigured {
+		t.Fatalf("updated node did not report configured token: %#v", updated)
+	}
+	credentials, err := store.Credentials(ctx, "dockmini")
+	if err != nil || credentials.Token != replacement {
+		t.Fatalf("repaired credentials unavailable: token_matches=%v err=%v", credentials.Token == replacement, err)
 	}
 }
 
@@ -158,6 +204,10 @@ func TestNewStoreCreatesPrivatePersistentKey(t *testing.T) {
 	data, err := os.ReadFile(keyPath)
 	if err != nil || len(data) != 32 {
 		t.Fatalf("key length = %d err=%v", len(data), err)
+	}
+	tempFiles, err := filepath.Glob(filepath.Join(dir, "secrets", ".agentdock-nodes-key-*"))
+	if err != nil || len(tempFiles) != 0 {
+		t.Fatalf("temporary key files remain: files=%v err=%v", tempFiles, err)
 	}
 }
 
