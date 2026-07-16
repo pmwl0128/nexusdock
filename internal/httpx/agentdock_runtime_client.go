@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
+
+const maxAgentDockRuntimeResponseBytes = 8 << 20
 
 type agentDockRuntimeClient struct {
 	endpoint string
@@ -57,8 +60,12 @@ func (s *Server) agentDockRuntimeClient(ctx context.Context, nodeID string) (*ag
 	return &agentDockRuntimeClient{
 		endpoint: credentials.Node.Endpoint,
 		token:    credentials.Token,
-		client:   &http.Client{Timeout: timeout},
-		node:     credentials.Node,
+		client: &http.Client{
+			Timeout: timeout,
+			// 节点地址必须直接指向目标 AgentDock，禁止重定向掩盖配置错误或扩大凭据转发范围。
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+		},
+		node: credentials.Node,
 	}, nil
 }
 
@@ -107,8 +114,18 @@ func (c *agentDockRuntimeClient) request(ctx context.Context, method, path strin
 		return nil, agentDockRuntimeError{Code: "AGENTDOCK_RUNTIME_UNREACHABLE", Message: err.Error()}
 	}
 	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxAgentDockRuntimeResponseBytes+1))
+	if err != nil {
+		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
+	}
+	if len(data) > maxAgentDockRuntimeResponseBytes {
+		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: "AgentDock Runtime 响应超过 8 MiB 限制"}
+	}
 	var body map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.Unmarshal(data, &body); err != nil || body == nil {
+		if err == nil {
+			err = errors.New("AgentDock Runtime 返回了空 JSON 对象")
+		}
 		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
