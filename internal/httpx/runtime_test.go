@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -105,7 +103,7 @@ func TestRuntimeTaskDetailDerivesProgressFromSteps(t *testing.T) {
 }
 
 func TestRuntimeTaskDetailDoesNotReadFilesWhenRuntimeAPIUnconfigured(t *testing.T) {
-	server := &Server{cfg: config.Config{AgentDockDir: t.TempDir()}}
+	server := &Server{cfg: config.Config{}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks/tsk_demo", nil)
 	request.SetPathValue("fileName", "tsk_demo")
 	response := httptest.NewRecorder()
@@ -180,7 +178,7 @@ func TestRuntimeSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 		if r.URL.Path != "/internal/runtime/skills" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "skills": []map[string]any{{"skill": "demo-skill", "versions": []string{"0.1.0", "0.2.0"}, "active_version": "0.2.0", "channels": map[string]string{"stable": "0.2.0"}, "updated_at": "2026-07-06T01:02:03Z"}}, "count": 1})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "skills": []map[string]any{{"skill": "demo-skill", "name": "Demo Skill", "description": "Runtime API skill", "file_count": 2, "versions": []string{"0.1.0", "0.2.0"}, "active_version": "0.2.0", "channels": map[string]string{"stable": "0.2.0"}, "updated_at": "2026-07-06T01:02:03Z"}}, "count": 1})
 	}))
 	defer runtime.Close()
 	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
@@ -198,7 +196,7 @@ func TestRuntimeSkillsUsesAgentDockRuntimeAPI(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(decoded.Items) != 1 || decoded.Items[0].ID != "demo-skill" || decoded.Items[0].Source != "agentdock-api" || decoded.Items[0].ActiveVersion != "0.2.0" {
+	if len(decoded.Items) != 1 || decoded.Items[0].ID != "demo-skill" || decoded.Items[0].Title != "Demo Skill" || decoded.Items[0].Description != "Runtime API skill" || decoded.Items[0].FileCount != 2 || decoded.Items[0].Source != "agentdock-api" || decoded.Items[0].ActiveVersion != "0.2.0" {
 		t.Fatalf("unexpected skills: %+v", decoded.Items)
 	}
 }
@@ -208,31 +206,21 @@ func TestRuntimeSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 		if r.URL.Path != "/internal/runtime/skills/demo-skill" {
 			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "source": "agentdock-runtime-api", "skill": "demo-skill", "version": "0.2.0", "versions": []string{"0.1.0", "0.2.0"}, "selection": map[string]any{"active_version": "0.2.0", "channels": map[string]string{"stable": "0.2.0"}, "updated_at": "2026-07-06T01:02:03Z"}, "manifest": map[string]any{"metadata": map[string]any{"name": "demo-skill", "displayName": "Demo Skill", "description": "Runtime API skill"}}})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": true, "source": "agentdock-runtime-api", "skill": "demo-skill", "version": "0.2.0",
+			"versions":   []string{"0.1.0", "0.2.0"},
+			"selection":  map[string]any{"active_version": "0.2.0", "channels": map[string]string{"stable": "0.2.0"}, "updated_at": "2026-07-06T01:02:03Z"},
+			"document":   map[string]any{"name": "demo-skill", "description": "Runtime API skill", "version": "0.2.0", "body": "# Demo Skill\n\nRuntime API content."},
+			"file_count": 2,
+			"files": []map[string]any{
+				{"path": "SKILL.md", "kind": "doc", "size_bytes": 120, "updated_at": "2026-07-06T01:02:03Z"},
+				{"path": "references/guide.md", "kind": "doc", "size_bytes": 30, "updated_at": "2026-07-06T01:02:03Z"},
+			},
+		})
 	}))
 	defer runtime.Close()
 
-	agentDockDir := t.TempDir()
-	packageDir := filepath.Join(agentDockDir, "skill-store", "installed", "demo-skill", "0.2.0")
-	if err := os.MkdirAll(filepath.Join(packageDir, "references"), 0o755); err != nil {
-		t.Fatalf("mkdir Skill package: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "SKILL.md"), []byte("---\nname: demo-skill\ndescription: demo\nversion: 0.2.0\n---\n# Local Demo Skill\n\nLocal package description.\n"), 0o644); err != nil {
-		t.Fatalf("write SKILL.md: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "references", "guide.md"), []byte("# Guide\n\nGuide content.\n"), 0o644); err != nil {
-		t.Fatalf("write guide: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, ".agentdock-install.json"), []byte(`{"internal":true}`), 0o644); err != nil {
-		t.Fatalf("write install metadata: %v", err)
-	}
-	outsideFile := filepath.Join(t.TempDir(), "outside-secret.txt")
-	if err := os.WriteFile(outsideFile, []byte("must not be exposed"), 0o644); err != nil {
-		t.Fatalf("write outside file: %v", err)
-	}
-	symlinkCreated := os.Symlink(outsideFile, filepath.Join(packageDir, "outside-link.txt")) == nil
-
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL, AgentDockDir: agentDockDir}}
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill", nil)
 	request.SetPathValue("source", "runtime")
 	request.SetPathValue("skillID", "demo-skill")
@@ -249,53 +237,35 @@ func TestRuntimeSkillDetailUsesAgentDockRuntimeAPI(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if decoded.Skill.ID != "demo-skill" || decoded.Skill.Title != "Local Demo Skill" || decoded.Skill.ActiveVersion != "0.2.0" || decoded.Skill.Root != filepath.ToSlash(packageDir) {
+	if decoded.Skill.ID != "demo-skill" || decoded.Skill.Title != "demo-skill" || decoded.Skill.Description != "Runtime API skill" || decoded.Skill.ActiveVersion != "0.2.0" || decoded.Skill.Root != "agentdock-runtime-api" {
 		t.Fatalf("unexpected skill detail: %+v", decoded.Skill)
 	}
-	if len(decoded.Skill.Files) != 2 || decoded.Skill.Files[0].Path != "SKILL.md" || decoded.Skill.Files[1].Path != "references/guide.md" {
+	if decoded.Skill.FileCount != 2 || len(decoded.Skill.Files) != 2 || decoded.Skill.Files[0].Path != "SKILL.md" || decoded.Skill.Files[1].Path != "references/guide.md" {
 		t.Fatalf("unexpected Skill files: %+v", decoded.Skill.Files)
 	}
-
-	metadataRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/.agentdock-install.json", nil)
-	metadataRequest.SetPathValue("skillID", "demo-skill")
-	metadataRequest.SetPathValue("filePath", ".agentdock-install.json")
-	metadataResponse := httptest.NewRecorder()
-	server.runtimeSkillFile(metadataResponse, metadataRequest)
-	if metadataResponse.Code != http.StatusNotFound {
-		t.Fatalf("private metadata status = %d, want 404; body=%s", metadataResponse.Code, metadataResponse.Body.String())
-	}
-
-	if symlinkCreated {
-		linkRequest := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/outside-link.txt", nil)
-		linkRequest.SetPathValue("skillID", "demo-skill")
-		linkRequest.SetPathValue("filePath", "outside-link.txt")
-		linkResponse := httptest.NewRecorder()
-		server.runtimeSkillFile(linkResponse, linkRequest)
-		if linkResponse.Code != http.StatusBadRequest {
-			t.Fatalf("outside symlink status = %d, want 400; body=%s", linkResponse.Code, linkResponse.Body.String())
-		}
+	if !strings.Contains(decoded.Skill.SkillDoc, "Runtime API content") {
+		t.Fatalf("Skill document should come from AgentDock API: %q", decoded.Skill.SkillDoc)
 	}
 }
 
 func TestRuntimeSkillFileReturnsSafeTextPreview(t *testing.T) {
+	requestCount := 0
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": "demo-skill", "version": "0.2.0", "selection": map[string]any{"active_version": "0.2.0"}})
+		requestCount++
+		if r.URL.Path != "/internal/runtime/skills/demo-skill/files/references/guide.md" {
+			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": true,
+			"file": map[string]any{
+				"path": "references/guide.md", "kind": "doc", "size_bytes": 14,
+				"updated_at": "2026-07-06T01:02:03Z", "content": "Guide content.", "truncated": false,
+			},
+		})
 	}))
 	defer runtime.Close()
 
-	agentDockDir := t.TempDir()
-	packageDir := filepath.Join(agentDockDir, "skill-store", "installed", "demo-skill", "0.2.0")
-	if err := os.MkdirAll(filepath.Join(packageDir, "references"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "SKILL.md"), []byte("---\nname: demo-skill\ndescription: demo\nversion: 0.2.0\n---\n# Demo\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(packageDir, "references", "guide.md"), []byte("Guide content."), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL, AgentDockDir: agentDockDir}}
+	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
 	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/runtime/demo-skill/files/references/guide.md", nil)
 	request.SetPathValue("source", "runtime")
 	request.SetPathValue("skillID", "demo-skill")
@@ -325,15 +295,30 @@ func TestRuntimeSkillFileReturnsSafeTextPreview(t *testing.T) {
 	if badResponse.Code != http.StatusBadRequest {
 		t.Fatalf("path traversal status = %d, want 400; body=%s", badResponse.Code, badResponse.Body.String())
 	}
+	if requestCount != 1 {
+		t.Fatalf("invalid path should not reach AgentDock API, requests=%d", requestCount)
+	}
 }
 
-func TestRuntimeSkillFileUsesRuntimeDocumentFallback(t *testing.T) {
+func TestRuntimeSkillDetailAndSkillFileNeedNoLocalMount(t *testing.T) {
 	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"ok": true, "skill": "demo-skill", "version": "0.2.0",
-			"selection": map[string]any{"active_version": "0.2.0", "updated_at": "2026-07-06T01:02:03Z"},
-			"document":  map[string]any{"name": "demo-skill", "description": "Runtime API skill", "version": "0.2.0", "body": "# Demo Skill\n\nFallback content."},
-		})
+		switch r.URL.Path {
+		case "/internal/runtime/skills/demo-skill":
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok": true, "skill": "demo-skill", "version": "0.2.0",
+				"selection":  map[string]any{"active_version": "0.2.0", "updated_at": "2026-07-06T01:02:03Z"},
+				"document":   map[string]any{"name": "demo-skill", "description": "Runtime API skill", "version": "0.2.0", "body": "# Demo Skill\n\nAPI-only content."},
+				"file_count": 1,
+				"files":      []map[string]any{{"path": "SKILL.md", "kind": "doc", "size_bytes": 100, "updated_at": "2026-07-06T01:02:03Z"}},
+			})
+		case "/internal/runtime/skills/demo-skill/files/SKILL.md":
+			writeJSON(w, http.StatusOK, map[string]any{
+				"ok":   true,
+				"file": map[string]any{"path": "SKILL.md", "kind": "doc", "size_bytes": 100, "updated_at": "2026-07-06T01:02:03Z", "content": "# Demo Skill\n\nAPI-only content.", "truncated": false},
+			})
+		default:
+			t.Fatalf("unexpected runtime path: %s", r.URL.Path)
+		}
 	}))
 	defer runtime.Close()
 
@@ -342,8 +327,8 @@ func TestRuntimeSkillFileUsesRuntimeDocumentFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detail: %v", err)
 	}
-	if detail.FileCount != 1 || len(detail.Files) != 1 || detail.Files[0].Path != "SKILL.md" {
-		t.Fatalf("Runtime document should expose one SKILL.md file: %+v", detail)
+	if detail.FileCount != 1 || len(detail.Files) != 1 || detail.Files[0].Path != "SKILL.md" || !strings.Contains(detail.SkillDoc, "API-only content") {
+		t.Fatalf("unexpected API-only detail: %+v", detail)
 	}
 
 	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/skills/agentdock-api/demo-skill/files/SKILL.md", nil)
@@ -362,7 +347,7 @@ func TestRuntimeSkillFileUsesRuntimeDocumentFallback(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if decoded.File.Path != "SKILL.md" || !strings.Contains(decoded.File.Content, "Fallback content") {
-		t.Fatalf("unexpected fallback file: %+v", decoded.File)
+	if decoded.File.Path != "SKILL.md" || !strings.Contains(decoded.File.Content, "API-only content") {
+		t.Fatalf("unexpected API-only file: %+v", decoded.File)
 	}
 }
