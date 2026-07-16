@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/uvwt/nexusdock/internal/config"
 )
 
 func TestRuntimeMCPListForwardsAgentDockAuthentication(t *testing.T) {
@@ -22,9 +20,9 @@ func TestRuntimeMCPListForwardsAgentDockAuthentication(t *testing.T) {
 	}))
 	defer runtime.Close()
 
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL, AgentDockToken: "runtime-token"}}
+	server := newRuntimeTestServer(t, runtime.URL, "runtime-token")
 	response := httptest.NewRecorder()
-	server.runtimeMCPServers(response, httptest.NewRequest(http.MethodGet, "/v1/runtime/mcp", nil))
+	server.runtimeMCPServers(response, setRuntimeNode(httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes/dockmini/mcp", nil)))
 
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"name":"demo"`) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
@@ -51,8 +49,8 @@ func TestRuntimeMCPManageForwardsWhitelistedPayloadWithoutLeakingSecret(t *testi
 	}))
 	defer runtime.Close()
 
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/mcp", strings.NewReader(`{"action":"env_set","name":"demo","key":"DEMO_TOKEN","value":"`+secret+`"}`))
+	server := newRuntimeTestServer(t, runtime.URL, "runtime-secret")
+	request := setRuntimeNode(httptest.NewRequest(http.MethodPost, "/v1/runtime/nodes/dockmini/mcp", strings.NewReader(`{"action":"env_set","name":"demo","key":"DEMO_TOKEN","value":"`+secret+`"}`)))
 	response := httptest.NewRecorder()
 	server.runtimeMCPManage(response, request)
 
@@ -65,8 +63,8 @@ func TestRuntimeMCPManageForwardsWhitelistedPayloadWithoutLeakingSecret(t *testi
 }
 
 func TestRuntimeMCPManageRejectsUnknownActionsBeforeForwarding(t *testing.T) {
-	server := &Server{}
-	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/mcp", strings.NewReader(`{"action":"inspect","name":"demo"}`))
+	server := newRuntimeTestServer(t, "", "")
+	request := setRuntimeNode(httptest.NewRequest(http.MethodPost, "/v1/runtime/nodes/dockmini/mcp", strings.NewReader(`{"action":"inspect","name":"demo"}`)))
 	response := httptest.NewRecorder()
 
 	server.runtimeMCPManage(response, request)
@@ -85,8 +83,8 @@ func TestRuntimeMCPDetailForwardsServerName(t *testing.T) {
 	}))
 	defer runtime.Close()
 
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/mcp/demo", nil)
+	server := newRuntimeTestServer(t, runtime.URL, "runtime-secret")
+	request := setRuntimeNode(httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes/dockmini/mcp/demo", nil))
 	request.SetPathValue("name", "demo")
 	response := httptest.NewRecorder()
 	server.runtimeMCPServer(response, request)
@@ -117,8 +115,8 @@ func TestRuntimeMCPEnvironmentUsesReadOnlyBrowserRoute(t *testing.T) {
 	}))
 	defer runtime.Close()
 
-	server := &Server{cfg: config.Config{AgentDockEndpoint: runtime.URL}}
-	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/mcp/demo/environment", nil)
+	server := newRuntimeTestServer(t, runtime.URL, "runtime-secret")
+	request := setRuntimeNode(httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes/dockmini/mcp/demo/environment", nil))
 	request.SetPathValue("name", "demo")
 	response := httptest.NewRecorder()
 	server.runtimeMCPEnvironment(response, request)

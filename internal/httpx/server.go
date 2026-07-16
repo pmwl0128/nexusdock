@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
@@ -24,6 +25,7 @@ type Server struct {
 	db           *sql.DB
 	store        *recall.Store
 	privateNotes *privatenotes.Store
+	agentDock    *agentdock.Store
 	syncer       *syncer.Manager
 	logger       *slog.Logger
 	auth         *auth.Service
@@ -34,6 +36,10 @@ type ServerOption func(*Server)
 
 func WithSystemDatabase(db *sql.DB) ServerOption {
 	return func(server *Server) { server.db = db }
+}
+
+func WithAgentDockNodes(store *agentdock.Store) ServerOption {
+	return func(server *Server) { server.agentDock = store }
 }
 
 func WithWebAuthentication(authService *auth.Service) ServerOption {

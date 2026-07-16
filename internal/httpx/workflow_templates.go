@@ -1,9 +1,6 @@
 package httpx
 
 import (
-	"encoding/json"
-	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,87 +28,6 @@ type workflowTemplateSummary struct {
 	HasConflict  bool      `json:"has_conflict,omitempty"`
 }
 
-type workflowTemplateDetail struct {
-	workflowTemplateSummary
-	Content string         `json:"content"`
-	JSON    map[string]any `json:"json,omitempty"`
-}
-
-func (s *Server) listRuntimeWorkflowTemplates(w http.ResponseWriter, r *http.Request) {
-	locationFilter := strings.TrimSpace(r.URL.Query().Get("location"))
-	includeHistory := r.URL.Query().Get("include_history") == "true" || r.URL.Query().Get("view") == "history"
-	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	templates, err := s.listWorkflowTemplates("")
-	if err != nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_LIST_FAILED", err.Error())
-		return
-	}
-	all := make([]workflowTemplateSummary, 0, len(templates))
-	for _, template := range templates {
-		item := s.workflowTemplateSummary(template)
-		if item.ID == "" {
-			continue
-		}
-		if locationFilter != "" && item.Location != locationFilter {
-			continue
-		}
-		all = append(all, item)
-	}
-	counters := workflowTemplateCounters(all)
-	items := all
-	mode := "history"
-	if locationFilter == "" && !includeHistory {
-		items = currentWorkflowTemplates(all)
-		mode = "current"
-	}
-	if query != "" {
-		filtered := make([]workflowTemplateSummary, 0, len(items))
-		for _, item := range items {
-			if templateSummaryMatches(item, query) {
-				filtered = append(filtered, item)
-			}
-		}
-		items = filtered
-	}
-	sortWorkflowTemplates(items)
-	conflicts := 0
-	for _, counter := range counters {
-		if counter.Active > 1 {
-			conflicts++
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "total_count": len(all), "root": s.workflowRegistryRoot(), "source": "nexus-registry", "mode": mode, "conflict_count": conflicts, "version_summary": counters})
-}
-
-func (s *Server) runtimeWorkflowTemplateDetail(w http.ResponseWriter, r *http.Request) {
-	_, fileName, err := workflowTemplateParams(r)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
-		return
-	}
-	id, version, err := workflowTemplateIDVersion(fileName)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
-		return
-	}
-	template, err := s.getWorkflowTemplate(id, version)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
-		return
-	}
-	content, _ := json.MarshalIndent(template, "", "  ")
-	var asMap map[string]any
-	_ = json.Unmarshal(content, &asMap)
-	detail := workflowTemplateDetail{workflowTemplateSummary: s.workflowTemplateSummary(template), Content: string(content), JSON: asMap}
-	allTemplates, _ := s.listWorkflowTemplates("")
-	all := make([]workflowTemplateSummary, 0, len(allTemplates))
-	for _, item := range allTemplates {
-		all = append(all, s.workflowTemplateSummary(item))
-	}
-	attachWorkflowTemplateCounters(&detail.workflowTemplateSummary, all)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": detail, "source": "nexus-registry"})
-}
-
 func (s *Server) workflowTemplateSummary(t workflowTemplate) workflowTemplateSummary {
 	summary := workflowTemplateSummaryFromTemplate(t)
 	s.attachWorkflowTemplateFileMetadata(&summary)
@@ -132,31 +48,6 @@ func (s *Server) attachWorkflowTemplateFileMetadata(summary *workflowTemplateSum
 	summary.UpdatedAt = info.ModTime().UTC()
 }
 
-func workflowTemplateSummariesFromRuntime(body map[string]any) []workflowTemplateSummary {
-	items := make([]workflowTemplateSummary, 0, len(opsArray(body["templates"])))
-	for _, raw := range opsArray(body["templates"]) {
-		item := workflowTemplateSummaryFromRuntime(opsMap(raw))
-		if item.ID != "" {
-			items = append(items, item)
-		}
-	}
-	return items
-}
-
-func workflowTemplateSummaryFromRuntime(item map[string]any) workflowTemplateSummary {
-	id := opsString(item["id"])
-	version := opsString(item["version"])
-	status := opsString(item["status"])
-	location := workflowLocationFromStatus(status)
-	fileName := id + "@" + version + ".json"
-	steps := opsArray(item["steps"])
-	match := opsMap(item["match"])
-	if len(steps) == 0 {
-		steps = make([]any, opsInt(item["step_count"]))
-	}
-	return workflowTemplateSummary{ID: id, Version: version, Title: firstNonEmptyString(opsString(item["title"]), id), Description: opsString(item["description"]), Status: status, Location: location, FileName: fileName, Path: "agentdock-runtime-api/" + fileName, StepCount: len(steps), Keywords: opsStringArray(match["keywords"]), Current: status == "active" || status == "draft"}
-}
-
 func workflowLocationFromStatus(status string) string {
 	switch status {
 	case "draft", "validated":
@@ -166,29 +57,6 @@ func workflowLocationFromStatus(status string) string {
 	default:
 		return "published"
 	}
-}
-
-func workflowTemplateIDVersion(fileName string) (string, string, error) {
-	fileName = strings.TrimSuffix(strings.TrimSpace(fileName), ".json")
-	parts := strings.SplitN(fileName, "@", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", errors.New("workflow template file name must be <id>@<version>.json")
-	}
-	return parts[0], parts[1], nil
-}
-
-func workflowTemplateParams(r *http.Request) (string, string, error) {
-	path := strings.TrimPrefix(r.URL.Path, "/v1/runtime/workflow-templates/")
-	parts := strings.SplitN(path, "/", 2)
-	if len(parts) != 2 {
-		return "", "", errors.New("template location and file name are required")
-	}
-	location := strings.TrimSpace(parts[0])
-	fileName := strings.TrimSpace(parts[1])
-	if location == "" || fileName == "" || strings.Contains(fileName, "/") {
-		return "", "", errors.New("template location and file name are required")
-	}
-	return location, fileName, nil
 }
 
 func templateSummaryMatches(summary workflowTemplateSummary, query string) bool {

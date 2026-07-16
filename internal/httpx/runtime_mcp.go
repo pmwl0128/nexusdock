@@ -29,18 +29,20 @@ type runtimeMCPRequest struct {
 }
 
 func (s *Server) registerRuntimeMCPRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
-	mux.HandleFunc("GET /v1/runtime/mcp", protected(s.runtimeMCPServers))
-	mux.HandleFunc("GET /v1/runtime/mcp/{name}/environment", protected(s.runtimeMCPEnvironment))
-	mux.HandleFunc("GET /v1/runtime/mcp/{name}", protected(s.runtimeMCPServer))
-	mux.HandleFunc("POST /v1/runtime/mcp", protected(s.runtimeMCPManage))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/mcp", protected(s.runtimeMCPServers))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/mcp/{name}/environment", protected(s.runtimeMCPEnvironment))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/mcp/{name}", protected(s.runtimeMCPServer))
+	mux.HandleFunc("POST /v1/runtime/nodes/{nodeID}/mcp", protected(s.runtimeMCPManage))
 }
 
 func (s *Server) runtimeMCPServers(w http.ResponseWriter, r *http.Request) {
-	payload, err := s.runtimeGet(r.Context(), "/internal/runtime/mcp", nil)
+	nodeID := r.PathValue("nodeID")
+	payload, err := s.runtimeGet(r.Context(), nodeID, "/internal/runtime/mcp", nil)
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
+	payload["node_id"] = nodeID
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -50,11 +52,13 @@ func (s *Server) runtimeMCPServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_MCP_NAME", "MCP 名称不能为空")
 		return
 	}
-	payload, err := s.runtimeGet(r.Context(), "/internal/runtime/mcp/"+url.PathEscape(name), nil)
+	nodeID := r.PathValue("nodeID")
+	payload, err := s.runtimeGet(r.Context(), nodeID, "/internal/runtime/mcp/"+url.PathEscape(name), nil)
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
+	payload["node_id"] = nodeID
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -64,7 +68,8 @@ func (s *Server) runtimeMCPEnvironment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_MCP_NAME", "MCP 名称不能为空")
 		return
 	}
-	payload, err := s.runtimePost(r.Context(), "/internal/runtime/mcp", runtimeMCPRequest{
+	nodeID := r.PathValue("nodeID")
+	payload, err := s.runtimePost(r.Context(), nodeID, "/internal/runtime/mcp", runtimeMCPRequest{
 		Action: "env_list",
 		Name:   name,
 	})
@@ -72,6 +77,7 @@ func (s *Server) runtimeMCPEnvironment(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
+	payload["node_id"] = nodeID
 	writeJSON(w, http.StatusOK, payload)
 }
 
@@ -90,10 +96,14 @@ func (s *Server) runtimeMCPManage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_MCP_NAME", "MCP 名称不能为空")
 		return
 	}
-	payload, err := s.runtimePost(r.Context(), "/internal/runtime/mcp", request)
+	nodeID := r.PathValue("nodeID")
+	payload, err := s.runtimePost(r.Context(), nodeID, "/internal/runtime/mcp", request)
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
+	// AgentDock 正常不会回显 value；Nexus 仍主动移除，避免上游契约回归造成密钥泄露。
+	delete(payload, "value")
+	payload["node_id"] = nodeID
 	writeJSON(w, http.StatusOK, payload)
 }

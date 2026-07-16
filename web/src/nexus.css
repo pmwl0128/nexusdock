@@ -3189,3 +3189,303 @@ dialog.nx-dialog-backdrop::backdrop {
     gap:4px
   }
 }
+
+/* AgentDock runtime nodes */
+.runtime-node-bar {
+  min-height:58px;
+  margin-bottom:14px;
+  padding:10px 12px;
+  border:1px solid var(--nx-line);
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(31,48,75,.04);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px
+}
+.runtime-node-bar>span {
+  min-width:0;
+  overflow:hidden;
+  color:var(--nx-muted);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11px;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+.runtime-node-selector {
+  min-width:min(340px,100%);
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:#4b586d;
+  font-size:12px;
+  font-weight:700
+}
+.runtime-node-selector svg {
+  flex:0 0 auto;
+  color:#5874cf
+}
+.runtime-node-selector select {
+  min-width:180px;
+  height:36px;
+  border:1px solid #d9e0e9;
+  border-radius:9px;
+  background:#fff;
+  color:var(--nx-text);
+  padding:0 32px 0 10px;
+  outline:none
+}
+.runtime-node-selector select:focus {
+  border-color:#6988ea;
+  box-shadow:0 0 0 3px rgba(71,110,231,.12)
+}
+.runtime-node-required {
+  min-height:340px;
+  border:1px dashed #cfd8e6;
+  border-radius:18px;
+  background:rgba(255,255,255,.72);
+  display:grid;
+  place-content:center;
+  justify-items:center;
+  gap:8px;
+  padding:30px;
+  text-align:center
+}
+.runtime-node-required>span {
+  width:50px;
+  height:50px;
+  border-radius:15px;
+  background:#edf2ff;
+  color:#4f70d4;
+  display:grid;
+  place-items:center
+}
+.runtime-node-required h2 {
+  margin:8px 0 0;
+  font-size:19px
+}
+.runtime-node-required p {
+  max-width:520px;
+  margin:0 0 8px;
+  color:var(--nx-muted);
+  font-size:12px;
+  line-height:1.6
+}
+.agentdock-nodes-panel {
+  margin:0 0 16px;
+  border:1px solid var(--nx-line);
+  border-radius:17px;
+  background:var(--nx-panel);
+  box-shadow:0 8px 28px rgba(37,53,78,.04);
+  overflow:hidden
+}
+.agentdock-nodes-panel>header {
+  padding:18px 20px;
+  border-bottom:1px solid var(--nx-line);
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px
+}
+.agentdock-nodes-panel>header h2 {
+  margin:4px 0 5px;
+  font-size:18px
+}
+.agentdock-nodes-panel>header p {
+  margin:0;
+  color:var(--nx-muted);
+  font-size:12px;
+  line-height:1.5
+}
+.agentdock-node-actions,
+.agentdock-node-row-actions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap
+}
+.agentdock-nodes-panel>.nx-alert {
+  margin:14px 16px 0
+}
+.agentdock-node-list {
+  display:grid;
+  gap:9px;
+  padding:14px 16px 16px
+}
+.agentdock-node-list>article {
+  min-width:0;
+  padding:13px;
+  border:1px solid #e5eaf1;
+  border-radius:13px;
+  background:#fff;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px
+}
+.agentdock-node-list>article.is-selected {
+  border-color:#b9c8f5;
+  background:#f7f9ff;
+  box-shadow:inset 3px 0 #6683e1
+}
+.agentdock-node-icon {
+  width:38px;
+  height:38px;
+  border-radius:11px;
+  background:#edf2ff;
+  color:#4f70d4;
+  display:grid;
+  place-items:center
+}
+.agentdock-node-copy {
+  min-width:0;
+  display:grid;
+  gap:4px
+}
+.agentdock-node-copy>div {
+  min-width:0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap
+}
+.agentdock-node-copy strong {
+  font-size:13px
+}
+.agentdock-node-copy code,
+.agentdock-node-copy em {
+  border-radius:999px;
+  padding:4px 7px;
+  background:#f0f2f5;
+  color:#637084;
+  font-size:10px;
+  font-style:normal
+}
+.agentdock-node-copy em {
+  background:#fff5df;
+  color:#9b650f
+}
+.agentdock-node-copy small,
+.agentdock-node-copy>span {
+  min-width:0;
+  overflow:hidden;
+  color:var(--nx-muted);
+  font-size:11px;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+.agentdock-node-copy small {
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace
+}
+.agentdock-node-form {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px
+}
+.agentdock-node-form label {
+  min-width:0;
+  display:grid;
+  gap:6px;
+  color:#4d5a6e;
+  font-size:12px
+}
+.agentdock-node-form label.is-wide,
+.agentdock-node-form footer {
+  grid-column:1/-1
+}
+.agentdock-node-form input {
+  width:100%;
+  min-width:0;
+  height:40px;
+  border:1px solid #d9e0e9;
+  border-radius:9px;
+  background:#fff;
+  color:var(--nx-text);
+  padding:0 11px;
+  outline:none
+}
+.agentdock-node-form input:focus {
+  border-color:#6988ea;
+  box-shadow:0 0 0 3px rgba(71,110,231,.12)
+}
+.agentdock-node-form input:disabled {
+  background:#f3f5f8;
+  color:#7d8899
+}
+.agentdock-node-form .agentdock-node-check {
+  display:flex;
+  align-items:center;
+  align-self:end;
+  height:40px;
+  gap:8px
+}
+.agentdock-node-form .agentdock-node-check input {
+  width:auto;
+  height:auto
+}
+.agentdock-node-form footer,
+.agentdock-node-delete footer {
+  margin-top:4px;
+  display:flex;
+  justify-content:flex-end;
+  gap:9px
+}
+.agentdock-node-delete {
+  display:grid;
+  gap:12px
+}
+.agentdock-node-delete p {
+  margin:0;
+  color:#39465b
+}
+.agentdock-node-delete code {
+  border-radius:9px;
+  background:#f4f6f9;
+  color:#536076;
+  padding:9px 10px;
+  overflow-wrap:anywhere;
+  font-size:11px
+}
+@media(max-width:820px) {
+  .runtime-node-bar {
+    align-items:stretch;
+    flex-direction:column
+  }
+  .runtime-node-bar>span {
+    padding:0 3px
+  }
+  .runtime-node-selector {
+    width:100%;
+    min-width:0
+  }
+  .runtime-node-selector select {
+    min-width:0;
+    flex:1
+  }
+  .agentdock-nodes-panel>header {
+    display:grid;
+    padding:16px
+  }
+  .agentdock-node-actions,
+  .agentdock-node-actions .nx-button {
+    width:100%
+  }
+  .agentdock-node-actions .nx-button {
+    flex:1
+  }
+  .agentdock-node-list>article {
+    grid-template-columns:auto minmax(0,1fr)
+  }
+  .agentdock-node-row-actions {
+    grid-column:1/-1;
+    justify-content:flex-end
+  }
+  .agentdock-node-form {
+    grid-template-columns:1fr
+  }
+  .agentdock-node-form label.is-wide,
+  .agentdock-node-form footer {
+    grid-column:auto
+  }
+}

@@ -60,7 +60,7 @@ function statusTone(server: MCPServer): string {
   return 'warn';
 }
 
-export default function MCPPage({ refreshToken }: { refreshToken: number }) {
+export default function MCPPage({ nodeID, refreshToken }: { nodeID: string; refreshToken: number }) {
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [selectedName, setSelectedName] = useState('');
   const [detail, setDetail] = useState<MCPDetailResponse | null>(null);
@@ -75,6 +75,7 @@ export default function MCPPage({ refreshToken }: { refreshToken: number }) {
   const [envKey, setEnvKey] = useState('');
   const [envValue, setEnvValue] = useState('');
   const detailRequestRef = useRef(0);
+  const runtimeBase = `/v1/runtime/nodes/${encodeURIComponent(nodeID)}`;
 
   const selected = useMemo(
     () => servers.find((server) => server.name === selectedName) || servers[0] || null,
@@ -84,7 +85,7 @@ export default function MCPPage({ refreshToken }: { refreshToken: number }) {
   async function loadServers(preferredName = selectedName) {
     setLoading(true);
     try {
-      const result = await api<MCPListResponse>('/v1/runtime/mcp');
+      const result = await api<MCPListResponse>(`${runtimeBase}/mcp`);
       setServers(result.servers || []);
       const nextName = result.servers?.some((server) => server.name === preferredName) ? preferredName : result.servers?.[0]?.name || '';
       setSelectedName(nextName);
@@ -104,8 +105,8 @@ export default function MCPPage({ refreshToken }: { refreshToken: number }) {
     const requestID = ++detailRequestRef.current;
     try {
       const [detailResult, envResult] = await Promise.all([
-        api<MCPDetailResponse>(`/v1/runtime/mcp/${encodeURIComponent(name)}`),
-        api<MCPEnvResponse>(`/v1/runtime/mcp/${encodeURIComponent(name)}/environment`),
+        api<MCPDetailResponse>(`${runtimeBase}/mcp/${encodeURIComponent(name)}`),
+        api<MCPEnvResponse>(`${runtimeBase}/mcp/${encodeURIComponent(name)}/environment`),
       ]);
       if (requestID === detailRequestRef.current) {
         setDetail(detailResult);
@@ -118,18 +119,18 @@ export default function MCPPage({ refreshToken }: { refreshToken: number }) {
     }
   }
 
-  useEffect(() => { void loadServers(); }, [refreshToken]);
+  useEffect(() => { void loadServers(); }, [refreshToken, nodeID]);
   useEffect(() => {
     detailRequestRef.current += 1;
     setDetail(null);
     if (selected?.name) void loadDetail(selected.name);
-  }, [selected?.name]);
+  }, [selected?.name, nodeID]);
 
   async function manage(action: string, name: string, payload: Record<string, unknown> = {}): Promise<boolean> {
     setBusy(`${action}:${name}`);
     setNotice(null);
     try {
-      await api('/v1/runtime/mcp', { method: 'POST', body: JSON.stringify({ action, name, ...payload }), timeoutMs: action === 'refresh' ? 60_000 : 15_000 });
+      await api(`${runtimeBase}/mcp`, { method: 'POST', body: JSON.stringify({ action, name, ...payload }), timeoutMs: action === 'refresh' ? 60_000 : 15_000 });
       await loadServers(name);
       if (action !== 'remove') await loadDetail(name);
       setNotice({ tone: 'success', text: actionMessage(action, name) });
@@ -161,7 +162,7 @@ export default function MCPPage({ refreshToken }: { refreshToken: number }) {
         timeout_ms: Number(addForm.timeout) || 30000,
         enabled: addForm.enabled,
       };
-      await api('/v1/runtime/mcp', { method: 'POST', body: JSON.stringify(payload) });
+      await api(`${runtimeBase}/mcp`, { method: 'POST', body: JSON.stringify(payload) });
       setAddOpen(false);
       setAddForm(emptyAddForm);
       await loadServers(name);

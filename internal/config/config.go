@@ -30,9 +30,6 @@ type Config struct {
 	RequireAuth           bool
 	AuthAllowInsecureHTTP bool
 	TrustedProxies        []string
-	AgentDockEndpoint     string
-	AgentDockToken        string
-	AgentDockTimeout      time.Duration
 	AutoSync              bool
 	PullInterval          time.Duration
 	PushDebounce          time.Duration
@@ -64,9 +61,6 @@ func FromEnv() Config {
 		RequireAuth:           getenvBool("NEXUS_REQUIRE_AUTH", false),
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
-		AgentDockEndpoint:     strings.TrimRight(strings.TrimSpace(os.Getenv("NEXUS_AGENTDOCK_ENDPOINT")), "/"),
-		AgentDockToken:        firstNonEmpty(os.Getenv("NEXUS_AGENTDOCK_TOKEN"), os.Getenv("AGENTDOCK_AUTH_TOKEN")),
-		AgentDockTimeout:      time.Duration(getenvInt("NEXUS_AGENTDOCK_TIMEOUT_SECONDS", 8)) * time.Second,
 		AutoSync:              getenvBool("RECALL_AUTO_SYNC", false),
 		PullInterval:          time.Duration(getenvInt("RECALL_PULL_INTERVAL_SECONDS", 120)) * time.Second,
 		PushDebounce:          time.Duration(getenvInt("RECALL_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
@@ -97,15 +91,6 @@ func (c Config) LogLevel() slog.Level {
 	default:
 		return slog.LevelInfo
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func getenv(key, fallback string) string {

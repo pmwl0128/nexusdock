@@ -8,16 +8,17 @@ Top-level product areas:
 
 - Overview: backup status and high-priority runtime availability signals.
 - Recall: NexusDock memory module for unified memory, notes, cards, inbox, Markdown editing, Git review, embeddings, and sync.
-- Runtime: AgentDock Runtime task, skill, workflow, capability, and log views through AgentDock Runtime APIs.
+- Runtime: explicitly selected AgentDock node task, Skill, and dynamic MCP views through AgentDock Runtime APIs; Workflow templates remain a Nexus-global registry.
 - Settings: administrator account, browser sessions, Nexus data health, Recall repository location, and backup status.
 
-Nexus does not own AgentDock Task, Skill, or Workflow lifecycle state. Those systems belong to AgentDock Runtime. Nexus only queries or triggers them through controlled Runtime APIs.
+Nexus does not own AgentDock Task, Skill, or dynamic MCP lifecycle state. It stores only node connection metadata and encrypted node credentials, then queries or triggers the selected AgentDock through controlled Runtime APIs. Workflow templates are global Nexus data consumed by AgentDock.
 
 ## Runtime Structure
 
 ```text
 cmd/nexusdock          production service entrypoint
 internal/recall    NexusDock Recall memory module: Markdown content, notes, cards, embeddings, and Git sync
+internal/agentdock encrypted AgentDock node registry and credentials
 internal/auth      administrator sessions and device authentication
 internal/httpx     Nexus HTTP API, Runtime API facade, and embedded Web UI
 web                React Nexus console
@@ -31,6 +32,8 @@ Production builds use `cmd/nexusdock`. Product vocabulary, public contracts, dep
 NEXUS_DATA_DIR/
   nexus.db
   backups/
+  secrets/
+    agentdock-nodes.key
 
 RECALL_REPO_DIR/
   .git/
@@ -38,3 +41,5 @@ RECALL_REPO_DIR/
   recall/docs/
   recall/managed/
 ```
+
+AgentDock 节点 Token 使用 `secrets/agentdock-nodes.key` 加密后存入 `nexus.db`。备份和恢复时必须同时保留数据库与该密钥文件；只恢复其中一项会导致已有节点凭据无法解密。

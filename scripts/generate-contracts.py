@@ -75,6 +75,16 @@ ERROR_CODES = [
     "UNSUPPORTED_COMMAND",
     "SKILL_BLOCKED",
     "SCHEMA_MISMATCH",
+    "AGENTDOCK_NODE_STORE_UNAVAILABLE",
+    "AGENTDOCK_NODE_LIST_FAILED",
+    "AGENTDOCK_NODE_NOT_FOUND",
+    "AGENTDOCK_NODE_EXISTS",
+    "AGENTDOCK_NODE_DISABLED",
+    "INVALID_AGENTDOCK_NODE",
+    "AGENTDOCK_NODE_OPERATION_FAILED",
+    "AGENTDOCK_NODE_CREDENTIALS_UNAVAILABLE",
+    "AGENTDOCK_RUNTIME_UNREACHABLE",
+    "AGENTDOCK_RUNTIME_BAD_RESPONSE",
 ]
 
 
@@ -327,6 +337,56 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("action", "root", "algorithm"),
     )
+    schemas["AgentDockNode"] = obj(
+        "Nexus 管理的一台 AgentDock Runtime 节点。",
+        {
+            "id": scalar("string", "稳定节点 ID。", pattern="^[a-z0-9][a-z0-9_-]{0,63}$"),
+            "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
+            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
+            "enabled": scalar("boolean", "节点是否允许 Runtime 请求。"),
+            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+            "token_configured": scalar("boolean", "节点 Token 是否已配置；不会返回 Token 原值。"),
+            "created_at": TIMESTAMP,
+            "updated_at": TIMESTAMP,
+        },
+        ("id", "name", "endpoint", "enabled", "timeout_seconds", "token_configured", "created_at", "updated_at"),
+    )
+    schemas["AgentDockNodeCreateRequest"] = obj(
+        "新增 AgentDock 节点。",
+        {
+            "id": scalar("string", "稳定节点 ID。", pattern="^[a-z0-9][a-z0-9_-]{0,63}$"),
+            "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
+            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
+            "token": scalar("string", "该节点独立 Bearer Token。", minLength=1, maxLength=16384, writeOnly=True),
+            "enabled": scalar("boolean", "节点是否启用。"),
+            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+        },
+        ("id", "name", "endpoint", "token"),
+    )
+    schemas["AgentDockNodeUpdateRequest"] = obj(
+        "更新 AgentDock 节点；省略 token 时保留现有凭据。",
+        {
+            "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
+            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
+            "token": scalar("string", "替换该节点的 Bearer Token。", minLength=1, maxLength=16384, writeOnly=True),
+            "enabled": scalar("boolean", "节点是否启用。"),
+            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+        },
+    )
+    schemas["AgentDockNodeListResponse"] = obj(
+        "AgentDock 节点列表。",
+        {
+            "ok": scalar("boolean", "请求是否成功。"),
+            "nodes": array("AgentDock 节点。", ref("AgentDockNode")),
+            "count": scalar("integer", "节点数量。", minimum=0),
+        },
+        ("ok", "nodes", "count"),
+    )
+    schemas["AgentDockNodeResponse"] = obj(
+        "单个 AgentDock 节点响应。",
+        {"ok": scalar("boolean", "请求是否成功。"), "node": ref("AgentDockNode")},
+        ("ok", "node"),
+    )
     return schemas
 
 def response(schema: dict[str, Any], description: str = "成功。") -> dict[str, Any]:
@@ -346,11 +406,15 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
     parameters = {
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
         "RecallPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
+        "RuntimeNodeId": path_param("nodeID", "Nexus 中登记的 AgentDock 节点 ID。", uuid=False),
         "RuntimeTaskId": path_param("taskID", "AgentDock Runtime task ID。", uuid=False),
         "RuntimeSkillSource": path_param("source", "AgentDock Runtime skill source。", uuid=False),
         "RuntimeSkillId": path_param("skillID", "AgentDock Runtime skill ID。", uuid=False),
-        "RuntimeWorkflowLocation": path_param("location", "Runtime workflow template location。", uuid=False),
-        "RuntimeWorkflowFileName": path_param("fileName", "Runtime workflow template file name。", uuid=False),
+        "RuntimeSkillFilePath": path_param("filePath", "AgentDock Runtime Skill 文件相对路径。", uuid=False),
+        "RuntimeMCPName": path_param("name", "AgentDock 动态 MCP 服务名称。", uuid=False),
+        "WorkflowTemplateId": path_param("templateID", "Nexus Workflow 模板 ID。", uuid=False),
+        "WorkflowTemplateVersion": path_param("version", "Nexus Workflow 模板版本。", uuid=False),
+        "WorkflowTemplateAction": path_param("action", "Nexus Workflow 模板动作。", uuid=False),
     }
 
     def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
@@ -466,13 +530,38 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/sync/pull": {"post": operation("pullRecall", "从远端更新召回仓库", request=body())},
         "/v1/sync/push": {"post": operation("pushRecall", "保存召回仓库到远端", request=body())},
         "/v1/sync/now": {"post": operation("syncRecallNow", "立即双向同步召回仓库", request=body())},
-        "/v1/runtime/overview": {"get": operation("getRuntimeOverview", "读取 AgentDock Runtime 可用性和概览")},
-        "/v1/runtime/tasks": {"get": operation("listRuntimeTasks", "通过 AgentDock Runtime API 列出任务视图")},
-        "/v1/runtime/tasks/{taskID}": {"get": operation("getRuntimeTask", "通过 AgentDock Runtime API 读取任务详情", params=[p("RuntimeTaskId")])},
-        "/v1/runtime/skills": {"get": operation("listRuntimeSkills", "通过 AgentDock Runtime API 列出 Skill 视图")},
-        "/v1/runtime/skills/{source}/{skillID}": {"get": operation("getRuntimeSkill", "通过 AgentDock Runtime API 读取 Skill 详情", params=[p("RuntimeSkillSource"), p("RuntimeSkillId")])},
-        "/v1/runtime/workflow-templates": {"get": operation("listRuntimeWorkflowTemplates", "通过 AgentDock Runtime API 列出 Workflow 模板视图")},
-        "/v1/runtime/workflow-templates/{location}/{fileName}": {"get": operation("getRuntimeWorkflowTemplate", "通过 AgentDock Runtime API 读取 Workflow 模板详情", params=[p("RuntimeWorkflowLocation"), p("RuntimeWorkflowFileName")])},
+        "/v1/runtime/nodes": {
+            "get": operation("listAgentDockNodes", "列出 Nexus 管理的 AgentDock 节点", success=ok(ref("AgentDockNodeListResponse"))),
+            "post": operation("createAgentDockNode", "新增 AgentDock 节点", request=body(ref("AgentDockNodeCreateRequest")), success=ok(ref("AgentDockNodeResponse")), success_code="201"),
+        },
+        "/v1/runtime/nodes/{nodeID}": {
+            "get": operation("getAgentDockNode", "读取 AgentDock 节点", params=[p("RuntimeNodeId")], success=ok(ref("AgentDockNodeResponse"))),
+            "patch": operation("updateAgentDockNode", "更新 AgentDock 节点", params=[p("RuntimeNodeId")], request=body(ref("AgentDockNodeUpdateRequest")), success=ok(ref("AgentDockNodeResponse"))),
+            "delete": operation("deleteAgentDockNode", "删除 AgentDock 节点及加密凭据", params=[p("RuntimeNodeId")]),
+        },
+        "/v1/runtime/nodes/{nodeID}/probe": {"post": operation("probeAgentDockNode", "验证 AgentDock 节点连接、认证和 Runtime API", params=[p("RuntimeNodeId")])},
+        "/v1/runtime/nodes/{nodeID}/overview": {"get": operation("getRuntimeOverview", "读取指定 AgentDock 节点的 Runtime 概览", params=[p("RuntimeNodeId")])},
+        "/v1/runtime/nodes/{nodeID}/tasks": {"get": operation("listRuntimeTasks", "列出指定 AgentDock 节点的任务", params=[p("RuntimeNodeId")])},
+        "/v1/runtime/nodes/{nodeID}/tasks/{taskID}": {
+            "get": operation("getRuntimeTask", "读取指定 AgentDock 节点的任务详情", params=[p("RuntimeNodeId"), p("RuntimeTaskId")]),
+            "delete": operation("deleteRuntimeTask", "删除指定 AgentDock 节点的任务", params=[p("RuntimeNodeId"), p("RuntimeTaskId")]),
+        },
+        "/v1/runtime/nodes/{nodeID}/skills": {"get": operation("listRuntimeSkills", "列出指定 AgentDock 节点的 Skill", params=[p("RuntimeNodeId")])},
+        "/v1/runtime/nodes/{nodeID}/skills/{source}/{skillID}": {"get": operation("getRuntimeSkill", "读取指定 AgentDock 节点的 Skill 详情", params=[p("RuntimeNodeId"), p("RuntimeSkillSource"), p("RuntimeSkillId")])},
+        "/v1/runtime/nodes/{nodeID}/skills/{source}/{skillID}/files/{filePath}": {"get": operation("getRuntimeSkillFile", "读取指定 AgentDock 节点的 Skill 文件", params=[p("RuntimeNodeId"), p("RuntimeSkillSource"), p("RuntimeSkillId"), p("RuntimeSkillFilePath")])},
+        "/v1/runtime/nodes/{nodeID}/mcp": {
+            "get": operation("listRuntimeMCPServers", "列出指定 AgentDock 节点的动态 MCP 服务", params=[p("RuntimeNodeId")]),
+            "post": operation("manageRuntimeMCPServer", "管理指定 AgentDock 节点的动态 MCP 服务", params=[p("RuntimeNodeId")], request=body()),
+        },
+        "/v1/runtime/nodes/{nodeID}/mcp/{name}": {"get": operation("getRuntimeMCPServer", "读取指定 AgentDock 节点的动态 MCP 服务", params=[p("RuntimeNodeId"), p("RuntimeMCPName")])},
+        "/v1/runtime/nodes/{nodeID}/mcp/{name}/environment": {"get": operation("getRuntimeMCPEnvironment", "读取指定 AgentDock 节点的 MCP 隔离环境元数据", params=[p("RuntimeNodeId"), p("RuntimeMCPName")])},
+        "/v1/workflow-templates": {"get": operation("listWorkflowTemplates", "列出 Nexus Workflow 模板")},
+        "/v1/workflow-templates/drafts": {"post": operation("saveWorkflowTemplateDraft", "保存 Nexus Workflow 模板草稿", request=body())},
+        "/v1/workflow-templates/match": {"post": operation("matchWorkflowTemplates", "匹配 Nexus Workflow 模板", request=body())},
+        "/v1/workflow-templates/reindex": {"post": operation("reindexWorkflowTemplates", "重建 Nexus Workflow 模板向量索引", request=body())},
+        "/v1/workflow-templates/vector-index": {"get": operation("getWorkflowTemplateVectorIndex", "读取 Nexus Workflow 模板向量索引状态")},
+        "/v1/workflow-templates/{templateID}/{version}": {"get": operation("getWorkflowTemplate", "读取 Nexus Workflow 模板详情", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion")])},
+        "/v1/workflow-templates/{templateID}/{version}/{action}": {"post": operation("manageWorkflowTemplate", "验证、发布或退役 Nexus Workflow 模板", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion"), p("WorkflowTemplateAction")])},
     }
 
     return {

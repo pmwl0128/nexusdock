@@ -72,6 +72,46 @@
     {
       "code": "SCHEMA_MISMATCH",
       "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_STORE_UNAVAILABLE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_LIST_FAILED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_NOT_FOUND",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_EXISTS",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_DISABLED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "INVALID_AGENTDOCK_NODE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_OPERATION_FAILED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_NODE_CREDENTIALS_UNAVAILABLE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_RUNTIME_UNREACHABLE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "AGENTDOCK_RUNTIME_BAD_RESPONSE",
+      "description": "稳定公共错误码。"
     }
   ]
 }

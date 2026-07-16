@@ -24,6 +24,6 @@ Applies to the React/Vite app under `web/`, including the embedded build output 
 
 - Use Nexus as the product/service name.
 - Use Recall for memory, notes, cards, inbox, and Git sync.
-- Do not introduce Nexus-owned Task, Skill, or Workflow lifecycle storage.
-- Runtime views must call AgentDock Runtime APIs.
+- Do not introduce Nexus-owned Task or Skill lifecycle storage; Workflow templates remain the Nexus-global registry consumed by AgentDock.
+- Task, Skill, and dynamic MCP Runtime views must require an explicit AgentDock node and call its Runtime APIs.
 - Do not place Nexus system state under the Recall repository.

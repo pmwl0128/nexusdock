@@ -12,6 +12,12 @@ import { ApiError, api, setCSRFToken } from './api/client';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
 import { SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
 import MCPPage from './components/runtime/MCPPage';
+import {
+  AgentDockNodeRequired,
+  AgentDockNodeSelector,
+  AgentDockNodesPanel,
+  useAgentDockNodes,
+} from './components/runtime/AgentDockNodes';
 import './nexus.css';
 
 type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'mcp';
@@ -165,6 +171,7 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [session, setSession] = useState<WebSession | null>(null);
+  const runtimeNodes = useAgentDockNodes(refreshToken);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,8 +242,8 @@ export default function App() {
         <div className={`nexus-content nexus-section-${section}`}>
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'recall' && <RecallWorkspace refreshToken={refreshToken} />}
-          {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} />}
-          {section === 'settings' && <SettingsPage refreshToken={refreshToken} />}
+          {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} runtimeNodes={runtimeNodes} navigate={navigate} />}
+          {section === 'settings' && <SettingsPage refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
         </div>
       </main>
       {sessionExpired && <SessionExpiredDialog />}
@@ -297,20 +304,41 @@ function isRuntimeSection(section: Section): section is RuntimeSection {
   return RUNTIME_SECTIONS.some((item) => item.id === section);
 }
 
-function RuntimeContent({ active, refreshToken }: { active: RuntimeSection; refreshToken: number }) {
+type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
+
+function RuntimeContent({ active, refreshToken, runtimeNodes, navigate }: {
+  active: RuntimeSection;
+  refreshToken: number;
+  runtimeNodes: RuntimeNodesState;
+  navigate: (section: Section) => void;
+}) {
+  const requiresNode = active !== 'templates';
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    {active === 'tasks' && <TaskCenterPage refreshToken={refreshToken} />}
-    {active === 'skills' && <SkillsPage refreshToken={refreshToken} />}
+    {requiresNode && <div className="runtime-node-bar">
+      <AgentDockNodeSelector nodes={runtimeNodes.nodes} selectedNodeID={runtimeNodes.selectedNodeID} onSelect={runtimeNodes.selectNode} />
+      {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.endpoint}</span>}
+    </div>}
+    {requiresNode && !runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button is-primary" onClick={() => navigate('settings')}>管理节点</button></AgentDockNodeRequired>}
+    {active === 'tasks' && runtimeNodes.selectedNode && <TaskCenterPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
+    {active === 'skills' && runtimeNodes.selectedNode && <SkillsPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
-    {active === 'mcp' && <MCPPage refreshToken={refreshToken} />}
+    {active === 'mcp' && runtimeNodes.selectedNode && <MCPPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
   </section>;
 }
 
-function SettingsPage({ refreshToken }: { refreshToken: number }) {
+function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; runtimeNodes: RuntimeNodesState }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
+    <AgentDockNodesPanel
+      nodes={runtimeNodes.nodes}
+      selectedNodeID={runtimeNodes.selectedNodeID}
+      loading={runtimeNodes.loading}
+      error={runtimeNodes.error}
+      onReload={runtimeNodes.reload}
+      onSelect={runtimeNodes.selectNode}
+    />
     <section className="settings-grid compact-settings">
       <Panel className="settings-system-panel" icon={Activity} title="系统" subtitle="运行状态与数据位置">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />

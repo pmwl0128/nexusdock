@@ -323,3 +323,71 @@ type PrivateNoteMaintenanceResponse struct {
 	// Algorithm 加密算法。
 	Algorithm string `json:"algorithm"`
 }
+
+// AgentDockNode Nexus 管理的一台 AgentDock Runtime 节点。
+type AgentDockNode struct {
+	// Id 稳定节点 ID。
+	Id string `json:"id"`
+	// Name 节点显示名称。
+	Name string `json:"name"`
+	// Endpoint AgentDock HTTP/HTTPS Origin。
+	Endpoint string `json:"endpoint"`
+	// Enabled 节点是否允许 Runtime 请求。
+	Enabled bool `json:"enabled"`
+	// TimeoutSeconds 请求超时秒数。
+	TimeoutSeconds int64 `json:"timeout_seconds"`
+	// TokenConfigured 节点 Token 是否已配置；不会返回 Token 原值。
+	TokenConfigured bool `json:"token_configured"`
+	// CreatedAt RFC 3339 UTC 时间。
+	CreatedAt string `json:"created_at"`
+	// UpdatedAt RFC 3339 UTC 时间。
+	UpdatedAt string `json:"updated_at"`
+}
+
+// AgentDockNodeCreateRequest 新增 AgentDock 节点。
+type AgentDockNodeCreateRequest struct {
+	// Id 稳定节点 ID。
+	Id string `json:"id"`
+	// Name 节点显示名称。
+	Name string `json:"name"`
+	// Endpoint AgentDock HTTP/HTTPS Origin。
+	Endpoint string `json:"endpoint"`
+	// Token 该节点独立 Bearer Token。
+	Token string `json:"token"`
+	// Enabled 节点是否启用。
+	Enabled *bool `json:"enabled,omitempty"`
+	// TimeoutSeconds 请求超时秒数。
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitempty"`
+}
+
+// AgentDockNodeUpdateRequest 更新 AgentDock 节点；省略 token 时保留现有凭据。
+type AgentDockNodeUpdateRequest struct {
+	// Name 节点显示名称。
+	Name *string `json:"name,omitempty"`
+	// Endpoint AgentDock HTTP/HTTPS Origin。
+	Endpoint *string `json:"endpoint,omitempty"`
+	// Token 替换该节点的 Bearer Token。
+	Token *string `json:"token,omitempty"`
+	// Enabled 节点是否启用。
+	Enabled *bool `json:"enabled,omitempty"`
+	// TimeoutSeconds 请求超时秒数。
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitempty"`
+}
+
+// AgentDockNodeListResponse AgentDock 节点列表。
+type AgentDockNodeListResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Nodes AgentDock 节点。
+	Nodes []AgentDockNode `json:"nodes"`
+	// Count 节点数量。
+	Count int64 `json:"count"`
+}
+
+// AgentDockNodeResponse 单个 AgentDock 节点响应。
+type AgentDockNodeResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Node 契约字段。
+	Node AgentDockNode `json:"node"`
+}

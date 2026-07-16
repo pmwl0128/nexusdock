@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/BackupStatus.json",
-  "title": "BackupStatus",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/AgentDockNodeListResponse.json",
+  "title": "AgentDockNodeListResponse",
   "$defs": {
     "JsonObject": {
       "type": "object",
@@ -1012,107 +1012,29 @@
     }
   },
   "type": "object",
-  "description": "AgentDock 与 Nexus 的单一备份状态。",
+  "description": "AgentDock 节点列表。",
   "additionalProperties": false,
   "properties": {
-    "id": {
-      "type": "string",
-      "description": "稳定备份标识。"
-    },
-    "title": {
-      "type": "string",
-      "description": "备份名称。"
-    },
-    "description": {
-      "type": "string",
-      "description": "备份内容说明。"
-    },
-    "provider": {
-      "type": "string",
-      "description": "计划执行提供方。"
-    },
-    "host": {
-      "type": "string",
-      "description": "执行主机。"
-    },
-    "enabled": {
+    "ok": {
       "type": "boolean",
-      "description": "备份是否启用。"
+      "description": "请求是否成功。"
     },
-    "schedule": {
-      "type": "string",
-      "description": "可读计划。"
-    },
-    "schedule_type": {
-      "type": "string",
-      "description": "计划类型。"
-    },
-    "state": {
-      "type": "string",
-      "description": "备份状态。",
-      "enum": [
-        "never_run",
-        "queued",
-        "running",
-        "success",
-        "failed",
-        "unknown",
-        "disabled"
-      ]
-    },
-    "last_started_at": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
-    },
-    "last_completed_at": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
-    },
-    "next_run_at": {
-      "type": "string",
-      "description": "RFC 3339 UTC 时间。",
-      "format": "date-time"
-    },
-    "message": {
-      "type": "string",
-      "description": "状态说明。"
-    },
-    "archive": {
-      "type": "string",
-      "description": "最近归档文件名。"
-    },
-    "archive_size": {
-      "type": "integer",
-      "description": "最近归档字节数。",
-      "minimum": 0
-    },
-    "sha256": {
-      "type": "string",
-      "description": "最近归档 SHA-256。"
-    },
-    "remote_path": {
-      "type": "string",
-      "description": "脱敏后的远端路径。"
-    },
-    "history": {
+    "nodes": {
       "type": "array",
-      "description": "最近备份历史。",
+      "description": "AgentDock 节点。",
       "items": {
-        "$ref": "#/$defs/BackupHistory"
+        "$ref": "#/$defs/AgentDockNode"
       }
+    },
+    "count": {
+      "type": "integer",
+      "description": "节点数量。",
+      "minimum": 0
     }
   },
   "required": [
-    "id",
-    "title",
-    "provider",
-    "host",
-    "enabled",
-    "schedule",
-    "state",
-    "next_run_at",
-    "history"
+    "ok",
+    "nodes",
+    "count"
   ]
 }

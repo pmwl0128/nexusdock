@@ -4,18 +4,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
 type agentDockRuntimeClient struct {
 	endpoint string
 	token    string
 	client   *http.Client
+	node     agentdock.Node
 }
 
 type agentDockRuntimeError struct {
@@ -34,36 +38,48 @@ func (e agentDockRuntimeError) Error() string {
 	return "AgentDock Runtime API unavailable"
 }
 
-func (s *Server) agentDockRuntimeClient() (*agentDockRuntimeClient, error) {
-	endpoint := strings.TrimRight(strings.TrimSpace(s.cfg.AgentDockEndpoint), "/")
-	if endpoint == "" {
-		return nil, agentDockRuntimeError{Code: "AGENTDOCK_ENDPOINT_UNCONFIGURED", Message: "AgentDock Runtime API 未配置"}
+func (s *Server) agentDockRuntimeClient(ctx context.Context, nodeID string) (*agentDockRuntimeClient, error) {
+	if s.agentDock == nil {
+		return nil, agentDockRuntimeError{Code: "AGENTDOCK_NODE_STORE_UNAVAILABLE", Message: "AgentDock 节点存储不可用"}
 	}
-	timeout := s.cfg.AgentDockTimeout
-	if timeout <= 0 {
-		timeout = 8 * time.Second
+	credentials, err := s.agentDock.Credentials(ctx, nodeID)
+	if err != nil {
+		switch {
+		case errors.Is(err, agentdock.ErrNodeNotFound):
+			return nil, agentDockRuntimeError{Status: http.StatusNotFound, Code: "AGENTDOCK_NODE_NOT_FOUND", Message: err.Error()}
+		case errors.Is(err, agentdock.ErrNodeDisabled):
+			return nil, agentDockRuntimeError{Status: http.StatusConflict, Code: "AGENTDOCK_NODE_DISABLED", Message: err.Error()}
+		default:
+			return nil, agentDockRuntimeError{Code: "AGENTDOCK_NODE_CREDENTIALS_UNAVAILABLE", Message: "AgentDock 节点凭据不可用"}
+		}
 	}
-	return &agentDockRuntimeClient{endpoint: endpoint, token: strings.TrimSpace(s.cfg.AgentDockToken), client: &http.Client{Timeout: timeout}}, nil
+	timeout := time.Duration(credentials.Node.TimeoutSeconds) * time.Second
+	return &agentDockRuntimeClient{
+		endpoint: credentials.Node.Endpoint,
+		token:    credentials.Token,
+		client:   &http.Client{Timeout: timeout},
+		node:     credentials.Node,
+	}, nil
 }
 
-func (s *Server) runtimeGet(ctx context.Context, path string, query url.Values) (map[string]any, error) {
-	return s.runtimeRequest(ctx, http.MethodGet, path, query, nil)
+func (s *Server) runtimeGet(ctx context.Context, nodeID, path string, query url.Values) (map[string]any, error) {
+	return s.runtimeRequest(ctx, nodeID, http.MethodGet, path, query, nil)
 }
 
-func (s *Server) runtimeDelete(ctx context.Context, path string) (map[string]any, error) {
-	return s.runtimeRequest(ctx, http.MethodDelete, path, nil, nil)
+func (s *Server) runtimeDelete(ctx context.Context, nodeID, path string) (map[string]any, error) {
+	return s.runtimeRequest(ctx, nodeID, http.MethodDelete, path, nil, nil)
 }
 
-func (s *Server) runtimePost(ctx context.Context, path string, payload any) (map[string]any, error) {
+func (s *Server) runtimePost(ctx context.Context, nodeID, path string, payload any) (map[string]any, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("encode AgentDock Runtime request: %w", err)
 	}
-	return s.runtimeRequest(ctx, http.MethodPost, path, nil, body)
+	return s.runtimeRequest(ctx, nodeID, http.MethodPost, path, nil, body)
 }
 
-func (s *Server) runtimeRequest(ctx context.Context, method, path string, query url.Values, requestBody []byte) (map[string]any, error) {
-	client, err := s.agentDockRuntimeClient()
+func (s *Server) runtimeRequest(ctx context.Context, nodeID, method, path string, query url.Values, requestBody []byte) (map[string]any, error) {
+	client, err := s.agentDockRuntimeClient(ctx, nodeID)
 	if err != nil {
 		return nil, err
 	}

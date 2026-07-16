@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/core"
@@ -77,6 +78,11 @@ func Main(args []string) {
 		logger.Error("failed to migrate control plane database", "error", err)
 		os.Exit(1)
 	}
+	agentDockNodes, err := agentdock.NewStore(controlDB, controlDir)
+	if err != nil {
+		logger.Error("failed to initialize AgentDock node store", "error", err)
+		os.Exit(1)
+	}
 
 	authService := auth.NewService(controlDB)
 	migrated, err := authService.EnsureLegacyAdmin(ctx, cfg.Username, cfg.Password, cfg.PasswordHash)
@@ -107,6 +113,7 @@ func Main(args []string) {
 		syncManager,
 		logger,
 		httpx.WithSystemDatabase(controlDB),
+		httpx.WithAgentDockNodes(agentDockNodes),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithEmbeddingService(embeddingService),
 		httpx.WithPrivateNotes(privateNoteStore),

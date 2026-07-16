@@ -98,21 +98,21 @@ type opsSkillFileContent struct {
 }
 
 func (s *Server) registerRuntimeRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
-	mux.HandleFunc("GET /v1/runtime/overview", protected(s.runtimeOverview))
-	mux.HandleFunc("GET /v1/runtime/tasks", protected(s.runtimeTasks))
-	mux.HandleFunc("GET /v1/runtime/tasks/{fileName}", protected(s.runtimeTaskDetail))
-	mux.HandleFunc("DELETE /v1/runtime/tasks/{fileName}", protected(s.runtimeDeleteTask))
-	mux.HandleFunc("GET /v1/runtime/skills", protected(s.runtimeSkills))
-	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}/files/{filePath...}", protected(s.runtimeSkillFile))
-	mux.HandleFunc("GET /v1/runtime/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
-	mux.HandleFunc("GET /v1/runtime/workflow-templates", protected(s.listRuntimeWorkflowTemplates))
-	mux.HandleFunc("GET /v1/runtime/workflow-templates/", protected(s.runtimeWorkflowTemplateDetail))
+	s.registerAgentDockNodeRoutes(mux, protected)
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/overview", protected(s.runtimeOverview))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/tasks", protected(s.runtimeTasks))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/tasks/{fileName}", protected(s.runtimeTaskDetail))
+	mux.HandleFunc("DELETE /v1/runtime/nodes/{nodeID}/tasks/{fileName}", protected(s.runtimeDeleteTask))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/skills", protected(s.runtimeSkills))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/skills/{source}/{skillID}/files/{filePath...}", protected(s.runtimeSkillFile))
+	mux.HandleFunc("GET /v1/runtime/nodes/{nodeID}/skills/{source}/{skillID}", protected(s.runtimeSkillDetail))
 	s.registerRuntimeMCPRoutes(mux, protected)
 }
 
 func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
-	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), runtimeTaskListLimit)
-	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context())
+	nodeID := r.PathValue("nodeID")
+	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), nodeID, runtimeTaskListLimit)
+	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context(), nodeID)
 	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0}
 	for _, task := range tasks {
 		counts[task.Status]++
@@ -121,27 +121,30 @@ func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
 		"ok":         taskErr == nil && skillErr == nil,
 		"tasks":      counts,
 		"skills":     map[string]any{"count": len(skills), "items": firstSkills(skills, 6)},
-		"workflows":  s.workflowCountsFromRuntime(r.Context()),
 		"paths":      s.opsPaths(),
+		"node_id":    nodeID,
 		"source":     "agentdock-runtime-api",
 		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	if taskErr != nil || skillErr != nil {
-		payload["runtime"] = runtimeUnavailablePayload(firstOpsError(taskErr, skillErr))
+		err := firstOpsError(taskErr, skillErr)
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
+		return
 	}
 	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
+	nodeID := r.PathValue("nodeID")
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	limit := queryInt(r, "limit", runtimeTaskListLimit)
 	if limit > runtimeTaskListLimit {
 		limit = runtimeTaskListLimit
 	}
-	items, err := s.collectOpsTasksFromRuntime(r.Context(), limit)
+	items, err := s.collectOpsTasksFromRuntime(r.Context(), nodeID, limit)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
 	filtered := make([]opsTaskSummary, 0, len(items))
@@ -161,7 +164,7 @@ func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": filtered, "count": len(filtered), "total": len(items), "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node_id": nodeID, "items": filtered, "count": len(filtered), "total": len(items), "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) runtimeTaskDetail(w http.ResponseWriter, r *http.Request) {
@@ -170,12 +173,13 @@ func (s *Server) runtimeTaskDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_TASK_ID", err.Error())
 		return
 	}
-	detail, err := s.runtimeTaskDetailFromRuntime(r.Context(), id)
+	nodeID := r.PathValue("nodeID")
+	detail, err := s.runtimeTaskDetailFromRuntime(r.Context(), nodeID, id)
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": detail, "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node_id": nodeID, "task": detail, "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) runtimeDeleteTask(w http.ResponseWriter, r *http.Request) {
@@ -184,22 +188,25 @@ func (s *Server) runtimeDeleteTask(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_TASK_ID", err.Error())
 		return
 	}
-	payload, err := s.runtimeDelete(r.Context(), "/internal/runtime/tasks/"+urlPath(id))
+	nodeID := r.PathValue("nodeID")
+	payload, err := s.runtimeDelete(r.Context(), nodeID, "/internal/runtime/tasks/"+urlPath(id))
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
 	payload["source"] = "agentdock-runtime-api"
+	payload["node_id"] = nodeID
 	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) runtimeSkills(w http.ResponseWriter, r *http.Request) {
-	items, err := s.collectOpsSkillsFromRuntime(r.Context())
+	nodeID := r.PathValue("nodeID")
+	items, err := s.collectOpsSkillsFromRuntime(r.Context(), nodeID)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "items": items, "count": len(items), "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node_id": nodeID, "items": items, "count": len(items), "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
@@ -208,12 +215,13 @@ func (s *Server) runtimeSkillDetail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_SKILL_ID", err.Error())
 		return
 	}
-	detail, err := s.runtimeSkillDetailFromRuntime(r.Context(), skillID)
+	nodeID := r.PathValue("nodeID")
+	detail, err := s.runtimeSkillDetailFromRuntime(r.Context(), nodeID, skillID)
 	if err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, runtimeUnavailablePayload(err))
+		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skill": detail, "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node_id": nodeID, "skill": detail, "source": "agentdock-runtime-api"})
 }
 
 func (s *Server) runtimeSkillFile(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +236,8 @@ func (s *Server) runtimeSkillFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := s.runtimeGet(r.Context(), "/internal/runtime/skills/"+urlPath(skillID)+"/files/"+urlPathSegments(relativePath), nil)
+	nodeID := r.PathValue("nodeID")
+	body, err := s.runtimeGet(r.Context(), nodeID, "/internal/runtime/skills/"+urlPath(skillID)+"/files/"+urlPathSegments(relativePath), nil)
 	if err != nil {
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
@@ -242,11 +251,11 @@ func (s *Server) runtimeSkillFile(w http.ResponseWriter, r *http.Request) {
 		Content:   opsString(file["content"]),
 		Truncated: opsBool(file["truncated"]),
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "file": content, "source": "agentdock-runtime-api"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "node_id": nodeID, "file": content, "source": "agentdock-runtime-api"})
 }
 
-func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]opsTaskSummary, error) {
-	body, err := s.runtimeGet(ctx, "/internal/runtime/tasks", runtimeQueryLimitStatus(limit, ""))
+func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, nodeID string, limit int) ([]opsTaskSummary, error) {
+	body, err := s.runtimeGet(ctx, nodeID, "/internal/runtime/tasks", runtimeQueryLimitStatus(limit, ""))
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +280,8 @@ func (s *Server) collectOpsTasksFromRuntime(ctx context.Context, limit int) ([]o
 	return items, nil
 }
 
-func (s *Server) runtimeTaskDetailFromRuntime(ctx context.Context, id string) (opsTaskDetail, error) {
-	body, err := s.runtimeGet(ctx, "/internal/runtime/tasks/"+urlPath(id), nil)
+func (s *Server) runtimeTaskDetailFromRuntime(ctx context.Context, nodeID, id string) (opsTaskDetail, error) {
+	body, err := s.runtimeGet(ctx, nodeID, "/internal/runtime/tasks/"+urlPath(id), nil)
 	if err != nil {
 		return opsTaskDetail{}, err
 	}
@@ -340,8 +349,8 @@ func opsTaskProgress(steps []any) (int, *opsTaskStep) {
 	return completed, pending
 }
 
-func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSummary, error) {
-	body, err := s.runtimeGet(ctx, "/internal/runtime/skills", nil)
+func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context, nodeID string) ([]opsSkillSummary, error) {
+	body, err := s.runtimeGet(ctx, nodeID, "/internal/runtime/skills", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -367,8 +376,8 @@ func (s *Server) collectOpsSkillsFromRuntime(ctx context.Context) ([]opsSkillSum
 	return items, nil
 }
 
-func (s *Server) runtimeSkillDetailFromRuntime(ctx context.Context, skillID string) (opsSkillDetail, error) {
-	body, err := s.runtimeGet(ctx, "/internal/runtime/skills/"+urlPath(skillID), nil)
+func (s *Server) runtimeSkillDetailFromRuntime(ctx context.Context, nodeID, skillID string) (opsSkillDetail, error) {
+	body, err := s.runtimeGet(ctx, nodeID, "/internal/runtime/skills/"+urlPath(skillID), nil)
 	if err != nil {
 		return opsSkillDetail{}, err
 	}
@@ -405,26 +414,6 @@ func skillDocumentText(document map[string]any) string {
 		return ""
 	}
 	return fmt.Sprintf("---\nname: %s\ndescription: %s\nversion: %s\n---\n\n%s\n", strconv.Quote(name), strconv.Quote(description), strconv.Quote(version), body)
-}
-
-func (s *Server) workflowCountsFromRuntime(ctx context.Context) map[string]int {
-	counts := map[string]int{"drafts": 0, "published": 0, "retired": 0}
-	body, err := s.runtimeGet(ctx, "/internal/runtime/workflows", nil)
-	if err != nil {
-		return counts
-	}
-	for _, raw := range opsArray(body["templates"]) {
-		status := opsString(opsMap(raw)["status"])
-		switch status {
-		case "draft":
-			counts["drafts"]++
-		case "active", "validated":
-			counts["published"]++
-		case "retired":
-			counts["retired"]++
-		}
-	}
-	return counts
 }
 
 func cleanOpsTaskID(value string) (string, error) {

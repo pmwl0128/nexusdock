@@ -22,7 +22,7 @@ web/                   # 六入口个人控制台
 
 - HTTP 路由统一注册在 `internal/httpx`，领域包不依赖 HTTP。
 - 设备协议只允许结构化命令，不提供任意 Shell。
-- Task、Skill 和 Workflow 生命周期属于 AgentDock Runtime；Nexus 只能通过 Runtime API 展示或触发受控动作。
+- Task、Skill 和动态 MCP 生命周期属于 AgentDock Runtime；Nexus 通过显式 nodeID 的 Runtime API 展示或触发受控动作。Workflow 模板是 Nexus 全局注册表。
 - 不新增独立 Task、Run、Context Pack、Skill Catalog、Evolution、Worker 或第二个 Server。
 - 生成文件只能由 `scripts/generate-contracts.py` 更新。
 - 数据库变化使用编号迁移；历史表不等于当前产品能力。

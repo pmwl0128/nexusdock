@@ -2,7 +2,7 @@
 
 `contracts/` describes the current NexusDock HTTP API.
 
-NexusDock owns Recall access, backup status, administrator sessions, and system status. AgentDock Runtime owns Task, Skill, and Workflow lifecycles; NexusDock exposes these only as Runtime API-backed views/actions.
+NexusDock owns Recall access, backup status, administrator sessions, and system status. AgentDock Runtime owns Task, Skill, and dynamic MCP lifecycles; NexusDock exposes these only through explicit node-scoped Runtime views/actions. Workflow templates are a Nexus-global registry.
 
 ## 当前内容
 
@@ -11,7 +11,7 @@ NexusDock owns Recall access, backup status, administrator sessions, and system 
 - `error-codes.json`：稳定错误码目录。
 - `generated/nexuscontracts/`：由生成器产生的 Go DTO 与客户端。
 
-Nexus 不维护独立 Task、Run、Context Pack、Skill Catalog、Evolution、Worker 或 SSE 事件总线契约。Skill 包格式、任务状态机和 Workflow 生命周期属于 AgentDock Runtime，不属于 Nexus 公共契约。
+Nexus 不维护独立 Task、Run、Context Pack、Skill Catalog、Evolution、Worker 或 SSE 事件总线契约。Skill 包格式和任务状态机属于 AgentDock Runtime；Workflow 模板属于 Nexus 全局契约，不挂在单个 Runtime 节点下。
 
 ## 验证
 

@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/core"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
@@ -18,6 +20,18 @@ import (
 
 func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	t.Helper()
+	db, err := core.OpenSQLite(t.Context(), ":memory:", 1)
+	if err != nil {
+		t.Fatalf("OpenSQLite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := core.NewMigrationRunner(db, nil).Run(t.Context()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	nodes, err := agentdock.NewStoreWithKey(db, make([]byte, 32))
+	if err != nil {
+		t.Fatalf("New AgentDock node store: %v", err)
+	}
 	store, err := recall.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
@@ -30,7 +44,7 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	if err != nil {
 		t.Fatalf("New private notes store: %v", err)
 	}
-	return NewServer(cfg, store, mgr, slog.Default(), WithPrivateNotes(privateNotes)).Handler()
+	return NewServer(cfg, store, mgr, slog.Default(), WithSystemDatabase(db), WithAgentDockNodes(nodes), WithPrivateNotes(privateNotes)).Handler()
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path string, body string) *httptest.ResponseRecorder {
@@ -165,32 +179,32 @@ func TestEmbeddingStatusIsGracefullyDisabled(t *testing.T) {
 	}
 }
 
-func TestRuntimeRoutesUseRuntimePrefix(t *testing.T) {
+func TestRuntimeRoutesRequireExplicitNodeID(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
-	request := httptest.NewRequest(http.MethodGet, "/v1/runtime/tasks", nil)
-	response := httptest.NewRecorder()
-
-	h.ServeHTTP(response, request)
-
-	if response.Code == http.StatusNotFound {
-		t.Fatalf("/v1/runtime/tasks must be registered")
+	for _, path := range []string{
+		"/v1/runtime/tasks",
+		"/v1/runtime/skills",
+		"/v1/runtime/mcp",
+		"/v1/runtime/overview",
+		"/v1/runtime/workflow-templates",
+	} {
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("legacy singleton route %s status = %d, want 404", path, response.Code)
+		}
 	}
 
-	deleteResponse := httptest.NewRecorder()
-	h.ServeHTTP(deleteResponse, httptest.NewRequest(http.MethodDelete, "/v1/runtime/tasks/tsk_demo", nil))
-	if deleteResponse.Code == http.StatusNotFound {
-		t.Fatalf("DELETE /v1/runtime/tasks/{id} must be registered")
-	}
-
-	mcpResponse := httptest.NewRecorder()
-	h.ServeHTTP(mcpResponse, httptest.NewRequest(http.MethodGet, "/v1/runtime/mcp", nil))
-	if mcpResponse.Code == http.StatusNotFound {
-		t.Fatalf("/v1/runtime/mcp must be registered")
-	}
-
-	legacy := httptest.NewRecorder()
-	h.ServeHTTP(legacy, httptest.NewRequest(http.MethodGet, "/v1/ops/tasks", nil))
-	if legacy.Code != http.StatusNotFound {
-		t.Fatalf("/v1/ops/tasks should not remain as a public Nexus route, got %d", legacy.Code)
+	for _, path := range []string{
+		"/v1/runtime/nodes/dockmini/tasks",
+		"/v1/runtime/nodes/dockmini/skills",
+		"/v1/runtime/nodes/dockmini/mcp",
+		"/v1/runtime/nodes/dockmini/overview",
+	} {
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "AGENTDOCK_NODE_NOT_FOUND") {
+			t.Fatalf("node route %s was not registered: status=%d body=%s", path, response.Code, response.Body.String())
+		}
 	}
 }

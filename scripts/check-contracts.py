@@ -15,9 +15,11 @@ CONTRACTS = ROOT / "contracts"
 REQUIRED_PATHS = {
     "/v1/backup/status",
     "/v1/recall",
-    "/v1/runtime/tasks",
-    "/v1/runtime/skills",
-    "/v1/runtime/workflow-templates",
+    "/v1/runtime/nodes",
+    "/v1/runtime/nodes/{nodeID}/tasks",
+    "/v1/runtime/nodes/{nodeID}/skills",
+    "/v1/runtime/nodes/{nodeID}/mcp",
+    "/v1/workflow-templates",
 }
 FORBIDDEN_PATH_PREFIXES = (
     "/v1/" + "arti" + "facts",
@@ -28,8 +30,12 @@ FORBIDDEN_PATH_PREFIXES = (
     "/v1/runs",
     "/v1/skills",
     "/v1/skill-runs",
-    "/v1/workflow-templates",
     "/v1/ops",
+    "/v1/runtime/tasks",
+    "/v1/runtime/skills",
+    "/v1/runtime/mcp",
+    "/v1/runtime/overview",
+    "/v1/runtime/workflow-templates",
     "/v1/runtime/capabilities",
     "/v1/events",
     "/v1/schedules",

@@ -34,7 +34,7 @@ type WorkflowTemplateDetail = WorkflowTemplateSummary & {
 };
 
 type ListResponse = { ok: boolean; items: WorkflowTemplateSummary[]; count: number };
-type DetailResponse = { ok: boolean; template: WorkflowTemplateDetail };
+type DetailResponse = { ok: boolean; template: Record<string, unknown>; template_summary: WorkflowTemplateSummary };
 type Notice = { tone: Tone; text: string };
 type StepView = { id: string; title: string; phase: string; required: boolean; depends: string[]; substitution: string };
 type StepGroup = { phase: string; steps: StepView[] };
@@ -97,9 +97,10 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return items;
-    return items.filter((item) => [item.id, item.version, item.title, item.description, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
-  }, [items, query]);
+    const scoped = location === 'all' ? items : items.filter((item) => item.location === location);
+    if (!needle) return scoped;
+    return scoped.filter((item) => [item.id, item.version, item.title, item.description, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
+  }, [items, location, query]);
 
   const parsed = useMemo(() => parseTemplate(content), [content]);
 
@@ -107,13 +108,13 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     setLoading(true);
     setNotice(null);
     try {
-      const params = new URLSearchParams();
-      if (location !== 'all') params.set('location', location);
-      const result = await api<ListResponse>(`/v1/runtime/workflow-templates${params.size ? `?${params.toString()}` : ''}`);
-      setItems(result.items || []);
-      const selectedStillVisible = result.items?.find((item) => item.path === selected?.path);
+      const result = await api<ListResponse>('/v1/workflow-templates?include_history=true');
+      const nextItems = result.items || [];
+      const visibleItems = location === 'all' ? nextItems : nextItems.filter((item) => item.location === location);
+      setItems(nextItems);
+      const selectedStillVisible = visibleItems.find((item) => item.path === selected?.path);
       if (selectedStillVisible) await openTemplate(selectedStillVisible);
-      else if (result.items?.[0]) await openTemplate(result.items[0]);
+      else if (visibleItems[0]) await openTemplate(visibleItems[0]);
       else {
         setSelected(null);
         setContent('');
@@ -128,9 +129,14 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
   async function openTemplate(template: WorkflowTemplateSummary, revealOnMobile = false) {
     setNotice(null);
     try {
-      const result = await api<DetailResponse>(`/v1/runtime/workflow-templates/${template.location}/${template.file_name}`);
-      setSelected(result.template);
-      setContent(result.template.content);
+      const result = await api<DetailResponse>(`/v1/workflow-templates/${encodeURIComponent(template.id)}/${encodeURIComponent(template.version)}`);
+      const detail: WorkflowTemplateDetail = {
+        ...result.template_summary,
+        content: JSON.stringify(result.template, null, 2),
+        json: result.template,
+      };
+      setSelected(detail);
+      setContent(detail.content);
       if (revealOnMobile) setMobileDetailOpen(true);
     } catch (error) {
       setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '模板详情读取失败' });

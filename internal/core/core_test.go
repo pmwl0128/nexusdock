@@ -28,8 +28,12 @@ func TestMigrationRunnerIsIdempotentAndPersistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version != 4 {
-		t.Fatalf("version = %d, want 4", version)
+	if version != 5 {
+		t.Fatalf("version = %d, want 5", version)
+	}
+	var nodeTable string
+	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='agentdock_nodes'`).Scan(&nodeTable); err != nil {
+		t.Fatalf("agentdock_nodes migration missing: %v", err)
 	}
 	var removedTable string
 	err = db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='device_commands_v1'`).Scan(&removedTable)

@@ -115,7 +115,7 @@ function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: numb
   return { ...state, reload };
 }
 
-export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
+export function TaskCenterPage({ nodeID, refreshToken }: { nodeID: string; refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
   const [recentOnly, setRecentOnly] = useState(false);
@@ -126,13 +126,14 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   const [deleteError, setDeleteError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const path = `/v1/runtime/tasks?status=${status}&limit=${runtimeTaskListLimit}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
+  const runtimeBase = `/v1/runtime/nodes/${encodeURIComponent(nodeID)}`;
+  const path = `${runtimeBase}/tasks?status=${status}&limit=${runtimeTaskListLimit}${query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ''}`;
   const resource = useOpsResource<TaskListResponse>(path, emptyTasks, refreshToken);
-  const allResource = useOpsResource<TaskListResponse>(`/v1/runtime/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
+  const allResource = useOpsResource<TaskListResponse>(`${runtimeBase}/tasks?status=all&limit=${runtimeTaskListLimit}`, emptyTasks, refreshToken);
   const tasks = recentOnly ? resource.data.items.filter((task) => taskUpdatedRecently(task)) : resource.data.items;
   const recentTasks = useMemo(() => allResource.data.items.filter((task) => taskUpdatedRecently(task)), [allResource.data.items]);
   const selected = tasks.find((item) => item.id === selectedId) || tasks[0];
-  const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `/v1/runtime/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
+  const detail = useOptionalOpsResource<TaskDetailResponse>(selected?.file_name ? `${runtimeBase}/tasks/${encodeURIComponent(selected.file_name)}` : '', { ok: false, task: selected as OpsTaskDetail }, refreshToken);
   const totalStats = useMemo(() => countTasks(allResource.data.items), [allResource.data.items]);
   const recentStats = useMemo(() => countTasks(recentTasks), [recentTasks]);
   const totalCount = allResource.data.total || allResource.data.count || resource.data.total || tasks.length;
@@ -165,7 +166,7 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
     setDeletingId(task.id);
     setDeleteError('');
     try {
-      await api<DeleteTaskResponse>(`/v1/runtime/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE' });
+      await api<DeleteTaskResponse>(`${runtimeBase}/tasks/${encodeURIComponent(task.id)}`, { method: 'DELETE' });
       setPendingDelete(null);
       setSelectedId('');
       setMobileDetailOpen(false);
@@ -206,8 +207,9 @@ export function TaskCenterPage({ refreshToken }: { refreshToken: number }) {
   </>;
 }
 
-export function SkillsPage({ refreshToken }: { refreshToken: number }) {
-  const resource = useOpsResource<SkillsResponse>('/v1/runtime/skills', { ok: false, items: [], count: 0, root: '' }, refreshToken);
+export function SkillsPage({ nodeID, refreshToken }: { nodeID: string; refreshToken: number }) {
+  const runtimeBase = `/v1/runtime/nodes/${encodeURIComponent(nodeID)}`;
+  const resource = useOpsResource<SkillsResponse>(`${runtimeBase}/skills`, { ok: false, items: [], count: 0, root: '' }, refreshToken);
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -217,7 +219,7 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
     return resource.data.items.filter((item) => [item.id, item.title, item.description, item.active_version].filter(Boolean).join(' ').toLowerCase().includes(needle));
   }, [query, resource.data.items]);
   const selected = filtered.find((item) => `${item.source}:${item.id}` === selectedKey) || filtered[0];
-  const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `/v1/runtime/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
+  const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `${runtimeBase}/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell error={resource.error}>
     <div className={`ops-toolbar skill-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}>
       <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索名称或说明" /></label>
@@ -229,7 +231,7 @@ export function SkillsPage({ refreshToken }: { refreshToken: number }) {
       </div>
       <div className="mobile-drilldown-detail">
         {selected && <MobileDrilldownBar label="Skill" title={selected.title || selected.id} meta={selected.active_version || selected.status} backLabel="返回 Skill 列表" onBack={() => setMobileDetailOpen(false)} />}
-        <SkillDetail skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} />
+        <SkillDetail nodeID={nodeID} skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} />
       </div>
     </section>
   </OpsShell>;
@@ -263,18 +265,18 @@ function TaskDetail({ task, detail, loading, error, deleting, onDelete }: { task
   </article>;
 }
 
-function SkillDetail({ skill, detail, loading, error, refreshToken }: { skill?: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string; refreshToken: number }) {
+function SkillDetail({ nodeID, skill, detail, loading, error, refreshToken }: { nodeID: string; skill?: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string; refreshToken: number }) {
   if (!skill) return <article className="ops-detail-empty"><EmptyOps text="请选择一个 Skill。" /></article>;
-  return <SkillDetailContent skill={skill} detail={detail} loading={loading} error={error} refreshToken={refreshToken} />;
+  return <SkillDetailContent nodeID={nodeID} skill={skill} detail={detail} loading={loading} error={error} refreshToken={refreshToken} />;
 }
 
-function SkillDetailContent({ skill, detail, loading, error, refreshToken }: { skill: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string; refreshToken: number }) {
+function SkillDetailContent({ nodeID, skill, detail, loading, error, refreshToken }: { nodeID: string; skill: OpsSkill; detail?: OpsSkillDetail; loading: boolean; error?: string; refreshToken: number }) {
   const [selectedPath, setSelectedPath] = useState('');
   const full = detail?.id ? detail : skill;
   const files = detail?.files || [];
   const preferredPath = files.find((file) => file.path.toLowerCase() === 'skill.md')?.path || files[0]?.path || '';
   const activePath = files.some((file) => file.path === selectedPath) ? selectedPath : preferredPath;
-  const fileURL = activePath ? `/v1/runtime/skills/${encodeURIComponent(full.source)}/${encodeURIComponent(full.id)}/files/${encodePathSegments(activePath)}` : '';
+  const fileURL = activePath ? `/v1/runtime/nodes/${encodeURIComponent(nodeID)}/skills/${encodeURIComponent(full.source)}/${encodeURIComponent(full.id)}/files/${encodePathSegments(activePath)}` : '';
   const preview = useOptionalOpsResource<SkillFileResponse>(fileURL, { ok: false }, refreshToken);
   const raw = detail?.runtime_state;
   const manifest = asRecord(raw?.manifest);
