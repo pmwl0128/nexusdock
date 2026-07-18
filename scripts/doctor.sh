@@ -76,19 +76,21 @@ check_compose() {
 check_auth_policy() {
   local host="${NEXUS_HOST:-127.0.0.1}"
   local require="${NEXUS_REQUIRE_AUTH:-false}"
-  local user="${NEXUS_USERNAME:-}"
-  local pass="${NEXUS_PASSWORD:-}"
-  local hash="${NEXUS_PASSWORD_HASH:-}"
   local token="${NEXUS_AUTH_TOKEN:-}"
   if [ "$require" = "true" ]; then
-    if [ -z "$token" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 NEXUS_AUTH_TOKEN 为空'; else ok 'API Bearer token 已配置'; fi
-    if [ -z "$user" ] && [ -z "$hash" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 UI Basic Auth 未配置'; fi
-    if [ "$user" = "admin" ] && { [ "$pass" = "nexusdock" ]; }; then fail '禁止公网/强认证模式使用默认账号密码 admin/nexusdock'; fi
+    if [ -z "$token" ]; then fail 'NEXUS_REQUIRE_AUTH=true 但 NEXUS_AUTH_TOKEN 为空'; else ok '程序化 API Bearer token 已配置'; fi
   elif [ "$host" != "127.0.0.1" ] && [ "$host" != "localhost" ]; then
-    warn "NEXUS_HOST=$host 不是 localhost，建议设置 NEXUS_REQUIRE_AUTH=true"
+    warn "NEXUS_HOST=$host 不是 localhost，建议为程序化 API 设置 NEXUS_REQUIRE_AUTH=true"
   else
-    ok '认证策略检查通过'
+    ok '程序化 API 认证策略检查通过'
   fi
+
+  local legacy_key
+  for legacy_key in NEXUS_USERNAME NEXUS_PASSWORD NEXUS_PASSWORD_HASH NEXUS_ACCESS_FILE; do
+    if [ -n "${!legacy_key:-}" ]; then
+      fail "$legacy_key 已退出；管理员账号由 Nexus 数据库和本地 admin 命令管理"
+    fi
+  done
 }
 
 check_nexus_data_dir() {
@@ -135,6 +137,15 @@ check_ports_and_health() {
     ok "本地 health 通过：http://127.0.0.1:${port}/health"
   else
     warn "本地 health 失败：http://127.0.0.1:${port}/health"
+  fi
+  if curl -fsS "http://127.0.0.1:${port}/v1/auth/status" >/tmp/nexus-doctor-auth-status 2>&1; then
+    if grep -Eq '"initialized"[[:space:]]*:[[:space:]]*true' /tmp/nexus-doctor-auth-status; then
+      ok '管理员账号已初始化'
+    else
+      warn '管理员账号尚未初始化；请在本机运行 nexusdock admin init'
+    fi
+  else
+    warn '管理员状态接口不可用'
   fi
   local public_url="${NEXUS_PUBLIC_HEALTH_URL:-}"
   if [ -n "$public_url" ]; then

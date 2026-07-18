@@ -3,6 +3,10 @@ bin/
 memorydock
 *.log
 
+# local runtime data
+nexus-data/
+recall/
+
 # frontend
 web/node_modules/
 web/.vite/
@@ -18,4 +22,11 @@ web/dist/
 .vscode/
 .idea/
 
+# agent-local workflow state
+.agents/
+.codex/
+.trellis/
+
 web/tsconfig.tsbuildinfo
+**/__pycache__/
+*.pyc

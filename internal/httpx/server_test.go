@@ -36,9 +36,6 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
-	if cfg.StoreDir == "" {
-		cfg.StoreDir = store.Root()
-	}
 	mgr := syncer.NewManager(syncer.Config{RepoDir: store.Root()}, slog.Default())
 	privateNotes, err := privatenotes.New(filepath.Join(store.Root(), "private-notes"))
 	if err != nil {
@@ -57,7 +54,7 @@ func doJSON(t *testing.T, h http.Handler, method, path string, body string) *htt
 }
 
 func TestHealthDoesNotRequireAuth(t *testing.T) {
-	h := newTestHandler(t, config.Config{AuthToken: "token", Username: "admin", Password: "secret"})
+	h := newTestHandler(t, config.Config{AuthToken: "token"})
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if res.Code != http.StatusOK {
@@ -66,7 +63,7 @@ func TestHealthDoesNotRequireAuth(t *testing.T) {
 }
 
 func TestV1BearerTokenOnly(t *testing.T) {
-	h := newTestHandler(t, config.Config{AuthToken: "token", Username: "admin", Password: "secret"})
+	h := newTestHandler(t, config.Config{AuthToken: "token"})
 
 	res := doJSON(t, h, http.MethodGet, "/v1/recall", "")
 	if res.Code != http.StatusUnauthorized {
@@ -83,7 +80,7 @@ func TestV1BearerTokenOnly(t *testing.T) {
 }
 
 func TestV1LocalhostAPIAccessWhenTokenEmpty(t *testing.T) {
-	h := newTestHandler(t, config.Config{Username: "admin", Password: "secret"})
+	h := newTestHandler(t, config.Config{})
 
 	res := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/v1/recall", nil)

@@ -27,7 +27,7 @@ func TestPrivateNoteRoutesAreAbsentWithoutConfiguredStore(t *testing.T) {
 }
 
 func TestPrivateNoteAPIRequiresBearerToken(t *testing.T) {
-	h := newTestHandler(t, config.Config{AuthToken: "private-token", Username: "admin", Password: "secret"})
+	h := newTestHandler(t, config.Config{AuthToken: "private-token"})
 	response := doJSON(t, h, http.MethodPost, "/v1/private-notes/status", `{"action":"check"}`)
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status without token = %d body=%s", response.Code, response.Body.String())

@@ -85,11 +85,6 @@ func Main(args []string) {
 	}
 
 	authService := auth.NewService(controlDB)
-	migrated, err := authService.EnsureLegacyAdmin(ctx, cfg.Username, cfg.Password, cfg.PasswordHash)
-	if err != nil {
-		logger.Error("failed to migrate administrator", "error", err)
-		os.Exit(1)
-	}
 	status, err := authService.AdminStatus(ctx)
 	if err != nil {
 		logger.Error("failed to read administrator status", "error", err)
@@ -97,9 +92,6 @@ func Main(args []string) {
 	}
 	if !status.Initialized {
 		logger.Warn("administrator is not initialized; run the local admin init command")
-	}
-	if migrated {
-		logger.Info("migrated legacy administrator credentials")
 	}
 
 	embeddingService := recall.NewEmbeddingService(store, recall.EmbeddingConfig{

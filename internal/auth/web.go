@@ -17,7 +17,6 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"github.com/uvwt/nexusdock/internal/audit"
-	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
@@ -81,15 +80,8 @@ func HashPasswordArgon2(secret string) (string, error) {
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
 
-func VerifyPassword(secret, encoded string) (bool, bool) {
-	if strings.HasPrefix(encoded, "$argon2id$") {
-		ok := verifyArgon2(secret, encoded)
-		return ok, false
-	}
-	if strings.HasPrefix(encoded, "pbkdf2-sha256$") {
-		return config.VerifyPassword(secret, encoded), true
-	}
-	return false, false
+func VerifyPassword(secret, encoded string) bool {
+	return strings.HasPrefix(encoded, "$argon2id$") && verifyArgon2(secret, encoded)
 }
 
 func verifyArgon2(secret, encoded string) bool {
@@ -148,36 +140,6 @@ func (s *Service) AdminStatus(ctx context.Context) (AdminStatus, error) {
 	}
 	result.Initialized = true
 	return result, nil
-}
-
-func (s *Service) EnsureLegacyAdmin(ctx context.Context, username, password, passwordHash string) (bool, error) {
-	status, err := s.AdminStatus(ctx)
-	if err != nil || status.Initialized {
-		return false, err
-	}
-	username = strings.TrimSpace(username)
-	passwordHash = strings.TrimSpace(passwordHash)
-	if username == "" || (password == "" && passwordHash == "") {
-		return false, nil
-	}
-	if username == "admin" && (password == "nexusdock") && passwordHash == "" {
-		return false, nil
-	}
-	algorithm := "argon2id"
-	encoded := passwordHash
-	if encoded == "" {
-		encoded, err = HashPasswordArgon2(password)
-		if err != nil {
-			return false, err
-		}
-	} else if strings.HasPrefix(encoded, "pbkdf2-sha256$") {
-		algorithm = "pbkdf2-sha256"
-	} else if strings.HasPrefix(encoded, "$argon2id$") {
-		algorithm = "argon2id"
-	} else {
-		return false, errors.New("unsupported legacy password hash")
-	}
-	return true, s.createAdmin(ctx, username, encoded, algorithm, true)
 }
 
 func (s *Service) InitializeAdmin(ctx context.Context, username, password string) error {
@@ -253,9 +215,8 @@ func (s *Service) Login(ctx context.Context, username, password, ipPrefix, userA
 		WHERE lower(u.username) = lower(?) LIMIT 1`, username).
 		Scan(&userID, &storedUsername, &displayName, &status, &encoded, &mustChange)
 	valid := false
-	legacy := false
 	if err == nil && status == "active" {
-		valid, legacy = VerifyPassword(password, encoded)
+		valid = VerifyPassword(password, encoded)
 	} else {
 		_ = verifyArgon2(password, dummyArgonHash())
 	}
@@ -272,15 +233,6 @@ func (s *Service) Login(ctx context.Context, username, password, ipPrefix, userA
 			return IssuedWebSession{}, &RateLimitError{RetryAfter: retry}
 		}
 		return IssuedWebSession{}, core.NewError(core.CodeInvalidToken, "invalid username or password", nil)
-	}
-	if legacy {
-		upgraded, hashErr := HashPasswordArgon2(password)
-		if hashErr != nil {
-			return IssuedWebSession{}, hashErr
-		}
-		if _, err := s.db.ExecContext(ctx, `UPDATE user_credentials SET password_hash = ?, password_algorithm = 'argon2id', updated_at = ? WHERE user_id = ?`, upgraded, s.now().UTC().Format(time.RFC3339Nano), userID); err != nil {
-			return IssuedWebSession{}, fmt.Errorf("upgrade password hash: %w", err)
-		}
 	}
 	if err := s.clearLoginFailures(ctx, accountKey, ipPrefix); err != nil {
 		return IssuedWebSession{}, err
@@ -399,10 +351,12 @@ func parseSessionTimes(session *WebSession, values ...string) error {
 }
 
 func (s *Service) ListWebSessions(ctx context.Context, userID, currentID string) ([]WebSession, error) {
+	now := s.now().UTC().Format(time.RFC3339Nano)
 	rows, err := s.db.QueryContext(ctx, `SELECT id, remember_me, ip_prefix, user_agent_summary,
 		created_at, last_seen_at, idle_expires_at, absolute_expires_at
-		FROM user_sessions WHERE user_id = ? AND revoked_at IS NULL AND absolute_expires_at > ?
-		ORDER BY last_seen_at DESC`, userID, s.now().UTC().Format(time.RFC3339Nano))
+		FROM user_sessions
+		WHERE user_id = ? AND revoked_at IS NULL AND idle_expires_at > ? AND absolute_expires_at > ?
+		ORDER BY last_seen_at DESC`, userID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("list web sessions: %w", err)
 	}
@@ -459,14 +413,13 @@ func (s *Service) UpdateSecret(ctx context.Context, userID, currentPassword, new
 		}
 		return fmt.Errorf("read administrator password: %w", err)
 	}
-	valid, _ := VerifyPassword(currentPassword, encoded)
-	if !valid {
+	if !VerifyPassword(currentPassword, encoded) {
 		return core.NewError(core.CodeInvalidToken, "current password is incorrect", nil)
 	}
 	if err := ValidatePassword(username, newPassword); err != nil {
 		return err
 	}
-	if same, _ := VerifyPassword(newPassword, encoded); same {
+	if VerifyPassword(newPassword, encoded) {
 		return core.NewError(core.CodeValidation, "new password must be different", nil)
 	}
 	return s.replacePassword(ctx, userID, newPassword, "password_changed")

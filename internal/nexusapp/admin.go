@@ -16,10 +16,25 @@ import (
 )
 
 func adminCommandRequested(args []string) bool {
-	return len(args) >= 3 && args[1] == "admin"
+	return len(args) >= 2 && args[1] == "admin"
 }
 
 func runAdminCommand(ctx context.Context, cfg config.Config, args []string) error {
+	if len(args) < 3 {
+		return adminUsageError(args)
+	}
+	command := strings.TrimSpace(args[2])
+	if command != "init" && command != "recover" {
+		return adminUsageError(args)
+	}
+	username := ""
+	if len(args) > 3 {
+		username = strings.TrimSpace(args[3])
+	}
+	if command == "init" && username == "" {
+		return errors.New("username is required")
+	}
+
 	controlDir := cfg.NexusDataDir
 	if err := os.MkdirAll(controlDir, 0o700); err != nil {
 		return err
@@ -36,16 +51,8 @@ func runAdminCommand(ctx context.Context, cfg config.Config, args []string) erro
 	}
 	service := auth.NewService(db)
 	reader := bufio.NewReader(os.Stdin)
-	command := args[2]
-	username := ""
-	if len(args) > 3 {
-		username = strings.TrimSpace(args[3])
-	}
 	switch command {
 	case "init":
-		if username == "" {
-			return errors.New("username is required")
-		}
 		secret, err := readConfirmedCredential(reader)
 		if err != nil {
 			return err
@@ -57,9 +64,12 @@ func runAdminCommand(ctx context.Context, cfg config.Config, args []string) erro
 			return err
 		}
 		return service.RotateAdminCredential(ctx, username, secret)
-	default:
-		return fmt.Errorf("usage: %s admin <init|recover> [username]", executableName(args))
 	}
+	return adminUsageError(args)
+}
+
+func adminUsageError(args []string) error {
+	return fmt.Errorf("usage: %s admin <init|recover> [username]", executableName(args))
 }
 
 func executableName(args []string) string {

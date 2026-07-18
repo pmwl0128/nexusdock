@@ -8,7 +8,7 @@ RUN npm run build
 
 FROM golang:1.26-alpine AS go-builder
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web-builder /src/internal/httpx/web_dist ./internal/httpx/web_dist

@@ -43,3 +43,33 @@ RECALL_REPO_DIR/
 ```
 
 AgentDock 节点 Token 使用 `secrets/agentdock-nodes.key` 加密后存入 `nexus.db`。备份和恢复时必须同时保留数据库与该密钥文件；只恢复其中一项会导致已有节点凭据无法解密。
+
+## Local Development
+
+Requirements:
+
+- Go version declared by `go.mod`.
+- Node.js 26 and npm.
+- Python 3 for contract and repository checks.
+- Docker for production-image verification.
+
+```bash
+make web-deps
+make check
+make ci
+```
+
+`make check` performs formatting drift, module tidiness, Go tests, `go vet`, contract generation drift, and repository-boundary checks. `make ci` additionally builds the embedded Web UI, runs focused race tests, and builds the production binary.
+
+The embedded UI lives in `internal/httpx/web_dist`. A frontend change is incomplete until `make web-build` has regenerated this directory and the resulting files are committed.
+
+## Administrator Authentication
+
+Browser administrator credentials live only in `NEXUS_DATA_DIR/nexus.db` and use Argon2id. Initialize or recover the administrator from a local terminal so the credential never enters Compose files, shell history, or Git:
+
+```bash
+NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin init owner
+NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin recover owner
+```
+
+`NEXUS_AUTH_TOKEN` is separate and protects programmatic API access when `NEXUS_REQUIRE_AUTH=true`.

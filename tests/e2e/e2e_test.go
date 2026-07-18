@@ -24,7 +24,7 @@ func newHandler(t *testing.T) http.Handler {
 		t.Fatalf("NewStore: %v", err)
 	}
 	manager := syncer.NewManager(syncer.Config{RepoDir: root}, slog.Default())
-	return httpx.NewServer(config.Config{StoreDir: root}, store, manager, slog.Default()).Handler()
+	return httpx.NewServer(config.Config{RecallRepoDir: root}, store, manager, slog.Default()).Handler()
 }
 
 func TestHealthAndEmbeddedNexusUI(t *testing.T) {

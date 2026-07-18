@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	recall "github.com/uvwt/nexusdock/internal/recall"
-	recallsync "github.com/uvwt/nexusdock/internal/sync/recall"
+	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
 func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
@@ -75,7 +75,7 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 	if _, err := svc.ApplyUpdate(context.Background(), recall.ApplyUpdateRequest{Proposal: proposal, Approved: true}); err != nil {
 		t.Fatal(err)
 	}
-	manager := recallsync.NewManager(recallsync.Config{RepoDir: target}, slog.Default())
+	manager := syncer.NewManager(syncer.Config{RepoDir: target}, slog.Default())
 	diff, err := manager.Diff(context.Background())
 	if err != nil || !diff.Dirty || !strings.Contains(diff.Diff, "updated") {
 		t.Fatalf("git diff missing: %#v err=%v", diff, err)
