@@ -32,7 +32,12 @@ func initRepo(t *testing.T) string {
 		t.Fatal(err)
 	}
 	runGit(t, base, "init", "--bare", "remote.git")
+	// 本地 bare 仓库在 receive-pack 后可能异步启动自动维护。Linux CI 上该进程会与
+	// t.TempDir 的清理并发，导致业务断言通过后仍因 objects 目录被重新写入而失败。
+	runGit(t, remote, "config", "receive.autogc", "false")
+	runGit(t, remote, "config", "gc.auto", "0")
 	runGit(t, dir, "init", "-b", "main")
+	runGit(t, dir, "config", "gc.auto", "0")
 	runGit(t, dir, "config", "user.email", "nexusdock@example.invalid")
 	runGit(t, dir, "config", "user.name", "NexusDock Test")
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Recall\n"), 0o644); err != nil {
