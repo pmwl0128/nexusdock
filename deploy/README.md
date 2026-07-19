@@ -19,6 +19,16 @@ Nexus 系统状态不得写入 Recall 仓库下的 `.nexus` 目录；系统状�
 
 ## Compose
 
+镜像默认以固定的 `10001:10001` 非 root 身份运行。使用宿主机绑定目录时，首次启动前先准备权限：
+
+```bash
+install -d -m 0700 "$NEXUS_DATA_DIR" "$RECALL_REPO_DIR"
+chown -R 10001:10001 "$NEXUS_DATA_DIR" "$RECALL_REPO_DIR"
+test -r "$RECALL_GITHUB_CREDENTIALS"
+```
+
+Compose 会把 Git credential-store 文件作为只读 Secret 挂载，并将容器根文件系统设为只读，同时移除全部 Linux capabilities、启用 `no-new-privileges`，只保留 `/tmp`、Nexus 数据目录和 Recall 仓库可写。
+
 ```bash
 docker compose build nexusdock
 docker compose up -d nexusdock

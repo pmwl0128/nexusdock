@@ -86,6 +86,7 @@ type Manager struct {
 	logger *slog.Logger
 
 	mu          sync.Mutex
+	gitMu       sync.Mutex
 	pendingPush bool
 	pendingHead string
 	lastPullAt  time.Time
@@ -93,6 +94,8 @@ type Manager struct {
 	lastError   string
 	conflict    bool
 	debounce    *time.Timer
+	lifecycle   context.Context
+	workers     sync.WaitGroup
 }
 
 func NewManager(cfg Config, logger *slog.Logger) *Manager {
@@ -105,20 +108,40 @@ func NewManager(cfg Config, logger *slog.Logger) *Manager {
 	if strings.TrimSpace(cfg.CommitMessage) == "" {
 		cfg.CommitMessage = "recall: 自动同步召回库"
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Manager{cfg: cfg, logger: logger}
 }
 
 func (m *Manager) Start(ctx context.Context) {
+	m.mu.Lock()
+	if m.lifecycle != nil {
+		m.mu.Unlock()
+		return
+	}
+	m.lifecycle = ctx
+	m.mu.Unlock()
 	if !m.cfg.AutoSync {
 		return
 	}
+	m.workers.Add(1)
 	go func() {
+		defer m.workers.Done()
 		ticker := time.NewTicker(m.cfg.PullInterval)
 		defer ticker.Stop()
 		_ = m.Pull(ctx)
 		for {
 			select {
 			case <-ctx.Done():
+				m.mu.Lock()
+				if m.debounce != nil {
+					if m.debounce.Stop() {
+						m.workers.Done()
+					}
+					m.debounce = nil
+				}
+				m.mu.Unlock()
 				return
 			case <-ticker.C:
 				_ = m.Pull(ctx)
@@ -144,15 +167,38 @@ func (m *Manager) MarkChanged(ctx context.Context) {
 		m.mu.Unlock()
 		return
 	}
+	lifecycle := m.lifecycle
+	if lifecycle == nil || lifecycle.Err() != nil {
+		m.mu.Unlock()
+		return
+	}
 	if m.debounce != nil {
-		m.debounce.Stop()
+		if m.debounce.Stop() {
+			m.workers.Done()
+		}
 	}
 	delay := m.cfg.PushDebounce
-	m.debounce = time.AfterFunc(delay, func() {
-		_ = m.Sync(context.Background())
+	m.workers.Add(1)
+	var timer *time.Timer
+	timer = time.AfterFunc(delay, func() {
+		defer m.workers.Done()
+		if err := m.Sync(lifecycle); err != nil && !errors.Is(err, context.Canceled) {
+			m.logger.Warn("delayed recall sync failed", "error", err)
+		}
+		m.mu.Lock()
+		if m.debounce == timer {
+			m.debounce = nil
+		}
+		m.mu.Unlock()
 	})
+	m.debounce = timer
 	m.mu.Unlock()
-	_ = ctx
+}
+
+// Wait blocks until the lifecycle pull loop and any scheduled sync have stopped.
+// Call it only after the lifecycle context passed to Start has been canceled.
+func (m *Manager) Wait() {
+	m.workers.Wait()
 }
 
 func memoryGitArgs(args ...string) []string {
@@ -627,6 +673,9 @@ func (m *Manager) isDirty(ctx context.Context) (bool, error) {
 }
 
 func (m *Manager) git(ctx context.Context, args ...string) (string, error) {
+	m.gitMu.Lock()
+	defer m.gitMu.Unlock()
+
 	cmdCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cmdCtx, "git", args...)

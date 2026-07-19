@@ -1,16 +1,16 @@
 # build outputs
-bin/
+/bin/
 memorydock
 *.log
 
 # local runtime data
-nexus-data/
-recall/
+/nexus-data/
+/recall/
 
 # frontend
-web/node_modules/
-web/.vite/
-web/dist/
+/web/node_modules/
+/web/.vite/
+/web/dist/
 
 # local env
 .env

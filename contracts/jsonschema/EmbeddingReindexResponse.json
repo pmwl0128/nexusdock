@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/EmbeddingReindexResponse.json",
+  "title": "EmbeddingReindexResponse",
+  "type": "object",
+  "description": "Recall 向量索引重建结果。",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "请求是否成功。"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "嵌入服务是否启用。"
+    },
+    "model": {
+      "type": "string",
+      "description": "索引使用的嵌入模型。"
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "嵌入端点。"
+    },
+    "index_path": {
+      "type": "string",
+      "description": "索引文件路径。"
+    },
+    "prefix": {
+      "type": "string",
+      "description": "已索引路径前缀。"
+    },
+    "count": {
+      "type": "integer",
+      "description": "索引文档数量。",
+      "minimum": 0
+    },
+    "dimension": {
+      "type": "integer",
+      "description": "向量维度。",
+      "minimum": 0
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "RFC 3339 UTC 时间。",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "ok",
+    "enabled",
+    "model",
+    "index_path",
+    "prefix",
+    "count",
+    "updated_at"
+  ]
+}

@@ -1,15 +1,22 @@
 package httpx
 
 import (
+	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
@@ -18,6 +25,37 @@ import (
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
+
+const maxJSONRequestBytes = 2 << 20
+
+var requestSequence atomic.Uint64
+
+type requestIDContextKey struct{}
+
+type trackedResponseWriter struct {
+	http.ResponseWriter
+	requestID   string
+	statusCode  int
+	wroteHeader bool
+}
+
+func (w *trackedResponseWriter) WriteHeader(statusCode int) {
+	if w.wroteHeader {
+		return
+	}
+	w.statusCode = statusCode
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *trackedResponseWriter) Write(data []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *trackedResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 type Server struct {
 	mu           sync.RWMutex
@@ -98,12 +136,87 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/embeddings/reindex", protected(s.reindexEmbeddings))
 	mux.HandleFunc("POST /v1/embeddings/search", protected(s.searchEmbeddings))
 	mux.HandleFunc("POST /v1/recall/notes/append", protected(s.appendNote))
-	mux.HandleFunc("GET /v1/recall/", protected(s.readRecall))
-	mux.HandleFunc("PATCH /v1/recall/", protected(s.patchRecall))
-	mux.HandleFunc("DELETE /v1/recall/", protected(s.deleteRecall))
+	mux.HandleFunc("GET /v1/recall/{path...}", protected(s.readRecall))
+	mux.HandleFunc("PATCH /v1/recall/{path...}", protected(s.patchRecall))
+	mux.HandleFunc("DELETE /v1/recall/{path...}", protected(s.deleteRecall))
 	mux.HandleFunc("GET /v1/", http.NotFound)
 	mux.HandleFunc("GET /api/", http.NotFound)
-	return logRequests(mux, s.logger)
+	return s.requestBoundary(s.securityHeaders(mux))
+}
+
+func (s *Server) requestBoundary(next http.Handler) http.Handler {
+	logger := s.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := newRequestID()
+		tracked := &trackedResponseWriter{ResponseWriter: w, requestID: requestID}
+		tracked.Header().Set("X-Request-ID", requestID)
+		started := time.Now()
+		ctx := context.WithValue(r.Context(), requestIDContextKey{}, requestID)
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				logger.Error("http handler panic", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "panic", recovered, "stack", string(debug.Stack()))
+				if !tracked.wroteHeader {
+					writeError(tracked, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
+				}
+			}
+			statusCode := tracked.statusCode
+			if statusCode == 0 {
+				statusCode = http.StatusOK
+			}
+			logger.Debug("http request", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "status", statusCode, "duration", time.Since(started))
+		}()
+		next.ServeHTTP(tracked, r.WithContext(ctx))
+	})
+}
+
+func newRequestID() string {
+	var value [12]byte
+	if _, err := rand.Read(value[:]); err == nil {
+		return "req_" + hex.EncodeToString(value[:])
+	}
+	return fmt.Sprintf("req_%x_%x", time.Now().UnixNano(), requestSequence.Add(1))
+}
+
+func requestIDFromContext(ctx context.Context) string {
+	requestID, _ := ctx.Value(requestIDContextKey{}).(string)
+	return requestID
+}
+
+func requestIDFromWriter(w http.ResponseWriter) string {
+	for current := w; current != nil; {
+		if tracked, ok := current.(*trackedResponseWriter); ok {
+			return tracked.requestID
+		}
+		unwrapper, ok := current.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			break
+		}
+		current = unwrapper.Unwrap()
+	}
+	return ""
+}
+
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		headers := w.Header()
+		headers.Set("Content-Security-Policy", "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'")
+		headers.Set("Cross-Origin-Opener-Policy", "same-origin")
+		headers.Set("Cross-Origin-Resource-Policy", "same-origin")
+		headers.Set("Permissions-Policy", "camera=(), geolocation=(), microphone=()")
+		headers.Set("Referrer-Policy", "no-referrer")
+		headers.Set("X-Content-Type-Options", "nosniff")
+		headers.Set("X-Frame-Options", "DENY")
+		if strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/login" || r.URL.Path == "/change-password" {
+			headers.Set("Cache-Control", "no-store")
+		}
+		if r.TLS != nil || s.isTrustedProxy(r) && strings.EqualFold(lastForwardedValue(r.Header.Get("X-Forwarded-Proto")), "https") {
+			headers.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -431,11 +544,7 @@ func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func memoryPath(r *http.Request) (string, error) {
-	path := strings.TrimPrefix(r.URL.Path, "/v1/recall/")
-	path, err := url.PathUnescape(path)
-	if err != nil {
-		return "", err
-	}
+	path := r.PathValue("path")
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("recall path is required")
 	}
@@ -443,17 +552,49 @@ func memoryPath(r *http.Request) (string, error) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
+	body := http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
+	defer body.Close()
+	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+		writeJSONDecodeError(w, err)
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("request body must contain exactly one JSON value")
+		}
+		writeJSONDecodeError(w, err)
 		return false
 	}
 	return true
 }
 
+func writeJSONDecodeError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "REQUEST_TOO_LARGE", fmt.Sprintf("JSON request body exceeds %d bytes", tooLarge.Limit))
+		return
+	}
+	writeError(w, http.StatusBadRequest, "INVALID_JSON", err.Error())
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
+	if status >= http.StatusBadRequest {
+		if object, ok := value.(map[string]any); ok {
+			if requestID := requestIDFromWriter(w); requestID != "" {
+				copy := make(map[string]any, len(object)+1)
+				for key, item := range object {
+					copy[key] = item
+				}
+				if _, exists := copy["request_id"]; !exists {
+					copy["request_id"] = requestID
+				}
+				value = copy
+			}
+		}
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
@@ -473,11 +614,4 @@ func queryInt(r *http.Request, key string, fallback int) int {
 		return fallback
 	}
 	return parsed
-}
-
-func logRequests(next http.Handler, logger *slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug("http request", "method", r.Method, "path", r.URL.Path)
-		next.ServeHTTP(w, r)
-	})
 }

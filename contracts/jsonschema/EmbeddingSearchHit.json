@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/EmbeddingSearchHit.json",
+  "title": "EmbeddingSearchHit",
+  "type": "object",
+  "description": "Recall 向量搜索命中。",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Recall 相对路径。"
+    },
+    "title": {
+      "type": "string",
+      "description": "Markdown 标题。"
+    },
+    "score": {
+      "type": "number",
+      "description": "余弦相似度。",
+      "minimum": -1,
+      "maximum": 1
+    },
+    "snippet": {
+      "type": "string",
+      "description": "文档文本片段。"
+    },
+    "frontmatter": {
+      "type": "object",
+      "description": "命中文档 Frontmatter。",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Frontmatter 字段值。"
+      },
+      "properties": {}
+    }
+  },
+  "required": [
+    "path",
+    "score",
+    "snippet"
+  ]
+}

@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	nexusapp.Main(os.Args)
+	os.Exit(nexusapp.Main(os.Args))
 }

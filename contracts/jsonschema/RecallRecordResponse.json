@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/RecallRecordResponse.json",
+  "title": "RecallRecordResponse",
+  "type": "object",
+  "description": "Recall 读取或写入结果。",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "请求是否成功。"
+    },
+    "recall": {
+      "$ref": "#/$defs/RecallRecord"
+    }
+  },
+  "required": [
+    "ok",
+    "recall"
+  ],
+  "$defs": {
+    "RecallRecord": {
+      "type": "object",
+      "description": "读取或写入后的完整 Recall 文本记录。",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Recall 相对路径。"
+        },
+        "content": {
+          "type": "string",
+          "description": "包含 Frontmatter 的完整文本。"
+        },
+        "body": {
+          "type": "string",
+          "description": "移除 Frontmatter 后的正文。"
+        },
+        "frontmatter": {
+          "type": "object",
+          "description": "解析后的 Frontmatter 字符串字段。",
+          "additionalProperties": {
+            "type": "string",
+            "description": "Frontmatter 字段值。"
+          },
+          "properties": {}
+        },
+        "size_bytes": {
+          "type": "integer",
+          "description": "文本字节数。",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "path",
+        "content",
+        "body",
+        "frontmatter",
+        "size_bytes"
+      ]
+    }
+  }
+}

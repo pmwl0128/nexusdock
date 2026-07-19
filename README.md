@@ -72,4 +72,8 @@ NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin init owner
 NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin recover owner
 ```
 
-`NEXUS_AUTH_TOKEN` is separate and protects programmatic API access when `NEXUS_REQUIRE_AUTH=true`.
+Browser requests use the administrator session cookie. Programmatic `/v1` clients use `Authorization: Bearer $NEXUS_AUTH_TOKEN`; a direct loopback fallback exists only for isolated tests or embedded uses that do not configure the web authentication service. Client-controlled `Host` and forwarding headers never grant local access.
+
+`NEXUS_REQUIRE_AUTH=true` is a startup guard: it refuses to start unless `NEXUS_AUTH_TOKEN` is configured. `NEXUS_TRUSTED_PROXIES` must contain only the reverse proxy addresses that are allowed to supply `X-Forwarded-*` headers. Leave `NEXUS_AUTH_ALLOW_INSECURE_HTTP=false` outside local development so browser login requires HTTPS.
+
+The production image runs as fixed UID/GID `10001:10001`. Compose uses a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and mounts the Git credential-store file as a read-only Secret. Host bind mounts for `NEXUS_DATA_DIR` and `RECALL_REPO_DIR` must be writable by UID/GID 10001; see `deploy/README.md` for the permission preflight.

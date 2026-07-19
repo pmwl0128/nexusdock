@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/OperationOK.json",
+  "title": "OperationOK",
+  "type": "object",
+  "description": "无附加数据的成功响应。",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "固定为 true。"
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

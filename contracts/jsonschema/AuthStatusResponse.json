@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/AuthStatusResponse.json",
+  "title": "AuthStatusResponse",
+  "type": "object",
+  "description": "管理员认证初始化状态。",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "请求是否成功。"
+    },
+    "initialized": {
+      "type": "boolean",
+      "description": "管理员凭据是否已初始化。"
+    }
+  },
+  "required": [
+    "ok",
+    "initialized"
+  ]
+}

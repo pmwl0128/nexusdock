@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/EmbeddingStatusResponse.json",
+  "title": "EmbeddingStatusResponse",
+  "type": "object",
+  "description": "Recall 嵌入服务及索引状态。",
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "状态查询是否成功。"
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "嵌入服务是否启用。"
+    },
+    "configured": {
+      "type": "boolean",
+      "description": "嵌入端点是否配置。"
+    },
+    "model": {
+      "type": "string",
+      "description": "当前嵌入模型。"
+    },
+    "endpoint": {
+      "type": "string",
+      "description": "当前嵌入端点。"
+    },
+    "index_path": {
+      "type": "string",
+      "description": "本地索引文件路径。"
+    },
+    "index": {
+      "$ref": "#/$defs/EmbeddingIndexSummary"
+    },
+    "reachable": {
+      "type": "boolean",
+      "description": "嵌入端点是否可达。"
+    },
+    "reason": {
+      "type": "string",
+      "description": "未启用原因。"
+    },
+    "error": {
+      "type": "string",
+      "description": "最近一次探测错误。"
+    }
+  },
+  "required": [
+    "ok",
+    "enabled",
+    "configured"
+  ],
+  "$defs": {
+    "EmbeddingIndexSummary": {
+      "type": "object",
+      "description": "Recall 向量索引摘要。",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "索引使用的嵌入模型。"
+        },
+        "dimension": {
+          "type": "integer",
+          "description": "向量维度。",
+          "minimum": 0
+        },
+        "count": {
+          "type": "integer",
+          "description": "索引文档数量。",
+          "minimum": 0
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "RFC 3339 UTC 时间。",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "model",
+        "count",
+        "updated_at"
+      ]
+    }
+  }
+}

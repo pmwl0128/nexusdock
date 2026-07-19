@@ -1,6 +1,11 @@
 package e2e_test
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -10,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/uvwt/nexusdock/generated/nexuscontracts"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/httpx"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -24,7 +30,11 @@ func newHandler(t *testing.T) http.Handler {
 		t.Fatalf("NewStore: %v", err)
 	}
 	manager := syncer.NewManager(syncer.Config{RepoDir: root}, slog.Default())
-	return httpx.NewServer(config.Config{RecallRepoDir: root}, store, manager, slog.Default()).Handler()
+	handler := httpx.NewServer(config.Config{RecallRepoDir: root}, store, manager, slog.Default()).Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.RemoteAddr = "127.0.0.1:51234"
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func TestHealthAndEmbeddedNexusUI(t *testing.T) {
@@ -102,5 +112,74 @@ func TestBuiltFrontendContainsNexusSectionsAndResponsiveRules(t *testing.T) {
 		if !strings.Contains(styles.String(), rule) {
 			t.Errorf("frontend stylesheet missing responsive rule %q", rule)
 		}
+	}
+}
+
+func TestGeneratedClientMatchesRealRecallAndErrorEnvelopes(t *testing.T) {
+	handler := newHandler(t)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	client, err := nexuscontracts.NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	health, err := client.GetHealth(context.Background())
+	if err != nil || !health.Ok || health.Service != "nexusdock" {
+		t.Fatalf("health=%#v err=%v", health, err)
+	}
+	authStatus, err := client.GetAuthStatus(context.Background())
+	if err != nil || !authStatus.Ok || authStatus.Initialized {
+		t.Fatalf("auth status=%#v err=%v", authStatus, err)
+	}
+	cards, err := client.ListRecallCards(context.Background(), nil)
+	if err != nil || !cards.Ok || cards.Count != 0 || cards.Prefix != "recall/managed/cards" {
+		t.Fatalf("recall cards=%#v err=%v", cards, err)
+	}
+	embedding, err := client.GetEmbeddingStatus(context.Background())
+	if err != nil || !embedding.Ok || embedding.Enabled || embedding.Configured {
+		t.Fatalf("embedding status=%#v err=%v", embedding, err)
+	}
+	backup, err := client.GetBackupStatus(context.Background())
+	if err != nil || backup.Id != "nexusdock-backup" || backup.Provider != "launchd" {
+		t.Fatalf("backup status=%#v err=%v", backup, err)
+	}
+
+	payload, err := json.Marshal(map[string]string{
+		"path":    "recall/docs/inbox/client.md",
+		"content": "# Client contract\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		server.URL+"/v1/recall",
+		bytes.NewReader(payload),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := server.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Fatalf("create status=%d body=%s", response.StatusCode, body)
+	}
+
+	result, err := client.ReadRecall(context.Background(), "recall/docs/inbox/client.md")
+	if err != nil || !result.Ok || result.Recall.Path != "recall/docs/inbox/client.md" || !strings.Contains(result.Recall.Content, "Client contract") {
+		t.Fatalf("recall result=%#v err=%v", result, err)
+	}
+
+	_, err = client.ReadRecall(context.Background(), "recall/docs/missing.md")
+	var apiError *nexuscontracts.APIError
+	if !errors.As(err, &apiError) || apiError.StatusCode != http.StatusNotFound || apiError.Code != "READ_FAILED" || !strings.HasPrefix(apiError.RequestID, "req_") {
+		t.Fatalf("missing recall error=%#v raw=%v", apiError, err)
 	}
 }

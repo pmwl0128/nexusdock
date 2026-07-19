@@ -22,10 +22,13 @@ import (
 type workflowTemplateStatus string
 
 const (
-	workflowTemplateDraft   workflowTemplateStatus = "draft"
-	workflowTemplateActive  workflowTemplateStatus = "active"
-	workflowTemplateRetired workflowTemplateStatus = "retired"
+	workflowTemplateDraft             workflowTemplateStatus = "draft"
+	workflowTemplateActive            workflowTemplateStatus = "active"
+	workflowTemplateRetired           workflowTemplateStatus = "retired"
+	maxWorkflowEmbeddingResponseBytes                        = 32 << 20
 )
+
+var errWorkflowVectorIndexStale = errors.New("workflow vector index is stale")
 
 type workflowMatchRule struct {
 	Keywords []string `json:"keywords,omitempty"`
@@ -70,8 +73,8 @@ func (s *Server) registerWorkflowTemplateRoutes(mux *http.ServeMux, protected fu
 	mux.HandleFunc("POST /v1/workflow-templates/match", protected(s.workflowTemplatesMatch))
 	mux.HandleFunc("POST /v1/workflow-templates/reindex", protected(s.workflowTemplatesReindex))
 	mux.HandleFunc("GET /v1/workflow-templates/vector-index", protected(s.workflowTemplateVectorIndexRead))
-	mux.HandleFunc("GET /v1/workflow-templates/", protected(s.workflowTemplateRead))
-	mux.HandleFunc("POST /v1/workflow-templates/", protected(s.workflowTemplateAction))
+	mux.HandleFunc("GET /v1/workflow-templates/{templateID}/{version}", protected(s.workflowTemplateRead))
+	mux.HandleFunc("POST /v1/workflow-templates/{templateID}/{version}/{action}", protected(s.workflowTemplateAction))
 }
 
 func (s *Server) workflowRegistryRoot() string {
@@ -140,9 +143,11 @@ func (s *Server) workflowTemplateSaveDraft(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) {
-	id, version, action, err := workflowTemplateActionParams(r.URL.Path)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
+	id := r.PathValue("templateID")
+	version := r.PathValue("version")
+	action := r.PathValue("action")
+	if !validWorkflowTemplateToken(id) || !validWorkflowTemplateToken(version) || !validWorkflowTemplateToken(action) {
+		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", "template id, version, or action is invalid")
 		return
 	}
 	workflowRegistryMu.Lock()
@@ -178,20 +183,16 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		now := time.Now().UTC()
-		if err := s.retireActiveWorkflowTemplates(id, version, now); err != nil {
-			writeError(w, http.StatusConflict, "WORKFLOW_RETIRE_OLD_FAILED", err.Error())
-			return
-		}
 		t.Status = workflowTemplateActive
 		t.PublishedAt = &now
 		t.RetiredAt = nil
 		t.Hash = workflowTemplateHash(t)
-		if err := writeWorkflowTemplateJSON(s.workflowTemplatePath("published", id, version), t); err != nil {
-			writeError(w, http.StatusConflict, "WORKFLOW_PUBLISH_FAILED", err.Error())
+		cleanupPending, errorCode, err := s.publishWorkflowTemplate(t, now, writeWorkflowTemplateJSON)
+		if err != nil {
+			writeError(w, http.StatusConflict, errorCode, err.Error())
 			return
 		}
-		_ = os.Remove(s.workflowTemplatePath("drafts", id, version))
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry", "draft_cleanup_pending": cleanupPending})
 	case "retire":
 		t, err := s.loadWorkflowTemplate("published", id, version)
 		if err != nil {
@@ -205,6 +206,7 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 		now := time.Now().UTC()
 		t.Status = workflowTemplateRetired
 		t.RetiredAt = &now
+		t.Hash = workflowTemplateHash(t)
 		if err := writeWorkflowTemplateJSON(s.workflowTemplatePath("published", id, version), t); err != nil {
 			writeError(w, http.StatusConflict, "WORKFLOW_RETIRE_FAILED", err.Error())
 			return
@@ -216,9 +218,10 @@ func (s *Server) workflowTemplateAction(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) workflowTemplateRead(w http.ResponseWriter, r *http.Request) {
-	id, version, err := workflowTemplatePathParams(r.URL.Path)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
+	id := r.PathValue("templateID")
+	version := r.PathValue("version")
+	if !validWorkflowTemplateToken(id) || !validWorkflowTemplateToken(version) {
+		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", "template id or version is invalid")
 		return
 	}
 	workflowRegistryMu.Lock()
@@ -273,7 +276,7 @@ func (s *Server) workflowTemplatesMatch(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	candidates, err := s.matchWorkflowTemplates(req.Goal, req.Device, req.Type)
+	candidates, err := s.matchWorkflowTemplates(r.Context(), req.Goal, req.Device, req.Type)
 	if err != nil {
 		writeError(w, http.StatusConflict, "WORKFLOW_MATCH_FAILED", err.Error())
 		return
@@ -305,13 +308,13 @@ func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "missing"})
 		return
 	}
-	var idx workflowTemplateVectorIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_VECTOR_INDEX_INVALID", err.Error())
+	idx, err := decodeWorkflowTemplateVectorIndex(data, s.cfg.EmbeddingModel)
+	if errors.Is(err, errWorkflowVectorIndexStale) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": s.cfg.EmbeddingModel})
 		return
 	}
-	if idx.Model != s.cfg.EmbeddingModel || idx.Documents == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": s.cfg.EmbeddingModel})
+	if err != nil {
+		writeError(w, http.StatusConflict, "WORKFLOW_VECTOR_INDEX_INVALID", err.Error())
 		return
 	}
 	info, _ := os.Stat(s.workflowTemplateVectorIndexPath())
@@ -332,11 +335,20 @@ func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.
 }
 
 func (s *Server) getWorkflowTemplate(id, version string) (workflowTemplate, error) {
-	for _, area := range []string{"published", "drafts"} {
-		t, err := s.loadWorkflowTemplate(area, id, version)
-		if err == nil {
-			return t, nil
-		}
+	published, err := s.loadWorkflowTemplate("published", id, version)
+	if err == nil {
+		return published, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return workflowTemplate{}, fmt.Errorf("load published template %s@%s: %w", id, version, err)
+	}
+
+	draft, err := s.loadWorkflowTemplate("drafts", id, version)
+	if err == nil {
+		return draft, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return workflowTemplate{}, fmt.Errorf("load draft template %s@%s: %w", id, version, err)
 	}
 	return workflowTemplate{}, fmt.Errorf("template %s@%s not found", id, version)
 }
@@ -349,13 +361,23 @@ func (s *Server) loadWorkflowTemplate(area, id, version string) (workflowTemplat
 	if err != nil {
 		return workflowTemplate{}, err
 	}
-	var t workflowTemplate
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	return decodeWorkflowTemplate(data)
+}
+
+func decodeWorkflowTemplate(data []byte) (workflowTemplate, error) {
+	var template workflowTemplate
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&t); err != nil {
+	if err := decoder.Decode(&template); err != nil {
 		return workflowTemplate{}, err
 	}
-	return t, nil
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return workflowTemplate{}, errors.New("template file contains multiple JSON values")
+		}
+		return workflowTemplate{}, fmt.Errorf("read trailing template data: %w", err)
+	}
+	return template, nil
 }
 
 func (s *Server) listWorkflowTemplates(status workflowTemplateStatus) ([]workflowTemplate, error) {
@@ -378,9 +400,9 @@ func (s *Server) listWorkflowTemplates(status workflowTemplateStatus) ([]workflo
 			if err != nil {
 				return nil, err
 			}
-			var t workflowTemplate
-			if err := json.Unmarshal(data, &t); err != nil {
-				return nil, err
+			t, err := decodeWorkflowTemplate(data)
+			if err != nil {
+				return nil, fmt.Errorf("read workflow template %s: %w", entry.Name(), err)
 			}
 			if status == "" || t.Status == status {
 				out = append(out, t)
@@ -396,11 +418,41 @@ func (s *Server) listWorkflowTemplates(status workflowTemplateStatus) ([]workflo
 	return out, nil
 }
 
-func (s *Server) retireActiveWorkflowTemplates(id, exceptVersion string, retiredAt time.Time) error {
+type workflowTemplateJSONWriter func(string, any) error
+
+func (s *Server) publishWorkflowTemplate(t workflowTemplate, publishedAt time.Time, write workflowTemplateJSONWriter) (bool, string, error) {
+	publishedPath := s.workflowTemplatePath("published", t.ID, t.Version)
+	if err := write(publishedPath, t); err != nil {
+		rollbackErr := removeWorkflowTemplateFile(publishedPath)
+		if rollbackErr != nil {
+			return false, "WORKFLOW_PUBLISH_FAILED", fmt.Errorf("write new published template: %w; rollback partial file: %v", err, rollbackErr)
+		}
+		return false, "WORKFLOW_PUBLISH_FAILED", fmt.Errorf("write new published template: %w", err)
+	}
+	if err := s.retireActiveWorkflowTemplates(t.ID, t.Version, publishedAt, write); err != nil {
+		rollbackErr := removeWorkflowTemplateFile(publishedPath)
+		if rollbackErr != nil {
+			return false, "WORKFLOW_RETIRE_OLD_FAILED", fmt.Errorf("retire old templates: %w; rollback new template: %v", err, rollbackErr)
+		}
+		return false, "WORKFLOW_RETIRE_OLD_FAILED", fmt.Errorf("retire old templates: %w", err)
+	}
+
+	draftPath := s.workflowTemplatePath("drafts", t.ID, t.Version)
+	if err := removeWorkflowTemplateFile(draftPath); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("workflow draft cleanup failed after publish", "template_id", t.ID, "version", t.Version, "error", err)
+		}
+		return true, "", nil
+	}
+	return false, "", nil
+}
+
+func (s *Server) retireActiveWorkflowTemplates(id, exceptVersion string, retiredAt time.Time, write workflowTemplateJSONWriter) error {
 	entries, err := os.ReadDir(filepath.Join(s.workflowRegistryRoot(), "published"))
 	if err != nil {
 		return err
 	}
+	originals := make([]workflowTemplate, 0)
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
@@ -409,29 +461,47 @@ func (s *Server) retireActiveWorkflowTemplates(id, exceptVersion string, retired
 		if err != nil {
 			return err
 		}
-		var t workflowTemplate
-		if err := json.Unmarshal(data, &t); err != nil {
-			return err
+		t, err := decodeWorkflowTemplate(data)
+		if err != nil {
+			return fmt.Errorf("read workflow template %s: %w", entry.Name(), err)
 		}
 		if t.ID != id || t.Version == exceptVersion || t.Status != workflowTemplateActive {
 			continue
 		}
-		t.Status = workflowTemplateRetired
-		t.RetiredAt = &retiredAt
-		if err := writeWorkflowTemplateJSON(s.workflowTemplatePath("published", t.ID, t.Version), t); err != nil {
-			return err
+		originals = append(originals, t)
+	}
+
+	updated := make([]workflowTemplate, 0, len(originals))
+	for _, original := range originals {
+		retired := original
+		retired.Status = workflowTemplateRetired
+		retired.RetiredAt = &retiredAt
+		retired.Hash = workflowTemplateHash(retired)
+		if err := write(s.workflowTemplatePath("published", retired.ID, retired.Version), retired); err != nil {
+			rollbackErrors := make([]string, 0)
+			rollbackTargets := append(append([]workflowTemplate{}, updated...), original)
+			for _, previous := range rollbackTargets {
+				if rollbackErr := write(s.workflowTemplatePath("published", previous.ID, previous.Version), previous); rollbackErr != nil {
+					rollbackErrors = append(rollbackErrors, fmt.Sprintf("%s@%s: %v", previous.ID, previous.Version, rollbackErr))
+				}
+			}
+			if len(rollbackErrors) > 0 {
+				return fmt.Errorf("retire %s@%s: %w; rollback failures: %s", retired.ID, retired.Version, err, strings.Join(rollbackErrors, "; "))
+			}
+			return fmt.Errorf("retire %s@%s: %w", retired.ID, retired.Version, err)
 		}
+		updated = append(updated, original)
 	}
 	return nil
 }
 
-func (s *Server) matchWorkflowTemplates(goal, device, taskType string) ([]workflowTemplateCandidate, error) {
+func (s *Server) matchWorkflowTemplates(ctx context.Context, goal, device, taskType string) ([]workflowTemplateCandidate, error) {
 	templates, err := s.listWorkflowTemplates(workflowTemplateActive)
 	if err != nil {
 		return nil, err
 	}
 	templates = latestWorkflowTemplateVersions(templates)
-	vectorScores := s.workflowTemplateVectorScores(context.Background(), goal, device, taskType)
+	vectorScores := s.workflowTemplateVectorScores(ctx, goal, device, taskType)
 	query := workflowTemplateMatchText(strings.Join([]string{goal, taskType, device}, " "))
 	out := []workflowTemplateCandidate{}
 	fallback := []workflowTemplateCandidate{}
@@ -520,7 +590,13 @@ func (s *Server) workflowTemplateVectorIndexInfo() (string, int) {
 	}
 	idx, err := s.loadWorkflowTemplateVectorIndex()
 	if err != nil {
-		return "missing", 0
+		if errors.Is(err, os.ErrNotExist) {
+			return "missing", 0
+		}
+		if errors.Is(err, errWorkflowVectorIndexStale) {
+			return "stale", 0
+		}
+		return "invalid", 0
 	}
 	return "ready", len(idx.Documents)
 }
@@ -546,12 +622,18 @@ func (s *Server) reindexWorkflowTemplateVectors(ctx context.Context) (map[string
 		return nil, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(templates))
 	}
 	idx := workflowTemplateVectorIndex{Model: s.cfg.EmbeddingModel, UpdatedAt: time.Now().UTC(), Documents: map[string]workflowTemplateVector{}}
+	if len(vectors) > 0 {
+		idx.Dimension = len(vectors[0])
+	}
 	for i, t := range templates {
+		if len(vectors[i]) != idx.Dimension {
+			return nil, fmt.Errorf("embedding dimension mismatch at result %d: got %d want %d", i, len(vectors[i]), idx.Dimension)
+		}
 		key := t.ID + "@" + t.Version
 		idx.Documents[key] = workflowTemplateVector{ID: t.ID, Version: t.Version, Hash: t.Hash, Text: texts[i], Vector: vectors[i], UpdatedAt: time.Now().UTC()}
-		if len(vectors[i]) > idx.Dimension {
-			idx.Dimension = len(vectors[i])
-		}
+	}
+	if err := validateWorkflowTemplateVectorIndex(idx, s.cfg.EmbeddingModel); err != nil {
+		return nil, err
 	}
 	if err := writeWorkflowTemplateJSON(s.workflowTemplateVectorIndexPath(), idx); err != nil {
 		return nil, err
@@ -571,6 +653,9 @@ func (s *Server) workflowTemplateVectorScores(ctx context.Context, goal, device,
 	if err != nil || len(vectors) != 1 {
 		return nil
 	}
+	if len(vectors[0]) != idx.Dimension {
+		return nil
+	}
 	out := map[string]float64{}
 	for key, doc := range idx.Documents {
 		out[key] = cosineWorkflowVector(vectors[0], doc.Vector)
@@ -583,14 +668,56 @@ func (s *Server) loadWorkflowTemplateVectorIndex() (workflowTemplateVectorIndex,
 	if err != nil {
 		return workflowTemplateVectorIndex{}, err
 	}
+	return decodeWorkflowTemplateVectorIndex(data, s.cfg.EmbeddingModel)
+}
+
+func decodeWorkflowTemplateVectorIndex(data []byte, model string) (workflowTemplateVectorIndex, error) {
 	var idx workflowTemplateVectorIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&idx); err != nil {
 		return workflowTemplateVectorIndex{}, err
 	}
-	if idx.Model != s.cfg.EmbeddingModel || idx.Documents == nil {
-		return workflowTemplateVectorIndex{}, errors.New("workflow vector index is stale")
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return workflowTemplateVectorIndex{}, errors.New("workflow vector index contains multiple JSON values")
+		}
+		return workflowTemplateVectorIndex{}, fmt.Errorf("read trailing workflow vector index data: %w", err)
+	}
+	if err := validateWorkflowTemplateVectorIndex(idx, model); err != nil {
+		return workflowTemplateVectorIndex{}, err
 	}
 	return idx, nil
+}
+
+func validateWorkflowTemplateVectorIndex(idx workflowTemplateVectorIndex, model string) error {
+	if strings.TrimSpace(idx.Model) == "" {
+		return errors.New("workflow vector index model is empty")
+	}
+	if strings.TrimSpace(model) != "" && idx.Model != model {
+		return fmt.Errorf("%w: model %q does not match %q", errWorkflowVectorIndexStale, idx.Model, model)
+	}
+	if idx.Documents == nil {
+		return errors.New("workflow vector index documents are missing")
+	}
+	if len(idx.Documents) == 0 {
+		if idx.Dimension != 0 {
+			return errors.New("empty workflow vector index must have dimension 0")
+		}
+		return nil
+	}
+	if idx.Dimension <= 0 {
+		return errors.New("workflow vector index dimension must be positive")
+	}
+	for key, document := range idx.Documents {
+		if document.ID == "" || document.Version == "" || key != document.ID+"@"+document.Version {
+			return fmt.Errorf("workflow vector index document key mismatch for %q", key)
+		}
+		if len(document.Vector) != idx.Dimension {
+			return fmt.Errorf("workflow vector index document %q has dimension %d, want %d", key, len(document.Vector), idx.Dimension)
+		}
+	}
+	return nil
 }
 
 func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string) ([][]float64, error) {
@@ -608,7 +735,10 @@ func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string)
 	if model == "" {
 		model = "BAAI/bge-m3"
 	}
-	payload, _ := json.Marshal(map[string]any{"model": model, "input": texts})
+	payload, err := json.Marshal(map[string]any{"model": model, "input": texts})
+	if err != nil {
+		return nil, fmt.Errorf("encode embedding request: %w", err)
+	}
 	timeout := s.cfg.EmbeddingTimeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -625,9 +755,12 @@ func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string)
 		return nil, err
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024*1024))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxWorkflowEmbeddingResponseBytes+1))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read embedding response: %w", err)
+	}
+	if len(data) > maxWorkflowEmbeddingResponseBytes {
+		return nil, fmt.Errorf("embedding response exceeds %d bytes", maxWorkflowEmbeddingResponseBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("embedding endpoint returned %s", resp.Status)
@@ -640,25 +773,60 @@ func parseWorkflowEmbeddingResponse(data []byte) ([][]float64, error) {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
-	if values, ok := raw["embeddings"].([]any); ok {
+	if value, exists := raw["embeddings"]; exists {
+		values, ok := value.([]any)
+		if !ok {
+			return nil, errors.New("embedding response embeddings is not an array")
+		}
 		return workflowVectorsFromArray(values)
 	}
-	if dataValues, ok := raw["data"].([]any); ok {
-		vectors := make([][]float64, 0, len(dataValues))
-		for _, item := range dataValues {
-			m, ok := item.(map[string]any)
+	if value, exists := raw["data"]; exists {
+		dataValues, ok := value.([]any)
+		if !ok {
+			return nil, errors.New("embedding response data is not an array")
+		}
+		vectors := make([][]float64, len(dataValues))
+		indexMode := -1
+		for position, item := range dataValues {
+			entry, ok := item.(map[string]any)
 			if !ok {
 				return nil, errors.New("embedding data item is not an object")
 			}
-			arr, ok := m["embedding"].([]any)
+			array, ok := entry["embedding"].([]any)
 			if !ok {
 				return nil, errors.New("embedding data item missing embedding")
 			}
-			vector, err := workflowVectorFromArray(arr)
+			vector, err := workflowVectorFromArray(array)
 			if err != nil {
 				return nil, err
 			}
-			vectors = append(vectors, vector)
+			rawIndex, hasIndex := entry["index"]
+			mode := 0
+			if hasIndex {
+				mode = 1
+			}
+			if indexMode == -1 {
+				indexMode = mode
+			} else if indexMode != mode {
+				return nil, errors.New("embedding response mixes indexed and unindexed items")
+			}
+			target := position
+			if hasIndex {
+				index, ok := rawIndex.(float64)
+				if !ok || index != math.Trunc(index) || index < 0 || int(index) >= len(dataValues) {
+					return nil, fmt.Errorf("embedding response index is invalid: %v", rawIndex)
+				}
+				target = int(index)
+			}
+			if vectors[target] != nil {
+				return nil, fmt.Errorf("embedding response index %d is duplicated", target)
+			}
+			vectors[target] = vector
+		}
+		for index, vector := range vectors {
+			if vector == nil {
+				return nil, fmt.Errorf("embedding response index %d is missing", index)
+			}
 		}
 		return vectors, nil
 	}
@@ -689,6 +857,9 @@ func workflowVectorFromArray(values []any) ([]float64, error) {
 			return nil, errors.New("embedding value is not a number")
 		}
 		vector = append(vector, n)
+	}
+	if len(vector) == 0 {
+		return nil, errors.New("embedding vector is empty")
 	}
 	return vector, nil
 }
@@ -731,24 +902,6 @@ func workflowTemplateVectorBonus(score float64) int {
 		return 25
 	}
 	return 15
-}
-
-func workflowTemplatePathParams(path string) (string, string, error) {
-	tail := strings.Trim(strings.TrimPrefix(path, "/v1/workflow-templates/"), "/")
-	parts := strings.Split(tail, "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", errors.New("template id and version are required")
-	}
-	return parts[0], parts[1], nil
-}
-
-func workflowTemplateActionParams(path string) (string, string, string, error) {
-	tail := strings.Trim(strings.TrimPrefix(path, "/v1/workflow-templates/"), "/")
-	parts := strings.Split(tail, "/")
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
-		return "", "", "", errors.New("template id, version, and action are required")
-	}
-	return parts[0], parts[1], parts[2], nil
 }
 
 func workflowTemplateSummaryFromTemplate(t workflowTemplate) workflowTemplateSummary {
@@ -898,7 +1051,23 @@ func writeWorkflowTemplateJSON(path string, value any) error {
 	if err := os.Rename(name, path); err != nil {
 		return err
 	}
-	return os.Chmod(path, 0o600)
+	return syncWorkflowTemplateDirectory(path)
+}
+
+func removeWorkflowTemplateFile(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return syncWorkflowTemplateDirectory(path)
+}
+
+func syncWorkflowTemplateDirectory(path string) error {
+	directory, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	return directory.Sync()
 }
 func normalizeWorkflowTexts(values []string) []string {
 	seen := map[string]struct{}{}
