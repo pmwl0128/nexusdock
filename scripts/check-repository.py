@@ -51,6 +51,15 @@ REQUIRED_COMPOSE_TOKENS = (
     'uid: "10001"',
     'gid: "10001"',
 )
+REQUIRED_WEB_SHELL_TOKENS = (
+    '<meta name="color-scheme" content="light" />',
+    '<meta name="supported-color-schemes" content="light" />',
+    '<meta name="theme-color" content="#f3f4f8" />',
+)
+FORBIDDEN_WEB_SHELL_TOKENS = (
+    "color-scheme: dark",
+    'meta[name="theme-color"]',
+)
 
 
 def git_paths(*args: str) -> set[str]:
@@ -134,6 +143,21 @@ def main() -> int:
         if token not in compose:
             errors.append(f"Compose 缺少容器最小权限约束: {token}")
 
+    web_index = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    for token in REQUIRED_WEB_SHELL_TOKENS:
+        if token not in web_index:
+            errors.append(f"Web 外壳缺少 iOS Safari 浅色声明: {token}")
+
+    for path in (ROOT / "web" / "src").rglob("*"):
+        if not path.is_file() or path.suffix not in {".css", ".ts", ".tsx"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in FORBIDDEN_WEB_SHELL_TOKENS:
+            if token in text:
+                errors.append(
+                    f"Web 页面不应动态或局部切回深色浏览器外壳: {path.relative_to(ROOT)}: {token}"
+                )
+
     for path in ("bin/__probe__", "nexus-data/__probe__", "recall/__probe__", "web/node_modules/__probe__"):
         if not git_ignored(path):
             errors.append(f"本地构建或运行数据目录未被忽略: {path}")
@@ -146,7 +170,7 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print("repository valid: project boundary, tracked files and current authentication model")
+    print("repository valid: project boundary, authentication model and mobile web shell")
     return 0
 
 
