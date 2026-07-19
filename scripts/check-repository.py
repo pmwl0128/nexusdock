@@ -60,6 +60,14 @@ FORBIDDEN_WEB_SHELL_TOKENS = (
     "color-scheme: dark",
     'meta[name="theme-color"]',
 )
+REQUIRED_MOBILE_SIDEBAR_TOKENS = (
+    "visibility:hidden;pointer-events:none",
+    ".nexus-sidebar.is-open{transform:translateX(0);visibility:visible;pointer-events:auto",
+)
+FORBIDDEN_CLOSED_SIDEBAR_SHADOW = (
+    "transition:transform .2s ease;box-shadow:20px 0 60px",
+    ".nexus-sidebar {\n    box-shadow: 24px 0 64px",
+)
 
 
 def git_paths(*args: str) -> set[str]:
@@ -157,6 +165,15 @@ def main() -> int:
                 errors.append(
                     f"Web 页面不应动态或局部切回深色浏览器外壳: {path.relative_to(ROOT)}: {token}"
                 )
+
+    nexus_css = (ROOT / "web" / "src" / "nexus.css").read_text(encoding="utf-8")
+    for token in REQUIRED_MOBILE_SIDEBAR_TOKENS:
+        if token not in nexus_css:
+            errors.append(f"移动端关闭侧栏缺少隐藏边界: {token}")
+    combined_mobile_css = nexus_css + "\n" + (ROOT / "web" / "src" / "theme.css").read_text(encoding="utf-8")
+    for token in FORBIDDEN_CLOSED_SIDEBAR_SHADOW:
+        if token in combined_mobile_css:
+            errors.append(f"移动端关闭侧栏不应保留可见阴影: {token}")
 
     for path in ("bin/__probe__", "nexus-data/__probe__", "recall/__probe__", "web/node_modules/__probe__"):
         if not git_ignored(path):
