@@ -169,7 +169,8 @@ func TestRuntimeClientDoesNotFollowRedirects(t *testing.T) {
 	server := newRuntimeTestServer(t, redirect.URL, "runtime-secret")
 	_, err := server.runtimeGet(t.Context(), runtimeTestNodeID, "/internal/runtime/tasks", nil)
 	payload := runtimeUnavailablePayload(err)
-	if err == nil || payload["code"] != "AGENTDOCK_RUNTIME_BAD_RESPONSE" {
+	detail, ok := payload["error"].(map[string]any)
+	if err == nil || !ok || detail["code"] != "AGENTDOCK_RUNTIME_BAD_RESPONSE" {
 		t.Fatalf("redirect error = %v payload=%v", err, payload)
 	}
 	if targetCalls != 0 {
@@ -243,8 +244,8 @@ func TestRuntimeDeleteTaskMapsMissingTaskToNotFound(t *testing.T) {
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), `"code":"TASK_NOT_FOUND"`) {
-		t.Fatalf("body should preserve upstream task error: %s", response.Body.String())
+	if !strings.Contains(response.Body.String(), `"code":"AGENTDOCK_RUNTIME_REQUEST_FAILED"`) || !strings.Contains(response.Body.String(), `"upstream_code":"TASK_NOT_FOUND"`) {
+		t.Fatalf("body should expose stable and upstream task errors: %s", response.Body.String())
 	}
 }
 

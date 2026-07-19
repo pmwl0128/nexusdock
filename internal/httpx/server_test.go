@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -41,12 +42,17 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	if err != nil {
 		t.Fatalf("New private notes store: %v", err)
 	}
-	return NewServer(cfg, store, mgr, slog.Default(), WithSystemDatabase(db), WithAgentDockNodes(nodes), WithPrivateNotes(privateNotes)).Handler()
+	handler := NewServer(cfg, store, mgr, slog.Default(), WithSystemDatabase(db), WithAgentDockNodes(nodes), WithPrivateNotes(privateNotes)).Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.RemoteAddr = "127.0.0.1:51234"
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func doJSON(t *testing.T, h http.Handler, method, path string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	req.RemoteAddr = "127.0.0.1:51234"
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
 	h.ServeHTTP(res, req)
@@ -59,6 +65,100 @@ func TestHealthDoesNotRequireAuth(t *testing.T) {
 	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if res.Code != http.StatusOK {
 		t.Fatalf("health status = %d body=%s", res.Code, res.Body.String())
+	}
+}
+
+func TestSecurityHeadersApplyToAllResponses(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	want := map[string]string{
+		"Cross-Origin-Opener-Policy":   "same-origin",
+		"Cross-Origin-Resource-Policy": "same-origin",
+		"Referrer-Policy":              "no-referrer",
+		"X-Content-Type-Options":       "nosniff",
+		"X-Frame-Options":              "DENY",
+	}
+	for name, value := range want {
+		if got := res.Header().Get(name); got != value {
+			t.Fatalf("%s=%q want=%q", name, got, value)
+		}
+	}
+	if csp := res.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "frame-ancestors 'none'") || !strings.Contains(csp, "script-src 'self'") {
+		t.Fatalf("content security policy=%q", csp)
+	}
+	if permissions := res.Header().Get("Permissions-Policy"); !strings.Contains(permissions, "camera=()") || !strings.Contains(permissions, "microphone=()") {
+		t.Fatalf("permissions policy=%q", permissions)
+	}
+}
+
+func TestSensitiveResponsesDisableCaching(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	for _, path := range []string{"/", "/login", "/change-password", "/v1/auth/status"} {
+		res := httptest.NewRecorder()
+		h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+		if cacheControl := res.Header().Get("Cache-Control"); !strings.Contains(cacheControl, "no-store") {
+			t.Fatalf("%s Cache-Control=%q", path, cacheControl)
+		}
+	}
+}
+
+func TestHSTSOnlyAppliesToHTTPS(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	plain := httptest.NewRecorder()
+	h.ServeHTTP(plain, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if value := plain.Header().Get("Strict-Transport-Security"); value != "" {
+		t.Fatalf("plain HTTP unexpectedly received HSTS: %q", value)
+	}
+
+	secureRequest := httptest.NewRequest(http.MethodGet, "/health", nil)
+	secureRequest.TLS = &tls.ConnectionState{}
+	secure := httptest.NewRecorder()
+	h.ServeHTTP(secure, secureRequest)
+	if value := secure.Header().Get("Strict-Transport-Security"); value != "max-age=31536000; includeSubDomains" {
+		t.Fatalf("HTTPS HSTS=%q", value)
+	}
+}
+
+func TestRequestBoundaryAddsRequestIDToErrors(t *testing.T) {
+	h := newTestHandler(t, config.Config{AuthToken: "required-token"})
+	res := doJSON(t, h, http.MethodGet, "/v1/recall", "")
+	requestID := res.Header().Get("X-Request-ID")
+	if !strings.HasPrefix(requestID, "req_") {
+		t.Fatalf("request ID header=%q", requestID)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["request_id"] != requestID {
+		t.Fatalf("error request_id=%v header=%q body=%s", body["request_id"], requestID, res.Body.String())
+	}
+}
+
+func TestRequestBoundaryRecoversPanic(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	server := &Server{logger: logger}
+	h := server.requestBoundary(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		if requestID := requestIDFromContext(r.Context()); !strings.HasPrefix(requestID, "req_") {
+			t.Fatalf("request context ID=%q", requestID)
+		}
+		panic("injected panic")
+	}))
+	res := httptest.NewRecorder()
+	h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/panic", nil))
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("panic status=%d body=%s", res.Code, res.Body.String())
+	}
+	requestID := res.Header().Get("X-Request-ID")
+	var body map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	detail, ok := body["error"].(map[string]any)
+	if !ok || detail["code"] != "INTERNAL_ERROR" || body["request_id"] != requestID {
+		t.Fatalf("panic body=%#v request_id=%q", body, requestID)
 	}
 }
 
@@ -135,6 +235,23 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 	res = doJSON(t, h, http.MethodDelete, "/v1/recall/profile.md", "")
 	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), "confirmed") {
 		t.Fatalf("delete without confirmation status=%d body=%s", res.Code, res.Body.String())
+	}
+}
+
+func TestJSONEndpointsRejectTrailingValues(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	res := doJSON(t, h, http.MethodPost, "/v1/recall/search", `{"query":"first"} {"query":"second"}`)
+	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), "INVALID_JSON") {
+		t.Fatalf("trailing JSON status=%d body=%s", res.Code, res.Body.String())
+	}
+}
+
+func TestJSONEndpointsRejectOversizedBodies(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	body := `{"query":"` + strings.Repeat("x", maxJSONRequestBytes) + `"}`
+	res := doJSON(t, h, http.MethodPost, "/v1/recall/search", body)
+	if res.Code != http.StatusRequestEntityTooLarge || !strings.Contains(res.Body.String(), "REQUEST_TOO_LARGE") {
+		t.Fatalf("oversized JSON status=%d body=%s", res.Code, res.Body.String())
 	}
 }
 

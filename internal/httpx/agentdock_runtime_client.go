@@ -26,9 +26,10 @@ type agentDockRuntimeClient struct {
 }
 
 type agentDockRuntimeError struct {
-	Status  int    `json:"-"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Status       int    `json:"-"`
+	Code         string `json:"code"`
+	Message      string `json:"message"`
+	UpstreamCode string `json:"upstream_code,omitempty"`
 }
 
 func (e agentDockRuntimeError) Error() string {
@@ -129,7 +130,12 @@ func (c *agentDockRuntimeClient) request(ctx context.Context, method, path strin
 		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: "AGENTDOCK_RUNTIME_BAD_RESPONSE", Message: err.Error()}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, agentDockRuntimeError{Status: resp.StatusCode, Code: firstNonEmptyString(opsString(body["code"]), fmt.Sprintf("HTTP_%d", resp.StatusCode)), Message: firstNonEmptyString(opsString(body["error"]), resp.Status)}
+		return nil, agentDockRuntimeError{
+			Status:       resp.StatusCode,
+			Code:         "AGENTDOCK_RUNTIME_REQUEST_FAILED",
+			Message:      firstNonEmptyString(opsString(body["error"]), resp.Status),
+			UpstreamCode: firstNonEmptyString(opsString(body["code"]), fmt.Sprintf("HTTP_%d", resp.StatusCode)),
+		}
 	}
 	return body, nil
 }
@@ -162,7 +168,11 @@ func runtimeUnavailablePayload(err error) map[string]any {
 			message = err.Error()
 		}
 	}
-	return map[string]any{"ok": false, "available": false, "source": "agentdock-runtime-api", "code": code, "error": message}
+	detail := map[string]any{"code": code, "message": message}
+	if rtErr.UpstreamCode != "" {
+		detail["upstream_code"] = rtErr.UpstreamCode
+	}
+	return map[string]any{"ok": false, "available": false, "source": "agentdock-runtime-api", "error": detail}
 }
 
 func runtimeErrorHTTPStatus(err error) int {

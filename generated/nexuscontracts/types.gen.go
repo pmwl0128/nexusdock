@@ -32,8 +32,120 @@ type ErrorResponse struct {
 type LegacyErrorEnvelope struct {
 	// Ok 固定为 false。
 	Ok bool `json:"ok"`
+	// RequestId 请求关联 ID。
+	RequestId string `json:"request_id"`
 	// Error 错误详情。
 	Error json.RawMessage `json:"error"`
+}
+
+// RuntimeErrorEnvelope AgentDock Runtime 不可用或拒绝请求时的错误信封。
+type RuntimeErrorEnvelope struct {
+	// Ok 固定为 false。
+	Ok bool `json:"ok"`
+	// Available 固定为 false，表示目标 Runtime 当前不可用。
+	Available bool `json:"available"`
+	// Source 错误来源，固定为 agentdock-runtime-api。
+	Source string `json:"source"`
+	// RequestId 请求关联 ID。
+	RequestId string `json:"request_id"`
+	// Error 稳定 Nexus 错误及可选的上游错误码。
+	Error json.RawMessage `json:"error"`
+}
+
+// OperationOK 无附加数据的成功响应。
+type OperationOK struct {
+	// Ok 固定为 true。
+	Ok bool `json:"ok"`
+}
+
+// AuthStatusResponse 管理员认证初始化状态。
+type AuthStatusResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Initialized 管理员凭据是否已初始化。
+	Initialized bool `json:"initialized"`
+}
+
+// AuthLoginRequest 管理员登录凭据。
+type AuthLoginRequest struct {
+	// Username 管理员用户名。
+	Username string `json:"username"`
+	// Password 管理员密码。
+	Password string `json:"password"`
+	// RememberMe 是否创建最长 30 天的记住登录会话。
+	RememberMe *bool `json:"remember_me,omitempty"`
+}
+
+// WebSession 已脱敏的管理员浏览器会话。
+type WebSession struct {
+	// Id 会话 ID。
+	Id string `json:"id"`
+	// UserId 管理员用户 ID。
+	UserId string `json:"user_id"`
+	// Username 管理员用户名。
+	Username string `json:"username"`
+	// DisplayName 管理员显示名称。
+	DisplayName string `json:"display_name"`
+	// RememberMe 是否为记住登录会话。
+	RememberMe bool `json:"remember_me"`
+	// IpPrefix 脱敏后的客户端网络前缀。
+	IpPrefix string `json:"ip_prefix"`
+	// UserAgentSummary 脱敏后的客户端摘要。
+	UserAgentSummary string `json:"user_agent_summary"`
+	// CreatedAt RFC 3339 UTC 时间。
+	CreatedAt string `json:"created_at"`
+	// LastSeenAt RFC 3339 UTC 时间。
+	LastSeenAt string `json:"last_seen_at"`
+	// IdleExpiresAt RFC 3339 UTC 时间。
+	IdleExpiresAt string `json:"idle_expires_at"`
+	// AbsoluteExpiresAt RFC 3339 UTC 时间。
+	AbsoluteExpiresAt string `json:"absolute_expires_at"`
+	// MustChangePassword 是否必须先更新管理员密码。
+	MustChangePassword bool `json:"must_change_password"`
+	// CsrfToken 仅当前会话返回的 CSRF Token。
+	CsrfToken *string `json:"csrf_token,omitempty"`
+	// Current 是否为当前浏览器会话。
+	Current *bool `json:"current,omitempty"`
+}
+
+// WebSessionResponse 当前或新创建的管理员浏览器会话。
+type WebSessionResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Session 契约字段。
+	Session WebSession `json:"session"`
+}
+
+// WebSessionListResponse 管理员活动浏览器会话列表。
+type WebSessionListResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Items 活动浏览器会话。
+	Items []WebSession `json:"items"`
+}
+
+// AuthCredentialUpdateRequest 管理员密码更新请求。
+type AuthCredentialUpdateRequest struct {
+	// Current 当前密码。
+	Current string `json:"current"`
+	// Next 符合策略的新密码。
+	Next string `json:"next"`
+}
+
+// AuthCredentialUpdateResponse 管理员密码更新结果。
+type AuthCredentialUpdateResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Reauthenticate 是否必须重新登录。
+	Reauthenticate bool `json:"reauthenticate"`
+}
+
+// WebSessionRevokeOthersResponse 撤销其他浏览器会话的结果。
+type WebSessionRevokeOthersResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Revoked 已撤销的会话数量。
+	Revoked int64 `json:"revoked"`
 }
 
 // HealthResponse 服务健康状态。
@@ -134,6 +246,336 @@ type RecallEntry struct {
 	SizeBytes *int64 `json:"size_bytes,omitempty"`
 	// ModifiedAt RFC 3339 UTC 时间。
 	ModifiedAt *string `json:"modified_at,omitempty"`
+}
+
+// RecallFileEntry Recall 仓库中的文件或目录条目。
+type RecallFileEntry struct {
+	// Path Recall 相对路径。
+	Path string `json:"path"`
+	// Name 文件或目录名。
+	Name string `json:"name"`
+	// Type 条目类型。
+	Type string `json:"type"`
+	// SizeBytes 条目字节数。
+	SizeBytes *int64 `json:"size_bytes,omitempty"`
+	// Modified RFC 3339 UTC 时间。
+	Modified *string `json:"modified,omitempty"`
+}
+
+// RecallRecord 读取或写入后的完整 Recall 文本记录。
+type RecallRecord struct {
+	// Path Recall 相对路径。
+	Path string `json:"path"`
+	// Content 包含 Frontmatter 的完整文本。
+	Content string `json:"content"`
+	// Body 移除 Frontmatter 后的正文。
+	Body string `json:"body"`
+	// Frontmatter 解析后的 Frontmatter 字符串字段。
+	Frontmatter json.RawMessage `json:"frontmatter"`
+	// SizeBytes 文本字节数。
+	SizeBytes int64 `json:"size_bytes"`
+}
+
+// RecallWriteRequest 创建或覆盖 Recall 文本记录。
+type RecallWriteRequest struct {
+	// Path Recall 相对路径；PATCH 时由路径参数覆盖。
+	Path *string `json:"path,omitempty"`
+	// Content Markdown 或文本内容。
+	Content string `json:"content"`
+	// Type 可选的 Recall 类型。
+	Type *string `json:"type,omitempty"`
+	// Scope Recall 作用域。
+	Scope *string `json:"scope,omitempty"`
+	// Status Recall 状态。
+	Status *string `json:"status,omitempty"`
+	// Project 项目标识。
+	Project *string `json:"project,omitempty"`
+	// Device 设备标识。
+	Device *string `json:"device,omitempty"`
+	// Agent Agent 标识。
+	Agent *string `json:"agent,omitempty"`
+	// Skill Skill 标识。
+	Skill *string `json:"skill,omitempty"`
+	// Source 信息来源。
+	Source *string `json:"source,omitempty"`
+	// Confidence 可信度。
+	Confidence *string `json:"confidence,omitempty"`
+	// VerifiedAt RFC 3339 UTC 时间。
+	VerifiedAt *string `json:"verified_at,omitempty"`
+	// VerificationRunId 验证运行 ID。
+	VerificationRunId *string `json:"verification_run_id,omitempty"`
+	// SourceDevice 验证来源设备。
+	SourceDevice *string `json:"source_device,omitempty"`
+	// SourceAgent 验证来源 Agent。
+	SourceAgent *string `json:"source_agent,omitempty"`
+	// Tags Recall 标签。
+	Tags []string `json:"tags,omitempty"`
+	// Confirmed 写入受保护目录时的确认标记。
+	Confirmed *bool `json:"confirmed,omitempty"`
+	// Overwrite 是否覆盖已有文件。
+	Overwrite *bool `json:"overwrite,omitempty"`
+}
+
+// RecallRecordResponse Recall 读取或写入结果。
+type RecallRecordResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Recall 契约字段。
+	Recall RecallRecord `json:"recall"`
+}
+
+// RecallSearchResult Recall 关键词搜索命中。
+type RecallSearchResult struct {
+	// Path Recall 相对路径。
+	Path string `json:"path"`
+	// Title Markdown 标题。
+	Title *string `json:"title,omitempty"`
+	// Snippet 命中位置附近的文本片段。
+	Snippet string `json:"snippet"`
+	// Frontmatter 命中文档 Frontmatter。
+	Frontmatter json.RawMessage `json:"frontmatter"`
+	// MatchedTerms 命中的查询词。
+	MatchedTerms []string `json:"matched_terms,omitempty"`
+	// MatchedFields 命中的文档字段。
+	MatchedFields []string `json:"matched_fields,omitempty"`
+}
+
+// RecallCardRequest 捕获或写入一张可复用 Recall 卡片。
+type RecallCardRequest struct {
+	// Title 卡片标题。
+	Title string `json:"title"`
+	// Content 卡片正文。
+	Content *string `json:"content,omitempty"`
+	// Summary content 为空时使用的摘要正文。
+	Summary *string `json:"summary,omitempty"`
+	// Type 卡片类型。
+	Type *string `json:"type,omitempty"`
+	// Scope 卡片作用域。
+	Scope *string `json:"scope,omitempty"`
+	// Project 项目标识；为空时使用 global。
+	Project *string `json:"project,omitempty"`
+	// Status 卡片状态。
+	Status *string `json:"status,omitempty"`
+	// Confidence 卡片可信度。
+	Confidence *string `json:"confidence,omitempty"`
+	// Tags 卡片标签。
+	Tags []string `json:"tags,omitempty"`
+	// Source 卡片信息来源。
+	Source *string `json:"source,omitempty"`
+	// Evidence 验证卡片内容的证据。
+	Evidence *string `json:"evidence,omitempty"`
+	// Boundary 卡片适用边界。
+	Boundary *string `json:"boundary,omitempty"`
+	// Path 可选的 recall/managed/cards/ 自定义路径。
+	Path *string `json:"path,omitempty"`
+	// Confirmed 真实写入时必须为 true。
+	Confirmed *bool `json:"confirmed,omitempty"`
+	// Overwrite 是否覆盖同路径卡片。
+	Overwrite *bool `json:"overwrite,omitempty"`
+	// AllowWarnings 是否在已审阅后接受规范警告。
+	AllowWarnings *bool `json:"allow_warnings,omitempty"`
+	// MaxResults 捕获阶段相似项最大数量。
+	MaxResults *int64 `json:"max_results,omitempty"`
+}
+
+// RecallCard 规范化后的 Recall 卡片。
+type RecallCard struct {
+	// Title 卡片标题。
+	Title string `json:"title"`
+	// Content 卡片正文。
+	Content string `json:"content"`
+	// Type 卡片类型。
+	Type string `json:"type"`
+	// Scope 卡片作用域。
+	Scope string `json:"scope"`
+	// Project 项目标识。
+	Project string `json:"project"`
+	// Status 卡片状态。
+	Status string `json:"status"`
+	// Confidence 卡片可信度。
+	Confidence string `json:"confidence"`
+	// Tags 规范化标签。
+	Tags []string `json:"tags,omitempty"`
+	// Source 信息来源。
+	Source string `json:"source"`
+	// Evidence 验证证据。
+	Evidence *string `json:"evidence,omitempty"`
+	// Boundary 适用边界。
+	Boundary *string `json:"boundary,omitempty"`
+	// Path 最终 Recall 相对路径。
+	Path string `json:"path"`
+}
+
+// RecallCardCaptureResponse 卡片写入前的规范化、风险提示和去重计划。
+type RecallCardCaptureResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Card 契约字段。
+	Card RecallCard `json:"card"`
+	// Warnings 需人工审阅的规范警告。
+	Warnings []string `json:"warnings,omitempty"`
+	// CapturePlan 契约字段。
+	CapturePlan JsonObject `json:"capture_plan"`
+	// SimilarResults 关键词相似的已有卡片。
+	SimilarResults []RecallSearchResult `json:"similar_results,omitempty"`
+	// SimilarCount 相似卡片数量。
+	SimilarCount int64 `json:"similar_count"`
+}
+
+// RecallCardWriteResponse 卡片及其 Recall 文件写入结果。
+type RecallCardWriteResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Card 契约字段。
+	Card RecallCard `json:"card"`
+	// Warnings 已接受的规范警告。
+	Warnings []string `json:"warnings,omitempty"`
+	// Recall 契约字段。
+	Recall RecallRecord `json:"recall"`
+	// IndexPolicy 卡片索引策略说明。
+	IndexPolicy string `json:"index_policy"`
+}
+
+// RecallCardListResponse Recall 卡片文件列表。
+type RecallCardListResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Entries 卡片目录下的文件和目录。
+	Entries []RecallFileEntry `json:"entries"`
+	// Count 条目数量。
+	Count int64 `json:"count"`
+	// Prefix 固定为 recall/managed/cards。
+	Prefix string `json:"prefix"`
+}
+
+// RecallCardSearchRequest 在 Recall 卡片目录中执行关键词搜索。
+type RecallCardSearchRequest struct {
+	// Query 关键词查询。
+	Query string `json:"query"`
+	// MaxResults 最大结果数。
+	MaxResults *int64 `json:"max_results,omitempty"`
+}
+
+// RecallCardSearchResponse Recall 卡片关键词搜索结果。
+type RecallCardSearchResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Query 原始查询。
+	Query string `json:"query"`
+	// Results 搜索命中。
+	Results []RecallSearchResult `json:"results"`
+	// Count 结果数量。
+	Count int64 `json:"count"`
+	// Prefix 固定为 recall/managed/cards。
+	Prefix string `json:"prefix"`
+}
+
+// EmbeddingIndexSummary Recall 向量索引摘要。
+type EmbeddingIndexSummary struct {
+	// Model 索引使用的嵌入模型。
+	Model string `json:"model"`
+	// Dimension 向量维度。
+	Dimension *int64 `json:"dimension,omitempty"`
+	// Count 索引文档数量。
+	Count int64 `json:"count"`
+	// UpdatedAt RFC 3339 UTC 时间。
+	UpdatedAt string `json:"updated_at"`
+}
+
+// EmbeddingStatusResponse Recall 嵌入服务及索引状态。
+type EmbeddingStatusResponse struct {
+	// Ok 状态查询是否成功。
+	Ok bool `json:"ok"`
+	// Enabled 嵌入服务是否启用。
+	Enabled bool `json:"enabled"`
+	// Configured 嵌入端点是否配置。
+	Configured bool `json:"configured"`
+	// Model 当前嵌入模型。
+	Model *string `json:"model,omitempty"`
+	// Endpoint 当前嵌入端点。
+	Endpoint *string `json:"endpoint,omitempty"`
+	// IndexPath 本地索引文件路径。
+	IndexPath *string `json:"index_path,omitempty"`
+	// Index 契约字段。
+	Index *EmbeddingIndexSummary `json:"index,omitempty"`
+	// Reachable 嵌入端点是否可达。
+	Reachable *bool `json:"reachable,omitempty"`
+	// Reason 未启用原因。
+	Reason *string `json:"reason,omitempty"`
+	// Error 最近一次探测错误。
+	Error *string `json:"error,omitempty"`
+}
+
+// EmbeddingReindexRequest 重建 Recall 向量索引。
+type EmbeddingReindexRequest struct {
+	// Prefix 要索引的 Recall 路径前缀。
+	Prefix *string `json:"prefix,omitempty"`
+	// MaxEntries 最多索引条目数。
+	MaxEntries *int64 `json:"max_entries,omitempty"`
+}
+
+// EmbeddingReindexResponse Recall 向量索引重建结果。
+type EmbeddingReindexResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Enabled 嵌入服务是否启用。
+	Enabled bool `json:"enabled"`
+	// Model 索引使用的嵌入模型。
+	Model string `json:"model"`
+	// Endpoint 嵌入端点。
+	Endpoint *string `json:"endpoint,omitempty"`
+	// IndexPath 索引文件路径。
+	IndexPath string `json:"index_path"`
+	// Prefix 已索引路径前缀。
+	Prefix string `json:"prefix"`
+	// Count 索引文档数量。
+	Count int64 `json:"count"`
+	// Dimension 向量维度。
+	Dimension *int64 `json:"dimension,omitempty"`
+	// UpdatedAt RFC 3339 UTC 时间。
+	UpdatedAt string `json:"updated_at"`
+}
+
+// EmbeddingSearchRequest 使用 Recall 向量索引执行语义搜索。
+type EmbeddingSearchRequest struct {
+	// Query 语义查询。
+	Query string `json:"query"`
+	// Prefix 可选的 Recall 路径前缀。
+	Prefix *string `json:"prefix,omitempty"`
+	// MaxResults 最大结果数。
+	MaxResults *int64 `json:"max_results,omitempty"`
+}
+
+// EmbeddingSearchHit Recall 向量搜索命中。
+type EmbeddingSearchHit struct {
+	// Path Recall 相对路径。
+	Path string `json:"path"`
+	// Title Markdown 标题。
+	Title *string `json:"title,omitempty"`
+	// Score 余弦相似度。
+	Score float64 `json:"score"`
+	// Snippet 文档文本片段。
+	Snippet string `json:"snippet"`
+	// Frontmatter 命中文档 Frontmatter。
+	Frontmatter json.RawMessage `json:"frontmatter,omitempty"`
+}
+
+// EmbeddingSearchResponse Recall 向量搜索结果。
+type EmbeddingSearchResponse struct {
+	// Ok 请求是否成功。
+	Ok bool `json:"ok"`
+	// Enabled 嵌入服务是否启用。
+	Enabled bool `json:"enabled"`
+	// Model 查询使用的嵌入模型。
+	Model string `json:"model"`
+	// Query 原始语义查询。
+	Query string `json:"query"`
+	// Results 按相似度降序排列的命中。
+	Results []EmbeddingSearchHit `json:"results"`
+	// Count 返回命中数量。
+	Count int64 `json:"count"`
+	// Index 契约字段。
+	Index EmbeddingIndexSummary `json:"index"`
 }
 
 // PrivateNoteSummary 私密笔记安全元数据；不包含正文或正文片段。

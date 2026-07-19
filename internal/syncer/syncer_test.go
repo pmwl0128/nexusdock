@@ -291,3 +291,79 @@ func TestStatusClearsPendingAfterExternalCommitAndPush(t *testing.T) {
 		t.Fatalf("external commit and push should clear pending state: %#v", status)
 	}
 }
+
+func TestDelayedSyncStopsWithLifecycle(t *testing.T) {
+	dir := initRepo(t)
+	mgr := NewManager(Config{
+		RepoDir:       dir,
+		AutoSync:      true,
+		PullInterval:  time.Hour,
+		PushDebounce:  50 * time.Millisecond,
+		CommitMessage: "recall: delayed sync must not run",
+	}, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	mgr.Start(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for mgr.Status(context.Background()).LastPullAt == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status := mgr.Status(context.Background()); status.LastPullAt == "" {
+		t.Fatalf("initial pull did not complete: %#v", status)
+	}
+	cancel()
+	mgr.Wait()
+
+	if err := os.WriteFile(filepath.Join(dir, "after-stop.md"), []byte("# After stop\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mgr.MarkChanged(context.Background())
+	time.Sleep(200 * time.Millisecond)
+
+	if got := runGit(t, dir, "log", "-1", "--pretty=%s"); got != "init" {
+		t.Fatalf("sync continued after lifecycle cancellation: %q", got)
+	}
+	if status := mgr.Status(context.Background()); !status.PendingPush || !status.Dirty {
+		t.Fatalf("unsynced change was not preserved as pending: %#v", status)
+	}
+}
+
+func TestDelayedSyncRunsWithinLifecycle(t *testing.T) {
+	dir := initRepo(t)
+	mgr := NewManager(Config{
+		RepoDir:       dir,
+		AutoSync:      true,
+		PullInterval:  time.Hour,
+		PushDebounce:  20 * time.Millisecond,
+		CommitMessage: "recall: delayed sync runs",
+	}, slog.Default())
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		mgr.Wait()
+	})
+	mgr.Start(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for mgr.Status(context.Background()).LastPullAt == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if status := mgr.Status(context.Background()); status.LastPullAt == "" {
+		t.Fatalf("initial pull did not complete: %#v", status)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "delayed.md"), []byte("# Delayed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mgr.MarkChanged(context.Background())
+
+	deadline = time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		status := mgr.Status(context.Background())
+		if runGit(t, dir, "log", "-1", "--pretty=%s") == "recall: delayed sync runs" &&
+			!status.PendingPush && !status.Dirty && status.LastPushAt != "" && status.Ahead == "0" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("delayed sync did not finish within the lifecycle: %#v", mgr.Status(context.Background()))
+}

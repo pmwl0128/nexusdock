@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/RecallFileEntry.json",
+  "title": "RecallFileEntry",
+  "type": "object",
+  "description": "Recall 仓库中的文件或目录条目。",
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Recall 相对路径。"
+    },
+    "name": {
+      "type": "string",
+      "description": "文件或目录名。"
+    },
+    "type": {
+      "type": "string",
+      "description": "条目类型。",
+      "enum": [
+        "file",
+        "directory"
+      ]
+    },
+    "size_bytes": {
+      "type": "integer",
+      "description": "条目字节数。",
+      "minimum": 0
+    },
+    "modified": {
+      "type": "string",
+      "description": "RFC 3339 UTC 时间。",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "path",
+    "name",
+    "type"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/RecallCardSearchRequest.json",
+  "title": "RecallCardSearchRequest",
+  "type": "object",
+  "description": "在 Recall 卡片目录中执行关键词搜索。",
+  "additionalProperties": false,
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "关键词查询。",
+      "minLength": 1
+    },
+    "max_results": {
+      "type": "integer",
+      "description": "最大结果数。",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "required": [
+    "query"
+  ]
+}

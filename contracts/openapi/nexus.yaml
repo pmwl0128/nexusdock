@@ -38,6 +38,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -55,6 +58,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -72,6 +78,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -89,6 +98,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -106,6 +118,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -141,6 +156,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -158,6 +176,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -175,6 +196,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -192,6 +216,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -209,6 +236,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -244,6 +274,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -261,6 +294,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -278,6 +314,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -295,6 +334,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -312,6 +354,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -331,7 +376,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/AuthStatusResponse"
                 }
               }
             }
@@ -347,6 +392,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -364,6 +412,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -381,6 +432,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -398,6 +452,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -415,6 +472,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -434,7 +494,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/WebSessionResponse"
                 }
               }
             }
@@ -450,6 +510,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -467,6 +530,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -484,6 +550,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -501,6 +570,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -518,6 +590,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -530,7 +605,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonObject"
+                "$ref": "#/components/schemas/AuthLoginRequest"
               }
             }
           }
@@ -547,7 +622,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/WebSessionResponse"
                 }
               }
             }
@@ -563,6 +638,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -580,6 +658,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -597,6 +678,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -614,6 +698,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -631,6 +718,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -650,7 +740,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/OperationOK"
                 }
               }
             }
@@ -666,6 +756,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -683,6 +776,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -700,6 +796,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -717,6 +816,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -734,19 +836,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
               }
             }
           }
@@ -763,7 +858,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/AuthCredentialUpdateResponse"
                 }
               }
             }
@@ -779,6 +874,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -796,6 +894,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -813,6 +914,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -830,6 +934,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -847,6 +954,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -859,7 +969,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonObject"
+                "$ref": "#/components/schemas/AuthCredentialUpdateRequest"
               }
             }
           }
@@ -876,7 +986,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/WebSessionListResponse"
                 }
               }
             }
@@ -892,6 +1002,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -909,6 +1022,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -926,6 +1042,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -943,6 +1062,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -960,6 +1082,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -979,7 +1104,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/OperationOK"
                 }
               }
             }
@@ -995,6 +1120,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1012,6 +1140,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1029,6 +1160,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1046,6 +1180,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1063,6 +1200,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1087,7 +1227,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/WebSessionRevokeOthersResponse"
                 }
               }
             }
@@ -1103,6 +1243,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1120,6 +1263,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1137,6 +1283,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1154,6 +1303,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1171,19 +1323,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
               }
             }
           }
@@ -1216,6 +1361,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1233,6 +1381,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1250,6 +1401,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1267,6 +1421,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1284,13 +1441,37 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "description": "只列出该 Recall 相对路径前缀下的条目。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_entries",
+            "in": "query",
+            "required": false,
+            "description": "最大条目数；无效值使用服务默认值。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
       },
       "post": {
         "operationId": "writeRecall",
@@ -1301,7 +1482,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/RecallRecordResponse"
                 }
               }
             }
@@ -1317,6 +1498,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1334,6 +1518,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1351,6 +1538,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1368,6 +1558,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1385,6 +1578,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1397,7 +1593,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RecallEntry"
+                "$ref": "#/components/schemas/RecallWriteRequest"
               }
             }
           }
@@ -1430,6 +1626,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1447,6 +1646,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1464,6 +1666,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1481,6 +1686,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1498,6 +1706,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1543,6 +1754,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1560,6 +1774,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1577,6 +1794,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1594,6 +1814,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1611,6 +1834,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1656,6 +1882,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1673,6 +1902,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1690,6 +1922,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1707,6 +1942,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1724,6 +1962,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1769,6 +2010,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1786,6 +2030,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1803,6 +2050,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1820,6 +2070,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1837,6 +2090,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1856,17 +2112,17 @@
         }
       }
     },
-    "/v1/recall/{path}": {
+    "/v1/recall/cards": {
       "get": {
-        "operationId": "readRecall",
-        "summary": "读取召回条目",
+        "operationId": "listRecallCards",
+        "summary": "列出 Recall 卡片",
         "responses": {
           "200": {
             "description": "成功。",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RecallEntry"
+                  "$ref": "#/components/schemas/RecallCardListResponse"
                 }
               }
             }
@@ -1882,6 +2138,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1899,6 +2158,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1916,6 +2178,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1933,6 +2198,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1950,6 +2218,895 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "max_entries",
+            "in": "query",
+            "required": false,
+            "description": "最大卡片条目数；无效值使用服务默认值。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "writeRecallCard",
+        "summary": "确认并写入 Recall 卡片",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallCardWriteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallCardRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/recall/cards/capture": {
+      "post": {
+        "operationId": "captureRecallCard",
+        "summary": "规范化 Recall 卡片并生成写入前审阅计划",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallCardCaptureResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallCardRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/recall/cards/search": {
+      "post": {
+        "operationId": "searchRecallCards",
+        "summary": "在 Recall 卡片目录执行关键词搜索",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallCardSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecallCardSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embeddings/status": {
+      "get": {
+        "operationId": "getEmbeddingStatus",
+        "summary": "读取 Recall 嵌入服务和索引状态",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embeddings/reindex": {
+      "post": {
+        "operationId": "reindexEmbeddings",
+        "summary": "重建 Recall 向量索引",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingReindexResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingReindexRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embeddings/search": {
+      "post": {
+        "operationId": "searchEmbeddings",
+        "summary": "使用 Recall 向量索引执行语义搜索",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingSearchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/recall/{path}": {
+      "get": {
+        "operationId": "readRecall",
+        "summary": "读取召回条目",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallRecordResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "错误。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -1972,7 +3129,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "$ref": "#/components/schemas/RecallRecordResponse"
                 }
               }
             }
@@ -1988,6 +3145,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2005,6 +3165,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2022,6 +3185,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2039,6 +3205,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2056,6 +3225,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2068,7 +3240,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonObject"
+                "$ref": "#/components/schemas/RecallWriteRequest"
               }
             }
           }
@@ -2104,6 +3276,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2121,6 +3296,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2138,6 +3316,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2155,6 +3336,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2172,6 +3356,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2182,6 +3369,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/RecallPath"
+          },
+          {
+            "name": "confirmed",
+            "in": "query",
+            "required": false,
+            "description": "破坏性删除确认标记。",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ]
       }
@@ -2212,6 +3408,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2229,6 +3428,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2246,6 +3448,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2263,6 +3468,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2280,6 +3488,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2325,6 +3536,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2342,6 +3556,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2359,6 +3576,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2376,6 +3596,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2393,6 +3616,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2438,6 +3664,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2455,6 +3684,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2472,6 +3704,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2489,6 +3724,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2506,6 +3744,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2551,6 +3792,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2568,6 +3812,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2585,6 +3832,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2602,6 +3852,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2619,6 +3872,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2664,6 +3920,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2681,6 +3940,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2698,6 +3960,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2715,6 +3980,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2732,6 +4000,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2777,6 +4048,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2794,6 +4068,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2811,6 +4088,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2828,6 +4108,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2845,6 +4128,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2890,6 +4176,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2907,6 +4196,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2924,6 +4216,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2941,6 +4236,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2958,6 +4256,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -2993,6 +4294,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3010,6 +4314,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3027,6 +4334,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3044,6 +4354,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3061,6 +4374,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3096,6 +4412,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3113,6 +4432,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3130,6 +4452,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3147,6 +4472,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3164,6 +4492,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3209,6 +4540,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3226,6 +4560,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3243,6 +4580,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3260,6 +4600,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3277,13 +4620,28 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "最大提交数量；无效值使用服务默认值。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
       }
     },
     "/v1/git/commit": {
@@ -3312,6 +4670,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3329,6 +4690,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3346,6 +4710,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3363,6 +4730,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3380,13 +4750,28 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "hash",
+            "in": "query",
+            "required": true,
+            "description": "Git 提交哈希。",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
       }
     },
     "/v1/sync/pull": {
@@ -3415,6 +4800,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3432,6 +4820,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3449,6 +4840,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3466,6 +4860,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3483,6 +4880,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3528,6 +4928,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3545,6 +4948,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3562,6 +4968,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3579,6 +4988,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3596,6 +5008,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3641,6 +5056,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3658,6 +5076,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3675,6 +5096,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3692,6 +5116,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3709,6 +5136,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3754,6 +5184,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3771,6 +5204,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3788,6 +5224,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3805,6 +5244,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3822,6 +5264,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3855,6 +5300,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3872,6 +5320,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3889,6 +5340,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3906,6 +5360,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3923,6 +5380,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3968,6 +5428,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -3985,6 +5448,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4002,6 +5468,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4019,6 +5488,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4036,6 +5508,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4074,6 +5549,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4091,6 +5569,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4108,6 +5589,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4125,6 +5609,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4142,6 +5629,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4190,6 +5680,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4207,6 +5700,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4224,6 +5720,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4241,6 +5740,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4258,6 +5760,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4298,6 +5803,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4315,6 +5823,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4332,6 +5843,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4349,6 +5863,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4366,6 +5883,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4406,6 +5926,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4423,6 +5946,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4440,6 +5966,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4457,6 +5986,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4474,6 +6006,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4514,6 +6049,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4531,6 +6069,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4548,6 +6089,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4565,6 +6109,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4582,6 +6129,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4592,6 +6142,35 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/RuntimeNodeId"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "按任务状态过滤；all 表示不过滤。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "在任务 ID、标题、目标、状态和摘要中搜索。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "最大任务数。",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
           }
         ]
       }
@@ -4622,6 +6201,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4639,6 +6221,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4656,6 +6241,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4673,6 +6261,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4690,6 +6281,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4731,6 +6325,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4748,6 +6345,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4765,6 +6365,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4782,6 +6385,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4799,6 +6405,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4842,6 +6451,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4859,6 +6471,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4876,6 +6491,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4893,6 +6511,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4910,6 +6531,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4950,6 +6574,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4967,6 +6594,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -4984,6 +6614,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5001,6 +6634,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5018,6 +6654,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5064,6 +6703,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5081,6 +6723,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5098,6 +6743,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5115,6 +6763,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5132,6 +6783,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5181,6 +6835,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5198,6 +6855,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5215,6 +6875,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5232,6 +6895,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5249,6 +6915,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5287,6 +6956,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5304,6 +6976,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5321,6 +6996,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5338,6 +7016,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5355,6 +7036,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5405,6 +7089,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5422,6 +7109,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5439,6 +7129,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5456,6 +7149,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5473,6 +7169,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5516,6 +7215,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5533,6 +7235,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5550,6 +7255,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5567,6 +7275,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5584,6 +7295,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5627,6 +7341,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5644,6 +7361,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5661,6 +7381,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5678,6 +7401,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5695,13 +7421,62 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "按模板状态过滤。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "active",
+                "retired"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "在模板摘要中搜索。",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_history",
+            "in": "query",
+            "required": false,
+            "description": "未指定状态时是否返回全部历史版本。",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "description": "history 等价于 include_history=true。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "history"
+              ]
+            }
+          }
+        ]
       }
     },
     "/v1/workflow-templates/drafts": {
@@ -5730,6 +7505,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5747,6 +7525,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5764,6 +7545,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5781,6 +7565,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5798,6 +7585,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5843,6 +7633,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5860,6 +7653,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5877,6 +7673,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5894,6 +7693,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5911,6 +7713,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5956,6 +7761,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5973,6 +7781,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -5990,6 +7801,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6007,6 +7821,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6024,6 +7841,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6069,6 +7889,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6086,6 +7909,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6103,6 +7929,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6120,6 +7949,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6137,6 +7969,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6172,6 +8007,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6189,6 +8027,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6206,6 +8047,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6223,6 +8067,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6240,6 +8087,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6283,6 +8133,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6300,6 +8153,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6317,6 +8173,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6334,6 +8193,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6351,6 +8213,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/LegacyErrorEnvelope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RuntimeErrorEnvelope"
                     }
                   ]
                 }
@@ -6544,6 +8409,10 @@
             "type": "boolean",
             "description": "固定为 false。"
           },
+          "request_id": {
+            "type": "string",
+            "description": "请求关联 ID。"
+          },
           "error": {
             "type": "object",
             "description": "错误详情。",
@@ -6566,7 +8435,303 @@
         },
         "required": [
           "ok",
+          "request_id",
           "error"
+        ]
+      },
+      "RuntimeErrorEnvelope": {
+        "type": "object",
+        "description": "AgentDock Runtime 不可用或拒绝请求时的错误信封。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "固定为 false。"
+          },
+          "available": {
+            "type": "boolean",
+            "description": "固定为 false，表示目标 Runtime 当前不可用。"
+          },
+          "source": {
+            "type": "string",
+            "description": "错误来源，固定为 agentdock-runtime-api。"
+          },
+          "request_id": {
+            "type": "string",
+            "description": "请求关联 ID。"
+          },
+          "error": {
+            "type": "object",
+            "description": "稳定 Nexus 错误及可选的上游错误码。",
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Nexus 稳定错误码。"
+              },
+              "message": {
+                "type": "string",
+                "description": "可读错误说明。"
+              },
+              "upstream_code": {
+                "type": "string",
+                "description": "AgentDock Runtime 返回的原始错误码。"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "available",
+          "source",
+          "request_id",
+          "error"
+        ]
+      },
+      "OperationOK": {
+        "type": "object",
+        "description": "无附加数据的成功响应。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "固定为 true。"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "AuthStatusResponse": {
+        "type": "object",
+        "description": "管理员认证初始化状态。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "initialized": {
+            "type": "boolean",
+            "description": "管理员凭据是否已初始化。"
+          }
+        },
+        "required": [
+          "ok",
+          "initialized"
+        ]
+      },
+      "AuthLoginRequest": {
+        "type": "object",
+        "description": "管理员登录凭据。",
+        "additionalProperties": false,
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "管理员用户名。",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "description": "管理员密码。",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "remember_me": {
+            "type": "boolean",
+            "description": "是否创建最长 30 天的记住登录会话。"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ]
+      },
+      "WebSession": {
+        "type": "object",
+        "description": "已脱敏的管理员浏览器会话。",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "会话 ID。"
+          },
+          "user_id": {
+            "type": "string",
+            "description": "管理员用户 ID。"
+          },
+          "username": {
+            "type": "string",
+            "description": "管理员用户名。"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "管理员显示名称。"
+          },
+          "remember_me": {
+            "type": "boolean",
+            "description": "是否为记住登录会话。"
+          },
+          "ip_prefix": {
+            "type": "string",
+            "description": "脱敏后的客户端网络前缀。"
+          },
+          "user_agent_summary": {
+            "type": "string",
+            "description": "脱敏后的客户端摘要。"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "idle_expires_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "absolute_expires_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "must_change_password": {
+            "type": "boolean",
+            "description": "是否必须先更新管理员密码。"
+          },
+          "csrf_token": {
+            "type": "string",
+            "description": "仅当前会话返回的 CSRF Token。"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "是否为当前浏览器会话。"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "username",
+          "display_name",
+          "remember_me",
+          "ip_prefix",
+          "user_agent_summary",
+          "created_at",
+          "last_seen_at",
+          "idle_expires_at",
+          "absolute_expires_at",
+          "must_change_password"
+        ]
+      },
+      "WebSessionResponse": {
+        "type": "object",
+        "description": "当前或新创建的管理员浏览器会话。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "session": {
+            "$ref": "#/components/schemas/WebSession"
+          }
+        },
+        "required": [
+          "ok",
+          "session"
+        ]
+      },
+      "WebSessionListResponse": {
+        "type": "object",
+        "description": "管理员活动浏览器会话列表。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "items": {
+            "type": "array",
+            "description": "活动浏览器会话。",
+            "items": {
+              "$ref": "#/components/schemas/WebSession"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "items"
+        ]
+      },
+      "AuthCredentialUpdateRequest": {
+        "type": "object",
+        "description": "管理员密码更新请求。",
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "type": "string",
+            "description": "当前密码。",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "next": {
+            "type": "string",
+            "description": "符合策略的新密码。",
+            "minLength": 12,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "current",
+          "next"
+        ]
+      },
+      "AuthCredentialUpdateResponse": {
+        "type": "object",
+        "description": "管理员密码更新结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "reauthenticate": {
+            "type": "boolean",
+            "description": "是否必须重新登录。"
+          }
+        },
+        "required": [
+          "ok",
+          "reauthenticate"
+        ]
+      },
+      "WebSessionRevokeOthersResponse": {
+        "type": "object",
+        "description": "撤销其他浏览器会话的结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "revoked": {
+            "type": "integer",
+            "description": "已撤销的会话数量。",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "revoked"
         ]
       },
       "HealthResponse": {
@@ -6823,6 +8988,888 @@
         },
         "required": [
           "path"
+        ]
+      },
+      "RecallFileEntry": {
+        "type": "object",
+        "description": "Recall 仓库中的文件或目录条目。",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Recall 相对路径。"
+          },
+          "name": {
+            "type": "string",
+            "description": "文件或目录名。"
+          },
+          "type": {
+            "type": "string",
+            "description": "条目类型。",
+            "enum": [
+              "file",
+              "directory"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "条目字节数。",
+            "minimum": 0
+          },
+          "modified": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "type"
+        ]
+      },
+      "RecallRecord": {
+        "type": "object",
+        "description": "读取或写入后的完整 Recall 文本记录。",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Recall 相对路径。"
+          },
+          "content": {
+            "type": "string",
+            "description": "包含 Frontmatter 的完整文本。"
+          },
+          "body": {
+            "type": "string",
+            "description": "移除 Frontmatter 后的正文。"
+          },
+          "frontmatter": {
+            "type": "object",
+            "description": "解析后的 Frontmatter 字符串字段。",
+            "additionalProperties": {
+              "type": "string",
+              "description": "Frontmatter 字段值。"
+            },
+            "properties": {}
+          },
+          "size_bytes": {
+            "type": "integer",
+            "description": "文本字节数。",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "path",
+          "content",
+          "body",
+          "frontmatter",
+          "size_bytes"
+        ]
+      },
+      "RecallWriteRequest": {
+        "type": "object",
+        "description": "创建或覆盖 Recall 文本记录。",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Recall 相对路径；PATCH 时由路径参数覆盖。",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "description": "Markdown 或文本内容。"
+          },
+          "type": {
+            "type": "string",
+            "description": "可选的 Recall 类型。"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Recall 作用域。",
+            "enum": [
+              "profile",
+              "global",
+              "project",
+              "device",
+              "agent",
+              "ops",
+              "notes",
+              "inbox"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Recall 状态。",
+            "enum": [
+              "inbox",
+              "active",
+              "verified",
+              "stale",
+              "archived",
+              "rejected",
+              "conflicted",
+              "unverified",
+              "deprecated"
+            ]
+          },
+          "project": {
+            "type": "string",
+            "description": "项目标识。"
+          },
+          "device": {
+            "type": "string",
+            "description": "设备标识。"
+          },
+          "agent": {
+            "type": "string",
+            "description": "Agent 标识。"
+          },
+          "skill": {
+            "type": "string",
+            "description": "Skill 标识。"
+          },
+          "source": {
+            "type": "string",
+            "description": "信息来源。"
+          },
+          "confidence": {
+            "type": "string",
+            "description": "可信度。",
+            "enum": [
+              "unknown",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "verified_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          },
+          "verification_run_id": {
+            "type": "string",
+            "description": "验证运行 ID。"
+          },
+          "source_device": {
+            "type": "string",
+            "description": "验证来源设备。"
+          },
+          "source_agent": {
+            "type": "string",
+            "description": "验证来源 Agent。"
+          },
+          "tags": {
+            "type": "array",
+            "description": "Recall 标签。",
+            "items": {
+              "type": "string",
+              "description": "标签。"
+            }
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "写入受保护目录时的确认标记。"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "是否覆盖已有文件。"
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "RecallRecordResponse": {
+        "type": "object",
+        "description": "Recall 读取或写入结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "recall": {
+            "$ref": "#/components/schemas/RecallRecord"
+          }
+        },
+        "required": [
+          "ok",
+          "recall"
+        ]
+      },
+      "RecallSearchResult": {
+        "type": "object",
+        "description": "Recall 关键词搜索命中。",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Recall 相对路径。"
+          },
+          "title": {
+            "type": "string",
+            "description": "Markdown 标题。"
+          },
+          "snippet": {
+            "type": "string",
+            "description": "命中位置附近的文本片段。"
+          },
+          "frontmatter": {
+            "type": "object",
+            "description": "命中文档 Frontmatter。",
+            "additionalProperties": {
+              "type": "string",
+              "description": "Frontmatter 字段值。"
+            },
+            "properties": {}
+          },
+          "matched_terms": {
+            "type": "array",
+            "description": "命中的查询词。",
+            "items": {
+              "type": "string",
+              "description": "查询词。"
+            }
+          },
+          "matched_fields": {
+            "type": "array",
+            "description": "命中的文档字段。",
+            "items": {
+              "type": "string",
+              "description": "字段名。"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "snippet",
+          "frontmatter"
+        ]
+      },
+      "RecallCardRequest": {
+        "type": "object",
+        "description": "捕获或写入一张可复用 Recall 卡片。",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "卡片标题。",
+            "minLength": 1
+          },
+          "content": {
+            "type": "string",
+            "description": "卡片正文。"
+          },
+          "summary": {
+            "type": "string",
+            "description": "content 为空时使用的摘要正文。"
+          },
+          "type": {
+            "type": "string",
+            "description": "卡片类型。",
+            "enum": [
+              "preference",
+              "runbook",
+              "bug_pattern",
+              "deploy_note",
+              "project_trap",
+              "architecture",
+              "decision",
+              "anti_pattern"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "description": "卡片作用域。",
+            "enum": [
+              "global",
+              "project",
+              "device"
+            ]
+          },
+          "project": {
+            "type": "string",
+            "description": "项目标识；为空时使用 global。"
+          },
+          "status": {
+            "type": "string",
+            "description": "卡片状态。",
+            "enum": [
+              "inbox",
+              "active",
+              "verified",
+              "stale",
+              "archived",
+              "rejected",
+              "conflicted",
+              "unverified",
+              "deprecated"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "description": "卡片可信度。",
+            "enum": [
+              "unknown",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "description": "卡片标签。",
+            "items": {
+              "type": "string",
+              "description": "标签。"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "卡片信息来源。"
+          },
+          "evidence": {
+            "type": "string",
+            "description": "验证卡片内容的证据。"
+          },
+          "boundary": {
+            "type": "string",
+            "description": "卡片适用边界。"
+          },
+          "path": {
+            "type": "string",
+            "description": "可选的 recall/managed/cards/ 自定义路径。"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "真实写入时必须为 true。"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "是否覆盖同路径卡片。"
+          },
+          "allow_warnings": {
+            "type": "boolean",
+            "description": "是否在已审阅后接受规范警告。"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "捕获阶段相似项最大数量。",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "RecallCard": {
+        "type": "object",
+        "description": "规范化后的 Recall 卡片。",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "卡片标题。"
+          },
+          "content": {
+            "type": "string",
+            "description": "卡片正文。"
+          },
+          "type": {
+            "type": "string",
+            "description": "卡片类型。"
+          },
+          "scope": {
+            "type": "string",
+            "description": "卡片作用域。"
+          },
+          "project": {
+            "type": "string",
+            "description": "项目标识。"
+          },
+          "status": {
+            "type": "string",
+            "description": "卡片状态。"
+          },
+          "confidence": {
+            "type": "string",
+            "description": "卡片可信度。"
+          },
+          "tags": {
+            "type": "array",
+            "description": "规范化标签。",
+            "items": {
+              "type": "string",
+              "description": "标签。"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "信息来源。"
+          },
+          "evidence": {
+            "type": "string",
+            "description": "验证证据。"
+          },
+          "boundary": {
+            "type": "string",
+            "description": "适用边界。"
+          },
+          "path": {
+            "type": "string",
+            "description": "最终 Recall 相对路径。"
+          }
+        },
+        "required": [
+          "title",
+          "content",
+          "type",
+          "scope",
+          "project",
+          "status",
+          "confidence",
+          "source",
+          "path"
+        ]
+      },
+      "RecallCardCaptureResponse": {
+        "type": "object",
+        "description": "卡片写入前的规范化、风险提示和去重计划。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "card": {
+            "$ref": "#/components/schemas/RecallCard"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "需人工审阅的规范警告。",
+            "items": {
+              "type": "string",
+              "description": "警告。"
+            }
+          },
+          "capture_plan": {
+            "$ref": "#/components/schemas/JsonObject"
+          },
+          "similar_results": {
+            "type": "array",
+            "description": "关键词相似的已有卡片。",
+            "items": {
+              "$ref": "#/components/schemas/RecallSearchResult"
+            }
+          },
+          "similar_count": {
+            "type": "integer",
+            "description": "相似卡片数量。",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "card",
+          "capture_plan",
+          "similar_count"
+        ]
+      },
+      "RecallCardWriteResponse": {
+        "type": "object",
+        "description": "卡片及其 Recall 文件写入结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "card": {
+            "$ref": "#/components/schemas/RecallCard"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "已接受的规范警告。",
+            "items": {
+              "type": "string",
+              "description": "警告。"
+            }
+          },
+          "recall": {
+            "$ref": "#/components/schemas/RecallRecord"
+          },
+          "index_policy": {
+            "type": "string",
+            "description": "卡片索引策略说明。"
+          }
+        },
+        "required": [
+          "ok",
+          "card",
+          "recall",
+          "index_policy"
+        ]
+      },
+      "RecallCardListResponse": {
+        "type": "object",
+        "description": "Recall 卡片文件列表。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "entries": {
+            "type": "array",
+            "description": "卡片目录下的文件和目录。",
+            "items": {
+              "$ref": "#/components/schemas/RecallFileEntry"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "条目数量。",
+            "minimum": 0
+          },
+          "prefix": {
+            "type": "string",
+            "description": "固定为 recall/managed/cards。"
+          }
+        },
+        "required": [
+          "ok",
+          "entries",
+          "count",
+          "prefix"
+        ]
+      },
+      "RecallCardSearchRequest": {
+        "type": "object",
+        "description": "在 Recall 卡片目录中执行关键词搜索。",
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "关键词查询。",
+            "minLength": 1
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "最大结果数。",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "RecallCardSearchResponse": {
+        "type": "object",
+        "description": "Recall 卡片关键词搜索结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "query": {
+            "type": "string",
+            "description": "原始查询。"
+          },
+          "results": {
+            "type": "array",
+            "description": "搜索命中。",
+            "items": {
+              "$ref": "#/components/schemas/RecallSearchResult"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "结果数量。",
+            "minimum": 0
+          },
+          "prefix": {
+            "type": "string",
+            "description": "固定为 recall/managed/cards。"
+          }
+        },
+        "required": [
+          "ok",
+          "query",
+          "results",
+          "count",
+          "prefix"
+        ]
+      },
+      "EmbeddingIndexSummary": {
+        "type": "object",
+        "description": "Recall 向量索引摘要。",
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "索引使用的嵌入模型。"
+          },
+          "dimension": {
+            "type": "integer",
+            "description": "向量维度。",
+            "minimum": 0
+          },
+          "count": {
+            "type": "integer",
+            "description": "索引文档数量。",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "model",
+          "count",
+          "updated_at"
+        ]
+      },
+      "EmbeddingStatusResponse": {
+        "type": "object",
+        "description": "Recall 嵌入服务及索引状态。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "状态查询是否成功。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "嵌入服务是否启用。"
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "嵌入端点是否配置。"
+          },
+          "model": {
+            "type": "string",
+            "description": "当前嵌入模型。"
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "当前嵌入端点。"
+          },
+          "index_path": {
+            "type": "string",
+            "description": "本地索引文件路径。"
+          },
+          "index": {
+            "$ref": "#/components/schemas/EmbeddingIndexSummary"
+          },
+          "reachable": {
+            "type": "boolean",
+            "description": "嵌入端点是否可达。"
+          },
+          "reason": {
+            "type": "string",
+            "description": "未启用原因。"
+          },
+          "error": {
+            "type": "string",
+            "description": "最近一次探测错误。"
+          }
+        },
+        "required": [
+          "ok",
+          "enabled",
+          "configured"
+        ]
+      },
+      "EmbeddingReindexRequest": {
+        "type": "object",
+        "description": "重建 Recall 向量索引。",
+        "additionalProperties": false,
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "description": "要索引的 Recall 路径前缀。"
+          },
+          "max_entries": {
+            "type": "integer",
+            "description": "最多索引条目数。",
+            "minimum": 1,
+            "maximum": 2000
+          }
+        }
+      },
+      "EmbeddingReindexResponse": {
+        "type": "object",
+        "description": "Recall 向量索引重建结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "嵌入服务是否启用。"
+          },
+          "model": {
+            "type": "string",
+            "description": "索引使用的嵌入模型。"
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "嵌入端点。"
+          },
+          "index_path": {
+            "type": "string",
+            "description": "索引文件路径。"
+          },
+          "prefix": {
+            "type": "string",
+            "description": "已索引路径前缀。"
+          },
+          "count": {
+            "type": "integer",
+            "description": "索引文档数量。",
+            "minimum": 0
+          },
+          "dimension": {
+            "type": "integer",
+            "description": "向量维度。",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "RFC 3339 UTC 时间。",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "ok",
+          "enabled",
+          "model",
+          "index_path",
+          "prefix",
+          "count",
+          "updated_at"
+        ]
+      },
+      "EmbeddingSearchRequest": {
+        "type": "object",
+        "description": "使用 Recall 向量索引执行语义搜索。",
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "语义查询。",
+            "minLength": 1
+          },
+          "prefix": {
+            "type": "string",
+            "description": "可选的 Recall 路径前缀。"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "最大结果数。",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "EmbeddingSearchHit": {
+        "type": "object",
+        "description": "Recall 向量搜索命中。",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Recall 相对路径。"
+          },
+          "title": {
+            "type": "string",
+            "description": "Markdown 标题。"
+          },
+          "score": {
+            "type": "number",
+            "description": "余弦相似度。",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "snippet": {
+            "type": "string",
+            "description": "文档文本片段。"
+          },
+          "frontmatter": {
+            "type": "object",
+            "description": "命中文档 Frontmatter。",
+            "additionalProperties": {
+              "type": "string",
+              "description": "Frontmatter 字段值。"
+            },
+            "properties": {}
+          }
+        },
+        "required": [
+          "path",
+          "score",
+          "snippet"
+        ]
+      },
+      "EmbeddingSearchResponse": {
+        "type": "object",
+        "description": "Recall 向量搜索结果。",
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "请求是否成功。"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "嵌入服务是否启用。"
+          },
+          "model": {
+            "type": "string",
+            "description": "查询使用的嵌入模型。"
+          },
+          "query": {
+            "type": "string",
+            "description": "原始语义查询。"
+          },
+          "results": {
+            "type": "array",
+            "description": "按相似度降序排列的命中。",
+            "items": {
+              "$ref": "#/components/schemas/EmbeddingSearchHit"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "返回命中数量。",
+            "minimum": 0
+          },
+          "index": {
+            "$ref": "#/components/schemas/EmbeddingIndexSummary"
+          }
+        },
+        "required": [
+          "ok",
+          "enabled",
+          "model",
+          "query",
+          "results",
+          "count",
+          "index"
         ]
       },
       "PrivateNoteSummary": {

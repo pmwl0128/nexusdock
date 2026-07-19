@@ -16,16 +16,23 @@ RUN go build -o /out/nexusdock ./cmd/nexusdock
 
 FROM alpine:3.20
 RUN apk add --no-cache git ca-certificates \
+    && addgroup -S -g 10001 nexus \
+    && adduser -S -D -H -u 10001 -G nexus nexus \
     && mv /usr/bin/git /usr/bin/git.real \
     && printf '%s\n' '#!/bin/sh' 'exec /usr/bin/git.real -c credential.helper="store --file=/run/secrets/github_credentials" -c safe.directory=/recall -c user.name="Recall" -c user.email="recall@local" "$@"' > /usr/local/bin/git \
     && chmod +x /usr/local/bin/git \
-    && ln -s /usr/local/bin/git /usr/bin/git
+    && ln -s /usr/local/bin/git /usr/bin/git \
+    && mkdir -p /var/lib/nexus /recall \
+    && chown -R 10001:10001 /var/lib/nexus /recall
 WORKDIR /app
 COPY --from=go-builder /out/nexusdock /usr/local/bin/nexusdock
 ENV NEXUS_HOST=0.0.0.0 \
     NEXUS_PORT=18777 \
     NEXUS_DATA_DIR=/var/lib/nexus \
-    RECALL_REPO_DIR=/recall
+    RECALL_REPO_DIR=/recall \
+    HOME=/tmp
 EXPOSE 18777
 VOLUME ["/var/lib/nexus", "/recall"]
+USER 10001:10001
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 CMD wget -q -T 2 -O /dev/null http://127.0.0.1:18777/health || exit 1
 ENTRYPOINT ["nexusdock"]

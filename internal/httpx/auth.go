@@ -221,19 +221,17 @@ func (s *Server) withAPIAccess(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		if cfg.AuthToken == "" && s.isLocalAPIRequest(r) {
-			next(w, r)
+		if s.auth != nil {
+			s.withWebSession(next, false)(w, r)
 			return
 		}
-		if s.auth == nil {
-			if cfg.AuthToken == "" {
+		if cfg.AuthToken == "" {
+			if s.isLocalAPIRequest(r) {
 				next(w, r)
 				return
 			}
-			writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid bearer token")
-			return
 		}
-		s.withWebSession(next, false)(w, r)
+		writeAuthError(w, http.StatusUnauthorized, "UNAUTHORIZED", "missing or invalid API credentials")
 	}
 }
 
@@ -277,16 +275,10 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) secureRequest(r *http.Request) bool {
-	s.mu.RLock()
-	allowInsecure := s.cfg.AuthAllowInsecureHTTP
-	s.mu.RUnlock()
-	if allowInsecure {
-		return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
-	}
 	if r.TLS != nil {
 		return true
 	}
-	return s.isTrustedProxy(r) && strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+	return s.isTrustedProxy(r) && strings.EqualFold(lastForwardedValue(r.Header.Get("X-Forwarded-Proto")), "https")
 }
 
 func (s *Server) loginTransportAllowed(r *http.Request) bool {
@@ -314,10 +306,10 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 		scheme = "https"
 	}
 	if s.isTrustedProxy(r) {
-		if value := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Proto"), ",")[0]); value != "" {
+		if value := lastForwardedValue(r.Header.Get("X-Forwarded-Proto")); value != "" {
 			scheme = value
 		}
-		if value := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-Host"), ",")[0]); value != "" {
+		if value := lastForwardedValue(r.Header.Get("X-Forwarded-Host")); value != "" {
 			host = value
 		}
 	}
@@ -325,7 +317,7 @@ func (s *Server) sameOrigin(r *http.Request) bool {
 }
 
 func (s *Server) isLocalAPIRequest(r *http.Request) bool {
-	return isLoopbackHostPort(r.RemoteAddr) || isLoopbackHostPort(r.Host)
+	return isLoopbackHostPort(r.RemoteAddr)
 }
 
 func isLoopbackHostPort(value string) bool {
@@ -342,11 +334,10 @@ func isLoopbackHostPort(value string) bool {
 }
 
 func (s *Server) isTrustedProxy(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
+	return s.isTrustedProxyIP(remoteIP(r.RemoteAddr))
+}
+
+func (s *Server) isTrustedProxyIP(ip net.IP) bool {
 	if ip == nil {
 		return false
 	}
@@ -368,18 +359,20 @@ func (s *Server) isTrustedProxy(r *http.Request) bool {
 }
 
 func (s *Server) clientIPPrefix(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	if s.isTrustedProxy(r) {
-		if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); forwarded != "" {
-			host = forwarded
-		} else if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
-			host = realIP
+	ip := remoteIP(r.RemoteAddr)
+	if ip != nil && s.isTrustedProxyIP(ip) {
+		if forwarded, ok := forwardedIPs(r.Header.Get("X-Forwarded-For")); ok && len(forwarded) > 0 {
+			ip = forwarded[0]
+			for index := len(forwarded) - 1; index >= 0; index-- {
+				if !s.isTrustedProxyIP(forwarded[index]) {
+					ip = forwarded[index]
+					break
+				}
+			}
+		} else if realIP := parseForwardedIP(r.Header.Get("X-Real-IP")); realIP != nil {
+			ip = realIP
 		}
 	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
 	if ip == nil {
 		return "unknown"
 	}
@@ -387,6 +380,55 @@ func (s *Server) clientIPPrefix(r *http.Request) string {
 		return net.IPv4(ipv4[0], ipv4[1], ipv4[2], 0).String() + "/24"
 	}
 	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
+}
+
+func remoteIP(value string) net.IP {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(value))
+	if err != nil {
+		host = value
+	}
+	return net.ParseIP(strings.Trim(strings.TrimSpace(host), "[]"))
+}
+
+func parseForwardedIP(value string) net.IP {
+	value = strings.Trim(strings.TrimSpace(value), "\"")
+	if value == "" {
+		return nil
+	}
+	if ip := net.ParseIP(strings.Trim(value, "[]")); ip != nil {
+		return ip
+	}
+	host, _, err := net.SplitHostPort(value)
+	if err != nil {
+		return nil
+	}
+	return net.ParseIP(strings.Trim(host, "[]"))
+}
+
+func forwardedIPs(value string) ([]net.IP, bool) {
+	if strings.TrimSpace(value) == "" {
+		return nil, false
+	}
+	parts := strings.Split(value, ",")
+	result := make([]net.IP, 0, len(parts))
+	for _, part := range parts {
+		ip := parseForwardedIP(part)
+		if ip == nil {
+			return nil, false
+		}
+		result = append(result, ip)
+	}
+	return result, true
+}
+
+func lastForwardedValue(value string) string {
+	parts := strings.Split(value, ",")
+	for index := len(parts) - 1; index >= 0; index-- {
+		if part := strings.TrimSpace(parts[index]); part != "" {
+			return part
+		}
+	}
+	return ""
 }
 
 func summarizeUserAgent(value string) string {

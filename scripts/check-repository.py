@@ -38,6 +38,19 @@ LEGACY_AUTH_PATHS = (
     ROOT / "internal" / "core",
     ROOT / "internal" / "nexusapp",
 )
+REQUIRED_DOCKERFILE_TOKENS = (
+    "USER 10001:10001",
+    "HEALTHCHECK ",
+)
+REQUIRED_COMPOSE_TOKENS = (
+    "read_only: true",
+    "cap_drop:",
+    "- ALL",
+    "no-new-privileges:true",
+    "tmpfs:",
+    'uid: "10001"',
+    'gid: "10001"',
+)
 
 
 def git_paths(*args: str) -> set[str]:
@@ -49,6 +62,17 @@ def git_paths(*args: str) -> set[str]:
         text=True,
     )
     return {line for line in result.stdout.splitlines() if line}
+
+
+def git_ignored(path: str) -> bool:
+    result = subprocess.run(
+        ["git", "check-ignore", "--no-index", "--quiet", path],
+        cwd=ROOT,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeError(f"git check-ignore failed for {path}: exit {result.returncode}")
+    return result.returncode == 0
 
 
 def repository_files() -> set[str]:
@@ -99,6 +123,23 @@ def main() -> int:
             for token in LEGACY_AUTH_TOKENS:
                 if token in text:
                     errors.append(f"旧管理员配置重新进入当前代码: {path.relative_to(ROOT)}: {token}")
+
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    for token in REQUIRED_DOCKERFILE_TOKENS:
+        if token not in dockerfile:
+            errors.append(f"Dockerfile 缺少容器最小权限约束: {token}")
+
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    for token in REQUIRED_COMPOSE_TOKENS:
+        if token not in compose:
+            errors.append(f"Compose 缺少容器最小权限约束: {token}")
+
+    for path in ("bin/__probe__", "nexus-data/__probe__", "recall/__probe__", "web/node_modules/__probe__"):
+        if not git_ignored(path):
+            errors.append(f"本地构建或运行数据目录未被忽略: {path}")
+    for path in ("internal/bin/__probe__.go", "internal/nexus-data/__probe__.go", "internal/recall/__probe__.go"):
+        if git_ignored(path):
+            errors.append(f"根目录忽略规则错误扩散到源码目录: {path}")
 
     if errors:
         for error in sorted(set(errors)):

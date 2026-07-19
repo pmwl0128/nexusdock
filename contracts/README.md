@@ -22,3 +22,5 @@ go test ./generated/nexuscontracts
 ```
 
 生成文件不得手改。新增接口前必须确认它直接服务个人控制台、Recall、备份或 Runtime facade 的真实工作流。
+
+契约检查会把 `internal/httpx` 的公开路由和查询参数与 OpenAPI 双向比对，并要求每个 OpenAPI `operationId` 都生成一个 Go Client 方法。独立 JSON Schema 只携带自身可达的 `$defs`；缺失、无法解析或未使用的引用都会让 CI 失败。公开错误码同样必须出现在 `error-codes.json`，Runtime 上游私有错误码只能通过 `upstream_code` 透传，不能进入 Nexus 稳定错误码空间。

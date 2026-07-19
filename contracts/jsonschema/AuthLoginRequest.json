@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agentdock.dev/nexus/v1/AuthLoginRequest.json",
+  "title": "AuthLoginRequest",
+  "type": "object",
+  "description": "管理员登录凭据。",
+  "additionalProperties": false,
+  "properties": {
+    "username": {
+      "type": "string",
+      "description": "管理员用户名。",
+      "minLength": 1
+    },
+    "password": {
+      "type": "string",
+      "description": "管理员密码。",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "remember_me": {
+      "type": "boolean",
+      "description": "是否创建最长 30 天的记住登录会话。"
+    }
+  },
+  "required": [
+    "username",
+    "password"
+  ]
+}

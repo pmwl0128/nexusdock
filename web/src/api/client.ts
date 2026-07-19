@@ -5,12 +5,14 @@ export type ApiErrorBody = {
     details?: unknown;
     request_id?: string;
     trace_id?: string;
+    upstream_code?: string;
   };
   code?: string;
   message?: string;
   details?: unknown;
   request_id?: string;
   trace_id?: string;
+  upstream_code?: string;
 };
 
 export class ApiError extends Error {
@@ -18,6 +20,7 @@ export class ApiError extends Error {
   readonly code?: string;
   readonly details?: unknown;
   readonly traceId?: string;
+  readonly upstreamCode?: string;
 
   constructor(message: string, status: number, body: ApiErrorBody = {}) {
     super(message);
@@ -26,6 +29,7 @@ export class ApiError extends Error {
     this.code = body.error?.code ?? body.code;
     this.details = body.error?.details ?? body.details;
     this.traceId = body.error?.trace_id ?? body.error?.request_id ?? body.trace_id ?? body.request_id;
+    this.upstreamCode = body.error?.upstream_code ?? body.upstream_code;
   }
 }
 

@@ -21,6 +21,7 @@ import (
 const DefaultEmbeddingModel = "BAAI/bge-m3"
 const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
 const embeddingBatchSize = 5
+const maxEmbeddingResponseBytes = 32 << 20
 
 type EmbeddingConfig struct {
 	Enabled   bool
@@ -215,12 +216,15 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 		return EmbeddingReindexResult{}, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(docs))
 	}
 	dimension := 0
+	if len(vectors) > 0 {
+		dimension = len(vectors[0])
+	}
 	index := embeddingIndex{Model: s.cfg.Model, UpdatedAt: time.Now().UTC(), Documents: map[string]embeddingDocument{}}
 	for i := range docs {
-		docs[i].Vector = vectors[i]
-		if len(vectors[i]) > dimension {
-			dimension = len(vectors[i])
+		if len(vectors[i]) != dimension {
+			return EmbeddingReindexResult{}, fmt.Errorf("embedding dimension mismatch at result %d: got %d want %d", i, len(vectors[i]), dimension)
 		}
+		docs[i].Vector = vectors[i]
 		index.Documents[docs[i].Path] = docs[i]
 	}
 	index.Dimension = dimension
@@ -246,12 +250,25 @@ func (s *EmbeddingService) Search(ctx context.Context, req EmbeddingSearchReques
 	if err != nil {
 		return EmbeddingSearchResult{}, err
 	}
+	if idx.Model != s.cfg.Model {
+		return EmbeddingSearchResult{}, fmt.Errorf("embedding index model %q does not match configured model %q; rebuild the index", idx.Model, s.cfg.Model)
+	}
+	if len(idx.Documents) == 0 {
+		return EmbeddingSearchResult{
+			OK: true, Enabled: true, Model: s.cfg.Model, Query: query,
+			Results: []EmbeddingSearchHit{}, Count: 0,
+			Index: EmbeddingIndexSummarize{Model: idx.Model, Dimension: idx.Dimension, Count: 0, UpdatedAt: idx.UpdatedAt},
+		}, nil
+	}
 	queryVectors, err := s.embed(ctx, []string{query})
 	if err != nil {
 		return EmbeddingSearchResult{}, err
 	}
 	if len(queryVectors) != 1 {
 		return EmbeddingSearchResult{}, errors.New("embedding query returned no vector")
+	}
+	if len(queryVectors[0]) != idx.Dimension {
+		return EmbeddingSearchResult{}, fmt.Errorf("embedding query dimension %d does not match index dimension %d; rebuild the index", len(queryVectors[0]), idx.Dimension)
 	}
 	prefix := strings.TrimSpace(req.Prefix)
 	hits := make([]EmbeddingSearchHit, 0, len(idx.Documents))
@@ -286,7 +303,10 @@ func (s *EmbeddingService) embed(ctx context.Context, texts []string) ([][]float
 	if err != nil {
 		return nil, err
 	}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("encode embedding request: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -297,9 +317,15 @@ func (s *EmbeddingService) embed(ctx context.Context, texts []string) ([][]float
 		return nil, err
 	}
 	defer res.Body.Close()
-	data, _ := io.ReadAll(io.LimitReader(res.Body, 32<<20))
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxEmbeddingResponseBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read embedding response: %w", err)
+	}
+	if len(data) > maxEmbeddingResponseBytes {
+		return nil, fmt.Errorf("embedding response exceeds %d bytes", maxEmbeddingResponseBytes)
+	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("embedding endpoint returned HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(data)))
+		return nil, fmt.Errorf("embedding endpoint returned HTTP %d: %s", res.StatusCode, truncateUTF8(strings.TrimSpace(string(data)), 4096))
 	}
 	return parseEmbeddingResponse(data)
 }
@@ -330,8 +356,9 @@ func parseEmbeddingResponse(data []byte) ([][]float64, error) {
 		if !ok {
 			return nil, errors.New("embedding response data is not an array")
 		}
-		vectors := make([][]float64, 0, len(items))
-		for _, item := range items {
+		vectors := make([][]float64, len(items))
+		indexMode := -1
+		for position, item := range items {
 			obj, ok := item.(map[string]any)
 			if !ok {
 				return nil, errors.New("embedding response item is not an object")
@@ -340,7 +367,33 @@ func parseEmbeddingResponse(data []byte) ([][]float64, error) {
 			if err != nil {
 				return nil, err
 			}
-			vectors = append(vectors, vector)
+			rawIndex, hasIndex := obj["index"]
+			mode := 0
+			if hasIndex {
+				mode = 1
+			}
+			if indexMode == -1 {
+				indexMode = mode
+			} else if indexMode != mode {
+				return nil, errors.New("embedding response mixes indexed and unindexed items")
+			}
+			target := position
+			if hasIndex {
+				index, ok := rawIndex.(float64)
+				if !ok || index != math.Trunc(index) || index < 0 || int(index) >= len(items) {
+					return nil, fmt.Errorf("embedding response index is invalid: %v", rawIndex)
+				}
+				target = int(index)
+			}
+			if vectors[target] != nil {
+				return nil, fmt.Errorf("embedding response index %d is duplicated", target)
+			}
+			vectors[target] = vector
+		}
+		for index, vector := range vectors {
+			if vector == nil {
+				return nil, fmt.Errorf("embedding response index %d is missing", index)
+			}
 		}
 		return vectors, nil
 	}
@@ -394,18 +447,56 @@ func (s *EmbeddingService) loadIndex() (embeddingIndex, error) {
 		return embeddingIndex{}, err
 	}
 	var idx embeddingIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&idx); err != nil {
 		return embeddingIndex{}, err
 	}
-	if idx.Documents == nil {
-		idx.Documents = map[string]embeddingDocument{}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return embeddingIndex{}, errors.New("embedding index contains multiple JSON values")
+		}
+		return embeddingIndex{}, fmt.Errorf("read trailing embedding index data: %w", err)
+	}
+	if err := validateEmbeddingIndex(idx); err != nil {
+		return embeddingIndex{}, err
 	}
 	return idx, nil
+}
+
+func validateEmbeddingIndex(idx embeddingIndex) error {
+	if strings.TrimSpace(idx.Model) == "" {
+		return errors.New("embedding index model is empty")
+	}
+	if idx.Documents == nil {
+		return errors.New("embedding index documents are missing")
+	}
+	if len(idx.Documents) == 0 {
+		if idx.Dimension != 0 {
+			return errors.New("empty embedding index must have dimension 0")
+		}
+		return nil
+	}
+	if idx.Dimension <= 0 {
+		return errors.New("embedding index dimension must be positive")
+	}
+	for path, document := range idx.Documents {
+		if path == "" || document.Path != path {
+			return fmt.Errorf("embedding index document path mismatch for %q", path)
+		}
+		if len(document.Vector) != idx.Dimension {
+			return fmt.Errorf("embedding index document %q has dimension %d, want %d", path, len(document.Vector), idx.Dimension)
+		}
+	}
+	return nil
 }
 
 func (s *EmbeddingService) writeIndex(idx embeddingIndex) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := validateEmbeddingIndex(idx); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(s.cfg.IndexPath), 0o700); err != nil {
 		return err
 	}
@@ -434,15 +525,11 @@ func snippetFromText(text string) string {
 }
 
 func cosine(a, b []float64) float64 {
-	if len(a) == 0 || len(b) == 0 {
+	if len(a) == 0 || len(a) != len(b) {
 		return 0
 	}
-	limit := len(a)
-	if len(b) < limit {
-		limit = len(b)
-	}
 	var dot, normA, normB float64
-	for i := 0; i < limit; i++ {
+	for i := range a {
 		dot += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
