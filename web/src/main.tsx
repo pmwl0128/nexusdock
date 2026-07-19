@@ -11,10 +11,6 @@ const pathname = window.location.pathname;
 const isLoginPage = pathname === '/login';
 const isCredentialUpdatePage = pathname === '/change-password';
 
-// iOS Safari 会使用 theme-color 渲染底部工具栏；工作台是浅色，认证页保留深色。
-const themeColor = isLoginPage || isCredentialUpdatePage ? '#111425' : '#eff5f4';
-document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', themeColor);
-
 const page = isLoginPage
   ? <LoginPage />
   : isCredentialUpdatePage

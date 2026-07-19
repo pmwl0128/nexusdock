@@ -4,7 +4,7 @@
  * 避免页面继续各自叠加一套色板。
  */
 :root {
-  color-scheme: light;
+  color-scheme: only light;
   --nx-bg: #f3f4f8;
   --nx-panel: rgba(255, 255, 255, .96);
   --nx-surface: #ffffff;
@@ -704,7 +704,6 @@ summary:focus-visible {
 
 /* 登录与账号安全 */
 .auth-shell {
-  color-scheme: dark;
   background:
     radial-gradient(circle at 12% 16%, rgba(91, 91, 214, .24), transparent 34%),
     radial-gradient(circle at 82% 10%, rgba(71, 119, 217, .16), transparent 31%),
