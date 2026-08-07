@@ -1,32 +1,191 @@
 # NexusDock
 
-NexusDock is the personal AgentDock control plane. Recall is NexusDock's memory module: Git-backed Markdown content, notes, cards, embeddings, and sync live inside this service alongside backups, administrator sessions, and Runtime views backed by AgentDock Runtime APIs.
+NexusDock 是面向个人和可信小型环境的 AgentDock 中心服务。它把多台 AgentDock 节点、长期记忆、工作流模板、运行状态和管理入口集中到一个自托管 Web 控制台中。
 
-## Product Boundary
+NexusDock 适合已经在一台或多台设备上使用 AgentDock，希望统一查看任务、Skill、MCP、记忆和运行状态的用户。它不是 AgentDock 的替代品：任务和工具仍在各个 AgentDock 节点上运行，NexusDock 负责集中管理、查询和协调。
 
-Top-level product areas:
+## 主要能力
 
-- Overview: backup status and high-priority runtime availability signals.
-- Recall: NexusDock memory module for unified memory, notes, cards, inbox, Markdown editing, Git review, embeddings, and sync.
-- Runtime: explicitly selected AgentDock node task, Skill, and dynamic MCP views through AgentDock Runtime APIs; Workflow templates remain a Nexus-global registry.
-- Settings: administrator account, browser sessions, Nexus data health, Recall repository location, and backup status.
+- **Recall 记忆库**：浏览、搜索、创建和编辑 Markdown / 文本记忆，查看 Git 变更与历史，并按需同步远端仓库。
+- **经验卡片与向量召回**：把可复用结论整理为经验卡片；配置兼容的 Embeddings 服务后可进行语义搜索和索引重建。
+- **多节点 Runtime**：注册多台 AgentDock，按节点查看任务、Skill、动态 MCP 和运行概况。
+- **MCP 管理**：通过 NexusDock 管理选定 AgentDock 节点上的 HTTP 或 stdio MCP 服务、工具发现和隔离环境变量。
+- **Workflow 模板**：集中浏览、匹配和维护可复用的任务工作流模板。
+- **安全与状态**：管理员登录、浏览器会话管理、节点凭据加密、备份状态和系统健康检查。
+- **自托管 Web 控制台**：桌面端与移动端均可使用，后端 API 与前端由同一个服务提供。
 
-Nexus does not own AgentDock Task, Skill, or dynamic MCP lifecycle state. It stores only node connection metadata and encrypted node credentials, then queries or triggers the selected AgentDock through controlled Runtime APIs. Workflow templates are global Nexus data consumed by AgentDock.
+## 快速开始
 
-## Runtime Structure
+### 1. 准备环境
 
-```text
-cmd/nexusdock          production service entrypoint
-internal/recall    NexusDock Recall memory module: Markdown content, notes, cards, embeddings, and Git sync
-internal/agentdock encrypted AgentDock node registry and credentials
-internal/auth      administrator sessions and device authentication
-internal/httpx     Nexus HTTP API, Runtime API facade, and embedded Web UI
-web                React Nexus console
+需要：
+
+- Docker 与 Docker Compose
+- Git
+- 一个可写的数据目录
+
+克隆仓库：
+
+```bash
+git clone https://github.com/uvwt/nexusdock.git
+cd nexusdock
+cp .env.example .env
 ```
 
-Production builds use `cmd/nexusdock`. Product vocabulary, public contracts, deployment variables, and UI copy must use NexusDock, Nexus, Recall, and Runtime consistently.
+生成一个仅用于程序化 API 的随机 Bearer Token：
 
-## Data Layout
+```bash
+openssl rand -hex 32
+```
+
+编辑 `.env`，至少确认以下配置：
+
+```dotenv
+NEXUS_DATA_DIR=./nexus-data
+NEXUS_AUTH_TOKEN=<粘贴刚才生成的随机值>
+NEXUS_REQUIRE_AUTH=true
+
+RECALL_REPO_DIR=./recall
+RECALL_GITHUB_CREDENTIALS=./github_credentials
+RECALL_AUTO_SYNC=false
+```
+
+本机通过 `http://127.0.0.1` 试用时，还需要临时允许 HTTP 登录：
+
+```dotenv
+NEXUS_AUTH_ALLOW_INSECURE_HTTP=true
+```
+
+远程访问时不要保留这个设置，应使用 HTTPS，详见[安全部署](#安全部署)。
+
+### 2. 创建数据目录
+
+```bash
+mkdir -p nexus-data recall
+: > github_credentials
+chmod 600 github_credentials
+```
+
+默认镜像使用 UID/GID `10001:10001` 运行。Linux 使用宿主机绑定目录时，首次启动前执行：
+
+```bash
+sudo chown -R 10001:10001 nexus-data recall
+```
+
+`github_credentials` 可以在未启用 Git 自动同步时保持为空，但文件必须存在且可读。
+
+### 3. 初始化管理员
+
+```bash
+docker compose build nexusdock
+docker compose run --rm nexusdock admin init owner
+```
+
+命令会在终端中要求输入并确认管理员密码。密码只写入 NexusDock 的 SQLite 数据库，不需要放进 `.env` 或 Compose 文件。
+
+### 4. 启动服务
+
+```bash
+docker compose up -d nexusdock
+```
+
+检查服务：
+
+```bash
+curl http://127.0.0.1:18777/health
+```
+
+然后在浏览器打开：
+
+```text
+http://127.0.0.1:18777
+```
+
+使用刚才创建的管理员账号登录。
+
+## 首次使用
+
+### 连接 AgentDock 节点
+
+在 NexusDock 设置页添加 AgentDock 节点，需要填写：
+
+- 节点名称与唯一 ID
+- AgentDock Runtime 地址
+- 对应的访问 Token
+
+添加后可以先执行连接检测，再进入 Runtime 查看该节点的任务、Skill 和 MCP。
+
+节点 Token 会使用 `NEXUS_DATA_DIR/secrets/agentdock-nodes.key` 加密后存入数据库。备份或迁移时必须同时保留数据库和该密钥文件。
+
+### 使用 Recall
+
+Recall 仓库默认位于 `RECALL_REPO_DIR`。你可以在 Web 控制台中：
+
+- 新建、编辑、移动和删除 `.md`、`.markdown`、`.txt` 文件；
+- 按关键词搜索记忆；
+- 查看本地改动和最近提交；
+- 手动执行拉取、推送或双向同步；
+- 把稳定经验整理为卡片；
+- 配置 Embeddings 后进行向量搜索。
+
+Recall 内容本身是普通 Git 仓库，可以继续使用现有的 Git 托管和备份方式。
+
+### 启用 Git 自动同步
+
+先把 `RECALL_REPO_DIR` 初始化或克隆为可正常拉取、推送的 Git 仓库，再将 Git credential-store 文件路径写入：
+
+```dotenv
+RECALL_GITHUB_CREDENTIALS=/absolute/path/to/github_credentials
+RECALL_AUTO_SYNC=true
+```
+
+常用同步参数：
+
+```dotenv
+RECALL_PULL_INTERVAL_SECONDS=120
+RECALL_PUSH_DEBOUNCE_SECONDS=10
+RECALL_COMMIT_MESSAGE=recall: 自动同步召回库
+```
+
+凭据文件会以只读 Secret 挂载到容器。不要把它提交到 Git，也不要把 Token 写入 README、Compose 或日志。
+
+### 启用向量召回
+
+NexusDock 支持 OpenAI 兼容的 `/v1/embeddings` 接口。示例：
+
+```dotenv
+RECALL_EMBEDDING_ENABLED=true
+RECALL_EMBEDDING_ENDPOINT=http://embedding-service:8000/v1/embeddings
+RECALL_EMBEDDING_MODEL=BAAI/bge-m3
+RECALL_EMBEDDING_TIMEOUT_SECONDS=30
+```
+
+未配置 Embeddings 时，普通文件浏览、关键词搜索和 Git 同步仍可正常使用。
+
+## 配置参考
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `NEXUS_HOST` | `127.0.0.1` | 监听地址；Docker 镜像内默认为 `0.0.0.0` |
+| `NEXUS_PORT` | `18777` | HTTP 端口 |
+| `NEXUS_DATA_DIR` | `./nexus-data` | SQLite、备份和系统密钥目录；容器内为 `/var/lib/nexus` |
+| `NEXUS_AUTH_TOKEN` | 空 | 程序化 `/v1` API 的 Bearer Token |
+| `NEXUS_REQUIRE_AUTH` | `false` | 为 `true` 时，没有配置 API Token 将拒绝启动 |
+| `NEXUS_AUTH_ALLOW_INSECURE_HTTP` | `false` | 是否允许通过 HTTP 提交浏览器登录；仅限本机调试 |
+| `NEXUS_TRUSTED_PROXIES` | `127.0.0.1,::1` | 允许提供 `X-Forwarded-*` 的反向代理地址 |
+| `NEXUS_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error` |
+| `RECALL_REPO_DIR` | `./recall` | Recall Git 仓库目录；容器内为 `/recall` |
+| `RECALL_AUTO_SYNC` | `false` | 是否自动拉取和推送 Recall 仓库 |
+| `RECALL_GITHUB_CREDENTIALS` | 无 | Git credential-store 文件路径 |
+| `RECALL_EMBEDDING_ENABLED` | `false` | 是否启用经验卡片向量索引 |
+| `RECALL_EMBEDDING_ENDPOINT` | 空 | OpenAI 兼容 Embeddings 地址 |
+| `RECALL_EMBEDDING_MODEL` | `BAAI/bge-m3` | Embeddings 模型 |
+
+完整示例见 [`.env.example`](./.env.example)。
+
+## 数据与备份
+
+默认数据结构：
 
 ```text
 NEXUS_DATA_DIR/
@@ -38,42 +197,70 @@ NEXUS_DATA_DIR/
 RECALL_REPO_DIR/
   .git/
   profile.md
-  recall/docs/
-  recall/managed/
+  recall/
 ```
 
-AgentDock 节点 Token 使用 `secrets/agentdock-nodes.key` 加密后存入 `nexus.db`。备份和恢复时必须同时保留数据库与该密钥文件；只恢复其中一项会导致已有节点凭据无法解密。
+至少应备份：
 
-## Local Development
+1. `NEXUS_DATA_DIR/nexus.db` 及对应 WAL/SHM；
+2. `NEXUS_DATA_DIR/secrets/agentdock-nodes.key`；
+3. 整个 `RECALL_REPO_DIR`；
+4. Git 远端凭据的安全副本（如确有需要）。
 
-Requirements:
+不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。恢复时数据库和节点密钥必须来自同一套备份，否则已有节点 Token 将无法解密。
 
-- Go version declared by `go.mod`.
-- Node.js 26 and npm.
-- Python 3 for contract and repository checks.
-- Docker for production-image verification.
+## 安全部署
+
+NexusDock 面向个人和可信环境，不应直接暴露在公网。
+
+远程访问时建议：
+
+- 让 Docker 端口继续只绑定 `127.0.0.1`；
+- 使用 Caddy、Nginx、Traefik 或 Cloudflare Tunnel 提供 HTTPS；
+- 保持 `NEXUS_AUTH_ALLOW_INSECURE_HTTP=false`；
+- 只把实际反向代理地址加入 `NEXUS_TRUSTED_PROXIES`；
+- 使用高强度管理员密码和随机 `NEXUS_AUTH_TOKEN`；
+- 限制 `nexus-data`、Recall 仓库和凭据文件的宿主机权限。
+
+浏览器使用管理员会话 Cookie，程序化 `/v1` 客户端使用：
+
+```text
+Authorization: Bearer <NEXUS_AUTH_TOKEN>
+```
+
+客户端自行设置的 `Host`、`X-Forwarded-For` 或 `X-Forwarded-Proto` 不会自动获得本地访问权限。
+
+## 管理员恢复
+
+忘记密码时，在服务所在主机的终端执行：
+
+```bash
+docker compose run --rm nexusdock admin recover owner
+```
+
+该操作需要直接访问 `NEXUS_DATA_DIR`，不会通过 Web 或远程 API 修改密码。
+
+## 从源码运行
+
+需要 Go `1.26.3`、Node.js/npm 和 Python 3：
 
 ```bash
 make web-deps
+make build
+./bin/nexusdock
+```
+
+本地开发常用检查：
+
+```bash
 make check
 make ci
 ```
 
-`make check` performs formatting drift, module tidiness, Go tests, `go vet`, contract generation drift, and repository-boundary checks. `make ci` additionally builds the embedded Web UI, runs focused race tests, and builds the production binary.
+`make check` 会执行 Go 格式、依赖、测试、`go vet`、公共契约和仓库边界检查；`make ci` 还会构建前端、执行 race 测试并生成生产二进制。
 
-The embedded UI lives in `internal/httpx/web_dist`. A frontend change is incomplete until `make web-build` has regenerated this directory and the resulting files are committed.
+## 更多文档
 
-## Administrator Authentication
-
-Browser administrator credentials live only in `NEXUS_DATA_DIR/nexus.db` and use Argon2id. Initialize or recover the administrator from a local terminal so the credential never enters Compose files, shell history, or Git:
-
-```bash
-NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin init owner
-NEXUS_DATA_DIR=./nexus-data ./bin/nexusdock admin recover owner
-```
-
-Browser requests use the administrator session cookie. Programmatic `/v1` clients use `Authorization: Bearer $NEXUS_AUTH_TOKEN`; a direct loopback fallback exists only for isolated tests or embedded uses that do not configure the web authentication service. Client-controlled `Host` and forwarding headers never grant local access.
-
-`NEXUS_REQUIRE_AUTH=true` is a startup guard: it refuses to start unless `NEXUS_AUTH_TOKEN` is configured. `NEXUS_TRUSTED_PROXIES` must contain only the reverse proxy addresses that are allowed to supply `X-Forwarded-*` headers. Leave `NEXUS_AUTH_ALLOW_INSECURE_HTTP=false` outside local development so browser login requires HTTPS.
-
-The production image runs as fixed UID/GID `10001:10001`. Compose uses a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and mounts the Git credential-store file as a read-only Secret. Host bind mounts for `NEXUS_DATA_DIR` and `RECALL_REPO_DIR` must be writable by UID/GID 10001; see `deploy/README.md` for the permission preflight.
+- [部署与权限说明](./deploy/README.md)
+- [公共契约说明](./contracts/README.md)
+- [架构文档](./docs/architecture/README.md)
