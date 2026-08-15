@@ -130,7 +130,7 @@ func (s *Store) List(prefix string, maxEntries int) ([]Entry, error) {
 		}
 		if d.IsDir() {
 			rel, _ := filepath.Rel(s.root, path)
-			if isPrivateNotesPath(filepath.ToSlash(rel)) {
+			if isPrivateNotesPath(filepath.ToSlash(rel)) || isInternalLifecyclePath(filepath.ToSlash(rel)) {
 				return filepath.SkipDir
 			}
 		}
@@ -720,7 +720,7 @@ func (s *Store) resolve(rel string) (string, error) {
 	if hasHiddenSegment(clean) {
 		return "", ErrInvalidPath
 	}
-	if isPrivateNotesPath(filepath.ToSlash(clean)) {
+	if isPrivateNotesPath(filepath.ToSlash(clean)) || isInternalLifecyclePath(filepath.ToSlash(clean)) {
 		return "", ErrDisallowedPath
 	}
 	if isReservedRecallPath(filepath.ToSlash(clean)) {
@@ -737,6 +737,11 @@ func (s *Store) resolve(rel string) (string, error) {
 func isPrivateNotesPath(rel string) bool {
 	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "/")))
 	return rel == "private-notes" || strings.HasPrefix(rel, "private-notes/")
+}
+
+func isInternalLifecyclePath(rel string) bool {
+	rel = filepath.ToSlash(strings.TrimSpace(strings.TrimPrefix(rel, "/")))
+	return rel == "recall/managed/lifecycle" || strings.HasPrefix(rel, "recall/managed/lifecycle/")
 }
 
 func isReservedRecallPath(rel string) bool {
