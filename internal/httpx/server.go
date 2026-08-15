@@ -135,7 +135,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/embeddings/status", protected(s.embeddingStatus))
 	mux.HandleFunc("POST /v1/embeddings/reindex", protected(s.reindexEmbeddings))
 	mux.HandleFunc("POST /v1/embeddings/search", protected(s.searchEmbeddings))
-	mux.HandleFunc("POST /v1/recall/notes/append", protected(s.appendNote))
 	mux.HandleFunc("GET /v1/recall/{path...}", protected(s.readRecall))
 	mux.HandleFunc("PATCH /v1/recall/{path...}", protected(s.patchRecall))
 	mux.HandleFunc("DELETE /v1/recall/{path...}", protected(s.deleteRecall))
@@ -527,20 +526,6 @@ func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
-}
-
-func (s *Server) appendNote(w http.ResponseWriter, r *http.Request) {
-	var req recall.NoteRequest
-	if !decodeJSON(w, r, &req) {
-		return
-	}
-	mem, err := s.store.AppendNote(req)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "APPEND_NOTE_FAILED", err.Error())
-		return
-	}
-	s.syncer.MarkChanged(r.Context())
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
 }
 
 func memoryPath(r *http.Request) (string, error) {

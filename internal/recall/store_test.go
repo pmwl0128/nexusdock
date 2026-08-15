@@ -44,32 +44,19 @@ func TestAllowedRecallPaths(t *testing.T) {
 		"recall/docs/projects/agentdock/project.md",
 		"recall/docs/projects/agentdock/environment.md",
 		"recall/docs/projects/agentdock/runbooks/deploy.md",
-		"recall/managed/notes/github-learning/index.md",
-		"recall/managed/notes/github-learning/projects/owner__repo/architecture.md",
 		"recall/managed/cards/chatdock/inbox/project_trap/deploy-check.md",
-		"recall/docs/inbox/20260531-note.md",
+		"recall/docs/inbox/20260531-recall.md",
 	}
 	for _, path := range allowed {
 		if !IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be allowed", path)
 		}
 	}
-	rejected := []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/nexusdock.md", "inbox/old.md", "shared/profile.md", "journal/today.md", "recall/docs/projects/agentdock/overview.md", "recall/docs/projects/agentdock/decisions/a.md", "recall/docs/projects/agentdock/runbooks/nested/a.md", "recall/managed/cards/chatdock/inbox/project_trap/nested/deploy.md", "recall/managed/notes/.hidden.md", "recall/managed/notes/github-learning/raw.bin"}
+	rejected := []string{"cards/demo/inbox/runbook/old.md", "notes/questions/index.md", "projects/demo/project.md", "devices/dockmini.md", "ops/nexusdock.md", "inbox/old.md", "shared/profile.md", "journal/today.md", "recall/docs/projects/agentdock/overview.md", "recall/docs/projects/agentdock/decisions/a.md", "recall/docs/projects/agentdock/runbooks/nested/a.md", "recall/managed/cards/chatdock/inbox/project_trap/nested/deploy.md", "recall/managed/notes/index.md", "recall/managed/notes/github-learning/projects/owner__repo/architecture.md"}
 	for _, path := range rejected {
 		if IsAllowedRecallPath(path) {
 			t.Fatalf("expected %q to be rejected", path)
 		}
-	}
-}
-
-func TestWriteNotesInfersNotesScope(t *testing.T) {
-	store := newTestStore(t)
-	mem, err := store.Write(WriteRequest{Path: "recall/managed/notes/github-learning/topics/agent.md", Content: "# Agent", Confirmed: true})
-	if err != nil {
-		t.Fatalf("write notes: %v", err)
-	}
-	if mem.Frontmatter["scope"] != string(ScopeNotes) {
-		t.Fatalf("expected notes scope, got %#v", mem.Frontmatter)
 	}
 }
 
@@ -115,14 +102,14 @@ func TestMoveAndDeleteProtection(t *testing.T) {
 
 func TestFrontmatterAndDefaultPath(t *testing.T) {
 	store := newTestStore(t)
-	mem, err := store.Write(WriteRequest{Content: "# Hello", Type: "note", Project: "AgentDock"})
+	mem, err := store.Write(WriteRequest{Content: "# Hello", Type: "runbook", Project: "AgentDock"})
 	if err != nil {
 		t.Fatalf("default write: %v", err)
 	}
-	if !strings.HasPrefix(mem.Path, "recall/docs/inbox/") || !strings.HasSuffix(mem.Path, "-note.md") {
+	if !strings.HasPrefix(mem.Path, "recall/docs/inbox/") || !strings.HasSuffix(mem.Path, "-runbook.md") {
 		t.Fatalf("unexpected default path: %s", mem.Path)
 	}
-	if mem.Frontmatter["type"] != "note" || mem.Frontmatter["project"] != "agentdock" {
+	if mem.Frontmatter["type"] != "runbook" || mem.Frontmatter["project"] != "agentdock" {
 		t.Fatalf("unexpected frontmatter: %#v", mem.Frontmatter)
 	}
 }

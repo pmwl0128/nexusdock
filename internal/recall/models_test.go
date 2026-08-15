@@ -3,7 +3,7 @@ package recall
 import "testing"
 
 func TestRecallScopeSetMatchesContract(t *testing.T) {
-	valid := []Scope{ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeNotes, ScopeInbox}
+	valid := []Scope{ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeInbox}
 	for _, scope := range valid {
 		if !scope.Valid() {
 			t.Fatalf("scope %q should be valid", scope)

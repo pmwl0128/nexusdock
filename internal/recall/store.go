@@ -20,7 +20,7 @@ var (
 	ErrConfirmationNeeded = errors.New("writing outside inbox requires confirmed=true")
 	ErrFileExists         = errors.New("recall file exists; set overwrite=true to replace")
 	ErrUnsupportedFile    = errors.New("recall path must be markdown or text")
-	ErrDisallowedPath     = errors.New("recall path is outside allowed roots: profile.md, recall/docs/inbox/, recall/managed/notes/, recall/managed/cards/, recall/docs/projects/<project>/{project.md,environment.md,runbooks/}, recall/docs/devices/, recall/docs/ops/")
+	ErrDisallowedPath     = errors.New("recall path is outside allowed roots: profile.md, recall/docs/inbox/, recall/managed/cards/, recall/docs/projects/<project>/{project.md,environment.md,runbooks/}, recall/docs/devices/, recall/docs/ops/")
 )
 
 type Store struct {
@@ -81,12 +81,6 @@ type WriteRequest struct {
 	Tags              []string `json:"tags"`
 	Confirmed         bool     `json:"confirmed"`
 	Overwrite         bool     `json:"overwrite"`
-}
-
-type NoteRequest struct {
-	Content string `json:"content"`
-	Scope   string `json:"scope"`
-	Name    string `json:"name"`
 }
 
 func NewStore(root string) (*Store, error) {
@@ -447,11 +441,6 @@ func IsAllowedRecallPath(path string) bool {
 	if strings.HasPrefix(path, "recall/docs/inbox/") {
 		return IsTextFile(path)
 	}
-	if strings.HasPrefix(path, "recall/managed/notes/") {
-		// notes 是受控个人知识库根目录，允许多级 Markdown/Text 笔记；
-		// 后端只接受 recall/managed/notes/ 原生新路径，不再依赖旧根别名。
-		return IsTextFile(path)
-	}
 	if strings.HasPrefix(path, "recall/managed/cards/") {
 		parts := strings.Split(path, "/")
 		return len(parts) == 7 && parts[3] != "" && parts[4] != "" && parts[5] != "" && IsTextFile(path)
@@ -521,51 +510,6 @@ func (s *Store) Write(req WriteRequest) (Recall, error) {
 		content = BuildFrontmatter(req) + "\n" + content + "\n"
 	}
 	if err := atomicWriteFile(abs, []byte(content), 0o644); err != nil {
-		return Recall{}, err
-	}
-	return s.Read(path)
-}
-
-func (s *Store) AppendNote(req NoteRequest) (Recall, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	content := strings.TrimSpace(req.Content)
-	if content == "" {
-		return Recall{}, errors.New("content is required")
-	}
-	scope := SafeSegment(req.Scope)
-	if scope == "" {
-		scope = "inbox"
-	}
-	if scope != "inbox" {
-		return Recall{}, errors.New("append_note only writes to inbox; use recall_write with an explicit allowed path for long-term recall")
-	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		name = time.Now().Format("20060102-150405") + "-note.md"
-	}
-	name = SafeFilename(name)
-	path := filepath.ToSlash(filepath.Join("recall", "docs", scope, name))
-	abs, err := s.resolve(path)
-	if err != nil {
-		return Recall{}, err
-	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return Recall{}, err
-	}
-	entry := fmt.Sprintf("---\ntype: note\nscope: %s\nsource: user-confirmed\ncreated_at: %s\nupdated_at: %s\n---\n\n%s\n", scope, now(), now(), content)
-	if _, err := os.Stat(abs); err == nil {
-		entry = "\n\n---\n\n" + content + "\n"
-		file, err := os.OpenFile(abs, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			return Recall{}, err
-		}
-		defer file.Close()
-		if _, err := file.WriteString(entry); err != nil {
-			return Recall{}, err
-		}
-	} else if err := os.WriteFile(abs, []byte(entry), 0o644); err != nil {
 		return Recall{}, err
 	}
 	return s.Read(path)
@@ -1004,18 +948,6 @@ func SafeSegment(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "-_")
-}
-
-func SafeFilename(value string) string {
-	value = filepath.Base(filepath.ToSlash(value))
-	if !IsTextFile(value) {
-		value += ".md"
-	}
-	clean := SafeSegment(strings.TrimSuffix(value, filepath.Ext(value)))
-	if clean == "" {
-		clean = time.Now().Format("20060102-150405") + "-note"
-	}
-	return clean + strings.ToLower(filepath.Ext(value))
 }
 
 func now() string { return time.Now().Format(time.RFC3339) }

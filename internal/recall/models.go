@@ -16,13 +16,12 @@ const (
 	ScopeDevice  Scope = "device"
 	ScopeAgent   Scope = "agent"
 	ScopeOps     Scope = "ops"
-	ScopeNotes   Scope = "notes"
 	ScopeInbox   Scope = "inbox"
 )
 
 func (s Scope) Valid() bool {
 	switch s {
-	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeNotes, ScopeInbox:
+	case ScopeProfile, ScopeGlobal, ScopeProject, ScopeDevice, ScopeAgent, ScopeOps, ScopeInbox:
 		return true
 	default:
 		return false
@@ -220,8 +219,6 @@ func inferScope(path string) Scope {
 		return ScopeOps
 	case strings.HasPrefix(path, "recall/managed/cards/"):
 		return ScopeProject
-	case strings.HasPrefix(path, "recall/managed/notes/"):
-		return ScopeNotes
 	case strings.HasPrefix(path, "recall/docs/inbox/"):
 		return ScopeInbox
 	default:

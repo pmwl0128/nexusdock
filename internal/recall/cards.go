@@ -170,7 +170,7 @@ func normalizeCard(req CardRequest) (Card, []string, error) {
 	if card.Scope == "" {
 		card.Scope = ScopeProject
 	}
-	if !card.Scope.Valid() || card.Scope == ScopeNotes || card.Scope == ScopeInbox || card.Scope == ScopeProfile || card.Scope == ScopeOps || card.Scope == ScopeAgent {
+	if !card.Scope.Valid() || card.Scope == ScopeInbox || card.Scope == ScopeProfile || card.Scope == ScopeOps || card.Scope == ScopeAgent {
 		return Card{}, nil, fmt.Errorf("invalid card scope %q", card.Scope)
 	}
 	if card.Project == "" {

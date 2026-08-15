@@ -1,5 +1,5 @@
 export const NEW_RECALL_TEMPLATE = `---
-type: note
+type: recall
 scope: inbox
 source: user-confirmed
 confidence: medium

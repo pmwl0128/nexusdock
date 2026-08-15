@@ -400,7 +400,7 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "path": scalar("string", "Recall 相对路径；PATCH 时由路径参数覆盖。", minLength=1),
             "content": scalar("string", "Markdown 或文本内容。"),
             "type": scalar("string", "可选的 Recall 类型。"),
-            "scope": enum("Recall 作用域。", ["profile", "global", "project", "device", "agent", "ops", "notes", "inbox"]),
+            "scope": enum("Recall 作用域。", ["profile", "global", "project", "device", "agent", "ops", "inbox"]),
             "status": enum("Recall 状态。", ["inbox", "active", "verified", "stale", "archived", "rejected", "conflicted", "unverified", "deprecated"]),
             "project": scalar("string", "项目标识。"),
             "device": scalar("string", "设备标识。"),
@@ -957,7 +957,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/recall/move": {"post": operation("moveRecall", "移动召回条目", request=body())},
         "/v1/recall/search": {"post": operation("searchRecall", "搜索召回内容", request=body())},
         "/v1/recall/pack": {"post": operation("packRecall", "打包召回条目", request=body())},
-        "/v1/recall/notes/append": {"post": operation("appendRecallNote", "追加召回笔记", request=body())},
         "/v1/recall/cards": {
             "get": operation(
                 "listRecallCards",

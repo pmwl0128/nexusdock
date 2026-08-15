@@ -309,14 +309,6 @@ func (c *Client) PackRecall(ctx context.Context, request any) (json.RawMessage, 
 	return response, err
 }
 
-// AppendRecallNote 追加召回笔记。
-func (c *Client) AppendRecallNote(ctx context.Context, request any) (json.RawMessage, error) {
-	var response json.RawMessage
-	endpointPath := "/v1/recall/notes/append"
-	err := c.doJSON(ctx, http.MethodPost, endpointPath, request, &response)
-	return response, err
-}
-
 // ListRecallCards 列出 Recall 卡片。
 func (c *Client) ListRecallCards(ctx context.Context, maxEntries *int64) (RecallCardListResponse, error) {
 	var response RecallCardListResponse
