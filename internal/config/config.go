@@ -30,7 +30,6 @@ type Config struct {
 	EmbeddingModel        string
 	EmbeddingIndexFile    string
 	EmbeddingTimeout      time.Duration
-	EvolutionToken        string
 	ModelEndpoint         string
 	ModelName             string
 	ModelAPIKey           string
@@ -61,7 +60,6 @@ func FromEnv() Config {
 		EmbeddingModel:        getenv("RECALL_EMBEDDING_MODEL", "BAAI/bge-m3"),
 		EmbeddingIndexFile:    getenv("RECALL_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
 		EmbeddingTimeout:      time.Duration(getenvInt("RECALL_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
-		EvolutionToken:        strings.TrimSpace(os.Getenv("NEXUS_EVOLUTION_TOKEN")),
 		ModelEndpoint:         strings.TrimSpace(os.Getenv("NEXUS_MODEL_ENDPOINT")),
 		ModelName:             strings.TrimSpace(os.Getenv("NEXUS_MODEL_NAME")),
 		ModelAPIKey:           strings.TrimSpace(os.Getenv("NEXUS_MODEL_API_KEY")),

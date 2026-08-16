@@ -25,7 +25,7 @@ func (s *Server) StartEvolutionStage3(ctx context.Context) {
 	s.mu.RLock()
 	cfg := s.cfg
 	s.mu.RUnlock()
-	if strings.TrimSpace(cfg.ModelEndpoint) == "" || strings.TrimSpace(cfg.ModelName) == "" || strings.TrimSpace(cfg.EvolutionToken) == "" {
+	if strings.TrimSpace(cfg.ModelEndpoint) == "" || strings.TrimSpace(cfg.ModelName) == "" {
 		return
 	}
 	client, err := stage3.NewClient(stage3.Config{Endpoint: cfg.ModelEndpoint, Model: cfg.ModelName, APIKey: cfg.ModelAPIKey, Timeout: cfg.ModelTimeout})

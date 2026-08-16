@@ -10,8 +10,8 @@ import (
 	"github.com/uvwt/nexusdock/internal/config"
 )
 
-func TestEvolutionLifecycleAPIUsesDedicatedTokenAndCAS(t *testing.T) {
-	h := newTestHandler(t, config.Config{EvolutionToken: "evolution-secret"})
+func TestEvolutionLifecycleAPIUsesProgrammaticTokenAndCAS(t *testing.T) {
+	h := newTestHandler(t, config.Config{AuthToken: "nexus-secret"})
 	payload := map[string]any{
 		"operation_id": "op_0123456789abcdef", "expected_revision": 0, "policy_version": "v1", "next_state": "provisional",
 		"record": map[string]any{"evolution_id": "evo_0123456789abcdef", "title": "x", "statement": "wait for readiness", "type": "runbook", "scope": "project", "project": "agentdock", "status": "provisional", "policy_version": "v1"},
@@ -25,7 +25,7 @@ func TestEvolutionLifecycleAPIUsesDedicatedTokenAndCAS(t *testing.T) {
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/internal/recall/lifecycle/transition", bytes.NewReader(body))
-	request.Header.Set("Authorization", "Bearer evolution-secret")
+	request.Header.Set("Authorization", "Bearer nexus-secret")
 	request.Header.Set("Content-Type", "application/json")
 	created := httptest.NewRecorder()
 	h.ServeHTTP(created, request)
@@ -35,7 +35,7 @@ func TestEvolutionLifecycleAPIUsesDedicatedTokenAndCAS(t *testing.T) {
 
 	queryBody := []byte(`{"evolution_id":"evo_0123456789abcdef"}`)
 	query := httptest.NewRequest(http.MethodPost, "/internal/recall/lifecycle/query", bytes.NewReader(queryBody))
-	query.Header.Set("Authorization", "Bearer evolution-secret")
+	query.Header.Set("Authorization", "Bearer nexus-secret")
 	query.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	h.ServeHTTP(response, query)

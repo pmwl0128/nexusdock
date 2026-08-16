@@ -66,8 +66,7 @@ func TestFromEnvDefaultsRecallEmbeddingIndexUnderRecallDirectory(t *testing.T) {
 	}
 }
 
-func TestFromEnvReadsEvolutionAndStageThreeModelConfiguration(t *testing.T) {
-	t.Setenv("NEXUS_EVOLUTION_TOKEN", "evolution-token")
+func TestFromEnvReadsStageThreeModelConfiguration(t *testing.T) {
 	t.Setenv("NEXUS_MODEL_ENDPOINT", "https://model.example.com")
 	t.Setenv("NEXUS_MODEL_NAME", "example-model")
 	t.Setenv("NEXUS_MODEL_API_KEY", "model-secret")
@@ -75,8 +74,8 @@ func TestFromEnvReadsEvolutionAndStageThreeModelConfiguration(t *testing.T) {
 	t.Setenv("NEXUS_EVOLUTION_INTERVAL_MINUTES", "720")
 
 	cfg := FromEnv()
-	if cfg.EvolutionToken != "evolution-token" || cfg.ModelEndpoint != "https://model.example.com" || cfg.ModelName != "example-model" || cfg.ModelAPIKey != "model-secret" {
-		t.Fatalf("unexpected Stage 3 config: token=%q endpoint=%q model=%q api_key=%q", cfg.EvolutionToken, cfg.ModelEndpoint, cfg.ModelName, cfg.ModelAPIKey)
+	if cfg.ModelEndpoint != "https://model.example.com" || cfg.ModelName != "example-model" || cfg.ModelAPIKey != "model-secret" {
+		t.Fatalf("unexpected Stage 3 config: endpoint=%q model=%q api_key=%q", cfg.ModelEndpoint, cfg.ModelName, cfg.ModelAPIKey)
 	}
 	if cfg.ModelTimeout != 45*time.Second {
 		t.Fatalf("ModelTimeout = %s", cfg.ModelTimeout)

@@ -15,10 +15,10 @@ func (s *Server) registerEvolutionLifecycleRoutes(mux *http.ServeMux) {
 func (s *Server) withEvolutionAccess(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.mu.RLock()
-		token := strings.TrimSpace(s.cfg.EvolutionToken)
+		token := strings.TrimSpace(s.cfg.AuthToken)
 		s.mu.RUnlock()
 		if token == "" {
-			writeError(w, http.StatusServiceUnavailable, "EVOLUTION_NOT_CONFIGURED", "evolution lifecycle API is not configured")
+			writeError(w, http.StatusServiceUnavailable, "EVOLUTION_NOT_CONFIGURED", "Nexus programmatic API token is not configured")
 			return
 		}
 		if !bearerMatches(r.Header.Get("Authorization"), token) {
