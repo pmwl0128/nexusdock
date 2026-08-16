@@ -263,4 +263,3 @@ make ci
 
 - [部署与权限说明](./deploy/README.md)
 - [公共契约说明](./contracts/README.md)
-- [架构文档](./docs/architecture/README.md)
