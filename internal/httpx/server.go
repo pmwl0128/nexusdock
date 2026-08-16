@@ -109,6 +109,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	s.registerRuntimeRoutes(mux, protected)
+	s.registerEvolutionLifecycleRoutes(mux)
 	s.registerWorkflowTemplateRoutes(mux, protected)
 	if s.privateNotes != nil {
 		s.registerPrivateNoteRoutes(mux, protected)
@@ -208,7 +209,7 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		headers.Set("Referrer-Policy", "no-referrer")
 		headers.Set("X-Content-Type-Options", "nosniff")
 		headers.Set("X-Frame-Options", "DENY")
-		if strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/login" || r.URL.Path == "/change-password" {
+		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/internal/") || r.URL.Path == "/login" || r.URL.Path == "/change-password" {
 			headers.Set("Cache-Control", "no-store")
 		}
 		if r.TLS != nil || s.isTrustedProxy(r) && strings.EqualFold(lastForwardedValue(r.Header.Get("X-Forwarded-Proto")), "https") {

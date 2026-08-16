@@ -117,7 +117,8 @@ func run(args []string) error {
 	}
 
 	syncManager.Start(ctx)
-	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel)
+	server.StartEvolutionStage3(ctx)
+	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel, "stage3_evolution_enabled", cfg.ModelEndpoint != "" && cfg.ModelName != "")
 	serveErr := serveHTTP(ctx, httpServer)
 	cancel()
 	syncManager.Wait()

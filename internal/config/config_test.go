@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestRequireAuthNeedsAPIToken(t *testing.T) {
@@ -62,5 +63,25 @@ func TestFromEnvDefaultsRecallEmbeddingIndexUnderRecallDirectory(t *testing.T) {
 	want := filepath.Join("/tmp/recall-repo", ".recall", "embedding-index.json")
 	if cfg.EmbeddingIndexFile != want {
 		t.Fatalf("EmbeddingIndexFile = %q, want %q", cfg.EmbeddingIndexFile, want)
+	}
+}
+
+func TestFromEnvReadsEvolutionAndStageThreeModelConfiguration(t *testing.T) {
+	t.Setenv("NEXUS_EVOLUTION_TOKEN", "evolution-token")
+	t.Setenv("NEXUS_MODEL_ENDPOINT", "https://model.example.com")
+	t.Setenv("NEXUS_MODEL_NAME", "example-model")
+	t.Setenv("NEXUS_MODEL_API_KEY", "model-secret")
+	t.Setenv("NEXUS_MODEL_TIMEOUT_SECONDS", "45")
+	t.Setenv("NEXUS_EVOLUTION_INTERVAL_MINUTES", "720")
+
+	cfg := FromEnv()
+	if cfg.EvolutionToken != "evolution-token" || cfg.ModelEndpoint != "https://model.example.com" || cfg.ModelName != "example-model" || cfg.ModelAPIKey != "model-secret" {
+		t.Fatalf("unexpected Stage 3 config: token=%q endpoint=%q model=%q api_key=%q", cfg.EvolutionToken, cfg.ModelEndpoint, cfg.ModelName, cfg.ModelAPIKey)
+	}
+	if cfg.ModelTimeout != 45*time.Second {
+		t.Fatalf("ModelTimeout = %s", cfg.ModelTimeout)
+	}
+	if cfg.EvolutionInterval != 12*time.Hour {
+		t.Fatalf("EvolutionInterval = %s", cfg.EvolutionInterval)
 	}
 }
