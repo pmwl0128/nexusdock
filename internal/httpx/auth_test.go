@@ -107,7 +107,7 @@ func TestConfiguredWebAuthenticationDisablesLoopbackBypass(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := core.NewMigrationRunner(db, nil).Run(t.Context()); err != nil {
+	if err := core.EnsureSchema(t.Context(), db); err != nil {
 		t.Fatal(err)
 	}
 	server := &Server{cfg: config.Config{}, logger: slog.Default(), auth: auth.NewService(db)}

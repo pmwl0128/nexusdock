@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestMigrationRunnerIsIdempotentAndPersistent(t *testing.T) {
+func TestEnsureSchemaIsIdempotentAndPersistent(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "nexus.db")
@@ -17,28 +17,26 @@ func TestMigrationRunnerIsIdempotentAndPersistent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner := NewMigrationRunner(db, nil)
-	if err := runner.Run(ctx); err != nil {
+	if err := EnsureSchema(ctx, db); err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.Run(ctx); err != nil {
-		t.Fatalf("second migration run failed: %v", err)
-	}
-	version, err := runner.CurrentVersion(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if version != 5 {
-		t.Fatalf("version = %d, want 5", version)
+	if err := EnsureSchema(ctx, db); err != nil {
+		t.Fatalf("second ensure failed: %v", err)
 	}
 	var nodeTable string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='agentdock_nodes'`).Scan(&nodeTable); err != nil {
-		t.Fatalf("agentdock_nodes migration missing: %v", err)
+		t.Fatalf("agentdock_nodes missing: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE tasks(id TEXT PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureSchema(ctx, db); err != nil {
+		t.Fatal(err)
 	}
 	var removedTable string
-	err = db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='device_commands_v1'`).Scan(&removedTable)
+	err = db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'`).Scan(&removedTable)
 	if !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("device command table should be removed, err=%v table=%q", err, removedTable)
+		t.Fatalf("unused table should be removed, err=%v table=%q", err, removedTable)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO users(id, username, created_at, updated_at) VALUES('u1', 'alice', 'now', 'now')`); err != nil {
 		t.Fatal(err)
@@ -106,7 +104,7 @@ func TestSQLiteBackupHookCreatesPrivateBackup(t *testing.T) {
 	}
 	backupDir := filepath.Join(dir, "backups")
 	hook := SQLiteBackupHook{SourcePath: path, Directory: backupDir}
-	if err := hook.BeforeMigrate(ctx, db, []Migration{{Version: 2}}); err != nil {
+	if err := hook.Backup(ctx, db); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(backupDir)

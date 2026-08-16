@@ -30,9 +30,5 @@ func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status["database"] = "ok"
-	var version int
-	if err := s.db.QueryRowContext(r.Context(), `SELECT COALESCE(MAX(version),0) FROM schema_migrations`).Scan(&version); err == nil {
-		status["schema_version"] = version
-	}
 	writeJSON(w, http.StatusOK, status)
 }

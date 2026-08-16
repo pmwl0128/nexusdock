@@ -21,7 +21,7 @@ func newRuntimeTestServer(t *testing.T, endpoint, token string) *Server {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := core.NewMigrationRunner(db, nil).Run(context.Background()); err != nil {
+	if err := core.EnsureSchema(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	store, err := agentdock.NewStoreWithKey(db, make([]byte, 32))

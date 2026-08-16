@@ -17,7 +17,7 @@ func TestAuditEventsAreAppendOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := core.NewMigrationRunner(db, nil).Run(ctx); err != nil {
+	if err := core.EnsureSchema(ctx, db); err != nil {
 		t.Fatal(err)
 	}
 	service := NewService(db)

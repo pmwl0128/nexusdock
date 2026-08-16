@@ -45,8 +45,7 @@ func runAdminCommand(ctx context.Context, cfg config.Config, args []string) erro
 		return err
 	}
 	defer db.Close()
-	migrations := core.NewMigrationRunner(db, core.SQLiteBackupHook{SourcePath: dbPath, Directory: filepath.Join(controlDir, "backups")})
-	if err := migrations.Run(ctx); err != nil {
+	if err := core.EnsureSchema(ctx, db); err != nil {
 		return err
 	}
 	service := auth.NewService(db)

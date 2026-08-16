@@ -31,7 +31,7 @@ func newWebAuthTestService(t *testing.T) (*Service, *sql.DB, *authTestClock) {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := core.NewMigrationRunner(db, nil).Run(ctx); err != nil {
+	if err := core.EnsureSchema(ctx, db); err != nil {
 		t.Fatalf("执行测试迁移失败: %v", err)
 	}
 

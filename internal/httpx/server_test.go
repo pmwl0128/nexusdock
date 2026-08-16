@@ -26,7 +26,7 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 		t.Fatalf("OpenSQLite: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := core.NewMigrationRunner(db, nil).Run(t.Context()); err != nil {
+	if err := core.EnsureSchema(t.Context(), db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	nodes, err := agentdock.NewStoreWithKey(db, make([]byte, 32))

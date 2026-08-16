@@ -73,9 +73,8 @@ func run(args []string) error {
 		return fmt.Errorf("open control plane database: %w", err)
 	}
 	defer controlDB.Close()
-	migrations := core.NewMigrationRunner(controlDB, core.SQLiteBackupHook{SourcePath: controlDBPath, Directory: filepath.Join(controlDir, "backups")})
-	if err := migrations.Run(ctx); err != nil {
-		return fmt.Errorf("migrate control plane database: %w", err)
+	if err := core.EnsureSchema(ctx, controlDB); err != nil {
+		return fmt.Errorf("ensure control plane schema: %w", err)
 	}
 	agentDockNodes, err := agentdock.NewStore(controlDB, controlDir)
 	if err != nil {

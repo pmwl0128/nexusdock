@@ -16,8 +16,8 @@ type SQLiteBackupHook struct {
 	Now        func() time.Time
 }
 
-func (h SQLiteBackupHook) BeforeMigrate(ctx context.Context, db *sql.DB, pending []Migration) error {
-	if len(pending) == 0 || strings.TrimSpace(h.Directory) == "" || strings.TrimSpace(h.SourcePath) == "" || h.SourcePath == ":memory:" || strings.HasPrefix(h.SourcePath, "file:") {
+func (h SQLiteBackupHook) Backup(ctx context.Context, db *sql.DB) error {
+	if strings.TrimSpace(h.Directory) == "" || strings.TrimSpace(h.SourcePath) == "" || h.SourcePath == ":memory:" || strings.HasPrefix(h.SourcePath, "file:") {
 		return nil
 	}
 	info, err := os.Stat(h.SourcePath)
