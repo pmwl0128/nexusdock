@@ -102,6 +102,10 @@
       "description": "稳定公共错误码。"
     },
     {
+      "code": "EVOLUTION_NOT_CONFIGURED",
+      "description": "稳定公共错误码。"
+    },
+    {
       "code": "GIT_COMMIT_FAILED",
       "description": "稳定公共错误码。"
     },
@@ -179,6 +183,26 @@
     },
     {
       "code": "INVALID_WORKFLOW_TEMPLATE",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LIFECYCLE_OPERATION_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LIFECYCLE_POLICY_VERSION_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LIFECYCLE_QUERY_FAILED",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LIFECYCLE_REVISION_CONFLICT",
+      "description": "稳定公共错误码。"
+    },
+    {
+      "code": "LIFECYCLE_TRANSITION_FAILED",
       "description": "稳定公共错误码。"
     },
     {
