@@ -71,10 +71,11 @@ func TestFromEnvReadsStageThreeModelConfiguration(t *testing.T) {
 	t.Setenv("NEXUS_MODEL_NAME", "example-model")
 	t.Setenv("NEXUS_MODEL_API_KEY", "model-secret")
 	t.Setenv("NEXUS_MODEL_TIMEOUT_SECONDS", "45")
+	t.Setenv("NEXUS_EVOLUTION_ASSIST_ENABLED", "true")
 	t.Setenv("NEXUS_EVOLUTION_INTERVAL_MINUTES", "720")
 
 	cfg := FromEnv()
-	if cfg.ModelEndpoint != "https://model.example.com" || cfg.ModelName != "example-model" || cfg.ModelAPIKey != "model-secret" {
+	if cfg.ModelEndpoint != "https://model.example.com" || cfg.ModelName != "example-model" || cfg.ModelAPIKey != "model-secret" || !cfg.EvolutionEnabled {
 		t.Fatalf("unexpected Stage 3 config: endpoint=%q model=%q api_key=%q", cfg.ModelEndpoint, cfg.ModelName, cfg.ModelAPIKey)
 	}
 	if cfg.ModelTimeout != 45*time.Second {
@@ -82,5 +83,20 @@ func TestFromEnvReadsStageThreeModelConfiguration(t *testing.T) {
 	}
 	if cfg.EvolutionInterval != 12*time.Hour {
 		t.Fatalf("EvolutionInterval = %s", cfg.EvolutionInterval)
+	}
+}
+
+func TestFromEnvReadsEmbeddingAPIKeyAndExplicitStage3Disable(t *testing.T) {
+	t.Setenv("RECALL_EMBEDDING_API_KEY", "embedding-secret")
+	t.Setenv("NEXUS_MODEL_ENDPOINT", "https://model.example.com")
+	t.Setenv("NEXUS_MODEL_NAME", "example-model")
+	t.Setenv("NEXUS_EVOLUTION_ASSIST_ENABLED", "false")
+
+	cfg := FromEnv()
+	if cfg.EmbeddingAPIKey != "embedding-secret" {
+		t.Fatalf("EmbeddingAPIKey = %q", cfg.EmbeddingAPIKey)
+	}
+	if cfg.EvolutionEnabled {
+		t.Fatal("explicit Stage 3 disable was ignored")
 	}
 }

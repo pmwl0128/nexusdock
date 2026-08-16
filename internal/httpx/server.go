@@ -23,6 +23,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/settings"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
@@ -60,6 +61,8 @@ func (w *trackedResponseWriter) Unwrap() http.ResponseWriter { return w.Response
 type Server struct {
 	mu           sync.RWMutex
 	cfg          config.Config
+	aiCfg        config.Config
+	aiCfgSet     bool
 	db           *sql.DB
 	store        *recall.Store
 	privateNotes *privatenotes.Store
@@ -68,6 +71,8 @@ type Server struct {
 	logger       *slog.Logger
 	auth         *auth.Service
 	embedding    *recall.EmbeddingService
+	settings     *settings.Store
+	stage3Wake   chan struct{}
 }
 
 type ServerOption func(*Server)
@@ -88,12 +93,16 @@ func WithEmbeddingService(service *recall.EmbeddingService) ServerOption {
 	return func(server *Server) { server.embedding = service }
 }
 
+func WithRuntimeSettings(store *settings.Store) ServerOption {
+	return func(server *Server) { server.settings = store }
+}
+
 func WithPrivateNotes(store *privatenotes.Store) ServerOption {
 	return func(server *Server) { server.privateNotes = store }
 }
 
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
-	server := &Server{cfg: cfg, store: store, syncer: syncer, logger: logger}
+	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1)}
 	for _, option := range options {
 		option(server)
 	}
@@ -108,6 +117,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
+	mux.HandleFunc("GET /v1/settings/ai", protected(s.getRuntimeAISettings))
+	mux.HandleFunc("PUT /v1/settings/ai", protected(s.updateRuntimeAISettings))
 	s.registerRuntimeRoutes(mux, protected)
 	s.registerEvolutionLifecycleRoutes(mux)
 	s.registerWorkflowTemplateRoutes(mux, protected)
@@ -488,15 +499,17 @@ func (s *Server) searchCards(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) embeddingStatus(w http.ResponseWriter, r *http.Request) {
-	if s.embedding == nil {
+	embedding := s.currentEmbedding()
+	if embedding == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": false, "configured": false, "reason": "embedding service is not configured"})
 		return
 	}
-	writeJSON(w, http.StatusOK, s.embedding.Status(r.Context()))
+	writeJSON(w, http.StatusOK, embedding.Status(r.Context()))
 }
 
 func (s *Server) reindexEmbeddings(w http.ResponseWriter, r *http.Request) {
-	if s.embedding == nil {
+	embedding := s.currentEmbedding()
+	if embedding == nil {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
 		return
 	}
@@ -504,7 +517,7 @@ func (s *Server) reindexEmbeddings(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	result, err := s.embedding.Reindex(r.Context(), req)
+	result, err := embedding.Reindex(r.Context(), req)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_REINDEX_FAILED", err.Error())
 		return
@@ -513,7 +526,8 @@ func (s *Server) reindexEmbeddings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
-	if s.embedding == nil {
+	embedding := s.currentEmbedding()
+	if embedding == nil {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_DISABLED", "embedding service is not configured")
 		return
 	}
@@ -521,7 +535,7 @@ func (s *Server) searchEmbeddings(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	result, err := s.embedding.Search(r.Context(), req)
+	result, err := embedding.Search(r.Context(), req)
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, "EMBEDDING_SEARCH_FAILED", err.Error())
 		return

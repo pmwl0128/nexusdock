@@ -8,6 +8,7 @@ import {
 import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
 import AccountSecurity from './AccountSecurity';
+import AISettingsPanel from './components/settings/AISettingsPanel';
 import { ApiError, api, setCSRFToken } from './api/client';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
 import { SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
@@ -331,6 +332,7 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   return <>
     <AccountSecurity />
+    <AISettingsPanel refreshToken={refreshToken} />
     <AgentDockNodesPanel
       nodes={runtimeNodes.nodes}
       selectedNodeID={runtimeNodes.selectedNodeID}

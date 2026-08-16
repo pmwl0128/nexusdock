@@ -20,6 +20,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/httpx"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
+	"github.com/uvwt/nexusdock/internal/settings"
 	"github.com/uvwt/nexusdock/internal/syncer"
 )
 
@@ -76,6 +77,13 @@ func run(args []string) error {
 	if err := core.EnsureSchema(ctx, controlDB); err != nil {
 		return fmt.Errorf("ensure control plane schema: %w", err)
 	}
+	runtimeSettings, err := settings.NewStore(controlDB, controlDir, cfg)
+	if err != nil {
+		return fmt.Errorf("initialize runtime AI settings: %w", err)
+	}
+	if cfg, _, err = runtimeSettings.Load(ctx); err != nil {
+		return fmt.Errorf("load runtime AI settings: %w", err)
+	}
 	agentDockNodes, err := agentdock.NewStore(controlDB, controlDir)
 	if err != nil {
 		return fmt.Errorf("initialize AgentDock node store: %w", err)
@@ -91,7 +99,7 @@ func run(args []string) error {
 	}
 
 	embeddingService := recall.NewEmbeddingService(store, recall.EmbeddingConfig{
-		Enabled: cfg.EmbeddingEnabled, Endpoint: cfg.EmbeddingEndpoint, Model: cfg.EmbeddingModel,
+		Enabled: cfg.EmbeddingEnabled, Endpoint: cfg.EmbeddingEndpoint, Model: cfg.EmbeddingModel, APIKey: cfg.EmbeddingAPIKey,
 		IndexPath: cfg.EmbeddingIndexFile, Timeout: cfg.EmbeddingTimeout,
 	})
 
@@ -104,6 +112,7 @@ func run(args []string) error {
 		httpx.WithAgentDockNodes(agentDockNodes),
 		httpx.WithWebAuthentication(authService),
 		httpx.WithEmbeddingService(embeddingService),
+		httpx.WithRuntimeSettings(runtimeSettings),
 		httpx.WithPrivateNotes(privateNoteStore),
 	)
 	httpServer := &http.Server{
@@ -117,7 +126,7 @@ func run(args []string) error {
 
 	syncManager.Start(ctx)
 	server.StartEvolutionStage3(ctx)
-	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel, "stage3_evolution_enabled", cfg.ModelEndpoint != "" && cfg.ModelName != "")
+	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel, "stage3_evolution_enabled", cfg.EvolutionEnabled && cfg.ModelEndpoint != "" && cfg.ModelName != "")
 	serveErr := serveHTTP(ctx, httpServer)
 	cancel()
 	syncManager.Wait()

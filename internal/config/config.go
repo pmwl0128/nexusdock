@@ -28,8 +28,10 @@ type Config struct {
 	EmbeddingEnabled      bool
 	EmbeddingEndpoint     string
 	EmbeddingModel        string
+	EmbeddingAPIKey       string
 	EmbeddingIndexFile    string
 	EmbeddingTimeout      time.Duration
+	EvolutionEnabled      bool
 	ModelEndpoint         string
 	ModelName             string
 	ModelAPIKey           string
@@ -41,6 +43,8 @@ func FromEnv() Config {
 	recallRepoDir := getenv("RECALL_REPO_DIR", "recall")
 	nexusDataDir := getenv("NEXUS_DATA_DIR", filepath.Join(".", "nexus-data"))
 	defaultEmbeddingIndexFile := filepath.Join(recallRepoDir, ".recall", "embedding-index.json")
+	modelEndpoint := strings.TrimSpace(os.Getenv("NEXUS_MODEL_ENDPOINT"))
+	modelName := strings.TrimSpace(os.Getenv("NEXUS_MODEL_NAME"))
 	cfg := Config{
 		Host:                  getenv("NEXUS_HOST", "127.0.0.1"),
 		Port:                  getenvInt("NEXUS_PORT", 18777),
@@ -58,10 +62,12 @@ func FromEnv() Config {
 		EmbeddingEnabled:      getenvBool("RECALL_EMBEDDING_ENABLED", false),
 		EmbeddingEndpoint:     strings.TrimSpace(os.Getenv("RECALL_EMBEDDING_ENDPOINT")),
 		EmbeddingModel:        getenv("RECALL_EMBEDDING_MODEL", "BAAI/bge-m3"),
+		EmbeddingAPIKey:       strings.TrimSpace(os.Getenv("RECALL_EMBEDDING_API_KEY")),
 		EmbeddingIndexFile:    getenv("RECALL_EMBEDDING_INDEX_FILE", defaultEmbeddingIndexFile),
 		EmbeddingTimeout:      time.Duration(getenvInt("RECALL_EMBEDDING_TIMEOUT_SECONDS", 30)) * time.Second,
-		ModelEndpoint:         strings.TrimSpace(os.Getenv("NEXUS_MODEL_ENDPOINT")),
-		ModelName:             strings.TrimSpace(os.Getenv("NEXUS_MODEL_NAME")),
+		EvolutionEnabled:      getenvBool("NEXUS_EVOLUTION_ASSIST_ENABLED", modelEndpoint != "" && modelName != ""),
+		ModelEndpoint:         modelEndpoint,
+		ModelName:             modelName,
 		ModelAPIKey:           strings.TrimSpace(os.Getenv("NEXUS_MODEL_API_KEY")),
 		ModelTimeout:          time.Duration(getenvInt("NEXUS_MODEL_TIMEOUT_SECONDS", 60)) * time.Second,
 		EvolutionInterval:     time.Duration(getenvInt("NEXUS_EVOLUTION_INTERVAL_MINUTES", 360)) * time.Minute,

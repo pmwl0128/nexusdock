@@ -27,6 +27,12 @@ func TestEnsureSchemaIsIdempotentAndPersistent(t *testing.T) {
 	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='agentdock_nodes'`).Scan(&nodeTable); err != nil {
 		t.Fatalf("agentdock_nodes missing: %v", err)
 	}
+	for _, table := range []string{"runtime_ai_settings", "runtime_ai_setting_secrets"} {
+		var name string
+		if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&name); err != nil {
+			t.Fatalf("%s missing: %v", table, err)
+		}
+	}
 	if _, err := db.ExecContext(ctx, `CREATE TABLE tasks(id TEXT PRIMARY KEY)`); err != nil {
 		t.Fatal(err)
 	}

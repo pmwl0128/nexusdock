@@ -421,6 +421,82 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("ok", "query", "results", "count", "prefix"),
     )
+    schemas["RuntimeSecretUpdate"] = obj(
+        "运行时 AI 密钥更新指令；服务永不回显密钥明文。",
+        {
+            "action": enum("密钥更新动作：保留、替换或清空。", ["keep", "replace", "clear"]),
+            "value": scalar("string", "仅 action=replace 时提交的新密钥。", maxLength=65536),
+        },
+        ("action",),
+    )
+    schemas["EmbeddingSettingsInput"] = obj(
+        "向量检索与 Embedding 运行时配置。",
+        {
+            "enabled": scalar("boolean", "是否启用向量检索。"),
+            "endpoint": scalar("string", "OpenAI 兼容 Embeddings HTTP(S) 地址。"),
+            "model": scalar("string", "Embedding 模型名称。"),
+            "timeout_seconds": scalar("integer", "Embedding 请求超时秒数。", minimum=1, maximum=300),
+            "api_key": ref("RuntimeSecretUpdate"),
+        },
+        ("enabled", "endpoint", "model", "timeout_seconds", "api_key"),
+    )
+    schemas["Stage3SettingsInput"] = obj(
+        "Nexus Stage 3 外部模型运行时配置。",
+        {
+            "enabled": scalar("boolean", "是否启用 Stage 3 辅助进化。"),
+            "endpoint": scalar("string", "OpenAI 兼容 Chat Completions HTTP(S) 地址。"),
+            "model": scalar("string", "Stage 3 模型名称。"),
+            "timeout_seconds": scalar("integer", "模型请求超时秒数。", minimum=1, maximum=300),
+            "interval_minutes": scalar("integer", "Stage 3 执行间隔分钟数。", minimum=60, maximum=10080),
+            "api_key": ref("RuntimeSecretUpdate"),
+        },
+        ("enabled", "endpoint", "model", "timeout_seconds", "interval_minutes", "api_key"),
+    )
+    schemas["RuntimeAISettingsUpdateRequest"] = obj(
+        "保存 Nexus Stage 3 与向量检索运行时配置。",
+        {"embedding": ref("EmbeddingSettingsInput"), "stage3": ref("Stage3SettingsInput")},
+        ("embedding", "stage3"),
+    )
+    schemas["EmbeddingSettingsView"] = obj(
+        "已脱敏的向量检索运行时配置。",
+        {
+            "enabled": scalar("boolean", "是否启用向量检索。"),
+            "endpoint": scalar("string", "当前 Embeddings 地址。"),
+            "model": scalar("string", "当前 Embedding 模型。"),
+            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+            "api_key_configured": scalar("boolean", "是否已配置 API Key；不返回明文。"),
+        },
+        ("enabled", "endpoint", "model", "timeout_seconds", "api_key_configured"),
+    )
+    schemas["Stage3SettingsView"] = obj(
+        "已脱敏的 Stage 3 外部模型运行时配置。",
+        {
+            "enabled": scalar("boolean", "是否启用 Stage 3。"),
+            "endpoint": scalar("string", "当前模型地址。"),
+            "model": scalar("string", "当前模型名称。"),
+            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+            "interval_minutes": scalar("integer", "执行间隔分钟数。", minimum=60, maximum=10080),
+            "api_key_configured": scalar("boolean", "是否已配置 API Key；不返回明文。"),
+            "configured": scalar("boolean", "Stage 3 是否具备运行所需的启用、地址和模型配置。"),
+        },
+        ("enabled", "endpoint", "model", "timeout_seconds", "interval_minutes", "api_key_configured", "configured"),
+    )
+    schemas["RuntimeAISettingsView"] = obj(
+        "Nexus 当前已脱敏的 AI 与向量检索配置。",
+        {
+            "embedding": ref("EmbeddingSettingsView"),
+            "stage3": ref("Stage3SettingsView"),
+            "persisted": scalar("boolean", "是否已保存 SQLite 覆盖配置；false 表示当前来自环境变量或默认值。"),
+            "updated_at": scalar("string", "最近一次持久化更新时间。", format="date-time"),
+        },
+        ("embedding", "stage3", "persisted"),
+    )
+    schemas["RuntimeAISettingsResponse"] = obj(
+        "运行时 AI 设置响应。",
+        {"ok": scalar("boolean", "请求是否成功。"), "settings": ref("RuntimeAISettingsView")},
+        ("ok", "settings"),
+    )
+
     schemas["EmbeddingIndexSummary"] = obj(
         "Recall 向量索引摘要。",
         {
@@ -780,6 +856,15 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
     paths: dict[str, Any] = {
         "/health": {"get": operation("getHealth", "读取服务健康状态", success=ok(ref("HealthResponse")))},
         "/v1/system/status": {"get": operation("getSystemStatus", "读取 Nexus 与 SQLite 状态", success=ok(ref("SystemStatus")))},
+        "/v1/settings/ai": {
+            "get": operation("getRuntimeAISettings", "读取已脱敏的 Stage 3 与向量检索配置", success=ok(ref("RuntimeAISettingsResponse"))),
+            "put": operation(
+                "updateRuntimeAISettings",
+                "保存并立即应用 Stage 3 与向量检索配置",
+                request=body(ref("RuntimeAISettingsUpdateRequest")),
+                success=ok(ref("RuntimeAISettingsResponse")),
+            ),
+        },
         "/v1/backup/status": {"get": operation("getBackupStatus", "读取 AgentDock 与 Nexus 备份状态", success=ok(ref("BackupStatus")))},
         "/v1/auth/status": {
             "get": operation("getAuthStatus", "读取管理员初始化状态", success=ok(ref("AuthStatusResponse")))

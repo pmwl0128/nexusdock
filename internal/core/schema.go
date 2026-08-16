@@ -112,6 +112,24 @@ END`,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (node_id) REFERENCES agentdock_nodes(id) ON DELETE CASCADE
 )`,
+	`CREATE TABLE IF NOT EXISTS runtime_ai_settings (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    embedding_enabled INTEGER NOT NULL CHECK (embedding_enabled IN (0, 1)),
+    embedding_endpoint TEXT NOT NULL,
+    embedding_model TEXT NOT NULL,
+    embedding_timeout_seconds INTEGER NOT NULL CHECK (embedding_timeout_seconds BETWEEN 1 AND 300),
+    stage3_enabled INTEGER NOT NULL CHECK (stage3_enabled IN (0, 1)),
+    stage3_endpoint TEXT NOT NULL,
+    stage3_model TEXT NOT NULL,
+    stage3_timeout_seconds INTEGER NOT NULL CHECK (stage3_timeout_seconds BETWEEN 1 AND 300),
+    stage3_interval_minutes INTEGER NOT NULL CHECK (stage3_interval_minutes BETWEEN 60 AND 10080),
+    updated_at TEXT NOT NULL
+)`,
+	`CREATE TABLE IF NOT EXISTS runtime_ai_setting_secrets (
+    name TEXT PRIMARY KEY CHECK (name IN ('embedding_api_key', 'stage3_api_key')),
+    ciphertext BLOB NOT NULL,
+    updated_at TEXT NOT NULL
+)`,
 }
 
 var unusedTables = []string{

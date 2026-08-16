@@ -19,37 +19,60 @@ const (
 	stage3WorkflowLimit     = 30
 )
 
-// StartEvolutionStage3 starts the low-frequency Nexus semantic assistant.
-// It is intentionally inert unless both model endpoint and model name are configured.
+// StartEvolutionStage3 starts one long-lived scheduler. Runtime settings changes wake the
+// scheduler so model endpoint, model name, key and interval take effect without restarting Nexus.
 func (s *Server) StartEvolutionStage3(ctx context.Context) {
-	s.mu.RLock()
-	cfg := s.cfg
-	s.mu.RUnlock()
-	if strings.TrimSpace(cfg.ModelEndpoint) == "" || strings.TrimSpace(cfg.ModelName) == "" {
-		return
-	}
-	client, err := stage3.NewClient(stage3.Config{Endpoint: cfg.ModelEndpoint, Model: cfg.ModelName, APIKey: cfg.ModelAPIKey, Timeout: cfg.ModelTimeout})
-	if err != nil {
-		if s.logger != nil {
-			s.logger.Error("Stage 3 evolution disabled by invalid model configuration", "error", err)
-		}
-		return
-	}
-	interval := cfg.EvolutionInterval
-	if interval < time.Hour {
-		interval = time.Hour
-	}
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
 		for {
+			cfg := s.currentConfig()
+			if !cfg.EvolutionEnabled || strings.TrimSpace(cfg.ModelEndpoint) == "" || strings.TrimSpace(cfg.ModelName) == "" {
+				select {
+				case <-ctx.Done():
+					return
+				case <-s.stage3Wake:
+					continue
+				}
+			}
+
+			interval := cfg.EvolutionInterval
+			if interval < time.Hour {
+				interval = time.Hour
+			}
+			timer := time.NewTimer(interval)
 			select {
 			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := s.runEvolutionStage3(ctx, client); err != nil && s.logger != nil {
-					s.logger.Warn("Stage 3 evolution run failed", "error", err)
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
 				}
+				return
+			case <-s.stage3Wake:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				continue
+			case <-timer.C:
+			}
+
+			client, err := stage3.NewClient(stage3.Config{
+				Endpoint: cfg.ModelEndpoint,
+				Model:    cfg.ModelName,
+				APIKey:   cfg.ModelAPIKey,
+				Timeout:  cfg.ModelTimeout,
+			})
+			if err != nil {
+				if s.logger != nil {
+					s.logger.Warn("Stage 3 evolution skipped invalid model configuration", "error", err)
+				}
+				continue
+			}
+			if err := s.runEvolutionStage3(ctx, client); err != nil && s.logger != nil {
+				s.logger.Warn("Stage 3 evolution run failed", "error", err)
 			}
 		}
 	}()

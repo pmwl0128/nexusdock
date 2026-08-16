@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/uvwt/nexusdock/internal/config"
 )
 
 type workflowTemplateStatus string
@@ -282,8 +284,9 @@ func (s *Server) workflowTemplatesMatch(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, "WORKFLOW_MATCH_FAILED", err.Error())
 		return
 	}
-	vectorStatus, vectorItems := s.workflowTemplateVectorIndexInfo()
-	result := map[string]any{"ok": true, "action": "match", "candidates": candidates, "count": len(candidates), "workflow_dir": s.workflowRegistryRoot(), "root": s.workflowRegistryRoot(), "source": "nexus-registry", "vector_search_enabled": s.workflowTemplateVectorEnabled(), "vector_index_status": vectorStatus, "vector_index_items": vectorItems, "embedding_model": s.cfg.EmbeddingModel}
+	cfg := s.currentConfig()
+	vectorStatus, vectorItems := s.workflowTemplateVectorIndexInfoForConfig(cfg)
+	result := map[string]any{"ok": true, "action": "match", "candidates": candidates, "count": len(candidates), "workflow_dir": s.workflowRegistryRoot(), "root": s.workflowRegistryRoot(), "source": "nexus-registry", "vector_search_enabled": workflowTemplateVectorEnabled(cfg), "vector_index_status": vectorStatus, "vector_index_items": vectorItems, "embedding_model": cfg.EmbeddingModel}
 	for k, v := range workflowMatchRecommendation(candidates) {
 		result[k] = v
 	}
@@ -300,7 +303,8 @@ func (s *Server) workflowTemplatesReindex(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.Request) {
-	if !s.workflowTemplateVectorEnabled() {
+	cfg := s.currentConfig()
+	if !workflowTemplateVectorEnabled(cfg) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "not_configured"})
 		return
 	}
@@ -309,9 +313,9 @@ func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "missing"})
 		return
 	}
-	idx, err := decodeWorkflowTemplateVectorIndex(data, s.cfg.EmbeddingModel)
+	idx, err := decodeWorkflowTemplateVectorIndex(data, cfg.EmbeddingModel)
 	if errors.Is(err, errWorkflowVectorIndexStale) {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": s.cfg.EmbeddingModel})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": cfg.EmbeddingModel})
 		return
 	}
 	if err != nil {
@@ -577,8 +581,8 @@ type workflowTemplateVector struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func (s *Server) workflowTemplateVectorEnabled() bool {
-	return s.cfg.EmbeddingEnabled && strings.TrimSpace(s.cfg.EmbeddingEndpoint) != ""
+func workflowTemplateVectorEnabled(cfg config.Config) bool {
+	return cfg.EmbeddingEnabled && strings.TrimSpace(cfg.EmbeddingEndpoint) != ""
 }
 
 func (s *Server) workflowTemplateVectorIndexPath() string {
@@ -586,10 +590,14 @@ func (s *Server) workflowTemplateVectorIndexPath() string {
 }
 
 func (s *Server) workflowTemplateVectorIndexInfo() (string, int) {
-	if !s.workflowTemplateVectorEnabled() {
+	return s.workflowTemplateVectorIndexInfoForConfig(s.currentConfig())
+}
+
+func (s *Server) workflowTemplateVectorIndexInfoForConfig(cfg config.Config) (string, int) {
+	if !workflowTemplateVectorEnabled(cfg) {
 		return "not_configured", 0
 	}
-	idx, err := s.loadWorkflowTemplateVectorIndex()
+	idx, err := s.loadWorkflowTemplateVectorIndex(cfg.EmbeddingModel)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "missing", 0
@@ -603,8 +611,9 @@ func (s *Server) workflowTemplateVectorIndexInfo() (string, int) {
 }
 
 func (s *Server) reindexWorkflowTemplateVectors(ctx context.Context) (map[string]any, error) {
-	if !s.workflowTemplateVectorEnabled() {
-		return nil, errors.New("workflow template vector search is disabled; enable RECALL_EMBEDDING_ENABLED and RECALL_EMBEDDING_ENDPOINT")
+	cfg := s.currentConfig()
+	if !workflowTemplateVectorEnabled(cfg) {
+		return nil, errors.New("workflow template vector search is disabled; configure and enable vector search")
 	}
 	templates, err := s.listWorkflowTemplates(workflowTemplateActive)
 	if err != nil {
@@ -615,14 +624,14 @@ func (s *Server) reindexWorkflowTemplateVectors(ctx context.Context) (map[string
 	for _, t := range templates {
 		texts = append(texts, workflowTemplateVectorText(t))
 	}
-	vectors, err := s.embedWorkflowTemplateTexts(ctx, texts)
+	vectors, err := s.embedWorkflowTemplateTexts(ctx, cfg, texts)
 	if err != nil {
 		return nil, err
 	}
 	if len(vectors) != len(templates) {
 		return nil, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(templates))
 	}
-	idx := workflowTemplateVectorIndex{Model: s.cfg.EmbeddingModel, UpdatedAt: time.Now().UTC(), Documents: map[string]workflowTemplateVector{}}
+	idx := workflowTemplateVectorIndex{Model: cfg.EmbeddingModel, UpdatedAt: time.Now().UTC(), Documents: map[string]workflowTemplateVector{}}
 	if len(vectors) > 0 {
 		idx.Dimension = len(vectors[0])
 	}
@@ -633,24 +642,25 @@ func (s *Server) reindexWorkflowTemplateVectors(ctx context.Context) (map[string
 		key := t.ID + "@" + t.Version
 		idx.Documents[key] = workflowTemplateVector{ID: t.ID, Version: t.Version, Hash: t.Hash, Text: texts[i], Vector: vectors[i], UpdatedAt: time.Now().UTC()}
 	}
-	if err := validateWorkflowTemplateVectorIndex(idx, s.cfg.EmbeddingModel); err != nil {
+	if err := validateWorkflowTemplateVectorIndex(idx, cfg.EmbeddingModel); err != nil {
 		return nil, err
 	}
 	if err := writeWorkflowTemplateJSON(s.workflowTemplateVectorIndexPath(), idx); err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "source": "nexus-registry", "count": len(idx.Documents), "vector_search_enabled": true, "vector_index_status": "ready", "embedding_model": s.cfg.EmbeddingModel, "dimension": idx.Dimension, "index_path": s.workflowTemplateVectorIndexPath()}, nil
+	return map[string]any{"ok": true, "source": "nexus-registry", "count": len(idx.Documents), "vector_search_enabled": true, "vector_index_status": "ready", "embedding_model": cfg.EmbeddingModel, "dimension": idx.Dimension, "index_path": s.workflowTemplateVectorIndexPath()}, nil
 }
 
 func (s *Server) workflowTemplateVectorScores(ctx context.Context, goal, device, taskType string) map[string]float64 {
-	if !s.workflowTemplateVectorEnabled() || strings.TrimSpace(goal) == "" {
+	cfg := s.currentConfig()
+	if !workflowTemplateVectorEnabled(cfg) || strings.TrimSpace(goal) == "" {
 		return nil
 	}
-	idx, err := s.loadWorkflowTemplateVectorIndex()
+	idx, err := s.loadWorkflowTemplateVectorIndex(cfg.EmbeddingModel)
 	if err != nil || len(idx.Documents) == 0 {
 		return nil
 	}
-	vectors, err := s.embedWorkflowTemplateTexts(ctx, []string{strings.Join([]string{goal, taskType, device}, "\n")})
+	vectors, err := s.embedWorkflowTemplateTexts(ctx, cfg, []string{strings.Join([]string{goal, taskType, device}, "\n")})
 	if err != nil || len(vectors) != 1 {
 		return nil
 	}
@@ -664,12 +674,12 @@ func (s *Server) workflowTemplateVectorScores(ctx context.Context, goal, device,
 	return out
 }
 
-func (s *Server) loadWorkflowTemplateVectorIndex() (workflowTemplateVectorIndex, error) {
+func (s *Server) loadWorkflowTemplateVectorIndex(model string) (workflowTemplateVectorIndex, error) {
 	data, err := os.ReadFile(s.workflowTemplateVectorIndexPath())
 	if err != nil {
 		return workflowTemplateVectorIndex{}, err
 	}
-	return decodeWorkflowTemplateVectorIndex(data, s.cfg.EmbeddingModel)
+	return decodeWorkflowTemplateVectorIndex(data, model)
 }
 
 func decodeWorkflowTemplateVectorIndex(data []byte, model string) (workflowTemplateVectorIndex, error) {
@@ -721,18 +731,18 @@ func validateWorkflowTemplateVectorIndex(idx workflowTemplateVectorIndex, model 
 	return nil
 }
 
-func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string) ([][]float64, error) {
+func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, cfg config.Config, texts []string) ([][]float64, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
-	endpoint := strings.TrimRight(strings.TrimSpace(s.cfg.EmbeddingEndpoint), "/")
+	endpoint := strings.TrimRight(strings.TrimSpace(cfg.EmbeddingEndpoint), "/")
 	if endpoint == "" {
 		return nil, errors.New("embedding endpoint is empty")
 	}
 	if !strings.HasSuffix(endpoint, "/v1/embeddings") {
 		endpoint += "/v1/embeddings"
 	}
-	model := strings.TrimSpace(s.cfg.EmbeddingModel)
+	model := strings.TrimSpace(cfg.EmbeddingModel)
 	if model == "" {
 		model = "BAAI/bge-m3"
 	}
@@ -740,7 +750,7 @@ func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string)
 	if err != nil {
 		return nil, fmt.Errorf("encode embedding request: %w", err)
 	}
-	timeout := s.cfg.EmbeddingTimeout
+	timeout := cfg.EmbeddingTimeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
@@ -751,6 +761,9 @@ func (s *Server) embedWorkflowTemplateTexts(ctx context.Context, texts []string)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if token := strings.TrimSpace(cfg.EmbeddingAPIKey); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	resp, err := (&http.Client{Timeout: timeout}).Do(req)
 	if err != nil {
 		return nil, err

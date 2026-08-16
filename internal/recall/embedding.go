@@ -27,6 +27,7 @@ type EmbeddingConfig struct {
 	Enabled   bool
 	Endpoint  string
 	Model     string
+	APIKey    string
 	IndexPath string
 	Timeout   time.Duration
 }
@@ -312,6 +313,9 @@ func (s *EmbeddingService) embed(ctx context.Context, texts []string) ([][]float
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if token := strings.TrimSpace(s.cfg.APIKey); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	res, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
