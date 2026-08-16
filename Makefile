@@ -1,4 +1,4 @@
-GO_SOURCES := $(shell find cmd generated internal migrations tests -type f -name '*.go' -print | sort)
+GO_SOURCES := $(shell find cmd internal migrations tests -type f -name '*.go' -print | sort)
 WEB_INSTALL_STAMP := web/node_modules/.install-stamp
 
 .PHONY: fmt fmt-check test test-race vet tidy-check contracts repository-check web-deps web-build build build-nexusdock check ci run run-nexusdock clean

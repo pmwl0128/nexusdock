@@ -1,11 +1,7 @@
 package e2e_test
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -15,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/uvwt/nexusdock/generated/nexuscontracts"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/httpx"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -115,71 +110,68 @@ func TestBuiltFrontendContainsNexusSectionsAndResponsiveRules(t *testing.T) {
 	}
 }
 
-func TestGeneratedClientMatchesRealRecallAndErrorEnvelopes(t *testing.T) {
+func TestPublicAPIStatusAndErrorEnvelope(t *testing.T) {
 	handler := newHandler(t)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-	client, err := nexuscontracts.NewClient(server.URL, server.Client())
-	if err != nil {
-		t.Fatal(err)
+
+	health := decodeJSON(t, handler, http.MethodGet, "/health", "")
+	if health.Code != http.StatusOK || health.Body["ok"] != true || health.Body["service"] != "nexusdock" {
+		t.Fatalf("health status=%d body=%#v", health.Code, health.Body)
+	}
+	auth := decodeJSON(t, handler, http.MethodGet, "/v1/auth/status", "")
+	if auth.Code != http.StatusOK || auth.Body["ok"] != true || auth.Body["initialized"] != false {
+		t.Fatalf("auth status=%d body=%#v", auth.Code, auth.Body)
+	}
+	cards := decodeJSON(t, handler, http.MethodGet, "/v1/recall/cards", "")
+	if cards.Code != http.StatusOK || cards.Body["ok"] != true || cards.Body["count"] != float64(0) || cards.Body["prefix"] != "recall/managed/cards" {
+		t.Fatalf("recall cards status=%d body=%#v", cards.Code, cards.Body)
+	}
+	embedding := decodeJSON(t, handler, http.MethodGet, "/v1/embeddings/status", "")
+	if embedding.Code != http.StatusOK || embedding.Body["ok"] != true || embedding.Body["enabled"] != false || embedding.Body["configured"] != false {
+		t.Fatalf("embedding status=%d body=%#v", embedding.Code, embedding.Body)
+	}
+	backup := decodeJSON(t, handler, http.MethodGet, "/v1/backup/status", "")
+	if backup.Code != http.StatusOK || backup.Body["id"] != "nexusdock-backup" || backup.Body["provider"] != "launchd" {
+		t.Fatalf("backup status=%d body=%#v", backup.Code, backup.Body)
 	}
 
-	health, err := client.GetHealth(context.Background())
-	if err != nil || !health.Ok || health.Service != "nexusdock" {
-		t.Fatalf("health=%#v err=%v", health, err)
+	create := decodeJSON(t, handler, http.MethodPost, "/v1/recall", `{"path":"recall/docs/inbox/client.md","content":"# Client contract\n"}`)
+	if create.Code != http.StatusOK {
+		t.Fatalf("create status=%d body=%#v", create.Code, create.Body)
 	}
-	authStatus, err := client.GetAuthStatus(context.Background())
-	if err != nil || !authStatus.Ok || authStatus.Initialized {
-		t.Fatalf("auth status=%#v err=%v", authStatus, err)
-	}
-	cards, err := client.ListRecallCards(context.Background(), nil)
-	if err != nil || !cards.Ok || cards.Count != 0 || cards.Prefix != "recall/managed/cards" {
-		t.Fatalf("recall cards=%#v err=%v", cards, err)
-	}
-	embedding, err := client.GetEmbeddingStatus(context.Background())
-	if err != nil || !embedding.Ok || embedding.Enabled || embedding.Configured {
-		t.Fatalf("embedding status=%#v err=%v", embedding, err)
-	}
-	backup, err := client.GetBackupStatus(context.Background())
-	if err != nil || backup.Id != "nexusdock-backup" || backup.Provider != "launchd" {
-		t.Fatalf("backup status=%#v err=%v", backup, err)
+	read := decodeJSON(t, handler, http.MethodGet, "/v1/recall/recall/docs/inbox/client.md", "")
+	recallDoc, _ := read.Body["recall"].(map[string]any)
+	content, _ := recallDoc["content"].(string)
+	if read.Code != http.StatusOK || read.Body["ok"] != true || recallDoc["path"] != "recall/docs/inbox/client.md" || !strings.Contains(content, "Client contract") {
+		t.Fatalf("recall result status=%d body=%#v", read.Code, read.Body)
 	}
 
-	payload, err := json.Marshal(map[string]string{
-		"path":    "recall/docs/inbox/client.md",
-		"content": "# Client contract\n",
-	})
-	if err != nil {
-		t.Fatal(err)
+	missing := decodeJSON(t, handler, http.MethodGet, "/v1/recall/recall/docs/missing.md", "")
+	requestID, _ := missing.Body["request_id"].(string)
+	code, _ := missing.Body["code"].(string)
+	if detail, ok := missing.Body["error"].(map[string]any); ok && code == "" {
+		code, _ = detail["code"].(string)
 	}
-	request, err := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		server.URL+"/v1/recall",
-		bytes.NewReader(payload),
-	)
-	if err != nil {
-		t.Fatal(err)
+	if missing.Code != http.StatusNotFound || code != "READ_FAILED" || !strings.HasPrefix(requestID, "req_") {
+		t.Fatalf("missing recall status=%d body=%#v", missing.Code, missing.Body)
 	}
-	request.Header.Set("Content-Type", "application/json")
-	response, err := server.Client().Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
-		t.Fatalf("create status=%d body=%s", response.StatusCode, body)
-	}
+}
 
-	result, err := client.ReadRecall(context.Background(), "recall/docs/inbox/client.md")
-	if err != nil || !result.Ok || result.Recall.Path != "recall/docs/inbox/client.md" || !strings.Contains(result.Recall.Content, "Client contract") {
-		t.Fatalf("recall result=%#v err=%v", result, err)
-	}
+type jsonResponse struct {
+	Code int
+	Body map[string]any
+}
 
-	_, err = client.ReadRecall(context.Background(), "recall/docs/missing.md")
-	var apiError *nexuscontracts.APIError
-	if !errors.As(err, &apiError) || apiError.StatusCode != http.StatusNotFound || apiError.Code != "READ_FAILED" || !strings.HasPrefix(apiError.RequestID, "req_") {
-		t.Fatalf("missing recall error=%#v raw=%v", apiError, err)
+func decodeJSON(t *testing.T, handler http.Handler, method, path, rawBody string) jsonResponse {
+	t.Helper()
+	request := httptest.NewRequest(method, path, strings.NewReader(rawBody))
+	if rawBody != "" {
+		request.Header.Set("Content-Type", "application/json")
 	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	var body map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("%s %s: decode %s: %v", method, path, recorder.Body.String(), err)
+	}
+	return jsonResponse{Code: recorder.Code, Body: body}
 }

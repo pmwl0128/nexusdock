@@ -95,6 +95,8 @@ docker compose up -d nexusdock
 curl http://127.0.0.1:18777/health
 ```
 
+认证后还可检查 `/v1/system/status`、`/v1/backup/status`、`/v1/runtime/nodes` 和 `/v1/workflow-templates`，并对 `nexus.db` 执行 SQLite `quick_check`。
+
 然后在浏览器打开：
 
 ```text
@@ -113,7 +115,7 @@ http://127.0.0.1:18777
 - AgentDock Runtime 地址
 - 对应的访问 Token
 
-添加后可以先执行连接检测，再进入 Runtime 查看该节点的任务、Skill 和 MCP。
+添加后可以先执行连接检测，再进入 Runtime 查看该节点的任务、Skill 和 MCP。部署配置不再接受单节点 Endpoint 或 Token 环境变量，也不会自动迁移旧配置。
 
 节点 Token 会使用 `NEXUS_DATA_DIR/secrets/agentdock-nodes.key` 加密后存入数据库。备份或迁移时必须同时保留数据库和该密钥文件。
 
@@ -207,7 +209,7 @@ RECALL_REPO_DIR/
 3. 整个 `RECALL_REPO_DIR`；
 4. Git 远端凭据的安全副本（如确有需要）。
 
-不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。恢复时数据库和节点密钥必须来自同一套备份，否则已有节点 Token 将无法解密。
+不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。系统状态只写入 `NEXUS_DATA_DIR`，不得放到 `RECALL_REPO_DIR/.nexus`。恢复时数据库和节点密钥必须来自同一套备份，否则已有节点 Token 将无法解密。数据库异常时不要反复重启容器；回退应恢复上一个已验证镜像和部署前数据库快照。
 
 ## 安全部署
 
@@ -221,6 +223,8 @@ NexusDock 面向个人和可信环境，不应直接暴露在公网。
 - 只把实际反向代理地址加入 `NEXUS_TRUSTED_PROXIES`；
 - 使用高强度管理员密码和随机 `NEXUS_AUTH_TOKEN`；
 - 限制 `nexus-data`、Recall 仓库和凭据文件的宿主机权限。
+
+Compose 默认以 `10001:10001` 运行，根文件系统只读，并丢掉全部 Linux capability。
 
 浏览器使用管理员会话 Cookie，程序化 `/v1` 客户端使用：
 
@@ -259,7 +263,8 @@ make ci
 
 `make check` 会执行 Go 格式、依赖、测试、`go vet`、公共契约和仓库边界检查；`make ci` 还会构建前端、执行 race 测试并生成生产二进制。
 
-## 更多文档
+## 公共契约
 
-- [部署与权限说明](./deploy/README.md)
-- [公共契约说明](./contracts/README.md)
+HTTP API 与 DTO 定义在 `scripts/generate-contracts.py`。修改接口后执行 `make contracts`。
+
+公开错误码必须列入 `scripts/check-contracts.py` 的 `ERROR_CODES`，并与源码中的公开错误码一致。Runtime 上游私有错误码只能通过 `upstream_code` 透传。

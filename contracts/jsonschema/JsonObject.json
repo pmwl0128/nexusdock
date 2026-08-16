@@ -1,9 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.agentdock.dev/nexus/v1/JsonObject.json",
-  "title": "JsonObject",
-  "type": "object",
-  "description": "通用结构化对象。",
-  "additionalProperties": true,
-  "properties": {}
-}
