@@ -113,3 +113,65 @@ func TestLifecycleOperationIDIsBoundToPayload(t *testing.T) {
 		t.Fatalf("operation conflict error = %v", err)
 	}
 }
+
+func TestLifecycleQueryRanksRichNaturalLanguageWithoutAllTermMatch(t *testing.T) {
+	store := newTestStore(t)
+	records := []LifecycleRecord{
+		{
+			EvolutionID: "evo_3333333333333333", Title: "Guidance 召回", Statement: "Evolution Guidance 自然语言召回应采用相关度排序",
+			Type: "runbook", Scope: "project", Project: "agentdock", Status: "active", PolicyVersion: "v1",
+		},
+		{
+			EvolutionID: "evo_4444444444444444", Title: "发布验证", Statement: "发布前执行构建和测试",
+			Type: "runbook", Scope: "project", Project: "agentdock", Status: "verified", PolicyVersion: "v1",
+		},
+		{
+			EvolutionID: "evo_5555555555555555", Title: "其他项目", Statement: "Evolution Guidance 自然语言召回",
+			Type: "runbook", Scope: "project", Project: "other", Status: "verified", PolicyVersion: "v1",
+		},
+	}
+	for i, record := range records {
+		operationID := []string{"op_richquery00000001", "op_richquery00000002", "op_richquery00000003"}[i]
+		if _, err := store.TransitionLifecycle(LifecycleTransition{OperationID: operationID, ExpectedRevision: 0, PolicyVersion: "v1", NextState: record.Status, Record: record}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	items, err := store.QueryLifecycle(LifecycleQuery{
+		Query:    "全面修复 AgentDock Evolution Guidance 的自然语言召回，并完成构建、测试和真实验证",
+		Statuses: []string{"active", "verified"},
+		Project:  "agentdock",
+		Limit:    5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("query returned %d records: %#v", len(items), items)
+	}
+	if items[0].EvolutionID != "evo_3333333333333333" {
+		t.Fatalf("relevant guidance was not ranked first: %#v", items)
+	}
+	if items[1].EvolutionID != "evo_4444444444444444" {
+		t.Fatalf("unexpected second result: %#v", items)
+	}
+}
+
+func TestLifecycleQueryMatchesChineseWithoutWhitespace(t *testing.T) {
+	store := newTestStore(t)
+	record := LifecycleRecord{
+		EvolutionID: "evo_6666666666666666", Title: "自然语言召回", Statement: "相关经验应按语义词项召回而不是全词硬匹配",
+		Type: "runbook", Scope: "project", Project: "agentdock", Status: "active", PolicyVersion: "v1",
+	}
+	if _, err := store.TransitionLifecycle(LifecycleTransition{OperationID: "op_chinesequery0001", ExpectedRevision: 0, PolicyVersion: "v1", NextState: record.Status, Record: record}); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := store.QueryLifecycle(LifecycleQuery{Query: "修复自然语言召回并完成完整回归测试", Statuses: []string{"active"}, Project: "agentdock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].EvolutionID != record.EvolutionID {
+		t.Fatalf("Chinese query did not recall relevant record: %#v", items)
+	}
+}

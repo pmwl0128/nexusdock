@@ -2,11 +2,13 @@ package httpx
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,5 +128,102 @@ func TestStage3ExcludesLocalOnlyLifecycleScope(t *testing.T) {
 	}
 	if bytes.Contains(modelBody, []byte("must stay local")) || bytes.Contains(modelBody, []byte("evo_3333333333333333")) {
 		t.Fatalf("local_only lifecycle leaked to model: %s", modelBody)
+	}
+}
+
+func TestStage3SchedulerRunsImmediatelyAndWakeKeepsOriginalDeadline(t *testing.T) {
+	base := time.Date(2026, 8, 16, 6, 0, 0, 0, time.UTC)
+	var nowNanos atomic.Int64
+	nowNanos.Store(base.UnixNano())
+	now := func() time.Time { return time.Unix(0, nowNanos.Load()).UTC() }
+
+	cfg := config.Config{
+		EvolutionEnabled:  true,
+		ModelEndpoint:     "http://model.invalid",
+		ModelName:         "test",
+		EvolutionInterval: 2 * time.Hour,
+	}
+	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, stage3Wake: make(chan struct{}, 1)}
+	runs := make(chan config.Config, 8)
+	delays := make(chan time.Duration, 8)
+	ticks := make(chan time.Time, 8)
+	newTimer := func(wait time.Duration) evolutionStage3Timer {
+		delays <- wait
+		return evolutionStage3Timer{c: ticks, stop: func() {}}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go server.evolutionStage3Loop(ctx, now, newTimer, func(_ context.Context, got config.Config) { runs <- got })
+
+	select {
+	case got := <-runs:
+		if got.ModelName != "test" {
+			t.Fatalf("initial run config = %#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Stage 3 did not run immediately on startup")
+	}
+	select {
+	case wait := <-delays:
+		if wait != 2*time.Hour {
+			t.Fatalf("initial wait = %s, want 2h", wait)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("scheduler did not arm interval after initial run")
+	}
+
+	// 30 分钟后配置被唤醒时，下一次执行仍锚定首次尝试时间，不重新延后完整 2 小时。
+	nowNanos.Store(base.Add(30 * time.Minute).UnixNano())
+	server.stage3Wake <- struct{}{}
+	select {
+	case wait := <-delays:
+		if wait != 90*time.Minute {
+			t.Fatalf("wait after wake = %s, want 90m", wait)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("scheduler did not re-arm after config wake")
+	}
+	select {
+	case <-runs:
+		t.Fatal("config wake triggered an unintended immediate Stage 3 run")
+	default:
+	}
+
+	ticks <- now()
+	select {
+	case <-runs:
+	case <-time.After(time.Second):
+		t.Fatal("scheduled Stage 3 run did not execute")
+	}
+}
+
+func TestStage3SchedulerRunsImmediatelyWhenReenabled(t *testing.T) {
+	cfg := config.Config{
+		EvolutionEnabled:  false,
+		ModelEndpoint:     "http://model.invalid",
+		ModelName:         "test",
+		EvolutionInterval: 2 * time.Hour,
+	}
+	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, stage3Wake: make(chan struct{}, 1)}
+	runs := make(chan struct{}, 2)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go server.evolutionStage3Loop(
+		ctx,
+		time.Now,
+		func(time.Duration) evolutionStage3Timer {
+			return evolutionStage3Timer{c: make(chan time.Time), stop: func() {}}
+		},
+		func(context.Context, config.Config) { runs <- struct{}{} },
+	)
+
+	server.mu.Lock()
+	server.aiCfg.EvolutionEnabled = true
+	server.mu.Unlock()
+	server.stage3Wake <- struct{}{}
+	select {
+	case <-runs:
+	case <-time.After(time.Second):
+		t.Fatal("Stage 3 did not run immediately after disabled -> enabled")
 	}
 }

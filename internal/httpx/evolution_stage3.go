@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/uvwt/nexusdock/internal/agentdock"
+	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/stage3"
 )
@@ -22,60 +23,103 @@ const (
 // StartEvolutionStage3 starts one long-lived scheduler. Runtime settings changes wake the
 // scheduler so model endpoint, model name, key and interval take effect without restarting Nexus.
 func (s *Server) StartEvolutionStage3(ctx context.Context) {
-	go func() {
-		for {
-			cfg := s.currentConfig()
-			if !cfg.EvolutionEnabled || strings.TrimSpace(cfg.ModelEndpoint) == "" || strings.TrimSpace(cfg.ModelName) == "" {
-				select {
-				case <-ctx.Done():
-					return
-				case <-s.stage3Wake:
-					continue
-				}
-			}
+	go s.evolutionStage3Loop(ctx, time.Now, newEvolutionStage3Timer, s.runEvolutionStage3Configured)
+}
 
-			interval := cfg.EvolutionInterval
-			if interval < time.Hour {
-				interval = time.Hour
-			}
-			timer := time.NewTimer(interval)
+// evolutionStage3Loop keeps scheduling semantics deterministic and testable:
+// a runnable configuration gets one immediate attempt, then every interval is anchored to
+// the previous attempt. A wake only reloads configuration; it cannot keep postponing the timer.
+func (s *Server) evolutionStage3Loop(
+	ctx context.Context,
+	now func() time.Time,
+	newTimer func(time.Duration) evolutionStage3Timer,
+	run func(context.Context, config.Config),
+) {
+	var lastAttempt time.Time
+	wasRunnable := false
+	for {
+		cfg := s.currentConfig()
+		runnable := cfg.EvolutionEnabled && strings.TrimSpace(cfg.ModelEndpoint) != "" && strings.TrimSpace(cfg.ModelName) != ""
+		if !runnable {
+			// Re-enabling Stage 3 is a new runnable period, so it should run immediately once.
+			lastAttempt = time.Time{}
+			wasRunnable = false
 			select {
 			case <-ctx.Done():
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
 				return
 			case <-s.stage3Wake:
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
 				continue
-			case <-timer.C:
-			}
-
-			client, err := stage3.NewClient(stage3.Config{
-				Endpoint: cfg.ModelEndpoint,
-				Model:    cfg.ModelName,
-				APIKey:   cfg.ModelAPIKey,
-				Timeout:  cfg.ModelTimeout,
-			})
-			if err != nil {
-				if s.logger != nil {
-					s.logger.Warn("Stage 3 evolution skipped invalid model configuration", "error", err)
-				}
-				continue
-			}
-			if err := s.runEvolutionStage3(ctx, client); err != nil && s.logger != nil {
-				s.logger.Warn("Stage 3 evolution run failed", "error", err)
 			}
 		}
-	}()
+
+		interval := cfg.EvolutionInterval
+		if interval < time.Hour {
+			interval = time.Hour
+		}
+		if !wasRunnable || lastAttempt.IsZero() {
+			wasRunnable = true
+			run(ctx, cfg)
+			lastAttempt = now()
+			continue
+		}
+
+		wait := lastAttempt.Add(interval).Sub(now())
+		if wait <= 0 {
+			run(ctx, cfg)
+			lastAttempt = now()
+			continue
+		}
+		timer := newTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.stop()
+			return
+		case <-s.stage3Wake:
+			timer.stop()
+			continue
+		case <-timer.c:
+			run(ctx, cfg)
+			lastAttempt = now()
+		}
+	}
+}
+
+type evolutionStage3Timer struct {
+	c    <-chan time.Time
+	stop func()
+}
+
+func newEvolutionStage3Timer(wait time.Duration) evolutionStage3Timer {
+	timer := time.NewTimer(wait)
+	return evolutionStage3Timer{
+		c: timer.C,
+		stop: func() {
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		},
+	}
+}
+
+func (s *Server) runEvolutionStage3Configured(ctx context.Context, cfg config.Config) {
+	client, err := stage3.NewClient(stage3.Config{
+		Endpoint: cfg.ModelEndpoint,
+		Model:    cfg.ModelName,
+		APIKey:   cfg.ModelAPIKey,
+		Timeout:  cfg.ModelTimeout,
+	})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("Stage 3 evolution skipped invalid model configuration", "error", err)
+		}
+		return
+	}
+	if err := s.runEvolutionStage3(ctx, client); err != nil && s.logger != nil {
+		s.logger.Warn("Stage 3 evolution run failed", "error", err)
+	}
 }
 
 func (s *Server) runEvolutionStage3(ctx context.Context, client *stage3.Client) error {

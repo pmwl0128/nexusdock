@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 )
 
 const (
@@ -128,7 +129,11 @@ func (s *Store) QueryLifecycle(query LifecycleQuery) ([]LifecycleRecord, error) 
 	if err != nil {
 		return nil, err
 	}
-	result := make([]LifecycleRecord, 0, minInt(limit, len(entries)))
+	type scoredRecord struct {
+		record LifecycleRecord
+		score  int
+	}
+	scored := make([]scoredRecord, 0, minInt(limit, len(entries)))
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
@@ -141,18 +146,33 @@ func (s *Store) QueryLifecycle(query LifecycleQuery) ([]LifecycleRecord, error) 
 		if err != nil {
 			return nil, fmt.Errorf("read lifecycle %s: %w", id, err)
 		}
-		if lifecycleMatches(record, query) {
-			result = append(result, record)
+		if !lifecycleHardMatches(record, query) {
+			continue
 		}
+		score := lifecycleQueryScore(record, query.Query)
+		if query.Query != "" && score == 0 {
+			continue
+		}
+		scored = append(scored, scoredRecord{record: record, score: score})
 	}
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].UpdatedAt != result[j].UpdatedAt {
-			return result[i].UpdatedAt > result[j].UpdatedAt
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].score != scored[j].score {
+			return scored[i].score > scored[j].score
 		}
-		return result[i].EvolutionID < result[j].EvolutionID
+		if lifecycleStatusRank(scored[i].record.Status) != lifecycleStatusRank(scored[j].record.Status) {
+			return lifecycleStatusRank(scored[i].record.Status) > lifecycleStatusRank(scored[j].record.Status)
+		}
+		if scored[i].record.UpdatedAt != scored[j].record.UpdatedAt {
+			return scored[i].record.UpdatedAt > scored[j].record.UpdatedAt
+		}
+		return scored[i].record.EvolutionID < scored[j].record.EvolutionID
 	})
-	if len(result) > limit {
-		result = result[:limit]
+	if len(scored) > limit {
+		scored = scored[:limit]
+	}
+	result := make([]LifecycleRecord, 0, len(scored))
+	for _, item := range scored {
+		result = append(result, item.record)
 	}
 	return result, nil
 }
@@ -352,6 +372,15 @@ func validateLifecycleIdentity(existing, incoming LifecycleRecord) error {
 }
 
 func lifecycleMatches(record LifecycleRecord, query LifecycleQuery) bool {
+	if !lifecycleHardMatches(record, query) {
+		return false
+	}
+	return query.Query == "" || lifecycleQueryScore(record, query.Query) > 0
+}
+
+// lifecycleHardMatches 只处理作用域、状态等确定性边界；自然语言 query 只能影响相关度，
+// 不能再作为“所有词都必须出现”的硬门槛，否则 Task 描述越完整越难召回经验。
+func lifecycleHardMatches(record LifecycleRecord, query LifecycleQuery) bool {
 	if query.EvolutionID != "" && record.EvolutionID != query.EvolutionID {
 		return false
 	}
@@ -370,16 +399,103 @@ func lifecycleMatches(record LifecycleRecord, query LifecycleQuery) bool {
 	if query.Device != "" && !strings.EqualFold(query.Device, record.Device) {
 		return false
 	}
-	if query.Query == "" {
-		return true
+	return true
+}
+
+// lifecycleQueryScore 是小语料上的确定性词项排序。英文/数字按词匹配，中文按相邻双字匹配，
+// 避免依赖空格分词，也避免为最多百条 lifecycle 记录引入远程 embedding 或第二套索引。
+func lifecycleQueryScore(record LifecycleRecord, rawQuery string) int {
+	query := strings.TrimSpace(strings.ToLower(rawQuery))
+	if query == "" {
+		return 0
 	}
-	haystack := strings.ToLower(strings.Join(append([]string{record.EvolutionID, record.Title, record.Statement, record.Type, record.Scope, record.Project, record.Device, record.CanonicalKey}, record.Tags...), " "))
-	for _, term := range strings.Fields(strings.ToLower(query.Query)) {
-		if !strings.Contains(haystack, term) {
-			return false
+	queryTokens := lifecycleSearchTokens(query)
+	if len(queryTokens) == 0 {
+		return 0
+	}
+
+	score := 0
+	fields := []struct {
+		value  string
+		weight int
+	}{
+		{record.CanonicalKey, 5},
+		{record.Title, 4},
+		{record.Statement, 3},
+		{strings.Join(record.Tags, " "), 2},
+		{record.EvolutionID, 1},
+	}
+	for _, field := range fields {
+		value := strings.TrimSpace(strings.ToLower(field.value))
+		if value == "" {
+			continue
+		}
+		if strings.Contains(value, query) {
+			score += 100 * field.weight
+		}
+		fieldTokens := lifecycleSearchTokens(value)
+		for token := range queryTokens {
+			if _, ok := fieldTokens[token]; ok {
+				score += field.weight
+			}
 		}
 	}
-	return true
+	return score
+}
+
+func lifecycleSearchTokens(text string) map[string]struct{} {
+	tokens := map[string]struct{}{}
+	var word []rune
+	var han []rune
+	flushWord := func() {
+		if len(word) >= 2 {
+			tokens[string(word)] = struct{}{}
+		}
+		word = word[:0]
+	}
+	flushHan := func() {
+		if len(han) == 1 {
+			tokens[string(han)] = struct{}{}
+		} else {
+			for i := 0; i+1 < len(han); i++ {
+				tokens[string(han[i:i+2])] = struct{}{}
+			}
+		}
+		han = han[:0]
+	}
+	for _, r := range []rune(strings.ToLower(text)) {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			flushWord()
+			han = append(han, r)
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			flushHan()
+			word = append(word, r)
+		default:
+			flushWord()
+			flushHan()
+		}
+	}
+	flushWord()
+	flushHan()
+	return tokens
+}
+
+func lifecycleStatusRank(status string) int {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "verified":
+		return 5
+	case "active":
+		return 4
+	case "provisional":
+		return 3
+	case "quarantine":
+		return 2
+	case "retired":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func validLifecycleStatus(value string) bool {
