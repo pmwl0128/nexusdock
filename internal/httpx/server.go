@@ -119,6 +119,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	mux.HandleFunc("GET /v1/settings/ai", protected(s.getRuntimeAISettings))
 	mux.HandleFunc("PUT /v1/settings/ai", protected(s.updateRuntimeAISettings))
+	mux.HandleFunc("POST /v1/settings/ai/test/stage3", protected(s.testStage3Connection))
+	mux.HandleFunc("POST /v1/settings/ai/test/embedding", protected(s.testEmbeddingConnection))
 	s.registerRuntimeRoutes(mux, protected)
 	s.registerEvolutionLifecycleRoutes(mux)
 	s.registerWorkflowTemplateRoutes(mux, protected)

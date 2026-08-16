@@ -50,3 +50,53 @@ func TestGenerateRejectsModelLifecycleFields(t *testing.T) {
 		t.Fatal("expected unknown lifecycle field to be rejected")
 	}
 }
+
+func TestProbeUsesAuthenticatedMinimalChatCompletion(t *testing.T) {
+	var requestPath string
+	var requestBody map[string]any
+	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPath = r.URL.Path
+		if r.Header.Get("Authorization") != "Bearer model-secret" {
+			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": "OK"}}}})
+	}))
+	defer model.Close()
+
+	client, err := NewClient(Config{Endpoint: model.URL + "/v1", Model: "test-model", APIKey: "model-secret", Timeout: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Probe(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if requestPath != "/v1/chat/completions" {
+		t.Fatalf("request path = %q", requestPath)
+	}
+	if requestBody["model"] != "test-model" {
+		t.Fatalf("model = %#v", requestBody["model"])
+	}
+	if _, ok := requestBody["response_format"]; ok {
+		t.Fatal("probe should not request Stage 3 structured output")
+	}
+}
+
+func TestNormalizeEndpointAcceptsBaseAndFullURLs(t *testing.T) {
+	tests := map[string]string{
+		"https://api.example.com":                     "https://api.example.com/v1/chat/completions",
+		"https://api.example.com/v1":                  "https://api.example.com/v1/chat/completions",
+		"https://api.example.com/v1/chat/completions": "https://api.example.com/v1/chat/completions",
+	}
+	for input, want := range tests {
+		got, err := normalizeEndpoint(input)
+		if err != nil {
+			t.Fatalf("normalizeEndpoint(%q): %v", input, err)
+		}
+		if got != want {
+			t.Fatalf("normalizeEndpoint(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

@@ -131,48 +131,12 @@ func (c *Client) Generate(ctx context.Context, snapshot Snapshot) (Output, error
 		"temperature":     0,
 		"response_format": map[string]string{"type": "json_object"},
 	}
-	body, err := json.Marshal(payload)
+	content, err := c.chatCompletion(ctx, payload)
 	if err != nil {
 		return Output{}, err
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(body))
-	if err != nil {
-		return Output{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	if token := strings.TrimSpace(c.cfg.APIKey); token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return Output{}, err
-	}
-	defer resp.Body.Close()
-	response, err := io.ReadAll(io.LimitReader(resp.Body, maxModelResponseBytes+1))
-	if err != nil {
-		return Output{}, err
-	}
-	if len(response) > maxModelResponseBytes {
-		return Output{}, errors.New("Stage 3 model response exceeds 4 MiB")
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return Output{}, fmt.Errorf("Stage 3 model request failed: %s", resp.Status)
-	}
-	var envelope struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(response, &envelope); err != nil || len(envelope.Choices) == 0 {
-		return Output{}, errors.New("Stage 3 model returned an invalid chat completion")
 	}
 	var output Output
-	decoder := json.NewDecoder(strings.NewReader(envelope.Choices[0].Message.Content))
+	decoder := json.NewDecoder(strings.NewReader(content))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&output); err != nil {
 		return Output{}, fmt.Errorf("decode Stage 3 structured output: %w", err)
@@ -189,6 +153,67 @@ func (c *Client) Generate(ctx context.Context, snapshot Snapshot) (Output, error
 		}
 	}
 	return output, nil
+}
+
+// Probe 只发送最小认证请求，不执行 Stage 3 分析，也不会产生候选；用于设置页连接测试。
+func (c *Client) Probe(ctx context.Context) error {
+	content, err := c.chatCompletion(ctx, map[string]any{
+		"model":       c.cfg.Model,
+		"messages":    []map[string]string{{"role": "user", "content": "Reply with OK."}},
+		"temperature": 0,
+		"max_tokens":  8,
+	})
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(content) == "" {
+		return errors.New("Stage 3 model returned an empty chat completion")
+	}
+	return nil
+}
+
+func (c *Client) chatCompletion(ctx context.Context, payload map[string]any) (string, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, c.cfg.Endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	if token := strings.TrimSpace(c.cfg.APIKey); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	response, err := io.ReadAll(io.LimitReader(resp.Body, maxModelResponseBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(response) > maxModelResponseBytes {
+		return "", errors.New("Stage 3 model response exceeds 4 MiB")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("Stage 3 model request failed: %s", resp.Status)
+	}
+	var envelope struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(response, &envelope); err != nil || len(envelope.Choices) == 0 {
+		return "", errors.New("Stage 3 model returned an invalid chat completion")
+	}
+	return envelope.Choices[0].Message.Content, nil
 }
 
 const systemPrompt = `You are the low-frequency semantic assistant for AgentDock Stage 3 evolution.
@@ -253,8 +278,16 @@ func normalizeEndpoint(raw string) (string, error) {
 	if err != nil || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		return "", errors.New("Stage 3 model endpoint must be an http(s) URL without userinfo")
 	}
-	if !strings.HasSuffix(parsed.Path, "/v1/chat/completions") {
-		parsed.Path = strings.TrimRight(parsed.Path, "/") + "/v1/chat/completions"
+	path := strings.TrimRight(parsed.Path, "/")
+	switch {
+	case strings.HasSuffix(path, "/v1/chat/completions"):
+		parsed.Path = path
+	case path == "":
+		parsed.Path = "/v1/chat/completions"
+	case strings.HasSuffix(path, "/v1"):
+		parsed.Path = path + "/chat/completions"
+	default:
+		parsed.Path = path + "/v1/chat/completions"
 	}
 	return parsed.String(), nil
 }

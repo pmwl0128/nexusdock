@@ -144,3 +144,90 @@ func TestWorkflowEmbeddingUsesRuntimeAPIKey(t *testing.T) {
 		t.Fatalf("workflow embedding authorization=%q", authorization)
 	}
 }
+
+func TestRuntimeAIConnectionTestsUseSavedSecretsAndStayAuthenticated(t *testing.T) {
+	const (
+		authToken      = "nexus-test-token"
+		stage3Token    = "stage3-test-secret"
+		embeddingToken = "embedding-test-secret"
+	)
+	var stage3Authorization, embeddingAuthorization, stage3Path string
+	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		stage3Authorization = r.Header.Get("Authorization")
+		stage3Path = r.URL.Path
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": "OK"}}}})
+	}))
+	defer model.Close()
+	embedding := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		embeddingAuthorization = r.Header.Get("Authorization")
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []map[string]any{{"index": 0, "embedding": []float64{1, 0}}}})
+	}))
+	defer embedding.Close()
+
+	server := newRuntimeSettingsHTTPServer(t, config.Config{
+		AuthToken: authToken, RequireAuth: true,
+		EmbeddingModel: recall.DefaultEmbeddingModel, EmbeddingTimeout: time.Second,
+		ModelTimeout: time.Second, EvolutionInterval: 6 * time.Hour,
+	})
+	handler := server.Handler()
+	body := map[string]any{
+		"embedding": map[string]any{
+			"enabled": true, "endpoint": embedding.URL, "model": "embed-test", "timeout_seconds": 5,
+			"api_key": map[string]any{"action": "replace", "value": embeddingToken},
+		},
+		"stage3": map[string]any{
+			"enabled": true, "endpoint": model.URL + "/v1", "model": "chat-test", "timeout_seconds": 5, "interval_minutes": 360,
+			"api_key": map[string]any{"action": "replace", "value": stage3Token},
+		},
+	}
+	payload, _ := json.Marshal(body)
+	update := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/v1/settings/ai", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	req.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(update, req)
+	if update.Code != http.StatusOK {
+		t.Fatalf("settings update status=%d body=%s", update.Code, update.Body.String())
+	}
+
+	for _, test := range []struct {
+		path   string
+		target string
+	}{
+		{path: "/v1/settings/ai/test/stage3", target: "stage3"},
+		{path: "/v1/settings/ai/test/embedding", target: "embedding"},
+	} {
+		unauthorized := httptest.NewRecorder()
+		handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, test.path, nil))
+		if unauthorized.Code != http.StatusUnauthorized {
+			t.Fatalf("%s unauthenticated status=%d, want 401", test.target, unauthorized.Code)
+		}
+
+		response := httptest.NewRecorder()
+		req = httptest.NewRequest(http.MethodPost, test.path, nil)
+		req.Header.Set("Authorization", "Bearer "+authToken)
+		handler.ServeHTTP(response, req)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s test status=%d body=%s", test.target, response.Code, response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), stage3Token) || strings.Contains(response.Body.String(), embeddingToken) {
+			t.Fatalf("%s test response leaked a secret: %s", test.target, response.Body.String())
+		}
+		var result runtimeAITestResult
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !result.OK || result.Target != test.target || result.Message == "" {
+			t.Fatalf("unexpected %s test result: %#v", test.target, result)
+		}
+	}
+	if stage3Authorization != "Bearer "+stage3Token {
+		t.Fatalf("stage3 authorization=%q", stage3Authorization)
+	}
+	if stage3Path != "/v1/chat/completions" {
+		t.Fatalf("stage3 request path=%q", stage3Path)
+	}
+	if embeddingAuthorization != "Bearer "+embeddingToken {
+		t.Fatalf("embedding authorization=%q", embeddingAuthorization)
+	}
+}

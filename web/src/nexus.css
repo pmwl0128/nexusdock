@@ -3524,7 +3524,7 @@ dialog.nx-dialog-backdrop::backdrop {
 }
 .ai-settings-form>label.is-wide,
 .ai-settings-form>.ai-vector-status,
-.ai-settings-form>.ai-reindex-button,
+.ai-settings-form>.ai-card-actions,
 .ai-settings-form>.nx-alert { grid-column:1/-1; }
 .ai-settings-form input[type="text"],
 .ai-settings-form input[type="url"],
@@ -3578,7 +3578,13 @@ dialog.nx-dialog-backdrop::backdrop {
 .ai-status-dot { width:9px; height:9px; border-radius:50%; background:#aeb7c4; box-shadow:0 0 0 4px rgba(174,183,196,.15); }
 .ai-status-dot.is-ok { background:#2f9e69; box-shadow:0 0 0 4px rgba(47,158,105,.14); }
 .ai-status-dot.is-warn { background:#d28b32; box-shadow:0 0 0 4px rgba(210,139,50,.14); }
-.ai-reindex-button { justify-self:start; }
+.ai-card-actions {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+.ai-card-actions small { color:var(--nx-muted); font-size:11px; }
 .ai-settings-actions {
   grid-column:1/-1;
   display:flex;
@@ -3594,7 +3600,9 @@ dialog.nx-dialog-backdrop::backdrop {
 @media (max-width: 640px) {
   .ai-settings-heading,.ai-settings-actions { align-items:stretch; flex-direction:column; }
   .ai-settings-form { grid-template-columns:1fr; }
-  .ai-settings-form>label.is-wide,.ai-settings-form>.ai-vector-status,.ai-settings-form>.ai-reindex-button,.ai-settings-form>.nx-alert { grid-column:auto; }
+  .ai-settings-form>label.is-wide,.ai-settings-form>.ai-vector-status,.ai-settings-form>.ai-card-actions,.ai-settings-form>.nx-alert { grid-column:auto; }
+  .ai-card-actions { align-items:stretch; flex-direction:column; }
+  .ai-card-actions .nx-button { width:100%; justify-content:center; }
   .ai-settings-actions { grid-column:auto; }
   .ai-settings-actions .nx-button { width:100%; justify-content:center; }
 }

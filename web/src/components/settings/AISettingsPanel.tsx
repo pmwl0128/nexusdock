@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { BrainCircuit, DatabaseZap, RefreshCw, Save, SearchCheck } from 'lucide-react';
+import { Activity, BrainCircuit, DatabaseZap, RefreshCw, Save, SearchCheck } from 'lucide-react';
 import { ApiError, api } from '../../api/client';
 
 type SecretForm = { value: string; clear: boolean };
@@ -26,6 +26,13 @@ type RuntimeAISettings = {
   updated_at?: string;
 };
 type SettingsResponse = { ok: boolean; settings: RuntimeAISettings };
+type ConnectionTestResult = {
+  ok: boolean;
+  target: 'stage3' | 'embedding';
+  model?: string;
+  message: string;
+  latency_ms: number;
+};
 type EmbeddingStatus = {
   ok: boolean;
   enabled: boolean;
@@ -67,6 +74,9 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reindexing, setReindexing] = useState(false);
+  const [testingTarget, setTestingTarget] = useState<'stage3' | 'embedding' | null>(null);
+  const [stage3Test, setStage3Test] = useState<ConnectionTestResult | null>(null);
+  const [embeddingTest, setEmbeddingTest] = useState<ConnectionTestResult | null>(null);
   const [notice, setNotice] = useState<{ tone: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   async function refreshEmbeddingStatus() {
@@ -84,6 +94,8 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
       setForm({ embedding: settingsResult.settings.embedding, stage3: settingsResult.settings.stage3 });
       setEmbeddingSecret({ value: '', clear: false });
       setStage3Secret({ value: '', clear: false });
+      setStage3Test(null);
+      setEmbeddingTest(null);
       setNotice(null);
       void refreshEmbeddingStatus();
     } catch (error) {
@@ -123,6 +135,8 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
       setForm({ embedding: result.settings.embedding, stage3: result.settings.stage3 });
       setEmbeddingSecret({ value: '', clear: false });
       setStage3Secret({ value: '', clear: false });
+      setStage3Test(null);
+      setEmbeddingTest(null);
       setNotice({ tone: 'success', text: '配置已保存并应用，无需重启 Nexus。' });
       void refreshEmbeddingStatus();
     } catch (error) {
@@ -147,6 +161,23 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
     }
   }
 
+  async function testConnection(target: 'stage3' | 'embedding') {
+    setTestingTarget(target);
+    const setResult = target === 'stage3' ? setStage3Test : setEmbeddingTest;
+    setResult(null);
+    try {
+      const result = await api<ConnectionTestResult>(`/v1/settings/ai/test/${target}`, {
+        method: 'POST',
+        timeoutMs: 310_000,
+      });
+      setResult(result);
+    } catch (error) {
+      setResult({ ok: false, target, message: errorMessage(error), latency_ms: 0 });
+    } finally {
+      setTestingTarget(null);
+    }
+  }
+
   const reachableTone = embeddingStatus?.reachable === true ? 'is-ok' : embeddingStatus?.enabled ? 'is-warn' : 'is-muted';
   return <section className="ai-settings-panel">
     <header className="ai-settings-heading">
@@ -166,6 +197,8 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
           <label><span>执行间隔（分钟）</span><input type="number" min={60} max={10080} value={form.stage3.interval_minutes} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, interval_minutes: Number(event.target.value) } })} /></label>
           <label className="is-wide"><span>API Key {form.stage3.api_key_configured ? '· 已配置（留空保持）' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={stage3Secret.clear} value={stage3Secret.value} onChange={(event) => setStage3Secret({ value: event.target.value, clear: false })} placeholder={form.stage3.api_key_configured ? '••••••••' : '可选'} /></label>
           {form.stage3.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={stage3Secret.clear} onChange={(event) => setStage3Secret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
+          <div className="ai-card-actions"><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('stage3')}><Activity size={15} />{testingTarget === 'stage3' ? '测试中…' : '测试已保存配置'}</button><small>测试不会保存当前表单；修改后请先“保存并应用”。</small></div>
+          {stage3Test && <div className={`nx-alert is-${stage3Test.ok ? 'success' : 'error'}`}>{stage3Test.message}{stage3Test.latency_ms > 0 ? ` · ${stage3Test.latency_ms} ms` : ''}</div>}
         </div>
       </article>
 
@@ -182,7 +215,8 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
           <label><span>请求超时（秒）</span><input type="number" min={1} max={300} value={form.embedding.timeout_seconds} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, timeout_seconds: Number(event.target.value) } })} /></label>
           <label className="is-wide"><span>API Key {form.embedding.api_key_configured ? '· 已配置（留空保持）' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={embeddingSecret.clear} value={embeddingSecret.value} onChange={(event) => setEmbeddingSecret({ value: event.target.value, clear: false })} placeholder={form.embedding.api_key_configured ? '••••••••' : '本地 Embedding 可留空'} /></label>
           {form.embedding.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={embeddingSecret.clear} onChange={(event) => setEmbeddingSecret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
-          <button type="button" className="nx-button is-secondary ai-reindex-button" disabled={!form.embedding.enabled || reindexing || saving} onClick={() => void reindex()}><SearchCheck size={15} />{reindexing ? '重建中…' : '重建 Recall + Workflow 索引'}</button>
+          <div className="ai-card-actions"><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('embedding')}><Activity size={15} />{testingTarget === 'embedding' ? '测试中…' : '测试已保存配置'}</button><button type="button" className="nx-button is-secondary" disabled={!form.embedding.enabled || reindexing || saving || testingTarget !== null} onClick={() => void reindex()}><SearchCheck size={15} />{reindexing ? '重建中…' : '重建 Recall + Workflow 索引'}</button></div>
+          {embeddingTest && <div className={`nx-alert is-${embeddingTest.ok ? 'success' : 'error'}`}>{embeddingTest.message}{embeddingTest.latency_ms > 0 ? ` · ${embeddingTest.latency_ms} ms` : ''}</div>}
           {embeddingStatus?.error && <div className="nx-alert is-error">{embeddingStatus.error}</div>}
         </div>
       </article>

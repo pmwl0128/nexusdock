@@ -3,11 +3,21 @@ package httpx
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/settings"
+	"github.com/uvwt/nexusdock/internal/stage3"
 )
+
+type runtimeAITestResult struct {
+	OK        bool   `json:"ok"`
+	Target    string `json:"target"`
+	Model     string `json:"model,omitempty"`
+	Message   string `json:"message"`
+	LatencyMS int64  `json:"latency_ms"`
+}
 
 func (s *Server) getRuntimeAISettings(w http.ResponseWriter, r *http.Request) {
 	if s.settings == nil {
@@ -43,6 +53,59 @@ func (s *Server) updateRuntimeAISettings(w http.ResponseWriter, r *http.Request)
 	}
 	s.applyRuntimeAIConfig(cfg)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "settings": view})
+}
+
+func (s *Server) testStage3Connection(w http.ResponseWriter, r *http.Request) {
+	cfg := s.currentConfig()
+	started := time.Now()
+	result := runtimeAITestResult{Target: "stage3", Model: cfg.ModelName}
+	client, err := stage3.NewClient(stage3.Config{
+		Endpoint: cfg.ModelEndpoint,
+		Model:    cfg.ModelName,
+		APIKey:   cfg.ModelAPIKey,
+		Timeout:  cfg.ModelTimeout,
+	})
+	if err == nil {
+		err = client.Probe(r.Context())
+	}
+	result.LatencyMS = time.Since(started).Milliseconds()
+	if err != nil {
+		result.Message = "模型连接测试失败：" + stage3.RedactText(err.Error())
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	result.OK = true
+	result.Message = "模型连接正常，认证和模型名均可用。"
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) testEmbeddingConnection(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+	result := runtimeAITestResult{Target: "embedding"}
+	embedding := s.currentEmbedding()
+	if embedding == nil {
+		result.Message = "向量服务尚未配置。"
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	status := embedding.Status(r.Context())
+	result.LatencyMS = time.Since(started).Milliseconds()
+	if model, ok := status["model"].(string); ok {
+		result.Model = model
+	}
+	reachable, _ := status["reachable"].(bool)
+	if !reachable {
+		if message, ok := status["error"].(string); ok && message != "" {
+			result.Message = "向量连接测试失败：" + stage3.RedactText(message)
+		} else {
+			result.Message = "向量服务未启用或当前不可达。"
+		}
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	result.OK = true
+	result.Message = "向量服务连接正常，Embedding 请求可用。"
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) currentConfig() config.Config {

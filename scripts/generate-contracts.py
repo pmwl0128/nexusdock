@@ -496,6 +496,17 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         {"ok": scalar("boolean", "请求是否成功。"), "settings": ref("RuntimeAISettingsView")},
         ("ok", "settings"),
     )
+    schemas["RuntimeAIConnectionTestResponse"] = obj(
+        "Stage 3 或向量服务的脱敏连接测试结果。",
+        {
+            "ok": scalar("boolean", "连接测试是否成功。"),
+            "target": scalar("string", "测试目标。", enum=["stage3", "embedding"]),
+            "model": scalar("string", "测试使用的模型名称。"),
+            "message": scalar("string", "脱敏后的测试结果说明。"),
+            "latency_ms": scalar("integer", "测试耗时毫秒。", minimum=0),
+        },
+        ("ok", "target", "message", "latency_ms"),
+    )
 
     schemas["EmbeddingIndexSummary"] = obj(
         "Recall 向量索引摘要。",
@@ -864,6 +875,12 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 request=body(ref("RuntimeAISettingsUpdateRequest")),
                 success=ok(ref("RuntimeAISettingsResponse")),
             ),
+        },
+        "/v1/settings/ai/test/stage3": {
+            "post": operation("testStage3Connection", "使用已保存配置测试 Stage 3 模型连接", success=ok(ref("RuntimeAIConnectionTestResponse")))
+        },
+        "/v1/settings/ai/test/embedding": {
+            "post": operation("testEmbeddingConnection", "使用已保存配置测试 Embedding 服务连接", success=ok(ref("RuntimeAIConnectionTestResponse")))
         },
         "/v1/backup/status": {"get": operation("getBackupStatus", "读取 AgentDock 与 Nexus 备份状态", success=ok(ref("BackupStatus")))},
         "/v1/auth/status": {
