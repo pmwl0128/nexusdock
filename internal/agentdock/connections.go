@@ -1,0 +1,294 @@
+package agentdock
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/uvwt/nexusdock/internal/core"
+)
+
+const (
+	ConnectionProtocolVersion = "1"
+	maxConnectionMessageBytes = 8 << 20
+	heartbeatInterval         = 30 * time.Second
+)
+
+var (
+	ErrNodeOffline      = errors.New("AgentDock 节点当前离线")
+	ErrNodeDisconnected = errors.New("AgentDock 节点连接已断开")
+)
+
+type RemoteError struct {
+	Code      string         `json:"code"`
+	Message   string         `json:"message"`
+	Category  string         `json:"category,omitempty"`
+	Retryable bool           `json:"retryable,omitempty"`
+	Details   map[string]any `json:"details,omitempty"`
+}
+
+func (e *RemoteError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Message != "" {
+		return e.Message
+	}
+	return e.Code
+}
+
+type connectionMessage struct {
+	Type        string          `json:"type"`
+	RequestID   string          `json:"request_id,omitempty"`
+	Operation   string          `json:"operation,omitempty"`
+	Arguments   json.RawMessage `json:"arguments,omitempty"`
+	Result      json.RawMessage `json:"result,omitempty"`
+	Error       *RemoteError    `json:"error,omitempty"`
+	Hello       *Hello          `json:"hello,omitempty"`
+	Protocol    string          `json:"protocol_version,omitempty"`
+	HeartbeatMS int             `json:"heartbeat_ms,omitempty"`
+}
+
+type pendingResult struct {
+	result json.RawMessage
+	err    error
+}
+
+type nodeConnection struct {
+	nodeID  string
+	socket  *websocket.Conn
+	writeMu sync.Mutex
+	mu      sync.Mutex
+	pending map[string]chan pendingResult
+	closed  bool
+}
+
+type Hub struct {
+	store   *Store
+	mu      sync.RWMutex
+	nodes   map[string]*nodeConnection
+	onHello func(Node, Hello)
+}
+
+func (h *Hub) SetHelloHandler(handler func(Node, Hello)) {
+	h.mu.Lock()
+	h.onHello = handler
+	h.mu.Unlock()
+}
+
+func NewHub(store *Store) *Hub {
+	return &Hub{store: store, nodes: make(map[string]*nodeConnection)}
+}
+
+func (h *Hub) Online(nodeID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	_, ok := h.nodes[nodeID]
+	return ok
+}
+
+func (h *Hub) Disconnect(nodeID string) {
+	h.mu.Lock()
+	connection := h.nodes[nodeID]
+	delete(h.nodes, nodeID)
+	h.mu.Unlock()
+	if connection != nil {
+		connection.close(ErrNodeDisconnected)
+	}
+}
+
+func (h *Hub) Accept(w http.ResponseWriter, r *http.Request, nodeID string) error {
+	node, err := h.store.Get(r.Context(), nodeID)
+	if err != nil {
+		return err
+	}
+	if !node.Enabled {
+		return ErrNodeDisabled
+	}
+
+	upgrader := websocket.Upgrader{
+		HandshakeTimeout: 10 * time.Second,
+		CheckOrigin: func(request *http.Request) bool {
+			// 节点连接不是浏览器会话，不使用 Origin 作为身份依据；身份由 Device Token 固定绑定。
+			return request.Header.Get("Origin") == ""
+		},
+	}
+	socket, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return err
+	}
+	socket.SetReadLimit(maxConnectionMessageBytes)
+	_ = socket.SetReadDeadline(time.Now().Add(15 * time.Second))
+	connection := &nodeConnection{nodeID: nodeID, socket: socket, pending: make(map[string]chan pendingResult)}
+
+	var first connectionMessage
+	if err := socket.ReadJSON(&first); err != nil {
+		connection.close(err)
+		return fmt.Errorf("读取 AgentDock 握手: %w", err)
+	}
+	if first.Type != "node.hello" || first.Hello == nil || first.Protocol != ConnectionProtocolVersion {
+		connection.close(errors.New("invalid AgentDock handshake"))
+		return errors.New("AgentDock 节点握手无效")
+	}
+	updated, err := h.store.UpdateHello(r.Context(), nodeID, *first.Hello)
+	if err != nil {
+		connection.close(err)
+		return err
+	}
+	if err := connection.write(connectionMessage{
+		Type: "node.ready", Protocol: ConnectionProtocolVersion, HeartbeatMS: int(heartbeatInterval / time.Millisecond),
+	}); err != nil {
+		connection.close(err)
+		return fmt.Errorf("确认 AgentDock 握手: %w", err)
+	}
+	_ = socket.SetReadDeadline(time.Now().Add(2 * heartbeatInterval))
+
+	h.mu.Lock()
+	previous := h.nodes[nodeID]
+	h.nodes[nodeID] = connection
+	onHello := h.onHello
+	h.mu.Unlock()
+	if previous != nil {
+		previous.close(errors.New("AgentDock 节点建立了新连接"))
+	}
+	if onHello != nil {
+		onHello(updated, *first.Hello)
+	}
+
+	go h.readLoop(connection)
+	return nil
+}
+
+func (h *Hub) Invoke(ctx context.Context, nodeID, operation string, arguments any) (map[string]any, error) {
+	h.mu.RLock()
+	connection := h.nodes[nodeID]
+	h.mu.RUnlock()
+	if connection == nil {
+		return nil, ErrNodeOffline
+	}
+	if operation == "" {
+		return nil, errors.New("节点操作不能为空")
+	}
+	encoded, err := json.Marshal(arguments)
+	if err != nil {
+		return nil, fmt.Errorf("编码节点调用参数: %w", err)
+	}
+	requestID, err := core.NewID("req")
+	if err != nil {
+		return nil, err
+	}
+	resultChannel := make(chan pendingResult, 1)
+	if err := connection.addPending(requestID, resultChannel); err != nil {
+		return nil, err
+	}
+	defer connection.removePending(requestID)
+
+	if err := connection.write(connectionMessage{Type: "tool.invoke", RequestID: requestID, Operation: operation, Arguments: encoded}); err != nil {
+		connection.close(err)
+		return nil, ErrNodeDisconnected
+	}
+	select {
+	case <-ctx.Done():
+		_ = connection.write(connectionMessage{Type: "tool.cancel", RequestID: requestID})
+		return nil, ctx.Err()
+	case response := <-resultChannel:
+		if response.err != nil {
+			return nil, response.err
+		}
+		var result map[string]any
+		if err := json.Unmarshal(response.result, &result); err != nil {
+			return nil, fmt.Errorf("解析 AgentDock 节点结果: %w", err)
+		}
+		return result, nil
+	}
+}
+
+func (h *Hub) readLoop(connection *nodeConnection) {
+	defer func() {
+		h.mu.Lock()
+		if h.nodes[connection.nodeID] == connection {
+			delete(h.nodes, connection.nodeID)
+		}
+		h.mu.Unlock()
+		connection.close(ErrNodeDisconnected)
+	}()
+	for {
+		var message connectionMessage
+		if err := connection.socket.ReadJSON(&message); err != nil {
+			return
+		}
+		_ = connection.socket.SetReadDeadline(time.Now().Add(2 * heartbeatInterval))
+		switch message.Type {
+		case "tool.result":
+			connection.resolve(message.RequestID, pendingResult{result: message.Result})
+		case "tool.error":
+			if message.Error == nil {
+				message.Error = &RemoteError{Code: "NODE_BAD_RESPONSE", Message: "AgentDock 返回了空错误"}
+			}
+			connection.resolve(message.RequestID, pendingResult{err: message.Error})
+		case "node.heartbeat":
+			_ = h.store.Touch(context.Background(), connection.nodeID)
+			_ = connection.write(connectionMessage{Type: "node.heartbeat"})
+		}
+	}
+}
+
+func (c *nodeConnection) write(message connectionMessage) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		return ErrNodeDisconnected
+	}
+	_ = c.socket.SetWriteDeadline(time.Now().Add(15 * time.Second))
+	return c.socket.WriteJSON(message)
+}
+
+func (c *nodeConnection) addPending(requestID string, result chan pendingResult) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return ErrNodeDisconnected
+	}
+	c.pending[requestID] = result
+	return nil
+}
+
+func (c *nodeConnection) removePending(requestID string) {
+	c.mu.Lock()
+	delete(c.pending, requestID)
+	c.mu.Unlock()
+}
+
+func (c *nodeConnection) resolve(requestID string, result pendingResult) {
+	c.mu.Lock()
+	channel := c.pending[requestID]
+	delete(c.pending, requestID)
+	c.mu.Unlock()
+	if channel != nil {
+		channel <- result
+	}
+}
+
+func (c *nodeConnection) close(reason error) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.closed = true
+	pending := c.pending
+	c.pending = make(map[string]chan pendingResult)
+	c.mu.Unlock()
+	_ = c.socket.Close()
+	for _, channel := range pending {
+		channel <- pendingResult{err: reason}
+	}
+}

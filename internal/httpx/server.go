@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -18,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/config"
@@ -58,6 +61,20 @@ func (w *trackedResponseWriter) Write(data []byte) (int, error) {
 
 func (w *trackedResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
+func (w *trackedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("response writer does not support WebSocket hijacking")
+	}
+	return hijacker.Hijack()
+}
+
+func (w *trackedResponseWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 type Server struct {
 	mu           sync.RWMutex
 	cfg          config.Config
@@ -67,12 +84,17 @@ type Server struct {
 	store        *recall.Store
 	privateNotes *privatenotes.Store
 	agentDock    *agentdock.Store
+	agentDockHub *agentdock.Hub
 	syncer       *syncer.Manager
 	logger       *slog.Logger
 	auth         *auth.Service
 	embedding    *recall.EmbeddingService
 	settings     *settings.Store
 	stage3Wake   chan struct{}
+	mcpServer    *mcpsdk.Server
+	mcpHandler   http.Handler
+	mcpToolsMu   sync.Mutex
+	mcpTools     map[string]struct{}
 }
 
 type ServerOption func(*Server)
@@ -82,7 +104,10 @@ func WithSystemDatabase(db *sql.DB) ServerOption {
 }
 
 func WithAgentDockNodes(store *agentdock.Store) ServerOption {
-	return func(server *Server) { server.agentDock = store }
+	return func(server *Server) {
+		server.agentDock = store
+		server.agentDockHub = agentdock.NewHub(store)
+	}
 }
 
 func WithWebAuthentication(authService *auth.Service) ServerOption {
@@ -102,20 +127,28 @@ func WithPrivateNotes(store *privatenotes.Store) ServerOption {
 }
 
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
-	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1)}
+	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]struct{})}
 	for _, option := range options {
 		option(server)
 	}
+	server.initializeMCPGateway()
 	return server
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	protected := func(next http.HandlerFunc) http.HandlerFunc { return s.withAPIAccess(next) }
+	deviceProtected := func(next http.HandlerFunc) http.HandlerFunc { return s.withDeviceOrAPIAccess(next) }
 	uiProtected := func(next http.HandlerFunc) http.HandlerFunc { return s.withUIAccess(next) }
 	mux.HandleFunc("GET /", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
+	if s.mcpHandler != nil {
+		gateway := protected(s.mcpHandler.ServeHTTP)
+		mux.HandleFunc("GET /mcp", gateway)
+		mux.HandleFunc("POST /mcp", gateway)
+		mux.HandleFunc("DELETE /mcp", gateway)
+	}
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	mux.HandleFunc("GET /v1/settings/ai", protected(s.getRuntimeAISettings))
 	mux.HandleFunc("PUT /v1/settings/ai", protected(s.updateRuntimeAISettings))
@@ -123,13 +156,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/settings/ai/test/embedding", protected(s.testEmbeddingConnection))
 	s.registerRuntimeRoutes(mux, protected)
 	s.registerEvolutionLifecycleRoutes(mux)
-	s.registerWorkflowTemplateRoutes(mux, protected)
+	s.registerWorkflowTemplateRoutes(mux, deviceProtected)
 	if s.privateNotes != nil {
-		s.registerPrivateNoteRoutes(mux, protected)
+		s.registerPrivateNoteRoutes(mux, deviceProtected)
 	}
 	s.registerWebAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
-	mux.HandleFunc("GET /v1/sync/status", protected(s.syncStatus))
+	mux.HandleFunc("GET /v1/sync/status", deviceProtected(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", protected(s.gitDiff))
 	mux.HandleFunc("POST /v1/git/discard", protected(s.gitDiscard))
 	mux.HandleFunc("GET /v1/git/log", protected(s.gitLog))
@@ -137,21 +170,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/sync/pull", protected(s.syncPull))
 	mux.HandleFunc("POST /v1/sync/push", protected(s.syncPush))
 	mux.HandleFunc("POST /v1/sync/now", protected(s.syncNow))
-	mux.HandleFunc("GET /v1/recall", protected(s.listMemories))
-	mux.HandleFunc("POST /v1/recall", protected(s.writeRecall))
-	mux.HandleFunc("POST /v1/recall/move", protected(s.moveRecall))
-	mux.HandleFunc("POST /v1/recall/search", protected(s.searchMemories))
-	mux.HandleFunc("POST /v1/recall/pack", protected(s.packMemories))
-	mux.HandleFunc("GET /v1/recall/cards", protected(s.listCards))
-	mux.HandleFunc("POST /v1/recall/cards", protected(s.writeCard))
-	mux.HandleFunc("POST /v1/recall/cards/capture", protected(s.captureCard))
-	mux.HandleFunc("POST /v1/recall/cards/search", protected(s.searchCards))
-	mux.HandleFunc("GET /v1/embeddings/status", protected(s.embeddingStatus))
-	mux.HandleFunc("POST /v1/embeddings/reindex", protected(s.reindexEmbeddings))
-	mux.HandleFunc("POST /v1/embeddings/search", protected(s.searchEmbeddings))
-	mux.HandleFunc("GET /v1/recall/{path...}", protected(s.readRecall))
-	mux.HandleFunc("PATCH /v1/recall/{path...}", protected(s.patchRecall))
-	mux.HandleFunc("DELETE /v1/recall/{path...}", protected(s.deleteRecall))
+	mux.HandleFunc("GET /v1/recall", deviceProtected(s.listMemories))
+	mux.HandleFunc("POST /v1/recall", deviceProtected(s.writeRecall))
+	mux.HandleFunc("POST /v1/recall/move", deviceProtected(s.moveRecall))
+	mux.HandleFunc("POST /v1/recall/search", deviceProtected(s.searchMemories))
+	mux.HandleFunc("POST /v1/recall/pack", deviceProtected(s.packMemories))
+	mux.HandleFunc("GET /v1/recall/cards", deviceProtected(s.listCards))
+	mux.HandleFunc("POST /v1/recall/cards", deviceProtected(s.writeCard))
+	mux.HandleFunc("POST /v1/recall/cards/capture", deviceProtected(s.captureCard))
+	mux.HandleFunc("POST /v1/recall/cards/search", deviceProtected(s.searchCards))
+	mux.HandleFunc("GET /v1/embeddings/status", deviceProtected(s.embeddingStatus))
+	mux.HandleFunc("POST /v1/embeddings/reindex", deviceProtected(s.reindexEmbeddings))
+	mux.HandleFunc("POST /v1/embeddings/search", deviceProtected(s.searchEmbeddings))
+	mux.HandleFunc("GET /v1/recall/{path...}", deviceProtected(s.readRecall))
+	mux.HandleFunc("PATCH /v1/recall/{path...}", deviceProtected(s.patchRecall))
+	mux.HandleFunc("DELETE /v1/recall/{path...}", deviceProtected(s.deleteRecall))
 	mux.HandleFunc("GET /v1/", http.NotFound)
 	mux.HandleFunc("GET /api/", http.NotFound)
 	return s.requestBoundary(s.securityHeaders(mux))

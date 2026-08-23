@@ -1,110 +1,101 @@
 package httpx
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/uvwt/nexusdock/internal/agentdock"
+	"github.com/uvwt/nexusdock/internal/auth"
+	"github.com/uvwt/nexusdock/internal/core"
 )
 
-func TestAgentDockNodeCRUDNeverReturnsToken(t *testing.T) {
-	server := newRuntimeTestServer(t, "", "")
-	const token = "private-runtime-token"
-
-	create := httptest.NewRequest(http.MethodPost, "/v1/runtime/nodes", strings.NewReader(`{
-		"id":"dockmini",
-		"name":"DockMini",
-		"endpoint":"https://dockmini.example.com",
-		"token":"`+token+`",
-		"timeout_seconds":12
-	}`))
-	created := httptest.NewRecorder()
-	server.agentDockNodeCreate(created, create)
-	if created.Code != http.StatusCreated {
-		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
+func newNodeTestServer(t *testing.T) *Server {
+	t.Helper()
+	db, err := core.OpenSQLite(context.Background(), ":memory:", 1)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.Contains(created.Body.String(), token) || !strings.Contains(created.Body.String(), `"token_configured":true`) {
-		t.Fatalf("create response leaked or omitted token state: %s", created.Body.String())
+	t.Cleanup(func() { _ = db.Close() })
+	if err := core.EnsureSchema(t.Context(), db); err != nil {
+		t.Fatal(err)
 	}
-
-	listed := httptest.NewRecorder()
-	server.agentDockNodeList(listed, httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes", nil))
-	if listed.Code != http.StatusOK || strings.Contains(listed.Body.String(), token) || !strings.Contains(listed.Body.String(), `"id":"dockmini"`) {
-		t.Fatalf("list status=%d body=%s", listed.Code, listed.Body.String())
+	store, err := agentdock.NewStore(db)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return &Server{agentDock: store, agentDockHub: agentdock.NewHub(store), auth: auth.NewService(db)}
+}
 
-	name := "Mac mini"
-	update := httptest.NewRequest(http.MethodPatch, "/v1/runtime/nodes/dockmini", strings.NewReader(`{"name":"`+name+`","enabled":false}`))
-	update.SetPathValue("nodeID", "dockmini")
-	updated := httptest.NewRecorder()
-	server.agentDockNodeUpdate(updated, update)
-	if updated.Code != http.StatusOK || !strings.Contains(updated.Body.String(), name) || !strings.Contains(updated.Body.String(), `"enabled":false`) {
-		t.Fatalf("update status=%d body=%s", updated.Code, updated.Body.String())
+func TestPairingIssuesDeviceTokenWithoutAgentDockToken(t *testing.T) {
+	server := newNodeTestServer(t)
+	pairing, err := server.agentDock.CreatePairingCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	get := httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes/dockmini", nil)
-	get.SetPathValue("nodeID", "dockmini")
-	got := httptest.NewRecorder()
-	server.agentDockNodeGet(got, get)
-	if got.Code != http.StatusOK || strings.Contains(got.Body.String(), token) {
-		t.Fatalf("get status=%d body=%s", got.Code, got.Body.String())
+	request := httptest.NewRequest(http.MethodPost, "/v1/nodes/pair", strings.NewReader(`{"code":"`+pairing.Code+`","device_id":"device_12345678","name":"DockMini"}`))
+	response := httptest.NewRecorder()
+	server.agentDockNodePair(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
-
-	deleteRequest := httptest.NewRequest(http.MethodDelete, "/v1/runtime/nodes/dockmini", nil)
-	deleteRequest.SetPathValue("nodeID", "dockmini")
-	deleted := httptest.NewRecorder()
-	server.agentDockNodeDelete(deleted, deleteRequest)
-	if deleted.Code != http.StatusOK || !strings.Contains(deleted.Body.String(), `"deleted":true`) {
-		t.Fatalf("delete status=%d body=%s", deleted.Code, deleted.Body.String())
+	var result struct {
+		Node        agentdock.Node `json:"node"`
+		DeviceToken string         `json:"device_token"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Node.ID == "" || result.DeviceToken == "" || strings.Contains(response.Body.String(), "endpoint") {
+		t.Fatalf("unexpected pairing response: %s", response.Body.String())
+	}
+	principal, err := server.auth.Authenticate(t.Context(), result.DeviceToken)
+	if err != nil || principal.Actor.Type != core.ActorDevice || principal.Actor.ID != result.Node.ID {
+		t.Fatalf("device principal=%#v err=%v", principal, err)
 	}
 }
 
-func TestAgentDockNodeCreateRejectsInvalidOrigin(t *testing.T) {
-	server := newRuntimeTestServer(t, "", "")
-	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/nodes", strings.NewReader(`{
-		"id":"dockmini",
-		"name":"DockMini",
-		"endpoint":"https://dockmini.example.com/mcp",
-		"token":"secret"
-	}`))
+func TestNodeListReportsHubOnlineState(t *testing.T) {
+	server := newNodeTestServer(t)
+	pairing, _ := server.agentDock.CreatePairingCode(t.Context())
+	if _, err := server.agentDock.Pair(t.Context(), agentdock.PairInput{Code: pairing.Code, DeviceID: "device_12345678", Name: "DockMini"}); err != nil {
+		t.Fatal(err)
+	}
 	response := httptest.NewRecorder()
-	server.agentDockNodeCreate(response, request)
-	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "INVALID_AGENTDOCK_NODE") {
+	server.agentDockNodeList(response, httptest.NewRequest(http.MethodGet, "/v1/runtime/nodes", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"online":false`) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }
 
-func TestAgentDockNodeProbeUsesStoredCredentials(t *testing.T) {
-	const token = "runtime-probe-token"
-	calls := 0
-	runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
-		if r.Header.Get("Authorization") != "Bearer "+token {
-			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
-		}
-		switch r.URL.Path {
-		case "/healthz":
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": "0.5.1"})
-		case "/internal/runtime/tasks":
-			if r.URL.Query().Get("limit") != "1" {
-				t.Fatalf("task limit = %q", r.URL.Query().Get("limit"))
-			}
-			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "tasks": []any{}, "count": 0})
-		default:
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-	}))
-	defer runtime.Close()
-
-	server := newRuntimeTestServer(t, runtime.URL, token)
-	request := httptest.NewRequest(http.MethodPost, "/v1/runtime/nodes/dockmini/probe", nil)
-	request.SetPathValue("nodeID", runtimeTestNodeID)
-	response := httptest.NewRecorder()
-	server.agentDockNodeProbe(response, request)
-	if response.Code != http.StatusOK || calls != 2 || !strings.Contains(response.Body.String(), `"available":true`) {
-		t.Fatalf("status=%d calls=%d body=%s", response.Code, calls, response.Body.String())
+func TestDeviceTokenAccessesOnlyExplicitDeviceRoutes(t *testing.T) {
+	server := newNodeTestServer(t)
+	pairing, _ := server.agentDock.CreatePairingCode(t.Context())
+	node, err := server.agentDock.Pair(t.Context(), agentdock.PairInput{Code: pairing.Code, DeviceID: "device_12345678", Name: "DockMini"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.Contains(response.Body.String(), token) {
-		t.Fatalf("probe response leaked token: %s", response.Body.String())
+	issued, err := server.auth.IssueToken(t.Context(), core.Actor{Type: core.ActorDevice, ID: node.ID}, "device_token", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/v1/recall", nil)
+	request.Header.Set("Authorization", "Bearer "+issued.Token)
+	response := httptest.NewRecorder()
+	server.withDeviceOrAPIAccess(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	})(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("device route status=%d body=%s", response.Code, response.Body.String())
+	}
+
+	// 管理 API 仍使用普通 API/管理员认证，Device Token 不会被 withAPIAccess 接受。
+	adminResponse := httptest.NewRecorder()
+	server.withAPIAccess(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })(adminResponse, request)
+	if adminResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("admin route status=%d, want 401", adminResponse.Code)
 	}
 }

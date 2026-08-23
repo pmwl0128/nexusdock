@@ -2,16 +2,14 @@ package agentdock
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -19,100 +17,93 @@ import (
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
-const (
-	defaultTimeoutSeconds = 8
-	maxTokenBytes         = 16 * 1024
-	secretVersion         = byte(1)
-)
+const pairingCodeTTL = 10 * time.Minute
 
 var (
-	ErrNodeNotFound          = errors.New("AgentDock 节点不存在")
-	ErrNodeExists            = errors.New("AgentDock 节点 ID 或地址已存在")
-	ErrNodeDisabled          = errors.New("AgentDock 节点已停用")
-	ErrNodeCredentialsAbsent = errors.New("AgentDock 节点凭据缺失")
+	ErrNodeNotFound       = errors.New("AgentDock 节点不存在")
+	ErrNodeExists         = errors.New("AgentDock 设备已经配对")
+	ErrNodeDisabled       = errors.New("AgentDock 节点已停用")
+	ErrPairingCodeInvalid = errors.New("AgentDock 配对码无效或已过期")
 
-	nodeIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+	deviceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{7,127}$`)
 )
 
-type ValidationError struct {
-	Message string
-}
+type ValidationError struct{ Message string }
 
 func (e ValidationError) Error() string { return e.Message }
 
 func invalid(message string) error { return ValidationError{Message: message} }
 
 type Node struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Endpoint        string    `json:"endpoint"`
-	Enabled         bool      `json:"enabled"`
-	TimeoutSeconds  int       `json:"timeout_seconds"`
-	TokenConfigured bool      `json:"token_configured"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID               string     `json:"id"`
+	DeviceID         string     `json:"device_id"`
+	Name             string     `json:"name"`
+	Enabled          bool       `json:"enabled"`
+	Version          string     `json:"version,omitempty"`
+	ProtocolVersion  string     `json:"protocol_version,omitempty"`
+	OS               string     `json:"os,omitempty"`
+	Arch             string     `json:"arch,omitempty"`
+	Capabilities     []string   `json:"capabilities"`
+	ToolContractHash string     `json:"tool_contract_hash,omitempty"`
+	Online           bool       `json:"online"`
+	LastSeenAt       *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
-type Credentials struct {
-	Node  Node
-	Token string
+type PairingCode struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
-type CreateInput struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Endpoint       string `json:"endpoint"`
-	Token          string `json:"token"`
-	Enabled        *bool  `json:"enabled,omitempty"`
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+type PairInput struct {
+	Code     string `json:"code"`
+	DeviceID string `json:"device_id"`
+	Name     string `json:"name"`
 }
 
 type UpdateInput struct {
-	Name           *string `json:"name,omitempty"`
-	Endpoint       *string `json:"endpoint,omitempty"`
-	Token          *string `json:"token,omitempty"`
-	Enabled        *bool   `json:"enabled,omitempty"`
-	TimeoutSeconds *int    `json:"timeout_seconds,omitempty"`
+	Name    *string `json:"name,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
+}
+
+type Hello struct {
+	DeviceID         string           `json:"device_id"`
+	Version          string           `json:"version"`
+	ProtocolVersion  string           `json:"protocol_version"`
+	OS               string           `json:"os"`
+	Arch             string           `json:"arch"`
+	Capabilities     []string         `json:"capabilities"`
+	ToolContractHash string           `json:"tool_contract_hash"`
+	Tools            []ToolDescriptor `json:"tools"`
+}
+
+type ToolDescriptor struct {
+	Name         string         `json:"name"`
+	Title        string         `json:"title,omitempty"`
+	Description  string         `json:"description,omitempty"`
+	InputSchema  map[string]any `json:"inputSchema"`
+	OutputSchema map[string]any `json:"outputSchema,omitempty"`
+	Meta         map[string]any `json:"_meta,omitempty"`
+	Annotations  map[string]any `json:"annotations,omitempty"`
 }
 
 type Store struct {
-	db     *sql.DB
-	cipher cipher.AEAD
-	now    func() time.Time
+	db  *sql.DB
+	now func() time.Time
 }
 
-func NewStore(db *sql.DB, dataDir string) (*Store, error) {
+func NewStore(db *sql.DB) (*Store, error) {
 	if db == nil {
 		return nil, errors.New("AgentDock 节点数据库不能为空")
 	}
-	key, err := loadOrCreateKey(filepath.Join(dataDir, "secrets", "agentdock-nodes.key"))
-	if err != nil {
-		return nil, err
-	}
-	return NewStoreWithKey(db, key)
-}
-
-func NewStoreWithKey(db *sql.DB, key []byte) (*Store, error) {
-	if db == nil {
-		return nil, errors.New("AgentDock 节点数据库不能为空")
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, fmt.Errorf("初始化 AgentDock 节点加密器: %w", err)
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("初始化 AgentDock 节点 GCM: %w", err)
-	}
-	return &Store{db: db, cipher: aead, now: time.Now}, nil
+	return &Store{db: db, now: time.Now}, nil
 }
 
 func (s *Store) List(ctx context.Context) ([]Node, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT n.id, n.name, n.endpoint, n.enabled, n.timeout_seconds,
-		n.created_at, n.updated_at, CASE WHEN secrets.node_id IS NULL THEN 0 ELSE 1 END
-		FROM agentdock_nodes n
-		LEFT JOIN agentdock_node_secrets secrets ON secrets.node_id = n.id
-		ORDER BY n.name COLLATE NOCASE, n.id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, device_id, name, enabled, version, protocol_version,
+		os, arch, capabilities_json, tool_contract_hash, last_seen_at, created_at, updated_at
+		FROM agentdock_devices ORDER BY name COLLATE NOCASE, id`)
 	if err != nil {
 		return nil, fmt.Errorf("列出 AgentDock 节点: %w", err)
 	}
@@ -133,15 +124,13 @@ func (s *Store) List(ctx context.Context) ([]Node, error) {
 }
 
 func (s *Store) Get(ctx context.Context, id string) (Node, error) {
-	id, err := normalizeID(id)
-	if err != nil {
-		return Node{}, err
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return Node{}, invalid("节点 ID 不能为空")
 	}
-	row := s.db.QueryRowContext(ctx, `SELECT n.id, n.name, n.endpoint, n.enabled, n.timeout_seconds,
-		n.created_at, n.updated_at, CASE WHEN secrets.node_id IS NULL THEN 0 ELSE 1 END
-		FROM agentdock_nodes n
-		LEFT JOIN agentdock_node_secrets secrets ON secrets.node_id = n.id
-		WHERE n.id = ?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT id, device_id, name, enabled, version, protocol_version,
+		os, arch, capabilities_json, tool_contract_hash, last_seen_at, created_at, updated_at
+		FROM agentdock_devices WHERE id = ?`, id)
 	node, err := scanNode(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Node{}, ErrNodeNotFound
@@ -149,353 +138,259 @@ func (s *Store) Get(ctx context.Context, id string) (Node, error) {
 	return node, err
 }
 
-func (s *Store) Credentials(ctx context.Context, id string) (Credentials, error) {
-	node, err := s.Get(ctx, id)
+func (s *Store) CreatePairingCode(ctx context.Context) (PairingCode, error) {
+	raw := make([]byte, 24)
+	if _, err := rand.Read(raw); err != nil {
+		return PairingCode{}, fmt.Errorf("生成 AgentDock 配对码: %w", err)
+	}
+	code := "pair_" + base64.RawURLEncoding.EncodeToString(raw)
+	id, err := core.NewID("pair")
 	if err != nil {
-		return Credentials{}, err
+		return PairingCode{}, err
 	}
-	if !node.Enabled {
-		return Credentials{}, ErrNodeDisabled
-	}
-
-	var sealed []byte
-	if err := s.db.QueryRowContext(ctx, `SELECT token_ciphertext FROM agentdock_node_secrets WHERE node_id = ?`, node.ID).Scan(&sealed); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return Credentials{}, ErrNodeCredentialsAbsent
-		}
-		return Credentials{}, fmt.Errorf("读取 AgentDock 节点凭据: %w", err)
-	}
-	token, err := s.open(node.ID, sealed)
+	now := s.now().UTC()
+	expiresAt := now.Add(pairingCodeTTL)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO agentdock_pairing_codes(id, code_hash, expires_at, created_at)
+		VALUES(?, ?, ?, ?)`, id, hashSecret(code), expiresAt.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 	if err != nil {
-		return Credentials{}, err
+		return PairingCode{}, fmt.Errorf("保存 AgentDock 配对码: %w", err)
 	}
-	return Credentials{Node: node, Token: token}, nil
+	return PairingCode{Code: code, ExpiresAt: expiresAt}, nil
 }
 
-func (s *Store) Create(ctx context.Context, input CreateInput) (Node, error) {
-	id, err := normalizeID(input.ID)
-	if err != nil {
-		return Node{}, err
+func (s *Store) Pair(ctx context.Context, input PairInput) (Node, error) {
+	code := strings.TrimSpace(input.Code)
+	deviceID := strings.TrimSpace(input.DeviceID)
+	name := strings.TrimSpace(input.Name)
+	if code == "" {
+		return Node{}, invalid("配对码不能为空")
 	}
-	name, err := normalizeName(input.Name)
-	if err != nil {
-		return Node{}, err
+	if !deviceIDPattern.MatchString(deviceID) {
+		return Node{}, invalid("设备 ID 格式无效")
 	}
-	endpoint, err := normalizeEndpoint(input.Endpoint)
-	if err != nil {
-		return Node{}, err
+	if name == "" || len([]rune(name)) > 100 {
+		return Node{}, invalid("节点名称必须为 1 到 100 个字符")
 	}
-	token, err := normalizeToken(input.Token)
-	if err != nil {
-		return Node{}, err
-	}
-	timeout := input.TimeoutSeconds
-	if timeout == 0 {
-		timeout = defaultTimeoutSeconds
-	} else if timeout, err = normalizeTimeout(timeout); err != nil {
-		return Node{}, err
-	}
-	enabled := true
-	if input.Enabled != nil {
-		enabled = *input.Enabled
-	}
-	sealed, err := s.seal(id, token)
+
+	nodeID, err := core.NewID("node")
 	if err != nil {
 		return Node{}, err
 	}
 	now := s.now().UTC()
-	timestamp := now.Format(time.RFC3339Nano)
-
-	err = core.NewTxManager(s.db).WithinTx(ctx, nil, func(ctx context.Context, tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO agentdock_nodes(id, name, endpoint, enabled, timeout_seconds, created_at, updated_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?)`, id, name, endpoint, boolInt(enabled), timeout, timestamp, timestamp); err != nil {
-			if isUniqueConstraint(err) {
-				return ErrNodeExists
-			}
-			return fmt.Errorf("创建 AgentDock 节点: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO agentdock_node_secrets(node_id, token_ciphertext, updated_at)
-			VALUES(?, ?, ?)`, id, sealed, timestamp); err != nil {
-			return fmt.Errorf("保存 AgentDock 节点凭据: %w", err)
-		}
-		return nil
-	})
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return Node{}, err
+		return Node{}, fmt.Errorf("开始 AgentDock 配对事务: %w", err)
 	}
-	return Node{ID: id, Name: name, Endpoint: endpoint, Enabled: enabled, TimeoutSeconds: timeout, TokenConfigured: true, CreatedAt: now, UpdatedAt: now}, nil
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `UPDATE agentdock_pairing_codes SET used_at = ?
+		WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?`,
+		now.Format(time.RFC3339Nano), hashSecret(code), now.Format(time.RFC3339Nano))
+	if err != nil {
+		return Node{}, fmt.Errorf("消费 AgentDock 配对码: %w", err)
+	}
+	changed, _ := result.RowsAffected()
+	if changed != 1 {
+		return Node{}, ErrPairingCodeInvalid
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO agentdock_devices(
+		id, device_id, name, enabled, created_at, updated_at
+	) VALUES(?, ?, ?, 1, ?, ?)`, nodeID, deviceID, name, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	if err != nil {
+		if core.IsSQLiteConflict(err) || strings.Contains(strings.ToLower(err.Error()), "unique") {
+			return Node{}, ErrNodeExists
+		}
+		return Node{}, fmt.Errorf("创建 AgentDock 节点: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, fmt.Errorf("提交 AgentDock 配对事务: %w", err)
+	}
+	return s.Get(ctx, nodeID)
 }
 
 func (s *Store) Update(ctx context.Context, id string, input UpdateInput) (Node, error) {
-	if input.Name == nil && input.Endpoint == nil && input.Token == nil && input.Enabled == nil && input.TimeoutSeconds == nil {
+	if input.Name == nil && input.Enabled == nil {
 		return Node{}, invalid("至少提交一个需要更新的节点字段")
 	}
-	id, err := normalizeID(id)
+	node, err := s.Get(ctx, id)
 	if err != nil {
 		return Node{}, err
 	}
-	current, err := s.Get(ctx, id)
-	if err != nil {
-		return Node{}, err
-	}
-
-	name := current.Name
 	if input.Name != nil {
-		name, err = normalizeName(*input.Name)
-		if err != nil {
-			return Node{}, err
+		name := strings.TrimSpace(*input.Name)
+		if name == "" || len([]rune(name)) > 100 {
+			return Node{}, invalid("节点名称必须为 1 到 100 个字符")
 		}
+		node.Name = name
 	}
-	endpoint := current.Endpoint
-	if input.Endpoint != nil {
-		endpoint, err = normalizeEndpoint(*input.Endpoint)
-		if err != nil {
-			return Node{}, err
-		}
-	}
-	enabled := current.Enabled
 	if input.Enabled != nil {
-		enabled = *input.Enabled
+		node.Enabled = *input.Enabled
 	}
-	timeout := current.TimeoutSeconds
-	if input.TimeoutSeconds != nil {
-		timeout, err = normalizeTimeout(*input.TimeoutSeconds)
-		if err != nil {
-			return Node{}, err
-		}
+	node.UpdatedAt = s.now().UTC()
+	enabled := 0
+	if node.Enabled {
+		enabled = 1
 	}
-
-	var sealed []byte
-	if input.Token != nil {
-		token, tokenErr := normalizeToken(*input.Token)
-		if tokenErr != nil {
-			return Node{}, tokenErr
-		}
-		sealed, err = s.seal(id, token)
-		if err != nil {
-			return Node{}, err
-		}
-	}
-	now := s.now().UTC()
-	timestamp := now.Format(time.RFC3339Nano)
-	err = core.NewTxManager(s.db).WithinTx(ctx, nil, func(ctx context.Context, tx *sql.Tx) error {
-		result, err := tx.ExecContext(ctx, `UPDATE agentdock_nodes
-			SET name = ?, endpoint = ?, enabled = ?, timeout_seconds = ?, updated_at = ?
-			WHERE id = ?`, name, endpoint, boolInt(enabled), timeout, timestamp, id)
-		if err != nil {
-			if isUniqueConstraint(err) {
-				return ErrNodeExists
-			}
-			return fmt.Errorf("更新 AgentDock 节点: %w", err)
-		}
-		if affected, _ := result.RowsAffected(); affected == 0 {
-			return ErrNodeNotFound
-		}
-		if sealed != nil {
-			// 凭据表与节点元数据分离；upsert 也能修复极端情况下缺失的凭据行。
-			if _, err := tx.ExecContext(ctx, `INSERT INTO agentdock_node_secrets(node_id, token_ciphertext, updated_at)
-				VALUES(?, ?, ?)
-				ON CONFLICT(node_id) DO UPDATE SET token_ciphertext = excluded.token_ciphertext, updated_at = excluded.updated_at`, id, sealed, timestamp); err != nil {
-				return fmt.Errorf("更新 AgentDock 节点凭据: %w", err)
-			}
-		}
-		return nil
-	})
+	result, err := s.db.ExecContext(ctx, `UPDATE agentdock_devices SET name = ?, enabled = ?, updated_at = ? WHERE id = ?`,
+		node.Name, enabled, node.UpdatedAt.Format(time.RFC3339Nano), node.ID)
 	if err != nil {
-		return Node{}, err
+		return Node{}, fmt.Errorf("更新 AgentDock 节点: %w", err)
 	}
-	current.Name = name
-	current.Endpoint = endpoint
-	current.Enabled = enabled
-	current.TimeoutSeconds = timeout
-	current.UpdatedAt = now
-	if sealed != nil {
-		current.TokenConfigured = true
+	changed, _ := result.RowsAffected()
+	if changed != 1 {
+		return Node{}, ErrNodeNotFound
 	}
-	return current, nil
+	return s.Get(ctx, node.ID)
 }
 
-func (s *Store) Delete(ctx context.Context, id string) error {
-	id, err := normalizeID(id)
+func (s *Store) UpdateHello(ctx context.Context, nodeID string, hello Hello) (Node, error) {
+	node, err := s.Get(ctx, nodeID)
 	if err != nil {
-		return err
+		return Node{}, err
 	}
-	result, err := s.db.ExecContext(ctx, `DELETE FROM agentdock_nodes WHERE id = ?`, id)
+	if !node.Enabled {
+		return Node{}, ErrNodeDisabled
+	}
+	if strings.TrimSpace(hello.DeviceID) != node.DeviceID {
+		return Node{}, invalid("设备身份与配对记录不一致")
+	}
+	capabilities, err := json.Marshal(normalizeCapabilities(hello.Capabilities))
 	if err != nil {
-		return fmt.Errorf("删除 AgentDock 节点: %w", err)
+		return Node{}, fmt.Errorf("编码 AgentDock 能力: %w", err)
 	}
-	if affected, _ := result.RowsAffected(); affected == 0 {
+	now := s.now().UTC()
+	descriptors, err := json.Marshal(hello.Tools)
+	if err != nil {
+		return Node{}, fmt.Errorf("编码 AgentDock 工具契约: %w", err)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Node{}, fmt.Errorf("开始更新 AgentDock 握手事务: %w", err)
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `UPDATE agentdock_devices SET version = ?, protocol_version = ?, os = ?, arch = ?,
+		capabilities_json = ?, tool_contract_hash = ?, last_seen_at = ?, updated_at = ? WHERE id = ?`,
+		strings.TrimSpace(hello.Version), strings.TrimSpace(hello.ProtocolVersion), strings.TrimSpace(hello.OS), strings.TrimSpace(hello.Arch),
+		string(capabilities), strings.TrimSpace(hello.ToolContractHash), now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nodeID)
+	if err != nil {
+		return Node{}, fmt.Errorf("更新 AgentDock 节点握手信息: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO agentdock_tool_contracts(node_id, descriptors_json, updated_at)
+		VALUES(?, ?, ?) ON CONFLICT(node_id) DO UPDATE SET descriptors_json = excluded.descriptors_json, updated_at = excluded.updated_at`,
+		nodeID, string(descriptors), now.Format(time.RFC3339Nano))
+	if err != nil {
+		return Node{}, fmt.Errorf("保存 AgentDock 工具契约: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return Node{}, fmt.Errorf("提交 AgentDock 握手事务: %w", err)
+	}
+	return s.Get(ctx, nodeID)
+}
+
+func (s *Store) ToolDescriptors(ctx context.Context, nodeID string) ([]ToolDescriptor, error) {
+	var encoded string
+	err := s.db.QueryRowContext(ctx, `SELECT descriptors_json FROM agentdock_tool_contracts WHERE node_id = ?`, strings.TrimSpace(nodeID)).Scan(&encoded)
+	if errors.Is(err, sql.ErrNoRows) {
+		return []ToolDescriptor{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("读取 AgentDock 工具契约: %w", err)
+	}
+	var descriptors []ToolDescriptor
+	if err := json.Unmarshal([]byte(encoded), &descriptors); err != nil {
+		return nil, fmt.Errorf("解析 AgentDock 工具契约: %w", err)
+	}
+	return descriptors, nil
+}
+
+func (s *Store) Touch(ctx context.Context, nodeID string) error {
+	now := s.now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE agentdock_devices SET last_seen_at = ?, updated_at = ? WHERE id = ? AND enabled = 1`, now, now, nodeID)
+	if err != nil {
+		return fmt.Errorf("更新 AgentDock 节点心跳: %w", err)
+	}
+	changed, _ := result.RowsAffected()
+	if changed != 1 {
 		return ErrNodeNotFound
 	}
 	return nil
 }
 
-func (s *Store) seal(nodeID, token string) ([]byte, error) {
-	nonce := make([]byte, s.cipher.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, fmt.Errorf("生成 AgentDock 节点加密 nonce: %w", err)
-	}
-	sealed := s.cipher.Seal(nil, nonce, []byte(token), []byte(nodeID))
-	result := make([]byte, 1+len(nonce)+len(sealed))
-	result[0] = secretVersion
-	copy(result[1:], nonce)
-	copy(result[1+len(nonce):], sealed)
-	return result, nil
-}
-
-func (s *Store) open(nodeID string, sealed []byte) (string, error) {
-	if len(sealed) <= 1+s.cipher.NonceSize() || sealed[0] != secretVersion {
-		return "", errors.New("AgentDock 节点凭据格式无效")
-	}
-	nonceEnd := 1 + s.cipher.NonceSize()
-	plain, err := s.cipher.Open(nil, sealed[1:nonceEnd], sealed[nonceEnd:], []byte(nodeID))
+func (s *Store) Delete(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", errors.New("AgentDock 节点凭据无法解密")
+		return fmt.Errorf("开始删除 AgentDock 节点事务: %w", err)
 	}
-	return string(plain), nil
-}
-
-func loadOrCreateKey(path string) ([]byte, error) {
-	keyDir := filepath.Dir(path)
-	if err := os.MkdirAll(keyDir, 0o700); err != nil {
-		return nil, fmt.Errorf("创建 AgentDock 节点密钥目录: %w", err)
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM agentdock_tool_contracts WHERE node_id = ?`, id); err != nil {
+		return fmt.Errorf("删除 AgentDock 工具契约: %w", err)
 	}
-	if err := os.Chmod(keyDir, 0o700); err != nil {
-		return nil, fmt.Errorf("设置 AgentDock 节点密钥目录权限: %w", err)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_tokens WHERE subject_type = 'device' AND subject_id = ?`, id); err != nil {
+		return fmt.Errorf("删除 AgentDock Device Token: %w", err)
 	}
-	data, err := os.ReadFile(path)
-	if err == nil {
-		if len(data) != 32 {
-			return nil, errors.New("AgentDock 节点密钥长度无效")
-		}
-		if err := os.Chmod(path, 0o600); err != nil {
-			return nil, fmt.Errorf("设置 AgentDock 节点密钥权限: %w", err)
-		}
-		return data, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("读取 AgentDock 节点密钥: %w", err)
-	}
-
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		return nil, fmt.Errorf("生成 AgentDock 节点密钥: %w", err)
-	}
-	// 先完整同步临时文件，再通过同目录硬链接原子发布，避免崩溃留下半截密钥。
-	file, err := os.CreateTemp(keyDir, ".agentdock-nodes-key-*")
+	result, err := tx.ExecContext(ctx, `DELETE FROM agentdock_devices WHERE id = ?`, id)
 	if err != nil {
-		return nil, fmt.Errorf("创建 AgentDock 节点临时密钥: %w", err)
+		return fmt.Errorf("删除 AgentDock 节点: %w", err)
 	}
-	tempPath := file.Name()
-	defer os.Remove(tempPath)
-	if err := file.Chmod(0o600); err != nil {
-		_ = file.Close()
-		return nil, fmt.Errorf("设置 AgentDock 节点临时密钥权限: %w", err)
+	changed, _ := result.RowsAffected()
+	if changed != 1 {
+		return ErrNodeNotFound
 	}
-	if _, err := file.Write(key); err != nil {
-		_ = file.Close()
-		return nil, fmt.Errorf("写入 AgentDock 节点密钥: %w", err)
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交删除 AgentDock 节点事务: %w", err)
 	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return nil, fmt.Errorf("同步 AgentDock 节点密钥: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return nil, fmt.Errorf("关闭 AgentDock 节点密钥: %w", err)
-	}
-	if err := os.Link(tempPath, path); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return loadOrCreateKey(path)
-		}
-		return nil, fmt.Errorf("发布 AgentDock 节点密钥: %w", err)
-	}
-	return key, nil
+	return nil
 }
 
 func scanNode(scanner interface{ Scan(...any) error }) (Node, error) {
 	var node Node
-	var enabled, tokenConfigured int
-	var createdAt, updatedAt string
-	if err := scanner.Scan(&node.ID, &node.Name, &node.Endpoint, &enabled, &node.TimeoutSeconds, &createdAt, &updatedAt, &tokenConfigured); err != nil {
+	var enabled int
+	var capabilitiesJSON, createdAt, updatedAt string
+	var lastSeen sql.NullString
+	if err := scanner.Scan(&node.ID, &node.DeviceID, &node.Name, &enabled, &node.Version, &node.ProtocolVersion,
+		&node.OS, &node.Arch, &capabilitiesJSON, &node.ToolContractHash, &lastSeen, &createdAt, &updatedAt); err != nil {
 		return Node{}, err
+	}
+	if err := json.Unmarshal([]byte(capabilitiesJSON), &node.Capabilities); err != nil {
+		return Node{}, fmt.Errorf("解析 AgentDock 节点能力: %w", err)
 	}
 	var err error
-	if node.CreatedAt, err = parseTime(createdAt); err != nil {
-		return Node{}, err
+	if node.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt); err != nil {
+		return Node{}, fmt.Errorf("解析 AgentDock 节点创建时间: %w", err)
 	}
-	if node.UpdatedAt, err = parseTime(updatedAt); err != nil {
-		return Node{}, err
+	if node.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt); err != nil {
+		return Node{}, fmt.Errorf("解析 AgentDock 节点更新时间: %w", err)
+	}
+	if lastSeen.Valid {
+		value, err := time.Parse(time.RFC3339Nano, lastSeen.String)
+		if err != nil {
+			return Node{}, fmt.Errorf("解析 AgentDock 节点在线时间: %w", err)
+		}
+		node.LastSeenAt = &value
 	}
 	node.Enabled = enabled == 1
-	node.TokenConfigured = tokenConfigured == 1
 	return node, nil
 }
 
-func parseTime(value string) (time.Time, error) {
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("解析 AgentDock 节点时间: %w", err)
+func normalizeCapabilities(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
 	}
-	return parsed, nil
+	return out
 }
 
-func normalizeID(value string) (string, error) {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if !nodeIDPattern.MatchString(value) {
-		return "", invalid("节点 ID 只能包含小写字母、数字、下划线和连字符，且长度不超过 64")
-	}
-	return value, nil
-}
-
-func normalizeName(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	if value == "" || len([]rune(value)) > 100 {
-		return "", invalid("节点名称不能为空且不能超过 100 个字符")
-	}
-	return value, nil
-}
-
-func normalizeEndpoint(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Host == "" {
-		return "", invalid("节点地址必须是有效的 HTTP 或 HTTPS Origin")
-	}
-	parsed.Scheme = strings.ToLower(parsed.Scheme)
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", invalid("节点地址只支持 HTTP 或 HTTPS")
-	}
-	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
-		return "", invalid("节点地址只能填写 Origin，不能包含凭据、路径、查询参数或片段")
-	}
-	return parsed.Scheme + "://" + strings.ToLower(parsed.Host), nil
-}
-
-func normalizeToken(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "", invalid("AgentDock Token 不能为空")
-	}
-	if len(value) > maxTokenBytes {
-		return "", invalid("AgentDock Token 过长")
-	}
-	return value, nil
-}
-
-func normalizeTimeout(value int) (int, error) {
-	if value < 1 || value > 300 {
-		return 0, invalid("请求超时必须在 1 到 300 秒之间")
-	}
-	return value, nil
-}
-
-func boolInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
-}
-
-func isUniqueConstraint(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint failed")
+func hashSecret(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

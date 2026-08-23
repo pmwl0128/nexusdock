@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/uvwt/nexusdock/internal/core"
 	"github.com/uvwt/nexusdock/internal/recall"
 )
 
@@ -14,6 +15,16 @@ func (s *Server) registerEvolutionLifecycleRoutes(mux *http.ServeMux) {
 
 func (s *Server) withEvolutionAccess(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.auth != nil {
+			principal, err := s.auth.Authenticate(r.Context(), bearerToken(r.Header.Get("Authorization")))
+			if err == nil && principal.Actor.Type == core.ActorDevice && principal.TokenKind == "device_token" {
+				node, lookupErr := s.agentDock.Get(r.Context(), principal.Actor.ID)
+				if lookupErr == nil && node.Enabled {
+					next(w, r)
+					return
+				}
+			}
+		}
 		s.mu.RLock()
 		token := strings.TrimSpace(s.cfg.AuthToken)
 		s.mu.RUnlock()

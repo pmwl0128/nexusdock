@@ -317,7 +317,7 @@ function RuntimeContent({ active, refreshToken, runtimeNodes, navigate }: {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
     {requiresNode && <div className="runtime-node-bar">
       <AgentDockNodeSelector nodes={runtimeNodes.nodes} selectedNodeID={runtimeNodes.selectedNodeID} onSelect={runtimeNodes.selectNode} />
-      {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.endpoint}</span>}
+      {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.online ? '在线' : '离线'}{runtimeNodes.selectedNode.os ? ` · ${runtimeNodes.selectedNode.os}/${runtimeNodes.selectedNode.arch}` : ''}</span>}
     </div>}
     {requiresNode && !runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button is-primary" onClick={() => navigate('settings')}>管理节点</button></AgentDockNodeRequired>}
     {active === 'tasks' && runtimeNodes.selectedNode && <TaskCenterPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}

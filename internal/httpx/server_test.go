@@ -29,7 +29,7 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	if err := core.EnsureSchema(t.Context(), db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	nodes, err := agentdock.NewStoreWithKey(db, make([]byte, 32))
+	nodes, err := agentdock.NewStore(db)
 	if err != nil {
 		t.Fatalf("New AgentDock node store: %v", err)
 	}

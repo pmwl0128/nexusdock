@@ -2,7 +2,7 @@
 
 ## 产品边界
 
-NexusDock 是个人多设备 AgentDock 控制台。一级产品区域保持为总览、Recall、Runtime 和设置；Runtime 必须显式选择 AgentDock 节点。不要恢复已退出的独立 Task、Run、Skill Registry、设备控制面、SSE/EventBus 或旧单节点 Runtime 路由。
+NexusDock 是个人多设备 AgentDock 汇总入口。一级产品区域保持为总览、Recall、Runtime 和设置；Runtime 与节点工具必须显式选择 AgentDock 节点，Recall 等 Nexus 自有工具只公开一次。节点通过 Device Token 主动建立出站 WebSocket，不要求 AgentDock 具备公网入口。不要恢复独立 Task、Run、Skill Registry、任意权限 scope、SSE/EventBus、旧单节点 Runtime 路由或 Nexus 主动回连 AgentDock 的拓扑。
 
 ## 代码原则
 
@@ -17,7 +17,7 @@ NexusDock 是个人多设备 AgentDock 控制台。一级产品区域保持为�
 
 - 浏览器管理员账号只存储在 Nexus SQLite 中，通过本地 `nexusdock admin` 命令初始化或重置。
 - `NEXUS_AUTH_TOKEN` 仅用于程序化 API；不要恢复 `NEXUS_USERNAME`、`NEXUS_PASSWORD`、`NEXUS_PASSWORD_HASH` 或 `NEXUS_ACCESS_FILE`。
-- AgentDock 节点 Token 必须通过节点密钥加密保存，API、日志、测试快照和提交中不得出现明文或密文。
+- AgentDock 配对使用短时单次码；Device Token 只保存在 AgentDock，Nexus 仅保存哈希。不得要求用户向 Nexus 提供 AgentDock 的 `/mcp` Token 或公网地址。
 
 ## 验证与提交
 

@@ -23,11 +23,7 @@ func TestEnsureSchemaIsIdempotentAndPersistent(t *testing.T) {
 	if err := EnsureSchema(ctx, db); err != nil {
 		t.Fatalf("second ensure failed: %v", err)
 	}
-	var nodeTable string
-	if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name='agentdock_nodes'`).Scan(&nodeTable); err != nil {
-		t.Fatalf("agentdock_nodes missing: %v", err)
-	}
-	for _, table := range []string{"runtime_ai_settings", "runtime_ai_setting_secrets"} {
+	for _, table := range []string{"agentdock_devices", "agentdock_pairing_codes", "agentdock_tool_contracts", "runtime_ai_settings", "runtime_ai_setting_secrets"} {
 		var name string
 		if err := db.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&name); err != nil {
 			t.Fatalf("%s missing: %v", table, err)

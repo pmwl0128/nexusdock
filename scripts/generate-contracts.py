@@ -736,39 +736,52 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ("action", "root", "algorithm"),
     )
     schemas["AgentDockNode"] = obj(
-        "Nexus 管理的一台 AgentDock Runtime 节点。",
+        "与 Nexus 配对的一台 AgentDock 节点。",
         {
-            "id": scalar("string", "稳定节点 ID。", pattern="^[a-z0-9][a-z0-9_-]{0,63}$"),
+            "id": scalar("string", "Nexus 分配的稳定节点 ID。"),
+            "device_id": scalar("string", "AgentDock 生成的稳定设备 ID。"),
             "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
-            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
-            "enabled": scalar("boolean", "节点是否允许 Runtime 请求。"),
-            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
-            "token_configured": scalar("boolean", "节点 Token 是否已配置；不会返回 Token 原值。"),
+            "enabled": scalar("boolean", "节点是否允许连接和 Runtime 请求。"),
+            "version": scalar("string", "最近握手的 AgentDock 版本。"),
+            "protocol_version": scalar("string", "节点连接协议版本。"),
+            "os": scalar("string", "节点操作系统。"),
+            "arch": scalar("string", "节点架构。"),
+            "capabilities": array("节点报告的工具能力。", scalar("string", "工具名。")),
+            "tool_contract_hash": scalar("string", "节点工具契约摘要。"),
+            "online": scalar("boolean", "节点是否保持反向连接。"),
+            "last_seen_at": TIMESTAMP,
             "created_at": TIMESTAMP,
             "updated_at": TIMESTAMP,
         },
-        ("id", "name", "endpoint", "enabled", "timeout_seconds", "token_configured", "created_at", "updated_at"),
+        ("id", "device_id", "name", "enabled", "capabilities", "online", "created_at", "updated_at"),
     )
-    schemas["AgentDockNodeCreateRequest"] = obj(
-        "新增 AgentDock 节点。",
+    schemas["AgentDockPairingCode"] = obj(
+        "短时单次 AgentDock 配对码。",
         {
-            "id": scalar("string", "稳定节点 ID。", pattern="^[a-z0-9][a-z0-9_-]{0,63}$"),
-            "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
-            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
-            "token": scalar("string", "该节点独立 Bearer Token。", minLength=1, maxLength=16384, writeOnly=True),
-            "enabled": scalar("boolean", "节点是否启用。"),
-            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
+            "code": scalar("string", "单次配对码。", writeOnly=True),
+            "expires_at": TIMESTAMP,
         },
-        ("id", "name", "endpoint", "token"),
+        ("code", "expires_at"),
+    )
+    schemas["AgentDockPairingCodeResponse"] = obj(
+        "AgentDock 配对码响应。",
+        {"ok": scalar("boolean", "请求是否成功。"), "pairing": ref("AgentDockPairingCode")},
+        ("ok", "pairing"),
+    )
+    schemas["AgentDockPairRequest"] = obj(
+        "AgentDock 使用单次码换取固定设备身份。",
+        {
+            "code": scalar("string", "单次配对码。", minLength=1),
+            "device_id": scalar("string", "AgentDock 本地生成的稳定设备 ID。", minLength=8, maxLength=128),
+            "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
+        },
+        ("code", "device_id", "name"),
     )
     schemas["AgentDockNodeUpdateRequest"] = obj(
-        "更新 AgentDock 节点；省略 token 时保留现有凭据。",
+        "更新 AgentDock 节点显示信息或启用状态。",
         {
             "name": scalar("string", "节点显示名称。", minLength=1, maxLength=100),
-            "endpoint": scalar("string", "AgentDock HTTP/HTTPS Origin。", format="uri"),
-            "token": scalar("string", "替换该节点的 Bearer Token。", minLength=1, maxLength=16384, writeOnly=True),
             "enabled": scalar("boolean", "节点是否启用。"),
-            "timeout_seconds": scalar("integer", "请求超时秒数。", minimum=1, maximum=300),
         },
     )
     schemas["AgentDockNodeListResponse"] = obj(
@@ -1079,14 +1092,15 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/sync/now": {"post": operation("syncRecallNow", "立即双向同步召回仓库", request=body())},
         "/v1/runtime/nodes": {
             "get": operation("listAgentDockNodes", "列出 Nexus 管理的 AgentDock 节点", success=ok(ref("AgentDockNodeListResponse"))),
-            "post": operation("createAgentDockNode", "新增 AgentDock 节点", request=body(ref("AgentDockNodeCreateRequest")), success=ok(ref("AgentDockNodeResponse")), success_code="201"),
         },
+        "/v1/runtime/nodes/pairing-codes": {"post": operation("createAgentDockPairingCode", "生成短时单次 AgentDock 配对码", success=ok(ref("AgentDockPairingCodeResponse")), success_code="201")},
+        "/v1/nodes/pair": {"post": operation("pairAgentDockNode", "AgentDock 使用单次码换取 Device Token", request=body(ref("AgentDockPairRequest")), success_code="201")},
+        "/v1/nodes/connect": {"get": operation("connectAgentDockNode", "AgentDock 使用 Device Token 升级为反向 WebSocket 连接")},
         "/v1/runtime/nodes/{nodeID}": {
             "get": operation("getAgentDockNode", "读取 AgentDock 节点", params=[p("RuntimeNodeId")], success=ok(ref("AgentDockNodeResponse"))),
             "patch": operation("updateAgentDockNode", "更新 AgentDock 节点", params=[p("RuntimeNodeId")], request=body(ref("AgentDockNodeUpdateRequest")), success=ok(ref("AgentDockNodeResponse"))),
-            "delete": operation("deleteAgentDockNode", "删除 AgentDock 节点及加密凭据", params=[p("RuntimeNodeId")]),
+            "delete": operation("deleteAgentDockNode", "删除 AgentDock 节点并撤销 Device Token", params=[p("RuntimeNodeId")]),
         },
-        "/v1/runtime/nodes/{nodeID}/probe": {"post": operation("probeAgentDockNode", "验证 AgentDock 节点连接、认证和 Runtime API", params=[p("RuntimeNodeId")])},
         "/v1/runtime/nodes/{nodeID}/overview": {"get": operation("getRuntimeOverview", "读取指定 AgentDock 节点的 Runtime 概览", params=[p("RuntimeNodeId")])},
         "/v1/runtime/nodes/{nodeID}/tasks": {
             "get": operation(
@@ -1144,4 +1158,3 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "paths": paths,
         "components": {"parameters": parameters, "schemas": schemas},
     }
-

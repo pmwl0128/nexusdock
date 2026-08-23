@@ -235,6 +235,24 @@ func (s *Server) withAPIAccess(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) withDeviceOrAPIAccess(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.auth != nil {
+			principal, err := s.auth.Authenticate(r.Context(), bearerToken(r.Header.Get("Authorization")))
+			if err == nil && principal.Actor.Type == core.ActorDevice && principal.TokenKind == "device_token" {
+				if s.agentDock != nil {
+					node, lookupErr := s.agentDock.Get(r.Context(), principal.Actor.ID)
+					if lookupErr == nil && node.Enabled {
+						next(w, r)
+						return
+					}
+				}
+			}
+		}
+		s.withAPIAccess(next)(w, r)
+	}
+}
+
 func bearerMatches(header, expected string) bool {
 	if expected == "" || !strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return false

@@ -84,7 +84,7 @@ func run(args []string) error {
 	if cfg, _, err = runtimeSettings.Load(ctx); err != nil {
 		return fmt.Errorf("load runtime AI settings: %w", err)
 	}
-	agentDockNodes, err := agentdock.NewStore(controlDB, controlDir)
+	agentDockNodes, err := agentdock.NewStore(controlDB)
 	if err != nil {
 		return fmt.Errorf("initialize AgentDock node store: %w", err)
 	}

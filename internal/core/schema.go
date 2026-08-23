@@ -97,21 +97,36 @@ END`,
     last_failed_at TEXT NOT NULL,
     PRIMARY KEY (key_type, key_value)
 )`,
-	`CREATE TABLE IF NOT EXISTS agentdock_nodes (
+	`CREATE TABLE IF NOT EXISTS agentdock_devices (
     id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    endpoint TEXT NOT NULL UNIQUE,
     enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-    timeout_seconds INTEGER NOT NULL DEFAULT 8 CHECK (timeout_seconds BETWEEN 1 AND 300),
+    version TEXT NOT NULL DEFAULT '',
+    protocol_version TEXT NOT NULL DEFAULT '',
+    os TEXT NOT NULL DEFAULT '',
+    arch TEXT NOT NULL DEFAULT '',
+    capabilities_json TEXT NOT NULL DEFAULT '[]',
+    tool_contract_hash TEXT NOT NULL DEFAULT '',
+    last_seen_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 )`,
-	`CREATE TABLE IF NOT EXISTS agentdock_node_secrets (
-    node_id TEXT PRIMARY KEY,
-    token_ciphertext BLOB NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (node_id) REFERENCES agentdock_nodes(id) ON DELETE CASCADE
+	`CREATE TABLE IF NOT EXISTS agentdock_pairing_codes (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL
 )`,
+	`CREATE TABLE IF NOT EXISTS agentdock_tool_contracts (
+    node_id TEXT PRIMARY KEY,
+    descriptors_json TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (node_id) REFERENCES agentdock_devices(id) ON DELETE CASCADE
+)`,
+	`CREATE INDEX IF NOT EXISTS idx_agentdock_pairing_codes_active
+    ON agentdock_pairing_codes(code_hash, used_at, expires_at)`,
 	`CREATE TABLE IF NOT EXISTS runtime_ai_settings (
     singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
     embedding_enabled INTEGER NOT NULL CHECK (embedding_enabled IN (0, 1)),
@@ -133,6 +148,8 @@ END`,
 }
 
 var unusedTables = []string{
+	"agentdock_node_secrets",
+	"agentdock_nodes",
 	"run_verifications",
 	"run_evidence",
 	"run_steps",

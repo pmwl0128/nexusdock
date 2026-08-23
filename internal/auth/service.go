@@ -94,9 +94,6 @@ func (s *Service) IssueToken(ctx context.Context, actor core.Actor, kind string,
 		return IssuedToken{}, core.NewError(core.CodeValidation, "token kind does not match subject type", nil)
 	}
 	scopes = normalizeScopes(scopes)
-	if len(scopes) == 0 {
-		return IssuedToken{}, core.NewError(core.CodeValidation, "at least one scope is required", nil)
-	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return IssuedToken{}, fmt.Errorf("generate token: %w", err)

@@ -8,10 +8,11 @@ NexusDock 适合已经在一台或多台设备上使用 AgentDock，希望统一
 
 - **Recall 记忆库**：浏览、搜索、创建和编辑 Markdown / 文本记忆，查看 Git 变更与历史，并按需同步远端仓库。
 - **经验卡片与向量召回**：把可复用结论整理为经验卡片；配置兼容的 Embeddings 服务后可进行语义搜索和索引重建。
-- **多节点 Runtime**：注册多台 AgentDock，按节点查看任务、Skill、动态 MCP 和运行概况。
+- **多节点 Runtime**：配对多台 AgentDock，节点主动连接 Nexus，按节点查看任务、Skill、动态 MCP 和运行概况。
 - **MCP 管理**：通过 NexusDock 管理选定 AgentDock 节点上的 HTTP 或 stdio MCP 服务、工具发现和隔离环境变量。
 - **Workflow 模板**：集中浏览、匹配和维护可复用的任务工作流模板。
-- **安全与状态**：管理员登录、浏览器会话管理、节点凭据加密、备份状态和系统健康检查。
+- **统一 MCP**：客户端只连接 NexusDock `/mcp`；Recall 等中心工具只出现一次，设备工具通过必填 `node_id` 路由。
+- **安全与状态**：管理员登录、浏览器会话管理、短时单次配对码、设备身份 Token、备份状态和系统健康检查。
 - **自托管 Web 控制台**：桌面端与移动端均可使用，后端 API 与前端由同一个服务提供。
 
 ## 快速开始
@@ -109,15 +110,15 @@ http://127.0.0.1:18777
 
 ### 连接 AgentDock 节点
 
-在 NexusDock 设置页添加 AgentDock 节点，需要填写：
+在 NexusDock 设置页点击“配对设备”，复制生成的命令并在目标设备运行：
 
-- 节点名称与唯一 ID
-- AgentDock Runtime 地址
-- 对应的访问 Token
+```bash
+agentdock nexus pair --endpoint https://nexus.example.com --code pair_xxx
+```
 
-添加后可以先执行连接检测，再进入 Runtime 查看该节点的任务、Skill 和 MCP。部署配置不再接受单节点 Endpoint 或 Token 环境变量，也不会自动迁移旧配置。
+重启 AgentDock 后，它会主动建立到 NexusDock 的 WSS 长连接。只需要 NexusDock 具备公网 HTTPS 地址；AgentDock 可以位于 NAT 或无入站公网的网络中。Nexus 不保存 AgentDock 地址和 AgentDock `/mcp` Token，Device Token 仅表达固定设备身份，不提供权限 scope 配置。
 
-节点 Token 会使用 `NEXUS_DATA_DIR/secrets/agentdock-nodes.key` 加密后存入数据库。备份或迁移时必须同时保留数据库和该密钥文件。
+客户端可继续直连某台 AgentDock 的 `/mcp`，也可只连接 NexusDock 的 `/mcp` 使用汇总模式。直连模式的本地工具、认证与部署方式不变。
 
 ### 使用 Recall
 
@@ -194,7 +195,6 @@ NEXUS_DATA_DIR/
   nexus.db
   backups/
   secrets/
-    agentdock-nodes.key
 
 RECALL_REPO_DIR/
   .git/
@@ -205,11 +205,10 @@ RECALL_REPO_DIR/
 至少应备份：
 
 1. `NEXUS_DATA_DIR/nexus.db` 及对应 WAL/SHM；
-2. `NEXUS_DATA_DIR/secrets/agentdock-nodes.key`；
-3. 整个 `RECALL_REPO_DIR`；
-4. Git 远端凭据的安全副本（如确有需要）。
+2. 整个 `RECALL_REPO_DIR`；
+3. Git 远端凭据的安全副本（如确有需要）。
 
-不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。系统状态只写入 `NEXUS_DATA_DIR`，不得放到 `RECALL_REPO_DIR/.nexus`。恢复时数据库和节点密钥必须来自同一套备份，否则已有节点 Token 将无法解密。数据库异常时不要反复重启容器；回退应恢复上一个已验证镜像和部署前数据库快照。
+不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。系统状态只写入 `NEXUS_DATA_DIR`，不得放到 `RECALL_REPO_DIR/.nexus`。恢复数据库后需要让仍持有有效 Device Token 的 AgentDock 重新连接；数据库异常时不要反复重启容器，回退应恢复上一个已验证镜像和部署前数据库快照。
 
 ## 安全部署
 
