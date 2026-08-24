@@ -42,9 +42,13 @@ func (s *Server) initializeMCPGateway() {
 		s.agentDockHub.SetHelloHandler(s.registerNodeTools)
 	}
 	if s.agentDock != nil {
-		if nodes, err := s.agentDock.List(context.Background()); err == nil {
+		ctx := context.Background()
+		if err := s.loadPublishedNodeTools(ctx); err != nil && s.logger != nil {
+			s.logger.Warn("恢复 AgentDock 公开工具契约失败", "error", err)
+		}
+		if nodes, err := s.agentDock.List(ctx); err == nil {
 			for _, node := range nodes {
-				descriptors, descriptorErr := s.agentDock.ToolDescriptors(context.Background(), node.ID)
+				descriptors, descriptorErr := s.agentDock.ToolDescriptors(ctx, node.ID)
 				if descriptorErr == nil {
 					s.registerNodeTools(node, agentdock.Hello{Tools: descriptors})
 				}
@@ -71,15 +75,23 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 		}
 
 		name := descriptor.Name
+		candidate := publishedNodeTool{
+			Descriptor: descriptor, ContractHash: contractHash,
+			SourceNodeID: node.ID, SourceVersion: node.Version,
+		}
 		s.mcpToolsMu.Lock()
 		published, exists := s.mcpTools[name]
 		if !exists {
-			// 首次出现的契约直接成为公开 schema；后续混合版本不会覆盖它。
-			s.mcpServer.AddTool(nodeMCPTool(descriptor), s.nodeToolHandler(name))
-			s.mcpTools[name] = publishedNodeTool{
-				Descriptor: descriptor, ContractHash: contractHash,
-				SourceNodeID: node.ID, SourceVersion: node.Version,
+			// 首次出现的契约先持久化再公开，确保 Nexus 重启后仍沿用同一个 schema。
+			if err := s.persistPublishedNodeTool(context.Background(), candidate); err != nil {
+				s.mcpToolsMu.Unlock()
+				if s.logger != nil {
+					s.logger.Warn("保存 AgentDock 公开工具契约失败", "node_id", node.ID, "tool", name, "error", err)
+				}
+				continue
 			}
+			s.mcpServer.AddTool(nodeMCPTool(descriptor), s.nodeToolHandler(name))
+			s.mcpTools[name] = candidate
 		}
 		s.mcpToolsMu.Unlock()
 		if exists && published.ContractHash != contractHash {

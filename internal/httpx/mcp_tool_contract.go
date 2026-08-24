@@ -71,6 +71,39 @@ func (s *Server) publishedNodeTool(name string) (publishedNodeTool, bool) {
 	return tool, ok
 }
 
+func (s *Server) loadPublishedNodeTools(ctx context.Context) error {
+	contracts, err := s.agentDock.ListPublishedToolContracts(ctx)
+	if err != nil {
+		return err
+	}
+	for _, contract := range contracts {
+		if _, central := nexusToolNames[contract.ToolName]; central || strings.TrimSpace(contract.ToolName) == "" {
+			continue
+		}
+		hash, err := toolContractHash(contract.Descriptor)
+		if err != nil {
+			return err
+		}
+		published := publishedNodeTool{
+			Descriptor: contract.Descriptor, ContractHash: hash,
+			SourceNodeID: contract.SourceNodeID, SourceVersion: contract.SourceVersion,
+		}
+		s.mcpServer.AddTool(nodeMCPTool(contract.Descriptor), s.nodeToolHandler(contract.ToolName))
+		s.mcpTools[contract.ToolName] = published
+	}
+	return nil
+}
+
+func (s *Server) persistPublishedNodeTool(ctx context.Context, published publishedNodeTool) error {
+	if s.agentDock == nil {
+		return nil
+	}
+	return s.agentDock.SavePublishedToolContract(ctx, agentdock.PublishedToolContract{
+		ToolName: published.Descriptor.Name, Descriptor: published.Descriptor,
+		SourceNodeID: published.SourceNodeID, SourceVersion: published.SourceVersion,
+	})
+}
+
 func (s *Server) promoteConvergedNodeTool(name string) error {
 	if s.agentDock == nil {
 		return nil
@@ -118,9 +151,39 @@ func (s *Server) promoteConvergedNodeTool(name string) error {
 	if !exists || published.ContractHash == candidate.ContractHash {
 		return nil
 	}
+	if err := s.persistPublishedNodeTool(ctx, candidate); err != nil {
+		return err
+	}
 	s.mcpServer.AddTool(nodeMCPTool(candidate.Descriptor), s.nodeToolHandler(name))
 	s.mcpTools[name] = candidate
 	return nil
+}
+
+func (s *Server) reconcileNodeToolContracts(names []string) {
+	seen := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		if err := s.promoteConvergedNodeTool(name); err != nil && s.logger != nil {
+			s.logger.Warn("检查 AgentDock 工具契约收敛失败", "tool", name, "error", err)
+		}
+	}
+}
+
+func toolDescriptorNames(descriptors []agentdock.ToolDescriptor) []string {
+	names := make([]string, 0, len(descriptors))
+	for _, descriptor := range descriptors {
+		if name := strings.TrimSpace(descriptor.Name); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func findToolDescriptor(descriptors []agentdock.ToolDescriptor, name string) (agentdock.ToolDescriptor, bool) {

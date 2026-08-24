@@ -260,3 +260,39 @@ func updateHTTPTestNodeContract(t *testing.T, store *agentdock.Store, node agent
 	}
 	return updated
 }
+
+func TestInitializeMCPGatewayRestoresPublishedContractBeforeNodeOrder(t *testing.T) {
+	store := newHTTPTestAgentDockStore(t)
+	oldDescriptor := agentdock.ToolDescriptor{
+		Name: "exec_command",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"timeout": map[string]any{"type": "integer"}},
+		},
+	}
+	newDescriptor := agentdock.ToolDescriptor{
+		Name: "exec_command",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"timeout": map[string]any{"type": "number"}},
+		},
+	}
+	oldNode := pairHTTPTestNode(t, store, "device_restart_old", "ZuluOld", "1.8.3", oldDescriptor)
+	_ = pairHTTPTestNode(t, store, "device_restart_new", "AlphaNew", "1.9.0", newDescriptor)
+
+	first := &Server{
+		agentDock: store,
+		mcpServer: mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil),
+		mcpTools:  make(map[string]publishedNodeTool),
+	}
+	first.registerNodeTools(oldNode, agentdock.Hello{Tools: []agentdock.ToolDescriptor{oldDescriptor}})
+	first.registerNodeTools(agentdock.Node{ID: "node_new", Version: "1.9.0"}, agentdock.Hello{Tools: []agentdock.ToolDescriptor{newDescriptor}})
+	oldHash, _ := toolContractHash(oldDescriptor)
+
+	restarted := &Server{agentDock: store, mcpTools: make(map[string]publishedNodeTool)}
+	restarted.initializeMCPGateway()
+	published, ok := restarted.publishedNodeTool("exec_command")
+	if !ok || published.ContractHash != oldHash || published.SourceVersion != "1.8.3" {
+		t.Fatalf("restart changed published contract: %#v", published)
+	}
+}
