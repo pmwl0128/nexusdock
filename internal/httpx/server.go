@@ -76,25 +76,27 @@ func (w *trackedResponseWriter) Flush() {
 }
 
 type Server struct {
-	mu           sync.RWMutex
-	cfg          config.Config
-	aiCfg        config.Config
-	aiCfgSet     bool
-	db           *sql.DB
-	store        *recall.Store
-	privateNotes *privatenotes.Store
-	agentDock    *agentdock.Store
-	agentDockHub *agentdock.Hub
-	syncer       *syncer.Manager
-	logger       *slog.Logger
-	auth         *auth.Service
-	embedding    *recall.EmbeddingService
-	settings     *settings.Store
-	stage3Wake   chan struct{}
-	mcpServer    *mcpsdk.Server
-	mcpHandler   http.Handler
-	mcpToolsMu   sync.RWMutex
-	mcpTools     map[string]publishedNodeTool
+	mu                   sync.RWMutex
+	cfg                  config.Config
+	aiCfg                config.Config
+	aiCfgSet             bool
+	db                   *sql.DB
+	store                *recall.Store
+	privateNotes         *privatenotes.Store
+	agentDock            *agentdock.Store
+	agentDockHub         *agentdock.Hub
+	syncer               *syncer.Manager
+	logger               *slog.Logger
+	auth                 *auth.Service
+	oauth                *auth.OAuthService
+	oauthRegisterLimiter *fixedWindowLimiter
+	embedding            *recall.EmbeddingService
+	settings             *settings.Store
+	stage3Wake           chan struct{}
+	mcpServer            *mcpsdk.Server
+	mcpHandler           http.Handler
+	mcpToolsMu           sync.RWMutex
+	mcpTools             map[string]publishedNodeTool
 }
 
 type ServerOption func(*Server)
@@ -131,6 +133,10 @@ func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, l
 	for _, option := range options {
 		option(server)
 	}
+	if server.db != nil && server.auth != nil {
+		server.oauth = auth.NewOAuthService(server.db)
+		server.oauthRegisterLimiter = newFixedWindowLimiter(30, time.Minute)
+	}
 	server.initializeMCPGateway()
 	return server
 }
@@ -144,11 +150,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /ui/", uiProtected(s.uiIndex))
 	mux.HandleFunc("GET /health", s.health)
 	if s.mcpHandler != nil {
-		gateway := protected(s.mcpHandler.ServeHTTP)
+		gateway := s.withMCPAccess(s.mcpHandler.ServeHTTP)
 		mux.HandleFunc("GET /mcp", gateway)
 		mux.HandleFunc("POST /mcp", gateway)
 		mux.HandleFunc("DELETE /mcp", gateway)
 	}
+	s.registerOAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	mux.HandleFunc("GET /v1/settings/ai", protected(s.getRuntimeAISettings))
 	mux.HandleFunc("PUT /v1/settings/ai", protected(s.updateRuntimeAISettings))

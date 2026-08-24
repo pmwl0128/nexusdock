@@ -89,6 +89,63 @@ END`,
     ON user_sessions(user_id, revoked_at, absolute_expires_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_user_sessions_token
     ON user_sessions(token_hash, revoked_at)`,
+	`CREATE TABLE IF NOT EXISTS oauth_clients (
+    id TEXT PRIMARY KEY,
+    client_name TEXT NOT NULL DEFAULT '',
+    redirect_uris_json TEXT NOT NULL,
+    grant_types_json TEXT NOT NULL,
+    response_types_json TEXT NOT NULL,
+    token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none' CHECK (token_endpoint_auth_method = 'none'),
+    created_at TEXT NOT NULL,
+    last_used_at TEXT NOT NULL
+)`,
+	`CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+    code_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'mcp',
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    grant_id TEXT,
+    FOREIGN KEY (client_id) REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`,
+	`CREATE INDEX IF NOT EXISTS idx_oauth_authorization_codes_expiry
+    ON oauth_authorization_codes(expires_at, used_at)`,
+	`CREATE TABLE IF NOT EXISTS oauth_grants (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'mcp',
+    access_token_hash TEXT NOT NULL UNIQUE,
+    refresh_token_hash TEXT NOT NULL UNIQUE,
+    access_expires_at TEXT NOT NULL,
+    refresh_expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    revoked_at TEXT,
+    FOREIGN KEY (client_id) REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`,
+	`CREATE INDEX IF NOT EXISTS idx_oauth_grants_access
+    ON oauth_grants(access_token_hash, revoked_at, access_expires_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_oauth_grants_refresh
+    ON oauth_grants(refresh_token_hash, revoked_at, refresh_expires_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_oauth_grants_user
+    ON oauth_grants(user_id, revoked_at)`,
+	`CREATE TABLE IF NOT EXISTS oauth_refresh_token_history (
+    token_hash TEXT PRIMARY KEY,
+    grant_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (grant_id) REFERENCES oauth_grants(id) ON DELETE CASCADE
+)`,
+	`CREATE INDEX IF NOT EXISTS idx_oauth_refresh_token_history_expiry
+    ON oauth_refresh_token_history(expires_at)`,
 	`CREATE TABLE IF NOT EXISTS login_throttles (
     key_type TEXT NOT NULL CHECK (key_type IN ('account', 'ip')),
     key_value TEXT NOT NULL,

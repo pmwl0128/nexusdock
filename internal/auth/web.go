@@ -469,6 +469,9 @@ func (s *Service) replacePassword(ctx context.Context, userID, newPassword, reas
 	if _, err := tx.ExecContext(ctx, `UPDATE user_sessions SET revoked_at = ?, revoke_reason = ? WHERE user_id = ? AND revoked_at IS NULL`, now, reason, userID); err != nil {
 		return fmt.Errorf("revoke sessions after password update: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE oauth_grants SET revoked_at = COALESCE(revoked_at, ?), updated_at = ? WHERE user_id = ?`, now, now, userID); err != nil {
+		return fmt.Errorf("revoke OAuth grants after password update: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit password update: %w", err)
 	}
