@@ -196,6 +196,9 @@ func (s *Server) oauthRegisterClient(w http.ResponseWriter, r *http.Request) {
 func (s *Server) oauthAuthorize(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
+	// 授权表单依赖 Origin 做 CSRF 同源校验。全局 no-referrer 会让 Chromium 的表单 POST
+	// 发送 Origin: null；same-origin 只保留站内来源，同时不会向跨源 callback 泄露 Referer。
+	w.Header().Set("Referrer-Policy", "same-origin")
 	// OAuth 表单成功提交后会 302 到已注册的跨源 callback。Chromium 会把 form-action
 	// 应用于整条重定向链，因此这里不能继承全局 form-action 'self'。
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'none'; style-src 'unsafe-inline'")

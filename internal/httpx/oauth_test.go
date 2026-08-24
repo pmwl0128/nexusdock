@@ -106,6 +106,9 @@ func TestOAuthHTTPAuthorizationCodeFlowAndMCPIsolation(t *testing.T) {
 	if csp := pageRes.Header().Get("Content-Security-Policy"); strings.Contains(csp, "form-action") {
 		t.Fatalf("OAuth authorization page must not constrain callback redirect with form-action: %s", csp)
 	}
+	if policy := pageRes.Header().Get("Referrer-Policy"); policy != "same-origin" {
+		t.Fatalf("OAuth authorization page Referrer-Policy=%q want=same-origin", policy)
+	}
 
 	form := query
 	form.Set("csrf_token", login.Session.CSRFToken)
