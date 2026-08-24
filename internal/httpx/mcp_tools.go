@@ -17,7 +17,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 		}, "path")},
 		{Name: "recall_write", Title: "Write NexusDock Recall entry", Description: "Plan or mutate a central Recall card or Markdown document.", InputSchema: requiredObjectSchema(map[string]any{
 			"target": enumProperty("card", "markdown"), "action": enumProperty("plan", "create", "replace", "append", "patch", "update_fact", "diff", "delete"),
-			"confirmed": booleanProperty("Required for persistent mutations."), "path": stringProperty("Recall-relative path."),
+			"confirmed": booleanProperty("Required for persistent mutations; when false, mutation-capable actions return a preview."), "path": stringProperty("Recall-relative path."),
 			"content": stringProperty("Content."), "title": stringProperty("Title."), "summary": stringProperty("Summary."),
 			"type": stringProperty("Card or Markdown type."), "scope": stringProperty("Recall scope."), "project": stringProperty("Project."),
 			"source": stringProperty("Source."), "confidence": stringProperty("Confidence."), "tags": arrayStringProperty("Tags."),
@@ -25,7 +25,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			"old": stringProperty("Patch text to replace."), "new": stringProperty("Patch replacement."), "append": stringProperty("Text to append."),
 			"section": stringProperty("Optional Markdown heading containing facts."), "key": stringProperty("Fact key."), "value": stringProperty("Fact value."),
 			"facts": mapStringProperty("Multiple fact key/value replacements."), "append_if_missing": booleanProperty("Append missing facts."),
-			"dry_run": booleanProperty("Preview without writing."), "max_bytes": integerProperty("Maximum diff bytes."),
+			"dry_run": booleanProperty("Force a preview without writing or deleting."), "max_bytes": integerProperty("Maximum diff bytes."),
 		}, "target", "action")},
 		{Name: "recall_maintain", Title: "Maintain NexusDock Recall", Description: "Inspect sync/index state or rebuild the central Recall index.", InputSchema: objectSchema(map[string]any{
 			"action": enumProperty("sync_status", "list", "lint", "embedding_status", "reindex", "reindex_cards"), "prefix": stringProperty("Optional prefix."), "max_entries": integerProperty("Maximum entries."),

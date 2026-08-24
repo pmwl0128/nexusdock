@@ -83,6 +83,18 @@ type WriteRequest struct {
 	Overwrite         bool     `json:"overwrite"`
 }
 
+type WritePreview struct {
+	Path            string `json:"path"`
+	ProposedContent string `json:"proposed_content"`
+	Overwrite       bool   `json:"overwrite"`
+}
+
+type preparedWrite struct {
+	path    string
+	abs     string
+	content string
+}
+
 func NewStore(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" {
 		root = "recall"
@@ -466,53 +478,74 @@ func IsAllowedRecallPath(path string) bool {
 	return false
 }
 
+func (s *Store) PreviewWrite(req WriteRequest) (WritePreview, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prepared, err := s.prepareWrite(req, false)
+	if err != nil {
+		return WritePreview{}, err
+	}
+	return WritePreview{Path: prepared.path, ProposedContent: prepared.content, Overwrite: req.Overwrite}, nil
+}
+
 func (s *Store) Write(req WriteRequest) (Recall, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	prepared, err := s.prepareWrite(req, true)
+	if err != nil {
+		return Recall{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(prepared.abs), 0o755); err != nil {
+		return Recall{}, err
+	}
+	if err := atomicWriteFile(prepared.abs, []byte(prepared.content), 0o644); err != nil {
+		return Recall{}, err
+	}
+	return s.Read(prepared.path)
+}
 
+// prepareWrite 只做确定性的写入前校验与内容规范化，不创建目录也不写文件。
+// PreviewWrite 与 Write 共用它，保证 dry-run 不会绕过真实写入会遇到的路径和覆盖检查。
+func (s *Store) prepareWrite(req WriteRequest, requireConfirmation bool) (preparedWrite, error) {
 	content := strings.TrimSpace(req.Content)
 	if content == "" {
-		return Recall{}, errors.New("content is required")
+		return preparedWrite{}, errors.New("content is required")
 	}
 	path := filepath.ToSlash(strings.TrimSpace(req.Path))
 	if path == "" {
 		path = DefaultPath(req)
 	}
-	if !strings.HasPrefix(path, "recall/docs/inbox/") && !req.Confirmed {
-		return Recall{}, ErrConfirmationNeeded
+	if requireConfirmation && !strings.HasPrefix(path, "recall/docs/inbox/") && !req.Confirmed {
+		return preparedWrite{}, ErrConfirmationNeeded
 	}
 	if !IsTextFile(path) {
-		return Recall{}, ErrUnsupportedFile
+		return preparedWrite{}, ErrUnsupportedFile
 	}
 	if !IsAllowedRecallPath(path) {
-		return Recall{}, ErrDisallowedPath
+		return preparedWrite{}, ErrDisallowedPath
 	}
 	if raw := strings.TrimSpace(req.Scope); raw != "" && !Scope(strings.ToLower(raw)).Valid() {
-		return Recall{}, fmt.Errorf("invalid recall scope %q", raw)
+		return preparedWrite{}, fmt.Errorf("invalid recall scope %q", raw)
 	}
 	if raw := strings.TrimSpace(req.Status); raw != "" && !Status(strings.ToLower(raw)).Valid() {
-		return Recall{}, fmt.Errorf("invalid recall status %q", raw)
+		return preparedWrite{}, fmt.Errorf("invalid recall status %q", raw)
 	}
 	if raw := strings.TrimSpace(req.Confidence); raw != "" && !Confidence(strings.ToLower(raw)).Valid() {
-		return Recall{}, fmt.Errorf("invalid recall confidence %q", raw)
+		return preparedWrite{}, fmt.Errorf("invalid recall confidence %q", raw)
 	}
 	abs, err := s.resolve(path)
 	if err != nil {
-		return Recall{}, err
+		return preparedWrite{}, err
 	}
 	if _, err := os.Stat(abs); err == nil && !req.Overwrite {
-		return Recall{}, ErrFileExists
-	}
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return Recall{}, err
+		return preparedWrite{}, ErrFileExists
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return preparedWrite{}, err
 	}
 	if !strings.HasPrefix(content, "---\n") {
 		content = BuildFrontmatter(req) + "\n" + content + "\n"
 	}
-	if err := atomicWriteFile(abs, []byte(content), 0o644); err != nil {
-		return Recall{}, err
-	}
-	return s.Read(path)
+	return preparedWrite{path: path, abs: abs, content: content}, nil
 }
 
 func (s *Store) Move(fromPath, toPath string, confirmed, overwrite bool) (Recall, error) {

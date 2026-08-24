@@ -354,14 +354,22 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 
 func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[string]any, error) {
 	target, action := strings.ToLower(stringArgument(args, "target")), strings.ToLower(stringArgument(args, "action"))
+	dryRun := boolArgument(args, "dry_run")
+	confirmed := boolArgument(args, "confirmed")
+	previewOnly := dryRun || !confirmed
 	if target == "card" {
 		var request recall.CardRequest
 		if err := decodeMap(args, &request); err != nil {
 			return nil, err
 		}
-		if action == "plan" || (action == "create" && !request.Confirmed) {
+		if action == "plan" || (action == "create" && previewOnly) {
 			result, err := s.store.CaptureCard(request)
-			return asMap(result, err)
+			mapped, mapErr := asMap(result, err)
+			if mapErr != nil {
+				return nil, mapErr
+			}
+			mapped["dry_run"] = true
+			return mapped, nil
 		}
 		if action != "create" {
 			return nil, errors.New("card only supports plan and create")
@@ -377,7 +385,14 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 	}
 	path := stringArgument(args, "path")
 	if action == "delete" {
-		err := s.store.Delete(path, boolArgument(args, "confirmed"))
+		if previewOnly {
+			current, err := s.store.Read(path)
+			if err != nil {
+				return nil, err
+			}
+			return asMap(map[string]any{"ok": true, "path": path, "dry_run": true, "would_delete": true, "size_bytes": current.SizeBytes})
+		}
+		err := s.store.Delete(path, true)
 		if err == nil {
 			s.syncer.MarkChanged(ctx)
 		}
@@ -391,7 +406,7 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 		return nil, err
 	}
 	switch action {
-	case "create":
+	case "plan", "create":
 	case "replace":
 		request.Overwrite = true
 	case "append", "patch", "diff":
@@ -415,6 +430,16 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 		request.Content, request.Overwrite = content, true
 	default:
 		return nil, fmt.Errorf("unsupported markdown action: %s", action)
+	}
+	if action == "plan" || previewOnly {
+		preview, err := s.store.PreviewWrite(request)
+		if err != nil {
+			return nil, err
+		}
+		return asMap(map[string]any{
+			"ok": true, "dry_run": true, "path": preview.Path,
+			"proposed_content": preview.ProposedContent, "overwrite": preview.Overwrite,
+		})
 	}
 	result, err := s.store.Write(request)
 	if err == nil {
