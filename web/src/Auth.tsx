@@ -11,7 +11,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Smartphone,
-  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { ApiError, api, setCSRFToken } from './api/client';
@@ -96,7 +95,7 @@ export function LoginPage() {
   return (
     <main className="auth-shell">
       <section className="auth-story" aria-label="NexusDock">
-        <div className="auth-brand"><span><Sparkles size={20} /></span><strong>NexusDock</strong></div>
+        <div className="auth-brand"><span aria-hidden="true">N</span><strong>NexusDock</strong></div>
         <div className="auth-story-copy">
           <p className="auth-kicker">PRIVATE CONSOLE</p>
           <h1>一处管理 Recall、任务与自动化。</h1>

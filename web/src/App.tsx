@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity, Cable, ChevronRight,
   CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
-  Settings, ShieldCheck, Sparkles, Wrench, X,
+  Settings, ShieldCheck, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
@@ -215,7 +215,7 @@ export default function App() {
     <div className="nexus-app">
       <aside id="nexus-primary-navigation" className={`nexus-sidebar ${menuOpen ? 'is-open' : ''}`}>
         <div className="nexus-brand">
-          <span className="nexus-brand-mark"><Sparkles size={19} /></span>
+          <span className="nexus-brand-mark" aria-hidden="true">N</span>
           <span><strong>Nexus</strong><small>AgentDock Console</small></span>
         </div>
         <nav aria-label="主导航">
