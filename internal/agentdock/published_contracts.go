@@ -74,3 +74,14 @@ func (s *Store) SavePublishedToolContract(ctx context.Context, contract Publishe
 	}
 	return nil
 }
+
+func (s *Store) DeletePublishedToolContract(ctx context.Context, toolName string) error {
+	toolName = strings.TrimSpace(toolName)
+	if toolName == "" {
+		return invalid("公开工具契约名称无效")
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM agentdock_published_tool_contracts WHERE tool_name = ?`, toolName); err != nil {
+		return fmt.Errorf("删除 AgentDock 公开工具契约 %s: %w", toolName, err)
+	}
+	return nil
+}

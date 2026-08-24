@@ -149,6 +149,36 @@ func TestNodeDeletePromotesConvergedToolContract(t *testing.T) {
 	}
 }
 
+func TestNodeDeleteRetiresLastPublishedTool(t *testing.T) {
+	server := newNodeTestServer(t)
+	server.mcpServer = mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil)
+	server.mcpTools = make(map[string]publishedNodeTool)
+	descriptor := agentdock.ToolDescriptor{
+		Name:        "browser_act",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+	}
+	node := pairHTTPTestNode(t, server.agentDock, "device_delete_last", "DockMini", "1.9.0", descriptor)
+	server.registerNodeTools(node, agentdock.Hello{Tools: []agentdock.ToolDescriptor{descriptor}})
+
+	request := httptest.NewRequest(http.MethodDelete, "/v1/runtime/nodes/"+node.ID, nil)
+	request.SetPathValue("nodeID", node.ID)
+	response := httptest.NewRecorder()
+	server.agentDockNodeDelete(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if _, ok := server.publishedNodeTool("browser_act"); ok {
+		t.Fatal("last deleted provider should retire browser_act")
+	}
+	contracts, err := server.agentDock.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("published contracts after last provider delete = %#v", contracts)
+	}
+}
+
 func nodeLifecycleTestDescriptors() (agentdock.ToolDescriptor, agentdock.ToolDescriptor) {
 	oldDescriptor := agentdock.ToolDescriptor{
 		Name: "exec_command",

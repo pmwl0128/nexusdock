@@ -71,6 +71,17 @@ func (s *Server) publishedNodeTool(name string) (publishedNodeTool, bool) {
 	return tool, ok
 }
 
+func (s *Server) publishedNodeToolNames() []string {
+	s.mcpToolsMu.RLock()
+	defer s.mcpToolsMu.RUnlock()
+	names := make([]string, 0, len(s.mcpTools))
+	for name := range s.mcpTools {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (s *Server) loadPublishedNodeTools(ctx context.Context) error {
 	contracts, err := s.agentDock.ListPublishedToolContracts(ctx)
 	if err != nil {
@@ -114,8 +125,13 @@ func (s *Server) promoteConvergedNodeTool(name string) error {
 		return err
 	}
 	var candidate publishedNodeTool
+	hasKnownProvider := false
 	for _, node := range nodes {
-		if !node.Enabled || !containsString(node.Capabilities, name) {
+		if !containsString(node.Capabilities, name) {
+			continue
+		}
+		hasKnownProvider = true
+		if !node.Enabled {
 			continue
 		}
 		descriptors, err := s.agentDock.ToolDescriptors(ctx, node.ID)
@@ -142,6 +158,22 @@ func (s *Server) promoteConvergedNodeTool(name string) error {
 		}
 	}
 	if candidate.ContractHash == "" {
+		// 禁用或离线的节点仍属于 fleet，不能因为暂时不可调用就让 GPT 工具列表抖动。
+		if hasKnownProvider {
+			return nil
+		}
+		s.mcpToolsMu.Lock()
+		defer s.mcpToolsMu.Unlock()
+		if _, exists := s.mcpTools[name]; !exists {
+			return nil
+		}
+		if err := s.agentDock.DeletePublishedToolContract(ctx, name); err != nil {
+			return err
+		}
+		if s.mcpServer != nil {
+			s.mcpServer.RemoveTools(name)
+		}
+		delete(s.mcpTools, name)
 		return nil
 	}
 

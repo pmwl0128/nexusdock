@@ -249,6 +249,66 @@ func TestRegisterNodeToolsPromotesOnlyAfterProvidersConverge(t *testing.T) {
 	}
 }
 
+func TestRegisterNodeToolsRetiresToolWhenLastProviderDropsCapability(t *testing.T) {
+	store := newHTTPTestAgentDockStore(t)
+	descriptor := agentdock.ToolDescriptor{
+		Name: "browser_act",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"session_id": map[string]any{"type": "string"}},
+		},
+	}
+	node := pairHTTPTestNode(t, store, "device_retire_tool", "DockMini", "1.9.0", descriptor)
+	server := &Server{
+		agentDock: store,
+		mcpServer: mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil),
+		mcpTools:  make(map[string]publishedNodeTool),
+	}
+	server.registerNodeTools(node, agentdock.Hello{Tools: []agentdock.ToolDescriptor{descriptor}})
+
+	updated, err := store.UpdateHello(t.Context(), node.ID, agentdock.Hello{
+		DeviceID: node.DeviceID, Version: "1.9.1", ProtocolVersion: agentdock.ConnectionProtocolVersion,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.registerNodeTools(updated, agentdock.Hello{})
+	if _, ok := server.publishedNodeTool("browser_act"); ok {
+		t.Fatal("browser_act should retire after the last provider drops the capability")
+	}
+	contracts, err := store.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("published contracts after retirement = %#v", contracts)
+	}
+}
+
+func TestReconcileKeepsToolWhenLastProviderIsDisabled(t *testing.T) {
+	store := newHTTPTestAgentDockStore(t)
+	descriptor := agentdock.ToolDescriptor{
+		Name:        "exec_command",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+	}
+	node := pairHTTPTestNode(t, store, "device_disabled_provider", "DockMini", "1.9.0", descriptor)
+	server := &Server{
+		agentDock: store,
+		mcpServer: mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil),
+		mcpTools:  make(map[string]publishedNodeTool),
+	}
+	server.registerNodeTools(node, agentdock.Hello{Tools: []agentdock.ToolDescriptor{descriptor}})
+
+	disabled := false
+	if _, err := store.Update(t.Context(), node.ID, agentdock.UpdateInput{Enabled: &disabled}); err != nil {
+		t.Fatal(err)
+	}
+	server.reconcileNodeToolContracts([]string{"exec_command"})
+	if _, ok := server.publishedNodeTool("exec_command"); !ok {
+		t.Fatal("disabled provider should keep its published tool contract")
+	}
+}
+
 func updateHTTPTestNodeContract(t *testing.T, store *agentdock.Store, node agentdock.Node, version string, descriptor agentdock.ToolDescriptor) agentdock.Node {
 	t.Helper()
 	updated, err := store.UpdateHello(t.Context(), node.ID, agentdock.Hello{
@@ -294,5 +354,31 @@ func TestInitializeMCPGatewayRestoresPublishedContractBeforeNodeOrder(t *testing
 	published, ok := restarted.publishedNodeTool("exec_command")
 	if !ok || published.ContractHash != oldHash || published.SourceVersion != "1.8.3" {
 		t.Fatalf("restart changed published contract: %#v", published)
+	}
+}
+
+func TestInitializeMCPGatewayRetiresPersistedToolWithoutProvider(t *testing.T) {
+	store := newHTTPTestAgentDockStore(t)
+	descriptor := agentdock.ToolDescriptor{
+		Name:        "browser_act",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+	}
+	if err := store.SavePublishedToolContract(t.Context(), agentdock.PublishedToolContract{
+		ToolName: "browser_act", Descriptor: descriptor, SourceNodeID: "node_gone", SourceVersion: "1.8.3",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	server := &Server{agentDock: store, mcpTools: make(map[string]publishedNodeTool)}
+	server.initializeMCPGateway()
+	if _, ok := server.publishedNodeTool("browser_act"); ok {
+		t.Fatal("startup should retire persisted tools that no node provides")
+	}
+	contracts, err := store.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("persisted stale contracts after startup = %#v", contracts)
 	}
 }

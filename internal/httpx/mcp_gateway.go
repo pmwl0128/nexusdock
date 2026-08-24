@@ -54,6 +54,8 @@ func (s *Server) initializeMCPGateway() {
 				}
 			}
 		}
+		// 启动时也核对一次已发布目录，清理旧版本遗留但 fleet 已不再提供的 stale tool。
+		s.reconcileNodeToolContracts(s.publishedNodeToolNames())
 	}
 	s.mcpHandler = mcpsdk.NewStreamableHTTPHandler(
 		func(*http.Request) *mcpsdk.Server { return s.mcpServer },
@@ -62,10 +64,12 @@ func (s *Server) initializeMCPGateway() {
 }
 
 func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
+	helloToolNames := make(map[string]struct{}, len(hello.Tools))
 	for _, descriptor := range hello.Tools {
 		if _, central := nexusToolNames[descriptor.Name]; central || strings.TrimSpace(descriptor.Name) == "" {
 			continue
 		}
+		helloToolNames[descriptor.Name] = struct{}{}
 		contractHash, err := toolContractHash(descriptor)
 		if err != nil {
 			if s.logger != nil {
@@ -101,6 +105,16 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 			}
 		}
 	}
+
+	// Hello 是当前节点完整能力快照。已公开但本次不再上报的工具也要重新核对，
+	// 这样最后一个 provider 真正移除能力时才会退休工具，而不是永久留下 stale schema。
+	missingPublished := make([]string, 0)
+	for _, name := range s.publishedNodeToolNames() {
+		if _, present := helloToolNames[name]; !present {
+			missingPublished = append(missingPublished, name)
+		}
+	}
+	s.reconcileNodeToolContracts(missingPublished)
 }
 
 func nodeMCPTool(descriptor agentdock.ToolDescriptor) *mcpsdk.Tool {

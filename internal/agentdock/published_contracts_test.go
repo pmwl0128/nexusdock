@@ -32,4 +32,15 @@ func TestPublishedToolContractPersistsDescriptorAndSource(t *testing.T) {
 	if properties["cmd"].(map[string]any)["type"] != "string" {
 		t.Fatalf("descriptor = %#v", contracts[0].Descriptor)
 	}
+
+	if err := reopened.DeletePublishedToolContract(t.Context(), "exec_command"); err != nil {
+		t.Fatal(err)
+	}
+	contracts, err = reopened.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("contracts after delete = %#v", contracts)
+	}
 }
