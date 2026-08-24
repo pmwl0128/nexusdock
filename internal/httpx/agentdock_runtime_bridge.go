@@ -9,15 +9,21 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
+const agentDockRuntimeRequestTimeout = 8 * time.Second
+
 type agentDockRuntimeError struct {
-	Status       int    `json:"-"`
-	Code         string `json:"code"`
-	Message      string `json:"message"`
-	UpstreamCode string `json:"upstream_code,omitempty"`
+	Status       int            `json:"-"`
+	Code         string         `json:"code"`
+	Message      string         `json:"message"`
+	UpstreamCode string         `json:"upstream_code,omitempty"`
+	Category     string         `json:"category,omitempty"`
+	Retryable    bool           `json:"retryable,omitempty"`
+	Details      map[string]any `json:"details,omitempty"`
 }
 
 func (e agentDockRuntimeError) Error() string {
@@ -50,8 +56,11 @@ func (s *Server) runtimeRequest(ctx context.Context, nodeID, method, path string
 	if s.agentDockHub == nil {
 		return nil, agentDockRuntimeError{Code: "AGENTDOCK_CONNECTION_UNAVAILABLE", Message: "AgentDock 节点连接服务不可用"}
 	}
+	// 与 AgentDock direct Runtime API 保持同样的 8 秒边界；调用方已有更短 deadline 时不会被延长。
+	requestCtx, cancel := context.WithTimeout(ctx, agentDockRuntimeRequestTimeout)
+	defer cancel()
 	if s.agentDock != nil {
-		if _, err := s.agentDock.Get(ctx, nodeID); err != nil {
+		if _, err := s.agentDock.Get(requestCtx, nodeID); err != nil {
 			if errors.Is(err, agentdock.ErrNodeNotFound) {
 				return nil, agentDockRuntimeError{Status: http.StatusNotFound, Code: "AGENTDOCK_NODE_NOT_FOUND", Message: err.Error()}
 			}
@@ -65,9 +74,9 @@ func (s *Server) runtimeRequest(ctx context.Context, nodeID, method, path string
 	if len(requestBody) > 0 {
 		arguments["body"] = json.RawMessage(requestBody)
 	}
-	result, err := s.agentDockHub.Invoke(ctx, nodeID, "runtime.request", arguments)
+	result, err := s.agentDockHub.Invoke(requestCtx, nodeID, "runtime.request", arguments)
 	if err != nil {
-		return nil, agentDockRuntimeError{Code: "AGENTDOCK_RUNTIME_UNREACHABLE", Message: err.Error()}
+		return nil, runtimeBridgeError(err)
 	}
 	return result, nil
 }
@@ -103,6 +112,13 @@ func runtimeUnavailablePayload(err error) map[string]any {
 	detail := map[string]any{"code": code, "message": message}
 	if rtErr.UpstreamCode != "" {
 		detail["upstream_code"] = rtErr.UpstreamCode
+		detail["retryable"] = rtErr.Retryable
+	}
+	if rtErr.Category != "" {
+		detail["category"] = rtErr.Category
+	}
+	if len(rtErr.Details) > 0 {
+		detail["details"] = rtErr.Details
 	}
 	return map[string]any{"ok": false, "available": false, "source": "agentdock-runtime-api", "error": detail}
 }
@@ -116,11 +132,31 @@ func runtimeErrorHTTPStatus(err error) int {
 		status = converted.Status
 	}
 	switch status {
-	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict:
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusInternalServerError:
 		return status
 	default:
 		return http.StatusServiceUnavailable
 	}
+}
+
+func runtimeBridgeError(err error) agentDockRuntimeError {
+	var remote *agentdock.RemoteError
+	if errors.As(err, &remote) {
+		status := http.StatusInternalServerError
+		switch remote.Category {
+		case "validation":
+			status = http.StatusBadRequest
+		case "not_found":
+			status = http.StatusNotFound
+		case "conflict":
+			status = http.StatusConflict
+		}
+		return agentDockRuntimeError{
+			Status: status, Code: "AGENTDOCK_RUNTIME_REQUEST_FAILED", Message: remote.Error(),
+			UpstreamCode: remote.Code, Category: remote.Category, Retryable: remote.Retryable, Details: remote.Details,
+		}
+	}
+	return agentDockRuntimeError{Status: http.StatusServiceUnavailable, Code: "AGENTDOCK_RUNTIME_UNREACHABLE", Message: err.Error()}
 }
 
 func isRuntimeUnavailable(err error) bool {
