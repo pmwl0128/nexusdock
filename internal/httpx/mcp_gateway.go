@@ -81,7 +81,7 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 		name := descriptor.Name
 		candidate := publishedNodeTool{
 			Descriptor: descriptor, ContractHash: contractHash,
-			SourceNodeID: node.ID, SourceVersion: node.Version,
+			AcceptedSemanticHashes: []string{contractHash},
 		}
 		s.mcpToolsMu.Lock()
 		published, exists := s.mcpTools[name]
@@ -98,10 +98,10 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 			s.mcpTools[name] = candidate
 		}
 		s.mcpToolsMu.Unlock()
-		if exists && published.ContractHash != contractHash {
-			// 只有所有启用 provider 都升级到同一契约后才切换一次，避免滚动升级期间反复改变 GPT schema。
-			if err := s.promoteConvergedNodeTool(name); err != nil && s.logger != nil {
-				s.logger.Warn("检查 AgentDock 工具契约收敛失败", "tool", name, "error", err)
+		if exists && (published.ContractHash != contractHash || !containsToolContractHash(published.AcceptedSemanticHashes, contractHash)) {
+			// schema 不同不等于不兼容；由 Fleet 合并器决定能否安全形成同一代公开契约。
+			if err := s.reconcileFleetNodeTool(name); err != nil && s.logger != nil {
+				s.logger.Warn("检查 AgentDock 工具契约兼容性失败", "tool", name, "error", err)
 			}
 		}
 	}

@@ -95,6 +95,7 @@ type Server struct {
 	stage3Wake           chan struct{}
 	mcpServer            *mcpsdk.Server
 	mcpHandler           http.Handler
+	mcpReconcileMu       sync.Mutex
 	mcpToolsMu           sync.RWMutex
 	mcpTools             map[string]publishedNodeTool
 }

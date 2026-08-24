@@ -189,6 +189,12 @@ END`,
     source_version TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL
 )`,
+	`CREATE TABLE IF NOT EXISTS agentdock_published_tool_variants (
+    tool_name TEXT NOT NULL,
+    semantic_hash TEXT NOT NULL,
+    PRIMARY KEY (tool_name, semantic_hash),
+    FOREIGN KEY (tool_name) REFERENCES agentdock_published_tool_contracts(tool_name) ON DELETE CASCADE
+)`,
 	`CREATE INDEX IF NOT EXISTS idx_agentdock_pairing_codes_active
     ON agentdock_pairing_codes(code_hash, used_at, expires_at)`,
 	`CREATE TABLE IF NOT EXISTS runtime_ai_settings (

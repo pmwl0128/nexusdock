@@ -120,7 +120,7 @@ func TestNodeDisablePromotesConvergedToolContract(t *testing.T) {
 	}
 	newHash, _ := toolContractHash(newDescriptor)
 	published, _ := server.publishedNodeTool("exec_command")
-	if published.ContractHash != newHash || published.SourceVersion != "1.9.0" {
+	if published.ContractHash != newHash || len(published.AcceptedSemanticHashes) != 1 || published.AcceptedSemanticHashes[0] != newHash {
 		t.Fatalf("disable did not promote remaining contract: %#v", published)
 	}
 }
@@ -144,7 +144,7 @@ func TestNodeDeletePromotesConvergedToolContract(t *testing.T) {
 	}
 	newHash, _ := toolContractHash(newDescriptor)
 	published, _ := server.publishedNodeTool("exec_command")
-	if published.ContractHash != newHash || published.SourceVersion != "1.9.0" {
+	if published.ContractHash != newHash || len(published.AcceptedSemanticHashes) != 1 || published.AcceptedSemanticHashes[0] != newHash {
 		t.Fatalf("delete did not promote remaining contract: %#v", published)
 	}
 }
