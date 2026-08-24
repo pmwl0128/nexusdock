@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/core"
@@ -98,4 +99,100 @@ func TestDeviceTokenAccessesOnlyExplicitDeviceRoutes(t *testing.T) {
 	if adminResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("admin route status=%d, want 401", adminResponse.Code)
 	}
+}
+
+func TestNodeDisablePromotesConvergedToolContract(t *testing.T) {
+	server := newNodeTestServer(t)
+	server.mcpServer = mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil)
+	server.mcpTools = make(map[string]publishedNodeTool)
+	oldDescriptor, newDescriptor := nodeLifecycleTestDescriptors()
+	oldNode := pairHTTPTestNode(t, server.agentDock, "device_disable_old", "DockMini", "1.8.3", oldDescriptor)
+	newNode := pairHTTPTestNode(t, server.agentDock, "device_disable_new", "DockAir", "1.9.0", newDescriptor)
+	server.registerNodeTools(oldNode, agentdock.Hello{Tools: []agentdock.ToolDescriptor{oldDescriptor}})
+	server.registerNodeTools(newNode, agentdock.Hello{Tools: []agentdock.ToolDescriptor{newDescriptor}})
+
+	request := httptest.NewRequest(http.MethodPatch, "/v1/runtime/nodes/"+oldNode.ID, strings.NewReader(`{"enabled":false}`))
+	request.SetPathValue("nodeID", oldNode.ID)
+	response := httptest.NewRecorder()
+	server.agentDockNodeUpdate(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	newHash, _ := toolContractHash(newDescriptor)
+	published, _ := server.publishedNodeTool("exec_command")
+	if published.ContractHash != newHash || published.SourceVersion != "1.9.0" {
+		t.Fatalf("disable did not promote remaining contract: %#v", published)
+	}
+}
+
+func TestNodeDeletePromotesConvergedToolContract(t *testing.T) {
+	server := newNodeTestServer(t)
+	server.mcpServer = mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil)
+	server.mcpTools = make(map[string]publishedNodeTool)
+	oldDescriptor, newDescriptor := nodeLifecycleTestDescriptors()
+	oldNode := pairHTTPTestNode(t, server.agentDock, "device_delete_old", "DockMini", "1.8.3", oldDescriptor)
+	newNode := pairHTTPTestNode(t, server.agentDock, "device_delete_new", "DockAir", "1.9.0", newDescriptor)
+	server.registerNodeTools(oldNode, agentdock.Hello{Tools: []agentdock.ToolDescriptor{oldDescriptor}})
+	server.registerNodeTools(newNode, agentdock.Hello{Tools: []agentdock.ToolDescriptor{newDescriptor}})
+
+	request := httptest.NewRequest(http.MethodDelete, "/v1/runtime/nodes/"+oldNode.ID, nil)
+	request.SetPathValue("nodeID", oldNode.ID)
+	response := httptest.NewRecorder()
+	server.agentDockNodeDelete(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	newHash, _ := toolContractHash(newDescriptor)
+	published, _ := server.publishedNodeTool("exec_command")
+	if published.ContractHash != newHash || published.SourceVersion != "1.9.0" {
+		t.Fatalf("delete did not promote remaining contract: %#v", published)
+	}
+}
+
+func TestNodeDeleteRetiresLastPublishedTool(t *testing.T) {
+	server := newNodeTestServer(t)
+	server.mcpServer = mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil)
+	server.mcpTools = make(map[string]publishedNodeTool)
+	descriptor := agentdock.ToolDescriptor{
+		Name:        "browser_act",
+		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
+	}
+	node := pairHTTPTestNode(t, server.agentDock, "device_delete_last", "DockMini", "1.9.0", descriptor)
+	server.registerNodeTools(node, agentdock.Hello{Tools: []agentdock.ToolDescriptor{descriptor}})
+
+	request := httptest.NewRequest(http.MethodDelete, "/v1/runtime/nodes/"+node.ID, nil)
+	request.SetPathValue("nodeID", node.ID)
+	response := httptest.NewRecorder()
+	server.agentDockNodeDelete(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if _, ok := server.publishedNodeTool("browser_act"); ok {
+		t.Fatal("last deleted provider should retire browser_act")
+	}
+	contracts, err := server.agentDock.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("published contracts after last provider delete = %#v", contracts)
+	}
+}
+
+func nodeLifecycleTestDescriptors() (agentdock.ToolDescriptor, agentdock.ToolDescriptor) {
+	oldDescriptor := agentdock.ToolDescriptor{
+		Name: "exec_command",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"timeout": map[string]any{"type": "integer"}},
+		},
+	}
+	newDescriptor := agentdock.ToolDescriptor{
+		Name: "exec_command",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"timeout": map[string]any{"type": "number"}},
+		},
+	}
+	return oldDescriptor, newDescriptor
 }

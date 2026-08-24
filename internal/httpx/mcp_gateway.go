@@ -37,20 +37,25 @@ func (s *Server) initializeMCPGateway() {
 			result, err := s.callNexusTool(ctx, definition.Name, arguments)
 			return gatewayToolResult(definition.Name, result, err)
 		})
-		s.mcpTools[definition.Name] = struct{}{}
 	}
 	if s.agentDockHub != nil {
 		s.agentDockHub.SetHelloHandler(s.registerNodeTools)
 	}
 	if s.agentDock != nil {
-		if nodes, err := s.agentDock.List(context.Background()); err == nil {
+		ctx := context.Background()
+		if err := s.loadPublishedNodeTools(ctx); err != nil && s.logger != nil {
+			s.logger.Warn("恢复 AgentDock 公开工具契约失败", "error", err)
+		}
+		if nodes, err := s.agentDock.List(ctx); err == nil {
 			for _, node := range nodes {
-				descriptors, descriptorErr := s.agentDock.ToolDescriptors(context.Background(), node.ID)
+				descriptors, descriptorErr := s.agentDock.ToolDescriptors(ctx, node.ID)
 				if descriptorErr == nil {
 					s.registerNodeTools(node, agentdock.Hello{Tools: descriptors})
 				}
 			}
 		}
+		// 启动时也核对一次已发布目录，清理旧版本遗留但 fleet 已不再提供的 stale tool。
+		s.reconcileNodeToolContracts(s.publishedNodeToolNames())
 	}
 	s.mcpHandler = mcpsdk.NewStreamableHTTPHandler(
 		func(*http.Request) *mcpsdk.Server { return s.mcpServer },
@@ -58,56 +63,117 @@ func (s *Server) initializeMCPGateway() {
 	)
 }
 
-func (s *Server) registerNodeTools(_ agentdock.Node, hello agentdock.Hello) {
+func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
+	helloToolNames := make(map[string]struct{}, len(hello.Tools))
 	for _, descriptor := range hello.Tools {
 		if _, central := nexusToolNames[descriptor.Name]; central || strings.TrimSpace(descriptor.Name) == "" {
 			continue
 		}
-		s.mcpToolsMu.Lock()
-		if _, exists := s.mcpTools[descriptor.Name]; exists {
-			s.mcpToolsMu.Unlock()
+		helloToolNames[descriptor.Name] = struct{}{}
+		contractHash, err := toolContractHash(descriptor)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("计算 AgentDock 工具契约失败", "node_id", node.ID, "tool", descriptor.Name, "error", err)
+			}
 			continue
 		}
-		s.mcpTools[descriptor.Name] = struct{}{}
-		s.mcpToolsMu.Unlock()
 
-		tool := &mcpsdk.Tool{
-			Name: descriptor.Name, Title: descriptor.Title, Description: descriptor.Description,
-			InputSchema: nodeInputSchema(descriptor.InputSchema), OutputSchema: descriptor.OutputSchema,
-		}
-		if len(descriptor.Annotations) > 0 {
-			encoded, _ := json.Marshal(descriptor.Annotations)
-			var annotations mcpsdk.ToolAnnotations
-			if json.Unmarshal(encoded, &annotations) == nil {
-				tool.Annotations = &annotations
-			}
-		}
-		if len(descriptor.Meta) > 0 {
-			tool.Meta = mcpsdk.Meta(descriptor.Meta)
-		}
 		name := descriptor.Name
-		s.mcpServer.AddTool(tool, func(ctx context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
-			arguments, err := toolArguments(request)
-			if err != nil {
-				return nil, err
+		candidate := publishedNodeTool{
+			Descriptor: descriptor, ContractHash: contractHash,
+			SourceNodeID: node.ID, SourceVersion: node.Version,
+		}
+		s.mcpToolsMu.Lock()
+		published, exists := s.mcpTools[name]
+		if !exists {
+			// 首次出现的契约先持久化再公开，确保 Nexus 重启后仍沿用同一个 schema。
+			if err := s.persistPublishedNodeTool(context.Background(), candidate); err != nil {
+				s.mcpToolsMu.Unlock()
+				if s.logger != nil {
+					s.logger.Warn("保存 AgentDock 公开工具契约失败", "node_id", node.ID, "tool", name, "error", err)
+				}
+				continue
 			}
-			nodeID, _ := arguments["node_id"].(string)
-			nodeID = strings.TrimSpace(nodeID)
-			if nodeID == "" {
-				return gatewayToolResult(name, nil, errors.New("node_id is required"))
+			s.mcpServer.AddTool(nodeMCPTool(descriptor), s.nodeToolHandler(name))
+			s.mcpTools[name] = candidate
+		}
+		s.mcpToolsMu.Unlock()
+		if exists && published.ContractHash != contractHash {
+			// 只有所有启用 provider 都升级到同一契约后才切换一次，避免滚动升级期间反复改变 GPT schema。
+			if err := s.promoteConvergedNodeTool(name); err != nil && s.logger != nil {
+				s.logger.Warn("检查 AgentDock 工具契约收敛失败", "tool", name, "error", err)
 			}
-			node, lookupErr := s.agentDock.Get(ctx, nodeID)
-			if lookupErr != nil {
-				return gatewayToolResult(name, nil, lookupErr)
-			}
-			if !containsString(node.Capabilities, name) {
-				return gatewayToolResult(name, nil, fmt.Errorf("AgentDock node %s does not provide tool %s", nodeID, name))
-			}
-			delete(arguments, "node_id")
-			result, err := s.agentDockHub.Invoke(ctx, nodeID, "tool.call", map[string]any{"tool": name, "arguments": arguments})
-			return gatewayToolResult(name, result, err)
-		})
+		}
 	}
+
+	// Hello 是当前节点完整能力快照。已公开但本次不再上报的工具也要重新核对，
+	// 这样最后一个 provider 真正移除能力时才会退休工具，而不是永久留下 stale schema。
+	missingPublished := make([]string, 0)
+	for _, name := range s.publishedNodeToolNames() {
+		if _, present := helloToolNames[name]; !present {
+			missingPublished = append(missingPublished, name)
+		}
+	}
+	s.reconcileNodeToolContracts(missingPublished)
+}
+
+func nodeMCPTool(descriptor agentdock.ToolDescriptor) *mcpsdk.Tool {
+	tool := &mcpsdk.Tool{
+		Name: descriptor.Name, Title: descriptor.Title, Description: descriptor.Description,
+		InputSchema: nodeInputSchema(descriptor.InputSchema), OutputSchema: descriptor.OutputSchema,
+	}
+	if len(descriptor.Annotations) > 0 {
+		encoded, _ := json.Marshal(descriptor.Annotations)
+		var annotations mcpsdk.ToolAnnotations
+		if json.Unmarshal(encoded, &annotations) == nil {
+			tool.Annotations = &annotations
+		}
+	}
+	if len(descriptor.Meta) > 0 {
+		tool.Meta = mcpsdk.Meta(descriptor.Meta)
+	}
+	return tool
+}
+
+func (s *Server) nodeToolHandler(name string) mcpsdk.ToolHandler {
+	return func(ctx context.Context, request *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+		arguments, err := toolArguments(request)
+		if err != nil {
+			return nil, err
+		}
+		return s.callNodeTool(ctx, name, arguments)
+	}
+}
+
+func (s *Server) callNodeTool(ctx context.Context, name string, arguments map[string]any) (*mcpsdk.CallToolResult, error) {
+	nodeID, _ := arguments["node_id"].(string)
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return gatewayToolResult(name, nil, errors.New("node_id is required"))
+	}
+	node, err := s.agentDock.Get(ctx, nodeID)
+	if err != nil {
+		return gatewayToolResult(name, nil, err)
+	}
+	if !containsString(node.Capabilities, name) {
+		return gatewayToolResult(name, nil, fmt.Errorf("AgentDock node %s does not provide tool %s", nodeID, name))
+	}
+
+	mismatch, err := s.nodeToolContractMismatch(ctx, node, name)
+	if err != nil {
+		return gatewayToolResult(name, nil, err)
+	}
+	if mismatch != nil {
+		details, encodeErr := asMap(mismatch)
+		if encodeErr != nil {
+			return nil, encodeErr
+		}
+		return gatewayToolResult(name, details, errors.New(mismatch.Message))
+	}
+
+	delete(arguments, "node_id")
+	result, err := s.agentDockHub.Invoke(ctx, nodeID, "tool.call", map[string]any{"tool": name, "arguments": arguments})
+	return gatewayToolResult(name, result, err)
 }
 
 func containsString(values []string, target string) bool {
@@ -178,7 +244,9 @@ func gatewayToolResult(name string, result map[string]any, err error) (*mcpsdk.C
 		result = map[string]any{}
 	}
 	if err != nil {
-		result = map[string]any{"tool": name, "error": err.Error()}
+		// 保留调用方提供的结构化错误详情，避免契约差异等可操作信息被统一错误包装丢失。
+		result["tool"] = name
+		result["error"] = err.Error()
 	}
 	encoded, encodeErr := json.Marshal(map[string]any{
 		"isError": err != nil, "structuredContent": result,

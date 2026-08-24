@@ -125,6 +125,13 @@ END`,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (node_id) REFERENCES agentdock_devices(id) ON DELETE CASCADE
 )`,
+	`CREATE TABLE IF NOT EXISTS agentdock_published_tool_contracts (
+    tool_name TEXT PRIMARY KEY,
+    descriptor_json TEXT NOT NULL,
+    source_node_id TEXT NOT NULL DEFAULT '',
+    source_version TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL
+)`,
 	`CREATE INDEX IF NOT EXISTS idx_agentdock_pairing_codes_active
     ON agentdock_pairing_codes(code_hash, used_at, expires_at)`,
 	`CREATE TABLE IF NOT EXISTS runtime_ai_settings (

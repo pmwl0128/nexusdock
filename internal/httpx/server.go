@@ -93,8 +93,8 @@ type Server struct {
 	stage3Wake   chan struct{}
 	mcpServer    *mcpsdk.Server
 	mcpHandler   http.Handler
-	mcpToolsMu   sync.Mutex
-	mcpTools     map[string]struct{}
+	mcpToolsMu   sync.RWMutex
+	mcpTools     map[string]publishedNodeTool
 }
 
 type ServerOption func(*Server)
@@ -127,7 +127,7 @@ func WithPrivateNotes(store *privatenotes.Store) ServerOption {
 }
 
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
-	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]struct{})}
+	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]publishedNodeTool)}
 	for _, option := range options {
 		option(server)
 	}
