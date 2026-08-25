@@ -179,49 +179,68 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
   }
 
   const reachableTone = embeddingStatus?.reachable === true ? 'is-ok' : embeddingStatus?.enabled ? 'is-warn' : 'is-muted';
+  const stage3State = form.stage3.enabled ? (form.stage3.configured ? '已启用' : '等待完整配置') : '已关闭';
+  const embeddingState = embeddingStatus?.enabled ? (embeddingStatus.reachable ? '服务可用' : '服务不可达') : '已关闭';
+  const embeddingMeta = embeddingStatus?.enabled
+    ? (embeddingStatus.index ? `索引 ${embeddingStatus.index.count ?? 0} 项 · ${embeddingStatus.index.dimension ?? 0} 维` : '等待索引状态')
+    : 'Recall 与 Workflow 暂不使用向量检索';
+
   return <section className="ai-settings-panel">
     <header className="ai-settings-heading">
-      <div><span className="nexus-eyebrow">AI & VECTOR</span><h2>模型与向量检索</h2><p>Stage 3 使用外部大模型做低频补漏；Recall 与 Workflow 共用一套 Embedding 配置。</p></div>
+      <div><span className="nexus-eyebrow">AI & VECTOR</span><h2>模型与向量检索</h2><p>管理 Stage 3 模型与共享 Embedding 服务。修改后统一保存并立即应用。</p></div>
       <button type="button" className="nx-button is-secondary" onClick={() => void load()} disabled={loading || saving}><RefreshCw size={15} />刷新</button>
     </header>
     {notice && <div className={`nx-alert is-${notice.tone}`}>{notice.text}</div>}
 
-    <form className="ai-settings-grid" onSubmit={submit}>
-      <article className="nexus-panel ai-settings-card">
-        <header><span className="nexus-panel-icon"><BrainCircuit size={17} /></span><div><h3>Stage 3 大模型</h3><p>跨 Task / Evolution 的低频语义补漏，只提交候选给 AgentDock 裁决。</p></div></header>
-        <div className="panel-body ai-settings-form">
-          <label className="ai-toggle"><input type="checkbox" checked={form.stage3.enabled} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, enabled: event.target.checked } })} /><span><strong>启用 Stage 3</strong><small>{form.stage3.configured ? '当前已具备运行配置' : '关闭时不会调用外部模型'}</small></span></label>
-          <label className="is-wide"><span>Chat Completions 地址</span><input type="url" required={form.stage3.enabled} value={form.stage3.endpoint} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, endpoint: event.target.value } })} placeholder="https://api.example.com/v1/chat/completions" /></label>
-          <label><span>模型</span><input required={form.stage3.enabled} value={form.stage3.model} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, model: event.target.value } })} placeholder="gpt-5-mini" /></label>
-          <label><span>请求超时（秒）</span><input type="number" min={1} max={300} value={form.stage3.timeout_seconds} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, timeout_seconds: Number(event.target.value) } })} /></label>
-          <label><span>执行间隔（分钟）</span><input type="number" min={60} max={10080} value={form.stage3.interval_minutes} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, interval_minutes: Number(event.target.value) } })} /></label>
-          <label className="is-wide"><span>API Key {form.stage3.api_key_configured ? '· 已配置（留空保持）' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={stage3Secret.clear} value={stage3Secret.value} onChange={(event) => setStage3Secret({ value: event.target.value, clear: false })} placeholder={form.stage3.api_key_configured ? '••••••••' : '可选'} /></label>
-          {form.stage3.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={stage3Secret.clear} onChange={(event) => setStage3Secret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
-          <div className="ai-card-actions"><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('stage3')}><Activity size={15} />{testingTarget === 'stage3' ? '测试中…' : '测试已保存配置'}</button><small>测试不会保存当前表单；修改后请先“保存并应用”。</small></div>
+    <form className="ai-settings-form-page" onSubmit={submit}>
+      <section className="ai-config-section">
+        <header className="ai-config-head">
+          <div className="ai-config-title"><span className="nexus-panel-icon"><BrainCircuit size={17} /></span><div><h3>Stage 3 大模型</h3><p>跨 Task / Evolution 做低频语义补漏，只提交候选给 AgentDock 裁决。</p></div></div>
+          <label className="ai-switch-row">
+            <input type="checkbox" checked={form.stage3.enabled} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, enabled: event.target.checked } })} />
+            <span><strong>{stage3State}</strong><small>{form.stage3.enabled ? '允许调用外部模型' : '不会调用外部模型'}</small></span>
+          </label>
+        </header>
+        <div className="ai-config-body">
+          <div className="ai-field-grid ai-stage3-fields">
+            <label className="ai-field is-wide"><span>Chat Completions 地址</span><input type="url" required={form.stage3.enabled} value={form.stage3.endpoint} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, endpoint: event.target.value } })} placeholder="https://api.example.com/v1/chat/completions" /></label>
+            <label className="ai-field"><span>模型</span><input required={form.stage3.enabled} value={form.stage3.model} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, model: event.target.value } })} placeholder="gpt-5-mini" /></label>
+            <label className="ai-field"><span>请求超时（秒）</span><input type="number" min={1} max={300} value={form.stage3.timeout_seconds} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, timeout_seconds: Number(event.target.value) } })} /></label>
+            <label className="ai-field"><span>执行间隔（分钟）</span><input type="number" min={60} max={10080} value={form.stage3.interval_minutes} onChange={(event) => setForm({ ...form, stage3: { ...form.stage3, interval_minutes: Number(event.target.value) } })} /></label>
+            <label className="ai-field is-wide"><span>API Key {form.stage3.api_key_configured ? '· 已配置，留空保持' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={stage3Secret.clear} value={stage3Secret.value} onChange={(event) => setStage3Secret({ value: event.target.value, clear: false })} placeholder={form.stage3.api_key_configured ? '••••••••' : '可选'} /></label>
+            {form.stage3.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={stage3Secret.clear} onChange={(event) => setStage3Secret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
+          </div>
+          <div className="ai-config-actions"><p>连接测试使用服务端当前已保存配置；修改表单后请先保存。</p><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('stage3')}><Activity size={15} />{testingTarget === 'stage3' ? '测试中…' : '测试连接'}</button></div>
           {stage3Test && <div className={`nx-alert is-${stage3Test.ok ? 'success' : 'error'}`}>{stage3Test.message}{stage3Test.latency_ms > 0 ? ` · ${stage3Test.latency_ms} ms` : ''}</div>}
         </div>
-      </article>
+      </section>
 
-      <article className="nexus-panel ai-settings-card">
-        <header><span className="nexus-panel-icon"><DatabaseZap size={17} /></span><div><h3>向量检索</h3><p>用于 Recall 语义搜索和 Workflow 模板匹配，兼容 OpenAI Embeddings API。</p></div></header>
-        <div className="panel-body ai-settings-form">
-          <div className="ai-vector-status">
-            <span className={`ai-status-dot ${reachableTone}`} />
-            <span><strong>{embeddingStatus?.enabled ? (embeddingStatus.reachable ? '向量服务可用' : '向量服务不可达') : '向量检索未启用'}</strong><small>{embeddingStatus?.enabled ? (embeddingStatus.index ? `索引 ${embeddingStatus.index.count ?? 0} 项 · ${embeddingStatus.index.dimension ?? 0} 维` : '已启用，等待索引状态') : '当前已关闭'}</small></span>
+      <section className="ai-config-section">
+        <header className="ai-config-head">
+          <div className="ai-config-title"><span className="nexus-panel-icon"><DatabaseZap size={17} /></span><div><h3>向量检索</h3><p>供 Recall 语义搜索与 Workflow 模板匹配共用，兼容 OpenAI Embeddings API。</p></div></div>
+          <div className="ai-config-head-actions">
+            <div className="ai-service-status"><span className={`ai-status-dot ${reachableTone}`} /><span><strong>{embeddingState}</strong><small>{embeddingMeta}</small></span></div>
+            <label className="ai-switch-row">
+              <input type="checkbox" checked={form.embedding.enabled} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, enabled: event.target.checked } })} />
+              <span><strong>{form.embedding.enabled ? '已启用' : '已关闭'}</strong><small>Recall 与 Workflow 共用</small></span>
+            </label>
           </div>
-          <label className="ai-toggle"><input type="checkbox" checked={form.embedding.enabled} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, enabled: event.target.checked } })} /><span><strong>启用向量检索</strong><small>Recall 与 Workflow 共用此配置</small></span></label>
-          <label className="is-wide"><span>Embeddings 地址</span><input type="url" required={form.embedding.enabled} value={form.embedding.endpoint} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, endpoint: event.target.value } })} placeholder="http://embedding-service:8000/v1/embeddings" /></label>
-          <label><span>Embedding 模型</span><input required={form.embedding.enabled} value={form.embedding.model} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, model: event.target.value } })} placeholder="BAAI/bge-m3" /></label>
-          <label><span>请求超时（秒）</span><input type="number" min={1} max={300} value={form.embedding.timeout_seconds} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, timeout_seconds: Number(event.target.value) } })} /></label>
-          <label className="is-wide"><span>API Key {form.embedding.api_key_configured ? '· 已配置（留空保持）' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={embeddingSecret.clear} value={embeddingSecret.value} onChange={(event) => setEmbeddingSecret({ value: event.target.value, clear: false })} placeholder={form.embedding.api_key_configured ? '••••••••' : '本地 Embedding 可留空'} /></label>
-          {form.embedding.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={embeddingSecret.clear} onChange={(event) => setEmbeddingSecret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
-          <div className="ai-card-actions"><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('embedding')}><Activity size={15} />{testingTarget === 'embedding' ? '测试中…' : '测试已保存配置'}</button><button type="button" className="nx-button is-secondary" disabled={!form.embedding.enabled || reindexing || saving || testingTarget !== null} onClick={() => void reindex()}><SearchCheck size={15} />{reindexing ? '重建中…' : '重建 Recall + Workflow 索引'}</button></div>
+        </header>
+        <div className="ai-config-body">
+          <div className="ai-field-grid ai-embedding-fields">
+            <label className="ai-field is-wide"><span>Embeddings 地址</span><input type="url" required={form.embedding.enabled} value={form.embedding.endpoint} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, endpoint: event.target.value } })} placeholder="http://embedding-service:8000/v1/embeddings" /></label>
+            <label className="ai-field"><span>Embedding 模型</span><input required={form.embedding.enabled} value={form.embedding.model} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, model: event.target.value } })} placeholder="BAAI/bge-m3" /></label>
+            <label className="ai-field"><span>请求超时（秒）</span><input type="number" min={1} max={300} value={form.embedding.timeout_seconds} onChange={(event) => setForm({ ...form, embedding: { ...form.embedding, timeout_seconds: Number(event.target.value) } })} /></label>
+            <label className="ai-field is-wide"><span>API Key {form.embedding.api_key_configured ? '· 已配置，留空保持' : '· 未配置'}</span><input type="password" autoComplete="new-password" disabled={embeddingSecret.clear} value={embeddingSecret.value} onChange={(event) => setEmbeddingSecret({ value: event.target.value, clear: false })} placeholder={form.embedding.api_key_configured ? '••••••••' : '本地 Embedding 可留空'} /></label>
+            {form.embedding.api_key_configured && <label className="ai-clear-secret"><input type="checkbox" checked={embeddingSecret.clear} onChange={(event) => setEmbeddingSecret({ value: '', clear: event.target.checked })} /><span>清除已保存的 API Key</span></label>}
+          </div>
+          <div className="ai-config-actions"><p>重建索引会重新生成 Recall 与 Workflow 的向量数据。</p><div><button type="button" className="nx-button is-secondary" disabled={loading || saving || testingTarget !== null} onClick={() => void testConnection('embedding')}><Activity size={15} />{testingTarget === 'embedding' ? '测试中…' : '测试连接'}</button><button type="button" className="nx-button is-secondary" disabled={!form.embedding.enabled || reindexing || saving || testingTarget !== null} onClick={() => void reindex()}><SearchCheck size={15} />{reindexing ? '重建中…' : '重建索引'}</button></div></div>
           {embeddingTest && <div className={`nx-alert is-${embeddingTest.ok ? 'success' : 'error'}`}>{embeddingTest.message}{embeddingTest.latency_ms > 0 ? ` · ${embeddingTest.latency_ms} ms` : ''}</div>}
           {embeddingStatus?.error && <div className="nx-alert is-error">{embeddingStatus.error}</div>}
         </div>
-      </article>
+      </section>
 
-      <footer className="ai-settings-actions"><span>API Key 只返回“已配置”状态，明文不会从服务端读取。</span><button type="submit" className="nx-button" disabled={loading || saving}><Save size={15} />{saving ? '保存中…' : '保存并应用'}</button></footer>
+      <footer className="ai-save-bar"><span>API Key 只返回“已配置”状态，明文不会从服务端读取。</span><button type="submit" className="nx-button" disabled={loading || saving}><Save size={15} />{saving ? '保存中…' : '保存并应用'}</button></footer>
     </form>
   </section>;
 }
