@@ -165,6 +165,19 @@ function toneForStatus(status?: string): Tone {
   return 'muted';
 }
 
+function backupStateLabel(state?: string): string {
+  switch (state) {
+    case 'never_run': return '尚未运行';
+    case 'running': return '备份中';
+    case 'success':
+    case 'succeeded':
+    case 'completed': return '正常';
+    case 'failed': return '失败';
+    case 'disabled': return '已关闭';
+    default: return state || '待确认';
+  }
+}
+
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -283,7 +296,7 @@ function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: numb
 
   return <>
     <section className="nexus-overview-strip">
-      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary} · 备份 {backup?.state || '待确认'}</p></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary} · 备份 {backupStateLabel(backup?.state)}</p></div>
       <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={nodesTone}>节点 {nodeSummary}</StatusBadge><StatusBadge tone={toneForStatus(backup?.state)}>备份</StatusBadge></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
@@ -428,7 +441,7 @@ function SystemSettingsPage({ refreshToken, runtimeNodes }: { refreshToken: numb
 function BackupPanel({ backup }: { backup?: BackupStatus }) {
   return <Panel icon={Database} title="备份" subtitle="自动备份状态">
     {backup ? <>
-      <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
+      <SettingValue label="状态" value={backupStateLabel(backup.state)} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
       <SettingValue label="下次运行" value={formatTime(backup.next_run_at)} />
       {backup.message && <div className="nx-alert is-info">{backup.message}</div>}

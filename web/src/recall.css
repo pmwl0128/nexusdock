@@ -8,8 +8,8 @@
 .recall-workspace button { font: inherit; }
 
 .recall-header {
-  min-height: 68px;
-  padding: 12px 14px;
+  min-height: 62px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -27,11 +27,11 @@
   letter-spacing: .05em;
 }
 
-.recall-header h1 { margin: 3px 0 0; font-size: 21px; letter-spacing: -.02em; }
+.recall-header h1 { margin: 2px 0 0; font-size: 20px; letter-spacing: -.02em; }
 .recall-header-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
 .recall-subnav {
-  padding: 4px;
+  padding: 3px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
@@ -41,7 +41,7 @@
 }
 .recall-subnav button {
   min-width: 0;
-  padding: 8px 10px;
+  padding: 7px 10px;
   display: grid;
   gap: 2px;
   border: 1px solid transparent;
@@ -54,7 +54,7 @@
 .recall-subnav button:hover { background: var(--nx-soft-2); }
 .recall-subnav button.is-active { border-color: #c7c7c7; background: #ededed; }
 .recall-subnav strong { font-size: 11px; }
-.recall-subnav span { color: var(--nx-muted); font-size: 9px; }
+.recall-subnav span { color: var(--nx-muted); font-size: 10px; }
 
 .recall-header button,
 .recall-new,
@@ -169,7 +169,7 @@
 .recall-panel-head h2,
 .recall-browser-head h2 { margin: 0; font-size: 13px; }
 .recall-panel-head p,
-.recall-browser-head p { margin: 2px 0 0; color: var(--nx-muted); font-size: 10px; }
+.recall-browser-head p { margin: 2px 0 0; color: var(--nx-muted); font-size: 11px; }
 
 .recall-browser-tools {
   padding: 9px 10px;
@@ -264,7 +264,7 @@
 .recall-empty.large { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 6px; }
 
 .recall-edit-body { padding: 12px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
-.recall-edit-body label { display: grid; gap: 5px; color: var(--nx-muted); font-size: 10px; }
+.recall-edit-body label { display: grid; gap: 5px; color: var(--nx-muted); font-size: 11px; }
 .recall-edit-body label.content { grid-column: 1 / -1; }
 .recall-edit-body input,
 .recall-edit-body textarea,
@@ -302,7 +302,7 @@
 
 .recall-card-form { padding: 14px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .recall-card-form label,
-.recall-card-check { display: grid; gap: 5px; color: var(--nx-muted); font-size: 10px; }
+.recall-card-check { display: grid; gap: 5px; color: var(--nx-muted); font-size: 11px; }
 .recall-card-form label.wide { grid-column: 1 / -1; }
 .recall-card-form textarea { min-height: 130px; resize: vertical; }
 .recall-card-actions { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -324,6 +324,7 @@
 .recall-vector-search { padding: 0 14px 14px; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 6px; align-items: center; }
 .recall-vector-search > svg { color: var(--nx-muted); }
 .recall-vector-results { padding: 0 14px 14px; display: grid; gap: 5px; }
+.recall-vector-results > .recall-empty { min-height: 96px; display: grid; place-items: center; }
 .recall-vector-results button { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto; justify-content: initial; text-align: left; }
 .recall-vector-results button strong,
 .recall-vector-results button small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
