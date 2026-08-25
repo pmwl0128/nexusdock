@@ -31,7 +31,11 @@ func newOAuthHTTPTestServer(t *testing.T) (*Server, *auth.Service) {
 	if err := authService.InitializeAdmin(t.Context(), "owner", "correct horse battery staple"); err != nil {
 		t.Fatal(err)
 	}
-	server := NewServer(config.Config{AuthToken: "ops-secret"}, nil, nil, slog.Default(), WithSystemDatabase(db), WithWebAuthentication(authService))
+	mcpTokenStore, err := auth.NewMCPTokenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := NewServer(config.Config{AuthToken: "ops-secret"}, nil, nil, slog.Default(), WithSystemDatabase(db), WithWebAuthentication(authService), WithMCPTokenStore(mcpTokenStore))
 	return server, authService
 }
 
@@ -169,19 +173,37 @@ func TestOAuthHTTPAuthorizationCodeFlowAndMCPIsolation(t *testing.T) {
 	}
 }
 
-func TestStaticTokenStillAuthorizesMCP(t *testing.T) {
+func TestDedicatedMCPTokenAuthorizesOnlyMCP(t *testing.T) {
 	server, _ := newOAuthHTTPTestServer(t)
 	called := false
 	wrapped := server.withMCPAccess(func(w http.ResponseWriter, _ *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusNoContent)
 	})
-	req := httptest.NewRequest(http.MethodPost, "https://nexus.example/mcp", nil)
-	req.Header.Set("Authorization", "Bearer ops-secret")
-	res := httptest.NewRecorder()
-	wrapped(res, req)
-	if !called || res.Code != http.StatusNoContent {
-		t.Fatalf("static operations token no longer authorizes MCP: status=%d", res.Code)
+
+	mcpReq := httptest.NewRequest(http.MethodPost, "https://nexus.example/mcp", nil)
+	mcpReq.Header.Set("Authorization", "Bearer "+server.mcpToken.Token())
+	mcpRes := httptest.NewRecorder()
+	wrapped(mcpRes, mcpReq)
+	if !called || mcpRes.Code != http.StatusNoContent {
+		t.Fatalf("dedicated MCP token rejected: status=%d", mcpRes.Code)
+	}
+
+	apiReq := httptest.NewRequest(http.MethodGet, "https://nexus.example/v1/system/status", nil)
+	apiReq.Header.Set("Authorization", "Bearer "+server.mcpToken.Token())
+	apiRes := httptest.NewRecorder()
+	server.Handler().ServeHTTP(apiRes, apiReq)
+	if apiRes.Code != http.StatusUnauthorized {
+		t.Fatalf("MCP token escaped into admin API: status=%d body=%s", apiRes.Code, apiRes.Body.String())
+	}
+
+	called = false
+	opsReq := httptest.NewRequest(http.MethodPost, "https://nexus.example/mcp", nil)
+	opsReq.Header.Set("Authorization", "Bearer ops-secret")
+	opsRes := httptest.NewRecorder()
+	wrapped(opsRes, opsReq)
+	if called || opsRes.Code != http.StatusUnauthorized {
+		t.Fatalf("operations token should not authorize MCP: called=%v status=%d", called, opsRes.Code)
 	}
 }
 

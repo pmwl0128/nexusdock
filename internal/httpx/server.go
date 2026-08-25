@@ -92,6 +92,7 @@ type Server struct {
 	oauthRegisterLimiter *fixedWindowLimiter
 	embedding            *recall.EmbeddingService
 	settings             *settings.Store
+	mcpToken             *auth.MCPTokenStore
 	stage3Wake           chan struct{}
 	mcpServer            *mcpsdk.Server
 	mcpHandler           http.Handler
@@ -129,6 +130,10 @@ func WithPrivateNotes(store *privatenotes.Store) ServerOption {
 	return func(server *Server) { server.privateNotes = store }
 }
 
+func WithMCPTokenStore(store *auth.MCPTokenStore) ServerOption {
+	return func(server *Server) { server.mcpToken = store }
+}
+
 func NewServer(cfg config.Config, store *recall.Store, syncer *syncer.Manager, logger *slog.Logger, options ...ServerOption) *Server {
 	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, syncer: syncer, logger: logger, stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]publishedNodeTool)}
 	for _, option := range options {
@@ -159,6 +164,8 @@ func (s *Server) Handler() http.Handler {
 	s.registerOAuthRoutes(mux)
 	mux.HandleFunc("GET /v1/system/status", protected(s.systemStatus))
 	mux.HandleFunc("GET /v1/settings/ai", protected(s.getRuntimeAISettings))
+	mux.HandleFunc("GET /v1/settings/mcp-token", protected(s.getMCPAccessToken))
+	mux.HandleFunc("POST /v1/settings/mcp-token/reset", protected(s.resetMCPAccessToken))
 	mux.HandleFunc("PUT /v1/settings/ai", protected(s.updateRuntimeAISettings))
 	mux.HandleFunc("POST /v1/settings/ai/test/stage3", protected(s.testStage3Connection))
 	mux.HandleFunc("POST /v1/settings/ai/test/embedding", protected(s.testEmbeddingConnection))

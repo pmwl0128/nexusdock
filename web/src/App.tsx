@@ -9,6 +9,7 @@ import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
 import AccountSecurity from './AccountSecurity';
 import AISettingsPanel from './components/settings/AISettingsPanel';
+import MCPAccessPanel from './components/settings/MCPAccessPanel';
 import { ApiError, api, setCSRFToken } from './api/client';
 import WorkflowTemplatesPage from './components/workflows/WorkflowTemplatesPage';
 import { SkillsPage, TaskCenterPage } from './components/runtime/RuntimePages';
@@ -23,7 +24,7 @@ import './nexus.css';
 
 type RuntimeSection = 'tasks' | 'skills' | 'mcp';
 type Section = 'home' | 'recall' | 'templates' | RuntimeSection | 'settings';
-type SettingsSection = 'account' | 'ai' | 'system';
+type SettingsSection = 'account' | 'mcp' | 'ai' | 'system';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 
@@ -64,6 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string; icon: typeof Settings }> = [
   { id: 'account', label: '账号与会话', description: '登录、安全与活动会话', icon: UserRound },
+  { id: 'mcp', label: 'MCP 接入', description: '客户端地址与访问 Token', icon: Cable },
   { id: 'ai', label: 'AI 与向量', description: '模型、Embedding 与索引', icon: BrainCircuit },
   { id: 'system', label: '系统与节点', description: 'AgentDock、节点与系统状态', icon: ServerCog },
 ];
@@ -338,6 +340,7 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
     </nav>
     <div className="settings-content">
       {active === 'account' && <AccountSecurity />}
+      {active === 'mcp' && <MCPAccessPanel refreshToken={refreshToken} />}
       {active === 'ai' && <AISettingsPanel refreshToken={refreshToken} />}
       {active === 'system' && <SystemSettingsPage refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
     </div>

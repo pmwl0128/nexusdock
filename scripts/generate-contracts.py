@@ -459,6 +459,14 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         {"ok": scalar("boolean", "请求是否成功。"), "settings": ref("RuntimeAISettingsView")},
         ("ok", "settings"),
     )
+    schemas["MCPAccessTokenResponse"] = obj(
+        "Nexus MCP 固定访问 Token。仅管理员接口返回明文。",
+        {
+            "ok": scalar("boolean", "请求是否成功。"),
+            "token": scalar("string", "用于 Nexus /mcp 的 Bearer Token。", minLength=64, maxLength=64),
+        },
+        ("ok", "token"),
+    )
     schemas["RuntimeAIConnectionTestResponse"] = obj(
         "Stage 3 或向量服务的脱敏连接测试结果。",
         {
@@ -851,6 +859,12 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 request=body(ref("RuntimeAISettingsUpdateRequest")),
                 success=ok(ref("RuntimeAISettingsResponse")),
             ),
+        },
+        "/v1/settings/mcp-token": {
+            "get": operation("getMCPAccessToken", "读取 Nexus MCP 固定访问 Token", success=ok(ref("MCPAccessTokenResponse")))
+        },
+        "/v1/settings/mcp-token/reset": {
+            "post": operation("resetMCPAccessToken", "重置 Nexus MCP 固定访问 Token 并立即使旧 Token 失效", success=ok(ref("MCPAccessTokenResponse")))
         },
         "/v1/settings/ai/test/stage3": {
             "post": operation("testStage3Connection", "使用已保存配置测试 Stage 3 模型连接", success=ok(ref("RuntimeAIConnectionTestResponse")))

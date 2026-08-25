@@ -89,6 +89,11 @@ func run(args []string) error {
 		return fmt.Errorf("initialize AgentDock node store: %w", err)
 	}
 
+	mcpTokenStore, err := auth.NewMCPTokenStore(controlDir)
+	if err != nil {
+		return fmt.Errorf("initialize MCP access token: %w", err)
+	}
+
 	authService := auth.NewService(controlDB)
 	status, err := authService.AdminStatus(ctx)
 	if err != nil {
@@ -113,6 +118,7 @@ func run(args []string) error {
 		httpx.WithWebAuthentication(authService),
 		httpx.WithEmbeddingService(embeddingService),
 		httpx.WithRuntimeSettings(runtimeSettings),
+		httpx.WithMCPTokenStore(mcpTokenStore),
 		httpx.WithPrivateNotes(privateNoteStore),
 	)
 	httpServer := &http.Server{
