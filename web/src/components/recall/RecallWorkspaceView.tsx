@@ -14,11 +14,11 @@ type Props = RecallWorkspaceViewModel & {
   onNavigate: (page: RecallPage) => void;
 };
 
-const recallNavigation: Array<{ id: RecallPage; label: string; description: string }> = [
-  { id: 'library', label: '资料库', description: '浏览与编辑' },
-  { id: 'cards', label: '经验卡片', description: '浏览与查看' },
-  { id: 'vectors', label: '向量召回', description: '语义搜索' },
-  { id: 'history', label: '同步历史', description: '状态与版本' },
+const recallNavigation: Array<{ id: RecallPage; label: string }> = [
+  { id: 'library', label: '资料库' },
+  { id: 'cards', label: '经验卡片' },
+  { id: 'vectors', label: '向量召回' },
+  { id: 'history', label: '同步历史' },
 ];
 
 export default function RecallWorkspaceView(props: Props) {
@@ -30,7 +30,7 @@ export default function RecallWorkspaceView(props: Props) {
   return <main className={`recall-workspace ${props.detailOpen ? 'is-detail-open' : ''}`}>
     <RecallHeader {...props} />
     <nav className="recall-subnav" aria-label="Recall 分类">
-      {recallNavigation.map((item) => <button type="button" key={item.id} className={props.page === item.id ? 'is-active' : ''} aria-current={props.page === item.id ? 'page' : undefined} onClick={() => props.onNavigate(item.id)}><strong>{item.label}</strong><span>{item.description}</span></button>)}
+      {recallNavigation.map((item) => <button type="button" key={item.id} className={props.page === item.id ? 'is-active' : ''} aria-current={props.page === item.id ? 'page' : undefined} onClick={() => props.onNavigate(item.id)}><strong>{item.label}</strong></button>)}
     </nav>
     <RecallNoticeArea {...props} />
     <RecallActionDialog {...props} />
