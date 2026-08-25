@@ -120,6 +120,16 @@ agentdock nexus pair --endpoint https://nexus.example.com --code pair_xxx
 
 客户端可继续直连某台 AgentDock 的 `/mcp`，也可只连接 NexusDock 的 `/mcp` 使用汇总模式。直连模式的本地工具、认证与部署方式不变。
 
+### 连接 NexusDock MCP
+
+支持 OAuth 的 MCP 客户端可直接连接 NexusDock `/mcp` 并完成浏览器授权。不支持 OAuth、需要固定凭据的客户端，可在 Web 控制台的“设置 → MCP 接入”查看专用 Access Token，并使用：
+
+```text
+Authorization: Bearer <Access Token>
+```
+
+这个 Token 只允许访问 `/mcp`，不能访问 `/v1` 管理 API。点击“重置 Token”后旧值立即失效；新值会保存在 `NEXUS_DATA_DIR/secrets/mcp-access-token`，服务重启后保持不变。
+
 ### 使用 Recall
 
 Recall 仓库默认位于 `RECALL_REPO_DIR`。你可以在 Web 控制台中：
@@ -195,6 +205,7 @@ NEXUS_DATA_DIR/
   nexus.db
   backups/
   secrets/
+    mcp-access-token
 
 RECALL_REPO_DIR/
   .git/
@@ -204,7 +215,7 @@ RECALL_REPO_DIR/
 
 至少应备份：
 
-1. `NEXUS_DATA_DIR/nexus.db` 及对应 WAL/SHM；
+1. `NEXUS_DATA_DIR/nexus.db` 及对应 WAL/SHM，以及 `NEXUS_DATA_DIR/secrets/mcp-access-token`；
 2. 整个 `RECALL_REPO_DIR`；
 3. Git 远端凭据的安全副本（如确有需要）。
 

@@ -361,7 +361,7 @@ func (s *Server) withMCPAccess(next http.HandlerFunc) http.HandlerFunc {
 		cfg := s.cfg
 		s.mu.RUnlock()
 		header := strings.TrimSpace(r.Header.Get("Authorization"))
-		if bearerMatches(header, cfg.AuthToken) {
+		if s.mcpToken != nil && bearerMatches(header, s.mcpToken.Token()) {
 			next(w, r)
 			return
 		}
