@@ -163,14 +163,12 @@
 .auth-error,
 .auth-success {
   padding: 10px 12px;
-  border: 1px solid var(--nx-line);
   border-radius: 6px;
-  background: var(--nx-soft-2);
-  color: #333;
   font-size: 12px;
 }
 
-.auth-success { display: flex; align-items: center; gap: 8px; }
+.auth-error { border: 1px solid var(--nx-danger-line); background: var(--nx-danger-bg); color: var(--nx-danger); }
+.auth-success { display: flex; align-items: center; gap: 8px; border: 1px solid var(--nx-success-line); background: var(--nx-success-bg); color: var(--nx-success); }
 
 /* 账号设置与会话管理 */
 .security-panel {
@@ -243,7 +241,7 @@
 .session-copy { min-width: 0; }
 .session-copy > div { display: flex; align-items: center; gap: 8px; }
 .session-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-copy em { font-size: 10px; font-style: normal; color: var(--nx-muted); }
+.session-copy em { padding: 1px 5px; border-radius: 999px; background: var(--nx-info-bg); color: var(--nx-info); font-size: 10px; font-style: normal; font-weight: 700; }
 .session-copy > span,
 .session-copy small { display: flex; align-items: center; gap: 5px; margin-top: 3px; color: var(--nx-muted); font-size: 11px; }
 

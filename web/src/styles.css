@@ -18,6 +18,21 @@
   --nx-inverse: #ffffff;
   --nx-soft: #efefef;
   --nx-soft-2: #f4f4f4;
+
+  /* 语义色只用于状态反馈，主体界面继续保持中性黑白灰。 */
+  --nx-success: #237a4b;
+  --nx-success-bg: #edf7f1;
+  --nx-success-line: #bdddc9;
+  --nx-warning: #976117;
+  --nx-warning-bg: #fff7e8;
+  --nx-warning-line: #e8d2aa;
+  --nx-danger: #b13a32;
+  --nx-danger-bg: #fff0ee;
+  --nx-danger-line: #e6bbb6;
+  --nx-info: #3e6798;
+  --nx-info-bg: #eef4fb;
+  --nx-info-line: #c6d5e7;
+
   --nx-radius: 6px;
   --nx-radius-large: 10px;
 }

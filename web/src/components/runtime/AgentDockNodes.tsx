@@ -179,7 +179,7 @@ export function AgentDockNodesPanel({ nodes, selectedNodeID, loading, error, onR
         <div className="agentdock-node-copy">
           <div><strong>{node.name}</strong><code>{node.id}</code>{!node.enabled && <em>已停用</em>}</div>
           <small>{node.os && node.arch ? `${node.os}/${node.arch}` : '等待首次连接'}{node.version ? ` · AgentDock ${node.version}` : ''}</small>
-          <span>{node.online ? '在线' : '离线'} · {node.capabilities?.length || 0} 个节点工具{node.last_seen_at ? ` · 最近 ${new Date(node.last_seen_at).toLocaleString()}` : ''}</span>
+          <span className={`agentdock-node-status ${node.online ? 'is-online' : 'is-offline'}`}><strong>{node.online ? '在线' : '离线'}</strong><span>· {node.capabilities?.length || 0} 个节点工具{node.last_seen_at ? ` · 最近 ${new Date(node.last_seen_at).toLocaleString()}` : ''}</span></span>
         </div>
         <div className="agentdock-node-row-actions">
           <button type="button" className="nx-button is-secondary is-small" disabled={!!busy} onClick={() => openEdit(node)}><Pencil size={14} />编辑</button>

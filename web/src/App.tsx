@@ -25,7 +25,7 @@ import './nexus.css';
 type RuntimeSection = 'tasks' | 'skills' | 'mcp';
 type Section = 'home' | 'recall' | 'templates' | RuntimeSection | 'settings';
 type SettingsSection = 'account' | 'mcp' | 'ai' | 'system';
-type Tone = 'ok' | 'warn' | 'danger' | 'muted';
+type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'muted';
 
 
 type SystemStatus = {
@@ -272,7 +272,7 @@ function NodeOverview({ runtimeNodes }: { runtimeNodes: RuntimeNodesState }) {
             <span><small>工具</small><strong>{node.capabilities?.length || 0} 个</strong></span>
             <span><small>最近在线</small><strong>{formatTime(node.last_seen_at, { compact: true })}</strong></span>
           </div>
-          <div className="dashboard-node-badges">{selected && <StatusBadge tone="muted">当前</StatusBadge>}<StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></div>
+          <div className="dashboard-node-badges">{selected && <StatusBadge tone="info">当前</StatusBadge>}<StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></div>
         </article>;
       })}
     </div>
@@ -296,7 +296,7 @@ function RuntimeContent({ active, refreshToken, runtimeNodes }: {
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
     <div className="runtime-node-bar">
       <AgentDockNodeSelector nodes={runtimeNodes.nodes} selectedNodeID={runtimeNodes.selectedNodeID} onSelect={runtimeNodes.selectNode} />
-      {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.online ? '在线' : '离线'}{runtimeNodes.selectedNode.os ? ` · ${runtimeNodes.selectedNode.os}/${runtimeNodes.selectedNode.arch}` : ''}</span>}
+      {runtimeNodes.selectedNode && <span className={`runtime-node-status ${runtimeNodes.selectedNode.online ? 'is-online' : 'is-offline'}`}>{runtimeNodes.selectedNode.online ? '在线' : '离线'}{runtimeNodes.selectedNode.os ? ` · ${runtimeNodes.selectedNode.os}/${runtimeNodes.selectedNode.arch}` : ''}</span>}
     </div>
     {!runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button" onClick={() => { window.location.hash = 'settings/system'; }}>管理节点</button></AgentDockNodeRequired>}
     {active === 'tasks' && runtimeNodes.selectedNode && <TaskCenterPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
