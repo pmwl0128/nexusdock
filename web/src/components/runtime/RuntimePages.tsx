@@ -118,7 +118,7 @@ function useOptionalOpsResource<T>(path: string, fallback: T, refreshToken: numb
 export function TaskCenterPage({ nodeID, refreshToken }: { nodeID: string; refreshToken: number }) {
   const [status, setStatus] = useState<TaskStatus>('active');
   const [query, setQuery] = useState('');
-  const [recentOnly, setRecentOnly] = useState(false);
+  const [recentOnly, setRecentOnly] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<OpsTask | null>(null);
