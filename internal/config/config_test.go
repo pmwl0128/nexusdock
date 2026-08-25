@@ -36,7 +36,6 @@ func TestFromEnvUsesNexusAndRecallVariables(t *testing.T) {
 	t.Setenv("NEXUS_PORT", "18000")
 	t.Setenv("NEXUS_AUTH_TOKEN", "nexus-token")
 	t.Setenv("NEXUS_REQUIRE_AUTH", "true")
-	t.Setenv("RECALL_AUTO_SYNC", "true")
 	t.Setenv("RECALL_EMBEDDING_INDEX_FILE", "/tmp/recall-index.json")
 
 	cfg := FromEnv()
@@ -46,9 +45,6 @@ func TestFromEnvUsesNexusAndRecallVariables(t *testing.T) {
 	}
 	if cfg.AuthToken != "nexus-token" || !cfg.RequireAuth {
 		t.Fatalf("Nexus auth settings should be used, token=%q require=%v", cfg.AuthToken, cfg.RequireAuth)
-	}
-	if !cfg.AutoSync {
-		t.Fatalf("Recall auto sync should be enabled")
 	}
 	if cfg.EmbeddingIndexFile != "/tmp/recall-index.json" {
 		t.Fatalf("Recall embedding index should be used, got %q", cfg.EmbeddingIndexFile)

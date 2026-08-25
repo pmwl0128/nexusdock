@@ -20,10 +20,6 @@ type Config struct {
 	RequireAuth           bool
 	AuthAllowInsecureHTTP bool
 	TrustedProxies        []string
-	AutoSync              bool
-	PullInterval          time.Duration
-	PushDebounce          time.Duration
-	CommitMessage         string
 	LogLevelName          string
 	EmbeddingEnabled      bool
 	EmbeddingEndpoint     string
@@ -54,10 +50,6 @@ func FromEnv() Config {
 		RequireAuth:           getenvBool("NEXUS_REQUIRE_AUTH", false),
 		AuthAllowInsecureHTTP: getenvBool("NEXUS_AUTH_ALLOW_INSECURE_HTTP", false),
 		TrustedProxies:        splitCSV(getenv("NEXUS_TRUSTED_PROXIES", "127.0.0.1,::1")),
-		AutoSync:              getenvBool("RECALL_AUTO_SYNC", false),
-		PullInterval:          time.Duration(getenvInt("RECALL_PULL_INTERVAL_SECONDS", 120)) * time.Second,
-		PushDebounce:          time.Duration(getenvInt("RECALL_PUSH_DEBOUNCE_SECONDS", 10)) * time.Second,
-		CommitMessage:         getenv("RECALL_COMMIT_MESSAGE", "recall: 自动同步召回库"),
 		LogLevelName:          getenv("NEXUS_LOG_LEVEL", "info"),
 		EmbeddingEnabled:      getenvBool("RECALL_EMBEDDING_ENABLED", false),
 		EmbeddingEndpoint:     strings.TrimSpace(os.Getenv("RECALL_EMBEDDING_ENDPOINT")),

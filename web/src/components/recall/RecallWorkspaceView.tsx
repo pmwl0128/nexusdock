@@ -6,7 +6,7 @@ import RecallFileBrowser from './RecallFileBrowser';
 import RecallHeader from './RecallHeader';
 import RecallNoticeArea from './RecallNoticeArea';
 import RecallStats from './RecallStats';
-import RecallSyncHistoryPage from './RecallSyncHistoryPage';
+import RecallVersionHistoryPage from './RecallVersionHistoryPage';
 import RecallVectorRecallPage from './RecallVectorRecallPage';
 
 type Props = RecallWorkspaceViewModel & {
@@ -18,7 +18,7 @@ const recallNavigation: Array<{ id: RecallPage; label: string }> = [
   { id: 'library', label: '资料库' },
   { id: 'cards', label: '经验卡片' },
   { id: 'vectors', label: '向量召回' },
-  { id: 'history', label: '同步历史' },
+  { id: 'history', label: '版本历史' },
 ];
 
 export default function RecallWorkspaceView(props: Props) {
@@ -44,6 +44,6 @@ export default function RecallWorkspaceView(props: Props) {
     </>}
     {props.page === 'cards' && <RecallExperienceCardsPage entries={props.state.cardEntries} loading={props.state.loading} />}
     {props.page === 'vectors' && <RecallVectorRecallPage state={props.state} actions={props.actions} onOpenCard={openCardFromTools} />}
-    {props.page === 'history' && <RecallSyncHistoryPage state={props.state} dirty={props.dirty} actions={props.actions} />}
+    {props.page === 'history' && <RecallVersionHistoryPage state={props.state} changedCount={props.changedCount} dirty={props.dirty} actions={props.actions} />}
   </main>;
 }

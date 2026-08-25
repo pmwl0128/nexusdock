@@ -1,5 +1,5 @@
 import { loadRecallDraft } from '../../lib/drafts';
-import type { EmbeddingPanelState, PendingRecallAction, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceState, SyncStatus, GitCommit, GitDiff, Notice } from './types';
+import type { EmbeddingPanelState, PendingRecallAction, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceState, GitCommit, GitDiff, Notice } from './types';
 
 function initialEmbedding(): EmbeddingPanelState {
   return { status: null, query: '', results: [] };
@@ -19,7 +19,6 @@ export function initialRecallState(): RecallWorkspaceState {
     creating: false,
     query: initialQuery,
     appliedQuery: initialQuery,
-    syncStatus: null,
     gitDiff: null,
     commits: [],
     loading: true,
@@ -39,7 +38,7 @@ type RecallAction =
   | { type: 'libraryEntries'; entries: RecallEntry[] }
   | { type: 'cardEntries'; entries: RecallCardSummary[] }
   | { type: 'searchApplied'; query: string; entries: RecallEntry[] }
-  | { type: 'syncState'; syncStatus: SyncStatus | null; gitDiff: GitDiff | null }
+  | { type: 'gitDiff'; gitDiff: GitDiff | null }
   | { type: 'commits'; commits: GitCommit[] }
   | { type: 'embedding:status'; status: EmbeddingPanelState['status'] }
   | { type: 'embedding:query'; query: string }
@@ -78,8 +77,8 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
       return { ...state, cardEntries: action.entries };
     case 'searchApplied':
       return { ...state, query: action.query, appliedQuery: action.query, entries: action.entries };
-    case 'syncState':
-      return { ...state, syncStatus: action.syncStatus, gitDiff: action.gitDiff };
+    case 'gitDiff':
+      return { ...state, gitDiff: action.gitDiff };
     case 'commits':
       return { ...state, commits: action.commits };
     case 'embedding:status':

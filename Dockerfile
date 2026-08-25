@@ -18,10 +18,6 @@ FROM alpine:3.20
 RUN apk add --no-cache git ca-certificates \
     && addgroup -S -g 10001 nexus \
     && adduser -S -D -H -u 10001 -G nexus nexus \
-    && mv /usr/bin/git /usr/bin/git.real \
-    && printf '%s\n' '#!/bin/sh' 'exec /usr/bin/git.real -c credential.helper="store --file=/run/secrets/github_credentials" -c safe.directory=/recall -c user.name="Recall" -c user.email="recall@local" "$@"' > /usr/local/bin/git \
-    && chmod +x /usr/local/bin/git \
-    && ln -s /usr/local/bin/git /usr/bin/git \
     && mkdir -p /var/lib/nexus /recall \
     && chown -R 10001:10001 /var/lib/nexus /recall
 WORKDIR /app

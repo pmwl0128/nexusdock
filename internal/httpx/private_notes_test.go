@@ -10,7 +10,7 @@ import (
 
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
-	"github.com/uvwt/nexusdock/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/versioning"
 )
 
 func TestPrivateNoteRoutesAreAbsentWithoutConfiguredStore(t *testing.T) {
@@ -18,7 +18,7 @@ func TestPrivateNoteRoutesAreAbsentWithoutConfiguredStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mgr := syncer.NewManager(syncer.Config{RepoDir: store.Root()}, slog.Default())
+	mgr := versioning.NewManager(store.Root(), slog.Default())
 	handler := NewServer(config.Config{}, store, mgr, slog.Default()).Handler()
 	response := doJSON(t, handler, http.MethodPost, "/v1/private-notes/status", `{"action":"check"}`)
 	if response.Code != http.StatusNotFound && response.Code != http.StatusMethodNotAllowed {

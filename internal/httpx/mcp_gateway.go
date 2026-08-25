@@ -376,7 +376,7 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 		}
 		result, err := s.store.WriteCard(request)
 		if err == nil {
-			s.syncer.MarkChanged(ctx)
+			s.versions.MarkChanged(ctx)
 		}
 		return asMap(result, err)
 	}
@@ -394,7 +394,7 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 		}
 		err := s.store.Delete(path, true)
 		if err == nil {
-			s.syncer.MarkChanged(ctx)
+			s.versions.MarkChanged(ctx)
 		}
 		return asMap(map[string]any{"ok": err == nil, "path": path, "deleted": err == nil}, err)
 	}
@@ -443,15 +443,15 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 	}
 	result, err := s.store.Write(request)
 	if err == nil {
-		s.syncer.MarkChanged(ctx)
+		s.versions.MarkChanged(ctx)
 	}
 	return asMap(map[string]any{"ok": err == nil, "recall": result, "recall_store": "NexusDock Recall"}, err)
 }
 
 func (s *Server) callRecallMaintain(ctx context.Context, args map[string]any) (map[string]any, error) {
 	action := strings.ToLower(stringArgument(args, "action"))
-	if action == "" || action == "sync_status" {
-		return asMap(s.syncer.Status(ctx))
+	if action == "" {
+		action = "list"
 	}
 	switch action {
 	case "list":
@@ -537,7 +537,7 @@ func (s *Server) updateRecallFacts(ctx context.Context, path string, args map[st
 	}
 	result, err := s.store.Write(recall.WriteRequest{Path: path, Content: updated, Confirmed: true, Overwrite: true})
 	if err == nil {
-		s.syncer.MarkChanged(ctx)
+		s.versions.MarkChanged(ctx)
 	}
 	return asMap(map[string]any{"ok": err == nil, "path": path, "changed": true, "written": err == nil, "recall": result}, err)
 }

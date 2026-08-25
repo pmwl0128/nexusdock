@@ -3,7 +3,7 @@ import { api } from '../../api/client';
 import { clearRecallDraft, loadRecallDraft, saveRecallDraft } from '../../lib/drafts';
 import { initialRecallState, recallReducer } from './recallState';
 import type {
-  EmbeddingSearchResponse, EmbeddingStatus, GitCommit, GitDiff, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceViewModel, SyncStatus,
+  EmbeddingSearchResponse, EmbeddingStatus, GitCommit, GitDiff, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceViewModel
 } from './types';
 import {
   NEW_RECALL_TEMPLATE, initialPath, usesSinglePaneRecallLayout,
@@ -43,7 +43,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     return directories.size;
   }, [libraryFileEntries]);
   const changedCount = state.gitDiff?.files?.length ?? 0;
-  const dirty = Boolean(state.gitDiff?.dirty || state.syncStatus?.dirty || state.syncStatus?.pending_push);
+  const dirty = Boolean(state.gitDiff?.dirty);
   const hasUnsavedChanges = state.editing && (state.draftPath !== (state.current?.path || '') || state.draftContent !== (state.current?.content || ''));
   const detailOpen = Boolean(state.current || state.editing);
   draftSnapshotRef.current = { editing: state.editing, path: state.draftPath, content: state.draftContent };
@@ -129,12 +129,9 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     }
   }
 
-  async function loadSyncState() {
-    const [syncStatus, gitDiff] = await Promise.all([
-      api<SyncStatus>('/v1/sync/status'),
-      api<GitDiff>('/v1/git/diff'),
-    ]);
-    dispatch({ type: 'syncState', syncStatus, gitDiff });
+  async function loadVersionState() {
+    const gitDiff = await api<GitDiff>('/v1/git/diff');
+    dispatch({ type: 'gitDiff', gitDiff });
   }
 
   async function loadHistory() {
@@ -193,7 +190,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     const loadingID = ++loadingRequestRef.current;
     dispatch({ type: 'load:start' });
     try {
-      const [entriesCurrent] = await Promise.all([refreshEntries(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
+      const [entriesCurrent] = await Promise.all([refreshEntries(), loadVersionState(), loadHistory(), loadEmbeddingStatus()]);
       if (path && entriesCurrent && loadingID === loadingRequestRef.current) {
         try {
           await openRecall(path);
@@ -316,7 +313,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
       });
       clearRecallDraft();
       dispatch({ type: 'draftAvailable', available: false });
-      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
+      await Promise.all([refreshEntries(), loadVersionState(), loadHistory()]);
       await openRecall(response.recall.path);
       dispatch({ type: 'notice', notice: { text: '召回内容已保存' } });
     } catch (reason) {
@@ -365,7 +362,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
       dispatch({ type: 'pending', pendingAction: null });
       dispatch({ type: 'clearSelection' });
       updateRoute('', state.appliedQuery);
-      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
+      await Promise.all([refreshEntries(), loadVersionState(), loadHistory()]);
       dispatch({ type: 'notice', notice: { text: '召回内容已删除' } });
     } catch (reason) {
       dispatch({ type: 'pendingError', error: messageOf(reason) });
@@ -413,23 +410,12 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     }
   }
 
-  async function syncNow(action: 'pull' | 'push' | 'now' = 'now') {
-    const currentPath = state.current?.path || '';
+  async function recordVersion() {
     dispatch({ type: 'busy', busy: true });
     try {
-      const response = await api<SyncStatus>(`/v1/sync/${action}`, { method: 'POST', body: '{}' });
-      dispatch({ type: 'syncState', syncStatus: response, gitDiff: state.gitDiff });
-      await Promise.all([refreshEntries(), loadSyncState(), loadHistory()]);
-      if (currentPath && initialPath() === currentPath) {
-        try {
-          await openRecall(currentPath);
-        } catch {
-          detailRequestRef.current += 1;
-          dispatch({ type: 'clearSelection' });
-          updateRoute('', state.appliedQuery);
-        }
-      }
-      dispatch({ type: 'notice', notice: { text: action === 'pull' ? '已从远端更新' : action === 'push' ? '已保存到远端' : '召回库已同步' } });
+      const response = await api<{ created: boolean }>('/v1/git/commit', { method: 'POST', body: '{}' });
+      await Promise.all([loadVersionState(), loadHistory()]);
+      dispatch({ type: 'notice', notice: { text: response.created ? '已记录本地版本' : '没有需要记录的本地变更' } });
     } catch (reason) {
       dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
     } finally {
@@ -443,10 +429,10 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     void refreshAll();
   }
 
-  function syncNowFromUI(action?: 'pull' | 'push' | 'now') {
+  function recordVersionFromUI() {
     if (blockIfUnsaved()) return;
     dispatch({ type: 'notice', notice: null });
-    void syncNow(action);
+    void recordVersion();
   }
 
   useEffect(() => {
@@ -457,7 +443,7 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
 
   const actions = {
     refreshAll: refreshAllFromUI,
-    syncNow: syncNowFromUI,
+    recordVersion: recordVersionFromUI,
     restoreDraft: () => { void restoreDraft(); },
     discardDraft: () => dispatch({ type: 'draftAvailable', available: false }),
     clearNotice: () => dispatch({ type: 'notice', notice: null }),

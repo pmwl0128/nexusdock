@@ -53,8 +53,8 @@ REQUIRED_COMPOSE_TOKENS = (
     "- ALL",
     "no-new-privileges:true",
     "tmpfs:",
-    'uid: "10001"',
-    'gid: "10001"',
+    'uid=10001',
+    'gid=10001',
 )
 REQUIRED_WEB_SHELL_TOKENS = (
     '<meta name="color-scheme" content="light" />',

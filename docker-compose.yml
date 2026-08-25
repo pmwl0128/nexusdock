@@ -16,21 +16,8 @@ services:
     volumes:
       - ${NEXUS_DATA_DIR:-./nexus-data}:/var/lib/nexus
       - ${RECALL_REPO_DIR:-./recall}:/recall
-    secrets:
-      - source: github_credentials
-        target: github_credentials
-        uid: "10001"
-        gid: "10001"
-        mode: 0400
     environment:
       NEXUS_AUTH_TOKEN: ${NEXUS_AUTH_TOKEN:?set NEXUS_AUTH_TOKEN for programmatic API access}
       NEXUS_DATA_DIR: /var/lib/nexus
       RECALL_REPO_DIR: /recall
       NEXUS_TRUSTED_PROXIES: "${NEXUS_TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16}"
-      RECALL_AUTO_SYNC: "false"
-      RECALL_PULL_INTERVAL_SECONDS: "120"
-      RECALL_PUSH_DEBOUNCE_SECONDS: "10"
-
-secrets:
-  github_credentials:
-    file: ${RECALL_GITHUB_CREDENTIALS:?set RECALL_GITHUB_CREDENTIALS to a git credential-store file}

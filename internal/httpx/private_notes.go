@@ -62,7 +62,7 @@ func (s *Server) writePrivateNote(w http.ResponseWriter, r *http.Request) {
 		writePrivateNoteError(w, err)
 		return
 	}
-	s.syncer.MarkChanged(r.Context())
+	s.versions.MarkChanged(r.Context())
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -79,7 +79,7 @@ func (s *Server) deletePrivateNote(w http.ResponseWriter, r *http.Request) {
 		writePrivateNoteError(w, err)
 		return
 	}
-	s.syncer.MarkChanged(r.Context())
+	s.versions.MarkChanged(r.Context())
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -111,7 +111,7 @@ func (s *Server) maintainPrivateNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.EncryptedCount > 0 {
-		s.syncer.MarkChanged(r.Context())
+		s.versions.MarkChanged(r.Context())
 	}
 	writeJSON(w, http.StatusOK, result)
 }

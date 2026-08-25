@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/uvwt/nexusdock/internal/recall"
-	"github.com/uvwt/nexusdock/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/versioning"
 )
 
 func newRecallToolTestServer(t *testing.T) (*Server, *recall.Store) {
@@ -17,8 +17,8 @@ func newRecallToolTestServer(t *testing.T) (*Server, *recall.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager := syncer.NewManager(syncer.Config{RepoDir: store.Root()}, slog.Default())
-	return &Server{store: store, syncer: manager}, store
+	manager := versioning.NewManager(store.Root(), slog.Default())
+	return &Server{store: store, versions: manager}, store
 }
 
 func TestRecallWriteMarkdownDryRunAndPlanNeverPersist(t *testing.T) {
@@ -90,5 +90,12 @@ func TestRecallWriteDryRunProtectsExistingMarkdownAndCard(t *testing.T) {
 	}
 	if _, err := store.Read(card["path"].(string)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("card dry-run persisted candidate: %v", err)
+	}
+}
+
+func TestRecallMaintainRejectsRemovedSyncStatus(t *testing.T) {
+	server, _ := newRecallToolTestServer(t)
+	if _, err := server.callRecallMaintain(t.Context(), map[string]any{"action": "sync_status"}); err == nil || !strings.Contains(err.Error(), "unsupported recall maintenance action") {
+		t.Fatalf("sync_status must be removed, got err=%v", err)
 	}
 }

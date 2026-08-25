@@ -21,7 +21,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/settings"
-	"github.com/uvwt/nexusdock/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/versioning"
 )
 
 func Main(args []string) int {
@@ -53,13 +53,7 @@ func run(args []string) error {
 		return fmt.Errorf("initialize private notes: %w", err)
 	}
 
-	syncManager := syncer.NewManager(syncer.Config{
-		RepoDir:       cfg.RecallRepoDir,
-		AutoSync:      cfg.AutoSync,
-		PullInterval:  cfg.PullInterval,
-		PushDebounce:  cfg.PushDebounce,
-		CommitMessage: cfg.CommitMessage,
-	}, logger)
+	versionManager := versioning.NewManager(cfg.RecallRepoDir, logger)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -111,7 +105,7 @@ func run(args []string) error {
 	server := httpx.NewServer(
 		cfg,
 		store,
-		syncManager,
+		versionManager,
 		logger,
 		httpx.WithSystemDatabase(controlDB),
 		httpx.WithAgentDockNodes(agentDockNodes),
@@ -130,12 +124,10 @@ func run(args []string) error {
 		MaxHeaderBytes:    64 << 10,
 	}
 
-	syncManager.Start(ctx)
 	server.StartEvolutionStage3(ctx)
-	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "auto_sync", cfg.AutoSync, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel, "stage3_evolution_enabled", cfg.EvolutionEnabled && cfg.ModelEndpoint != "" && cfg.ModelName != "")
+	logger.Info("nexusdock starting", "addr", cfg.Addr(), "nexus_data_dir", cfg.NexusDataDir, "recall_repo_dir", cfg.RecallRepoDir, "embedding_enabled", cfg.EmbeddingEnabled, "embedding_model", cfg.EmbeddingModel, "stage3_evolution_enabled", cfg.EvolutionEnabled && cfg.ModelEndpoint != "" && cfg.ModelName != "")
 	serveErr := serveHTTP(ctx, httpServer)
 	cancel()
-	syncManager.Wait()
 	if serveErr != nil {
 		return serveErr
 	}

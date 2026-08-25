@@ -74,8 +74,8 @@ func (s *Server) lifecycleTransition(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "LIFECYCLE_TRANSITION_FAILED", err.Error())
 		return
 	}
-	if !result.Idempotent && s.syncer != nil {
-		s.syncer.MarkChanged(r.Context())
+	if !result.Idempotent && s.versions != nil {
+		s.versions.MarkChanged(r.Context())
 	}
 	writeJSON(w, http.StatusOK, result)
 }

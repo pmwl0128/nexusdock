@@ -1,4 +1,4 @@
-package syncer
+package versioning
 
 import (
 	"context"
@@ -14,27 +14,7 @@ import (
 	"time"
 )
 
-type Config struct {
-	RepoDir       string
-	AutoSync      bool
-	PullInterval  time.Duration
-	PushDebounce  time.Duration
-	CommitMessage string
-}
-
-type Status struct {
-	OK              bool   `json:"ok"`
-	GitRepo         bool   `json:"git_repo"`
-	AutoSyncEnabled bool   `json:"auto_sync_enabled"`
-	PendingPush     bool   `json:"pending_push"`
-	LastPullAt      string `json:"last_pull_at,omitempty"`
-	LastPushAt      string `json:"last_push_at,omitempty"`
-	LastError       string `json:"last_error,omitempty"`
-	Conflict        bool   `json:"conflict"`
-	Ahead           string `json:"ahead,omitempty"`
-	Behind          string `json:"behind,omitempty"`
-	Dirty           bool   `json:"dirty"`
-}
+const commitMessage = "recall: 记录本地版本"
 
 type ChangedFile struct {
 	Status string `json:"status"`
@@ -81,174 +61,41 @@ type CommitDetail struct {
 	Diff    string       `json:"diff"`
 }
 
-type Manager struct {
-	cfg    Config
-	logger *slog.Logger
-
-	mu          sync.Mutex
-	gitMu       sync.Mutex
-	pendingPush bool
-	pendingHead string
-	lastPullAt  time.Time
-	lastPushAt  time.Time
-	lastError   string
-	conflict    bool
-	debounce    *time.Timer
-	lifecycle   context.Context
-	workers     sync.WaitGroup
+type RecordResult struct {
+	OK      bool   `json:"ok"`
+	GitRepo bool   `json:"git_repo"`
+	Created bool   `json:"created"`
+	Commit  Commit `json:"commit,omitempty"`
 }
 
-func NewManager(cfg Config, logger *slog.Logger) *Manager {
-	if cfg.PullInterval <= 0 {
-		cfg.PullInterval = 120 * time.Second
-	}
-	if cfg.PushDebounce <= 0 {
-		cfg.PushDebounce = 10 * time.Second
-	}
-	if strings.TrimSpace(cfg.CommitMessage) == "" {
-		cfg.CommitMessage = "recall: 自动同步召回库"
-	}
+type Manager struct {
+	repoDir string
+	logger  *slog.Logger
+	gitMu   sync.Mutex
+}
+
+func NewManager(repoDir string, logger *slog.Logger) *Manager {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Manager{cfg: cfg, logger: logger}
+	return &Manager{repoDir: repoDir, logger: logger}
 }
 
-func (m *Manager) Start(ctx context.Context) {
-	m.mu.Lock()
-	if m.lifecycle != nil {
-		m.mu.Unlock()
-		return
-	}
-	m.lifecycle = ctx
-	m.mu.Unlock()
-	if !m.cfg.AutoSync {
-		return
-	}
-	m.workers.Add(1)
-	go func() {
-		defer m.workers.Done()
-		ticker := time.NewTicker(m.cfg.PullInterval)
-		defer ticker.Stop()
-		_ = m.Pull(ctx)
-		for {
-			select {
-			case <-ctx.Done():
-				m.mu.Lock()
-				if m.debounce != nil {
-					if m.debounce.Stop() {
-						m.workers.Done()
-					}
-					m.debounce = nil
-				}
-				m.mu.Unlock()
-				return
-			case <-ticker.C:
-				_ = m.Pull(ctx)
-			}
-		}
-	}()
-}
-
+// MarkChanged records a local Git version after a successful Recall mutation.
+// Versioning is intentionally local-only: NexusDock never reads or writes Git remotes.
 func (m *Manager) MarkChanged(ctx context.Context) {
-	head := ""
-	if m.IsGitRepo() {
-		if out, err := m.git(ctx, "rev-parse", "HEAD"); err == nil {
-			head = strings.TrimSpace(out)
-		}
+	if _, err := m.Record(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		m.logger.Warn("record recall version failed", "error", err)
 	}
-
-	m.mu.Lock()
-	m.pendingPush = true
-	if m.pendingHead == "" {
-		m.pendingHead = head
-	}
-	if !m.cfg.AutoSync || !m.isGitRepoLocked() {
-		m.mu.Unlock()
-		return
-	}
-	lifecycle := m.lifecycle
-	if lifecycle == nil || lifecycle.Err() != nil {
-		m.mu.Unlock()
-		return
-	}
-	if m.debounce != nil {
-		if m.debounce.Stop() {
-			m.workers.Done()
-		}
-	}
-	delay := m.cfg.PushDebounce
-	m.workers.Add(1)
-	var timer *time.Timer
-	timer = time.AfterFunc(delay, func() {
-		defer m.workers.Done()
-		if err := m.Sync(lifecycle); err != nil && !errors.Is(err, context.Canceled) {
-			m.logger.Warn("delayed recall sync failed", "error", err)
-		}
-		m.mu.Lock()
-		if m.debounce == timer {
-			m.debounce = nil
-		}
-		m.mu.Unlock()
-	})
-	m.debounce = timer
-	m.mu.Unlock()
-}
-
-// Wait blocks until the lifecycle pull loop and any scheduled sync have stopped.
-// Call it only after the lifecycle context passed to Start has been canceled.
-func (m *Manager) Wait() {
-	m.workers.Wait()
 }
 
 func memoryGitArgs(args ...string) []string {
 	return append(args, "--", ".", ":(exclude).nexus", ":(exclude).nexus/**")
 }
 
-func (m *Manager) Status(ctx context.Context) Status {
-	m.mu.Lock()
-	status := Status{
-		OK:              true,
-		GitRepo:         m.isGitRepoLocked(),
-		AutoSyncEnabled: m.cfg.AutoSync,
-		PendingPush:     m.pendingPush,
-		LastError:       m.lastError,
-		Conflict:        m.conflict,
-	}
-	if !m.lastPullAt.IsZero() {
-		status.LastPullAt = m.lastPullAt.Format(time.RFC3339)
-	}
-	if !m.lastPushAt.IsZero() {
-		status.LastPushAt = m.lastPushAt.Format(time.RFC3339)
-	}
-	pendingHead := m.pendingHead
-	m.mu.Unlock()
-
-	if status.GitRepo {
-		if out, err := m.git(ctx, memoryGitArgs("status", "--porcelain")...); err == nil {
-			status.Dirty = strings.TrimSpace(out) != ""
-		}
-		if out, err := m.git(ctx, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"); err == nil {
-			parts := strings.Fields(out)
-			if len(parts) == 2 {
-				status.Ahead = parts[0]
-				status.Behind = parts[1]
-			}
-		}
-		if status.PendingPush && !status.Dirty && status.Ahead == "0" && pendingHead != "" {
-			if out, err := m.git(ctx, "rev-parse", "HEAD"); err == nil && strings.TrimSpace(out) != pendingHead {
-				// Recall 也允许由外部 Git 流程提交；HEAD 已变化且远端同步完成时，清除进程内待推送标志。
-				status.PendingPush = false
-				m.mu.Lock()
-				if m.pendingHead == pendingHead {
-					m.pendingPush = false
-					m.pendingHead = ""
-				}
-				m.mu.Unlock()
-			}
-		}
-	}
-	return status
+func (m *Manager) IsGitRepo() bool {
+	info, err := os.Stat(filepath.Join(m.repoDir, ".git"))
+	return err == nil && (info.IsDir() || info.Mode().IsRegular())
 }
 
 func (m *Manager) Diff(ctx context.Context) (Diff, error) {
@@ -292,57 +139,14 @@ func parseChangedFiles(status string) []ChangedFile {
 			parts := strings.Split(path, " -> ")
 			path = strings.TrimSpace(parts[len(parts)-1])
 		}
-		path = strings.Trim(path, `"`)
-		path = filepath.ToSlash(path)
+		path = filepath.ToSlash(strings.Trim(path, `"`))
 		if seen[path] {
 			continue
 		}
 		seen[path] = true
-		if code == "" {
-			code = strings.TrimSpace(line[:2])
-		}
 		files = append(files, ChangedFile{Status: code, Path: path})
 	}
 	return files
-}
-
-func (m *Manager) Discard(ctx context.Context, path string, confirmed bool) (Status, error) {
-	if !confirmed {
-		return m.Status(ctx), errors.New("confirmation required")
-	}
-	if !m.IsGitRepo() {
-		return m.Status(ctx), nil
-	}
-	path = filepath.ToSlash(strings.TrimSpace(path))
-	if path != "" {
-		if strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.HasPrefix(path, ".") || strings.Contains(path, "//") {
-			return m.Status(ctx), errors.New("invalid path")
-		}
-		if _, err := m.git(ctx, "restore", "--staged", "--worktree", "--", path); err != nil {
-			// Untracked files cannot be restored; git clean below handles them.
-			m.logger.Debug("git restore path failed before clean", "path", path, "error", err)
-		}
-		if _, err := m.git(ctx, "clean", "-fd", "--", path); err != nil {
-			return m.Status(ctx), err
-		}
-	} else {
-		if _, err := m.git(ctx, memoryGitArgs("restore", "--staged", "--worktree")...); err != nil {
-			return m.Status(ctx), err
-		}
-		if _, err := m.git(ctx, "clean", "-fd", "-e", ".nexus/", "--", "."); err != nil {
-			return m.Status(ctx), err
-		}
-	}
-
-	if dirty, err := m.isDirty(ctx); err == nil && !dirty {
-		m.mu.Lock()
-		m.pendingPush = false
-		m.pendingHead = ""
-		m.lastError = ""
-		m.conflict = false
-		m.mu.Unlock()
-	}
-	return m.Status(ctx), nil
 }
 
 func (m *Manager) Log(ctx context.Context, limit int) (Log, error) {
@@ -367,13 +171,7 @@ func (m *Manager) Log(ctx context.Context, limit int) (Log, error) {
 		if len(fields) < 5 {
 			continue
 		}
-		resp.Commits = append(resp.Commits, Commit{
-			Hash:      fields[0],
-			ShortHash: fields[1],
-			Date:      fields[2],
-			Author:    fields[3],
-			Subject:   fields[4],
-		})
+		resp.Commits = append(resp.Commits, Commit{Hash: fields[0], ShortHash: fields[1], Date: fields[2], Author: fields[3], Subject: fields[4]})
 	}
 	resp.Count = len(resp.Commits)
 	return resp, nil
@@ -426,11 +224,49 @@ func (m *Manager) CommitDetail(ctx context.Context, hash string) (CommitDetail, 
 			if len(parts) < 2 {
 				continue
 			}
-			path := parts[len(parts)-1]
-			resp.Files = append(resp.Files, CommitFile{Status: parts[0], Path: filepath.ToSlash(path)})
+			resp.Files = append(resp.Files, CommitFile{Status: parts[0], Path: filepath.ToSlash(parts[len(parts)-1])})
 		}
 	}
 	return resp, nil
+}
+
+func (m *Manager) Record(ctx context.Context) (RecordResult, error) {
+	result := RecordResult{OK: true, GitRepo: m.IsGitRepo()}
+	if !result.GitRepo {
+		return result, nil
+	}
+	dirty, err := m.isDirty(ctx)
+	if err != nil || !dirty {
+		return result, err
+	}
+	if err := m.guardPrivateNotesNotTracked(ctx); err != nil {
+		return result, err
+	}
+	if err := m.guardSafeMarkdownVersion(ctx); err != nil {
+		return result, err
+	}
+	if err := m.stageRecallChanges(ctx); err != nil {
+		return result, err
+	}
+	if err := m.guardSafeMarkdownStagedDiff(ctx); err != nil {
+		return result, err
+	}
+	if _, err := m.git(ctx, "commit", "-m", commitMessage); err != nil {
+		dirty, dirtyErr := m.isDirty(ctx)
+		if dirtyErr != nil || dirty {
+			return result, err
+		}
+		return result, nil
+	}
+	log, err := m.Log(ctx, 1)
+	if err != nil {
+		return result, err
+	}
+	result.Created = true
+	if len(log.Commits) > 0 {
+		result.Commit = log.Commits[0]
+	}
+	return result, nil
 }
 
 func isPrivateNotePlaintextOrKeyPath(rel string) bool {
@@ -456,12 +292,12 @@ func (m *Manager) guardPrivateNotesNotTracked(ctx context.Context) error {
 		}
 	}
 	if len(unsafe) > 0 {
-		return fmt.Errorf("refusing to sync tracked or non-ignored private note plaintext or keys: %s", strings.Join(unsafe, ", "))
+		return fmt.Errorf("refusing to record tracked or non-ignored private note plaintext or keys: %s", strings.Join(unsafe, ", "))
 	}
 	return nil
 }
 
-func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
+func (m *Manager) guardSafeMarkdownVersion(ctx context.Context) error {
 	out, err := m.git(ctx, "ls-files", "*.md")
 	if err != nil {
 		return err
@@ -472,7 +308,7 @@ func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
 		if rel == "" {
 			continue
 		}
-		info, err := os.Stat(filepath.Join(m.cfg.RepoDir, filepath.FromSlash(rel)))
+		info, err := os.Stat(filepath.Join(m.repoDir, filepath.FromSlash(rel)))
 		if err != nil {
 			continue
 		}
@@ -484,7 +320,7 @@ func (m *Manager) guardSafeMarkdownSync(ctx context.Context) error {
 		}
 	}
 	if len(zero) > 0 {
-		return fmt.Errorf("refusing to sync zero-byte tracked markdown files: %s", strings.Join(zero, ", "))
+		return fmt.Errorf("refusing to record zero-byte tracked markdown files: %s", strings.Join(zero, ", "))
 	}
 	return nil
 }
@@ -553,7 +389,7 @@ func (m *Manager) guardSafeMarkdownStagedDiff(ctx context.Context) error {
 		}
 	}
 	if len(deleteOnlyFiles) >= 10 && deletions >= 100 {
-		return fmt.Errorf("refusing suspicious bulk markdown delete-only change: files=%d additions=%d deletions=%d examples=%s", changedFiles, additions, deletions, strings.Join(limitStrings(deleteOnlyFiles, 20), ", "))
+		return fmt.Errorf("refusing suspicious bulk markdown delete-only version: files=%d additions=%d deletions=%d examples=%s", changedFiles, additions, deletions, strings.Join(limitStrings(deleteOnlyFiles, 20), ", "))
 	}
 	if changedFiles >= 20 && deletions >= 300 && deletions > additions*3 {
 		return fmt.Errorf("refusing suspicious bulk markdown deletion: files=%d additions=%d deletions=%d", changedFiles, additions, deletions)
@@ -570,100 +406,6 @@ func limitStrings(values []string, max int) []string {
 	return limited
 }
 
-func (m *Manager) Pull(ctx context.Context) error {
-	if !m.IsGitRepo() {
-		return nil
-	}
-	_, err := m.git(ctx, "pull", "--rebase", "--autostash")
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err != nil {
-		m.lastError = err.Error()
-		m.conflict = true
-		m.logger.Warn("git pull failed", "error", err)
-		return err
-	}
-	m.lastPullAt = time.Now()
-	m.lastError = ""
-	m.conflict = false
-	return nil
-}
-
-func (m *Manager) Push(ctx context.Context) error {
-	if !m.IsGitRepo() {
-		return nil
-	}
-	dirty, err := m.isDirty(ctx)
-	if err != nil {
-		m.setError(err)
-		return err
-	}
-	if !dirty {
-		m.mu.Lock()
-		m.pendingPush = false
-		m.pendingHead = ""
-		m.mu.Unlock()
-		return nil
-	}
-	if err := m.guardPrivateNotesNotTracked(ctx); err != nil {
-		m.setError(err)
-		return err
-	}
-	if err := m.guardSafeMarkdownSync(ctx); err != nil {
-		m.setError(err)
-		return err
-	}
-	if err := m.stageRecallChanges(ctx); err != nil {
-		m.setError(err)
-		return err
-	}
-	if err := m.guardSafeMarkdownStagedDiff(ctx); err != nil {
-		m.setError(err)
-		return err
-	}
-	if _, err := m.git(ctx, "commit", "-m", m.cfg.CommitMessage); err != nil {
-		// git commit exits non-zero when there is nothing to commit. Re-check before treating it as fatal.
-		dirty, dirtyErr := m.isDirty(ctx)
-		if dirtyErr != nil || dirty {
-			m.setError(err)
-			return err
-		}
-	}
-	if _, err := m.git(ctx, "push"); err != nil {
-		m.setError(err)
-		return err
-	}
-	m.mu.Lock()
-	m.pendingPush = false
-	m.pendingHead = ""
-	m.lastPushAt = time.Now()
-	m.lastError = ""
-	m.conflict = false
-	m.mu.Unlock()
-	return nil
-}
-
-func (m *Manager) Sync(ctx context.Context) error {
-	if !m.IsGitRepo() {
-		return nil
-	}
-	if err := m.Pull(ctx); err != nil {
-		return err
-	}
-	return m.Push(ctx)
-}
-
-func (m *Manager) IsGitRepo() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.isGitRepoLocked()
-}
-
-func (m *Manager) isGitRepoLocked() bool {
-	info, err := os.Stat(filepath.Join(m.cfg.RepoDir, ".git"))
-	return err == nil && info.IsDir()
-}
-
 func (m *Manager) isDirty(ctx context.Context) (bool, error) {
 	out, err := m.git(ctx, memoryGitArgs("status", "--porcelain")...)
 	if err != nil {
@@ -678,8 +420,10 @@ func (m *Manager) git(ctx context.Context, args ...string) (string, error) {
 
 	cmdCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(cmdCtx, "git", args...)
-	cmd.Dir = m.cfg.RepoDir
+	gitArgs := []string{"-c", "safe.directory=" + m.repoDir, "-c", "user.name=NexusDock", "-c", "user.email=nexusdock@local"}
+	gitArgs = append(gitArgs, args...)
+	cmd := exec.CommandContext(cmdCtx, "git", gitArgs...)
+	cmd.Dir = m.repoDir
 	out, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(out))
 	if err != nil {
@@ -689,11 +433,4 @@ func (m *Manager) git(ctx context.Context, args ...string) (string, error) {
 		return text, errors.New(text)
 	}
 	return text, nil
-}
-
-func (m *Manager) setError(err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lastError = err.Error()
-	m.conflict = true
 }

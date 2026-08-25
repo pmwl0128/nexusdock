@@ -16,7 +16,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/core"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
-	"github.com/uvwt/nexusdock/internal/syncer"
+	"github.com/uvwt/nexusdock/internal/versioning"
 )
 
 func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
@@ -37,7 +37,7 @@ func newTestHandler(t *testing.T, cfg config.Config) http.Handler {
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
-	mgr := syncer.NewManager(syncer.Config{RepoDir: store.Root()}, slog.Default())
+	mgr := versioning.NewManager(store.Root(), slog.Default())
 	privateNotes, err := privatenotes.New(filepath.Join(store.Root(), "private-notes"))
 	if err != nil {
 		t.Fatalf("New private notes store: %v", err)
@@ -338,5 +338,39 @@ func TestRetiredRoutesAreNotRegistered(t *testing.T) {
 				t.Fatalf("status = %d, want 404", res.Code)
 			}
 		})
+	}
+}
+
+func TestRecallRemoteSyncRoutesAreRemoved(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/v1/sync/status"},
+		{http.MethodPost, "/v1/sync/pull"},
+		{http.MethodPost, "/v1/sync/push"},
+		{http.MethodPost, "/v1/sync/now"},
+		{http.MethodPost, "/v1/git/discard"},
+	} {
+		res := doJSON(t, h, tc.method, tc.path, `{}`)
+		if res.Code != http.StatusNotFound && res.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("legacy route %s %s status=%d body=%s", tc.method, tc.path, res.Code, res.Body.String())
+		}
+	}
+}
+
+func TestRecordLocalVersionRouteIsAvailable(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	res := doJSON(t, h, http.MethodPost, "/v1/git/commit", `{}`)
+	if res.Code != http.StatusOK {
+		t.Fatalf("record version status=%d body=%s", res.Code, res.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["ok"] != true || body["git_repo"] != false || body["created"] != false {
+		t.Fatalf("record version body=%#v", body)
 	}
 }

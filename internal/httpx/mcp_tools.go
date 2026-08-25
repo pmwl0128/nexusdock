@@ -28,7 +28,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			"dry_run": booleanProperty("Force a preview without writing or deleting."), "max_bytes": integerProperty("Maximum diff bytes."),
 		}, "target", "action")},
 		{Name: "recall_maintain", Title: "Maintain NexusDock Recall", Description: "Inspect sync/index state or rebuild the central Recall index.", InputSchema: objectSchema(map[string]any{
-			"action": enumProperty("sync_status", "list", "lint", "embedding_status", "reindex", "reindex_cards"), "prefix": stringProperty("Optional prefix."), "max_entries": integerProperty("Maximum entries."),
+			"action": enumProperty("list", "lint", "embedding_status", "reindex", "reindex_cards"), "prefix": stringProperty("Optional prefix."), "max_entries": integerProperty("Maximum entries."),
 			"terms": arrayStringProperty("Terms or regular expressions to find."), "regex": booleanProperty("Treat terms as regular expressions."), "max_findings": integerProperty("Maximum lint findings."),
 		})},
 		{Name: "private_note_manage", Title: "Manage private notes", Description: "Explicit low-frequency entrypoint for sensitive private notes.", InputSchema: requiredObjectSchema(map[string]any{

@@ -25,14 +25,6 @@ export type RecallCardSummary = {
 export type GitCommit = { hash: string; short_hash: string; date: string; author: string; subject: string };
 export type ChangedFile = { status: string; path: string };
 export type GitDiff = { ok?: boolean; git_repo?: boolean; dirty?: boolean; status?: string; stat?: string; files?: ChangedFile[] };
-export type SyncStatus = Record<string, unknown> & {
-  dirty?: boolean;
-  ahead?: string | number;
-  behind?: string | number;
-  pending_push?: boolean;
-  branch?: string;
-  remote?: string;
-};
 export type Notice = { text: string; danger?: boolean } | null;
 export type PendingRecallAction =
   | { kind: 'move'; path: string; nextPath: string; error?: string }
@@ -70,7 +62,6 @@ export type RecallWorkspaceState = {
   creating: boolean;
   query: string;
   appliedQuery: string;
-  syncStatus: SyncStatus | null;
   gitDiff: GitDiff | null;
   commits: GitCommit[];
   loading: boolean;
@@ -83,7 +74,7 @@ export type RecallWorkspaceState = {
 
 export type RecallWorkspaceActions = {
   refreshAll: () => void;
-  syncNow: (action?: 'pull' | 'push' | 'now') => void;
+  recordVersion: () => void;
   restoreDraft: () => void;
   discardDraft: () => void;
   clearNotice: () => void;

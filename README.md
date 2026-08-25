@@ -47,8 +47,6 @@ NEXUS_AUTH_TOKEN=<粘贴刚才生成的随机值>
 NEXUS_REQUIRE_AUTH=true
 
 RECALL_REPO_DIR=./recall
-RECALL_GITHUB_CREDENTIALS=./github_credentials
-RECALL_AUTO_SYNC=false
 ```
 
 本机通过 `http://127.0.0.1` 试用时，还需要临时允许 HTTP 登录：
@@ -63,8 +61,6 @@ NEXUS_AUTH_ALLOW_INSECURE_HTTP=true
 
 ```bash
 mkdir -p nexus-data recall
-: > github_credentials
-chmod 600 github_credentials
 ```
 
 默认镜像使用 UID/GID `10001:10001` 运行。Linux 使用宿主机绑定目录时，首次启动前执行：
@@ -73,7 +69,6 @@ chmod 600 github_credentials
 sudo chown -R 10001:10001 nexus-data recall
 ```
 
-`github_credentials` 可以在未启用 Git 自动同步时保持为空，但文件必须存在且可读。
 
 ### 3. 初始化管理员
 
@@ -136,31 +131,17 @@ Recall 仓库默认位于 `RECALL_REPO_DIR`。你可以在 Web 控制台中：
 
 - 新建、编辑、移动和删除 `.md`、`.markdown`、`.txt` 文件；
 - 按关键词搜索记忆；
-- 查看本地改动和最近提交；
-- 手动执行拉取、推送或双向同步；
+- 查看本地改动和版本历史；
 - 把稳定经验整理为卡片；
 - 配置 Embeddings 后进行向量搜索。
 
 Recall 内容本身是普通 Git 仓库，可以继续使用现有的 Git 托管和备份方式。
 
-### 启用 Git 自动同步
+### 本地版本与数据保护
 
-先把 `RECALL_REPO_DIR` 初始化或克隆为可正常拉取、推送的 Git 仓库，再将 Git credential-store 文件路径写入：
+当 `RECALL_REPO_DIR` 是 Git 仓库时，NexusDock 会在自身写入 Recall 后记录本地 Git 版本，并在 Web 控制台展示本地变更和版本历史。NexusDock 不配置、读取或访问 Git remote，也不提供远端同步或备份功能。
 
-```dotenv
-RECALL_GITHUB_CREDENTIALS=/absolute/path/to/github_credentials
-RECALL_AUTO_SYNC=true
-```
-
-常用同步参数：
-
-```dotenv
-RECALL_PULL_INTERVAL_SECONDS=120
-RECALL_PUSH_DEBOUNCE_SECONDS=10
-RECALL_COMMIT_MESSAGE=recall: 自动同步召回库
-```
-
-凭据文件会以只读 Secret 挂载到容器。不要把它提交到 Git，也不要把 Token 写入 README、Compose 或日志。
+生产环境的数据保护由服务器管理员负责。至少应按部署策略保护 `NEXUS_DATA_DIR` 和 `RECALL_REPO_DIR`；可以使用宿主机快照、文件备份、Git 或其他运维工具，但这些都不属于 NexusDock 服务职责。
 
 ### 启用向量召回
 
@@ -173,7 +154,7 @@ RECALL_EMBEDDING_MODEL=BAAI/bge-m3
 RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 ```
 
-未配置 Embeddings 时，普通文件浏览、关键词搜索和 Git 同步仍可正常使用。
+未配置 Embeddings 时，普通文件浏览、关键词搜索和本地版本历史仍可正常使用。
 
 ## 配置参考
 
@@ -188,8 +169,6 @@ RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 | `NEXUS_TRUSTED_PROXIES` | `127.0.0.1,::1` | 允许提供 `X-Forwarded-*` 的反向代理地址 |
 | `NEXUS_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error` |
 | `RECALL_REPO_DIR` | `./recall` | Recall Git 仓库目录；容器内为 `/recall` |
-| `RECALL_AUTO_SYNC` | `false` | 是否自动拉取和推送 Recall 仓库 |
-| `RECALL_GITHUB_CREDENTIALS` | 无 | Git credential-store 文件路径 |
 | `RECALL_EMBEDDING_ENABLED` | `false` | 是否启用经验卡片向量索引 |
 | `RECALL_EMBEDDING_ENDPOINT` | 空 | OpenAI 兼容 Embeddings 地址 |
 | `RECALL_EMBEDDING_MODEL` | `BAAI/bge-m3` | Embeddings 模型 |

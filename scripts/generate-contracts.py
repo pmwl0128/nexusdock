@@ -1062,9 +1062,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 success=ok(ref("PrivateNoteMaintenanceResponse")),
             )
         },
-        "/v1/sync/status": {"get": operation("getSyncStatus", "读取召回 Git 同步状态")},
         "/v1/git/diff": {"get": operation("getGitDiff", "读取召回仓库变更")},
-        "/v1/git/discard": {"post": operation("discardGitChanges", "丢弃召回仓库本地变更", request=body())},
         "/v1/git/log": {
             "get": operation(
                 "getGitLog",
@@ -1077,11 +1075,9 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 "getGitCommit",
                 "读取召回仓库提交详情",
                 params=[q("hash", "Git 提交哈希。", required=True, minLength=1)],
-            )
+            ),
+            "post": operation("recordGitVersion", "记录当前 Recall 本地版本", request=body()),
         },
-        "/v1/sync/pull": {"post": operation("pullRecall", "从远端更新召回仓库", request=body())},
-        "/v1/sync/push": {"post": operation("pushRecall", "保存召回仓库到远端", request=body())},
-        "/v1/sync/now": {"post": operation("syncRecallNow", "立即双向同步召回仓库", request=body())},
         "/v1/runtime/nodes": {
             "get": operation("listAgentDockNodes", "列出 Nexus 管理的 AgentDock 节点", success=ok(ref("AgentDockNodeListResponse"))),
         },
