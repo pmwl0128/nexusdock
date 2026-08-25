@@ -720,7 +720,7 @@ summary::-webkit-details-marker { display: none; }
 .ops-json-panel pre,
 .workflow-runtime-json pre { margin: 0; padding: 12px; max-height: 390px; overflow: auto; background: #171717; color: #ddd; font-size: 10px; line-height: 1.6; white-space: pre-wrap; }
 
-/* Workflow 模板 */
+/* 工作流模板 */
 .workflow-page { display: grid; gap: 12px; }
 .workflow-layout { display: grid; grid-template-columns: 320px minmax(0,1fr); gap: 12px; align-items: start; }
 .workflow-list-panel { padding: 10px; border: 1px solid var(--nx-line); border-radius: 7px; background: #fff; }
