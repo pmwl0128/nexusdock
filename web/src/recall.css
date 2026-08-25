@@ -82,7 +82,8 @@
 .recall-header button.primary { border-color: #171717; background: #171717; color: #fff; }
 .recall-header button:not(.primary) { border-color: var(--nx-line-strong); background: #fff; color: #333; }
 .recall-workspace button.primary { border-color: #171717; background: #171717; color: #fff; }
-.recall-workspace button.danger { border-color: var(--nx-danger); background: var(--nx-danger); color: #fff; }
+.recall-workspace button.danger { border-color: var(--nx-danger-line); background: #fff; color: var(--nx-danger); }
+.recall-workspace button.danger:hover:not(:disabled) { background: var(--nx-danger-bg); }
 
 .recall-health {
   min-height: 26px;

@@ -175,8 +175,8 @@
 .nx-button.is-secondary { border-color: var(--nx-line-strong); background: #fff; color: #333; }
 .nx-button.is-secondary:hover:not(:disabled) { background: var(--nx-soft-2); }
 .nx-button.is-secondary.is-active { border-color: #bdbdbd; background: #ececec; color: #171717; }
-.nx-button.is-danger { border-color: var(--nx-danger); background: var(--nx-danger); color: #fff; }
-.nx-button.is-danger:hover:not(:disabled) { border-color: #942f29; background: #942f29; }
+.nx-button.is-danger { border-color: var(--nx-danger-line); background: #fff; color: var(--nx-danger); }
+.nx-button.is-danger:hover:not(:disabled) { border-color: var(--nx-danger-line); background: var(--nx-danger-bg); }
 .nx-button.is-small { min-height: 32px; padding: 0 9px; font-size: 11px; }
 
 .nx-alert,
@@ -328,6 +328,15 @@
 .dashboard-node-meta small { color: var(--nx-muted); font-size: 9px; }
 .dashboard-node-meta strong { overflow: hidden; color: #333; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-node-badges { justify-content: flex-end; gap: 6px; }
+.dashboard-node-badges .status-badge,
+.setting-value .status-badge,
+.ops-task-detail .status-badge,
+.skill-detail-head .status-badge {
+  min-height: 22px;
+  padding: 0 2px;
+  border-color: transparent;
+  background: transparent;
+}
 
 .nexus-panel {
   overflow: hidden;
