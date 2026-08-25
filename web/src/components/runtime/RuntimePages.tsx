@@ -221,15 +221,17 @@ export function SkillsPage({ nodeID, refreshToken }: { nodeID: string; refreshTo
   const selected = filtered.find((item) => `${item.source}:${item.id}` === selectedKey) || filtered[0];
   const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `${runtimeBase}/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell error={resource.error}>
-    <div className="ops-toolbar skill-toolbar">
-      <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索名称或说明" /></label>
-      <span className="ops-count">{filtered.length} / {resource.data.count}</span>
-    </div>
-    <section className={`ops-master-detail skills-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
-      <div className="ops-task-rail mobile-drilldown-list">
-        {filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => { setSelectedKey(`${skill.source}:${skill.id}`); setMobileDetailOpen(true); }}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}
-      </div>
-      <div className="mobile-drilldown-detail">
+    <section className={`skills-workspace mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+      <aside className="skills-catalog mobile-drilldown-list">
+        <header className="skills-catalog-head">
+          <div><span className="nexus-eyebrow">SKILLS</span><strong>{filtered.length}</strong><small>共 {resource.data.count} 个</small></div>
+          <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索名称或说明" /></label>
+        </header>
+        <div className="skills-rail">
+          {filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`skill-list-item ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => { setSelectedKey(`${skill.source}:${skill.id}`); setMobileDetailOpen(true); }}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}
+        </div>
+      </aside>
+      <div className="skills-detail mobile-drilldown-detail">
         {selected && <MobileDrilldownBar label="Skill" title={selected.title || selected.id} meta={selected.active_version || selected.status} backLabel="返回 Skill 列表" onBack={() => setMobileDetailOpen(false)} />}
         <SkillDetail nodeID={nodeID} skill={selected} detail={detail.data.skill} loading={detail.loading} error={detail.error} refreshToken={refreshToken} />
       </div>
@@ -282,29 +284,29 @@ function SkillDetailContent({ nodeID, skill, detail, loading, error, refreshToke
   const manifest = asRecord(raw?.manifest);
   const selection = asRecord(raw?.selection);
 
-  return <article className="ops-task-detail">
-    <header className="ops-skill-head">
-      <div><span>Skill</span><h3>{full.title || full.id}</h3><p>{full.description || '暂无用途说明。'}</p></div>
+  return <article className="skill-detail-panel">
+    <header className="skill-detail-head">
+      <div><span className="nexus-eyebrow">SKILL</span><h3>{full.title || full.id}</h3><p>{full.description || '暂无用途说明。'}</p></div>
       <StatusBadge tone={toneForStatus(full.status)}>{full.active_version || full.status}</StatusBadge>
     </header>
     {loading && <div className="nx-alert is-info">正在读取 Skill 详情…</div>}
     {error && <div className="nx-alert is-error">{error}</div>}
 
-    <div className="ops-skill-summary" aria-label="Skill 摘要">
-      <div><span>当前版本</span><strong>{full.active_version || '未标记'}</strong></div>
-      <div><span>文件</span><strong>{files.length}</strong></div>
-      <div><span>最近更新</span><strong>{formatTime(full.updated_at)}</strong></div>
-    </div>
+    <dl className="skill-meta" aria-label="Skill 摘要">
+      <div><dt>版本</dt><dd>{full.active_version || '未标记'}</dd></div>
+      <div><dt>文件</dt><dd>{files.length}</dd></div>
+      <div><dt>更新</dt><dd>{formatTime(full.updated_at)}</dd></div>
+    </dl>
 
-    <section className="ops-skill-files">
-      <div className="ops-skill-file-browser">
-        <header><h4>文件</h4><span>{files.length}</span></header>
+    <section className="skill-file-workspace">
+      <aside className="skill-file-nav">
+        <header><div><strong>文件</strong><small>{files.length} 个</small></div></header>
         {files.length === 0 ? <EmptyOps text="当前安装包没有可展示的文件。" /> : <>
-          <div className="ops-mobile-file-tabs" role="tablist" aria-label="选择文件">{files.map((file) => <button type="button" role="tab" aria-selected={activePath === file.path} key={file.path} className={activePath === file.path ? 'is-active' : ''} onClick={() => setSelectedPath(file.path)}><FileText size={13} /><span>{file.path}</span></button>)}</div>
-          <div className="ops-file-list">{files.map((file) => <button type="button" key={file.path} className={`ops-file-row ${activePath === file.path ? 'is-active' : ''}`} onClick={() => setSelectedPath(file.path)}><FileText size={15} /><span><strong>{file.path}</strong><small>{fileKindLabel(file.kind)} · {formatBytes(file.size_bytes)}</small></span></button>)}</div>
+          <div className="skill-mobile-file-tabs" role="tablist" aria-label="选择文件">{files.map((file) => <button type="button" role="tab" aria-selected={activePath === file.path} key={file.path} className={activePath === file.path ? 'is-active' : ''} onClick={() => setSelectedPath(file.path)}><FileText size={13} /><span>{file.path}</span></button>)}</div>
+          <div className="skill-file-list">{files.map((file) => <button type="button" key={file.path} className={`skill-file-row ${activePath === file.path ? 'is-active' : ''}`} onClick={() => setSelectedPath(file.path)}><FileText size={15} /><span><strong>{file.path}</strong><small>{fileKindLabel(file.kind)} · {formatBytes(file.size_bytes)}</small></span></button>)}</div>
         </>}
-      </div>
-      <div className="ops-skill-file-preview">
+      </aside>
+      <div className="skill-file-preview">
         {!activePath ? <EmptyOps text="选择文件后在这里查看内容。" /> : preview.loading ? <EmptyOps text="正在读取文件…" /> : preview.error ? <div className="nx-alert is-error">{preview.error}</div> : preview.data.file ? <>
           <header><div><strong>{preview.data.file.path}</strong><span>{fileKindLabel(preview.data.file.kind)} · {formatBytes(preview.data.file.size_bytes)}</span></div>{preview.data.file.truncated && <em>仅显示前 256 KiB</em>}</header>
           <pre>{preview.data.file.content}</pre>
@@ -312,7 +314,7 @@ function SkillDetailContent({ nodeID, skill, detail, loading, error, refreshToke
       </div>
     </section>
 
-    <details className="ops-secondary-details">
+    <details className="ops-secondary-details skill-technical-details">
       <summary>版本与技术信息</summary>
       <div className="ops-detail-grid">
         <Info label="ID" value={full.id} />
