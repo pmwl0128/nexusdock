@@ -275,6 +275,11 @@ func TestCardEndpointsPlanWriteAndSearch(t *testing.T) {
 		t.Fatalf("write response missing card path: %s", res.Body.String())
 	}
 
+	res = doJSON(t, h, http.MethodGet, "/v1/recall/cards", "")
+	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"title":"Deploy check"`) || !strings.Contains(res.Body.String(), `"card_type":"project_trap"`) {
+		t.Fatalf("list response missing card summary: status=%d body=%s", res.Code, res.Body.String())
+	}
+
 	res = doJSON(t, h, http.MethodPost, "/v1/recall/cards/search", `{"query":"service endpoint","max_results":5}`)
 	if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), "Deploy check") {
 		t.Fatalf("search status=%d body=%s", res.Code, res.Body.String())

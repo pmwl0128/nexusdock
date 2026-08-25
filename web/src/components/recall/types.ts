@@ -2,8 +2,26 @@ import type { FormEvent, RefObject } from 'react';
 
 export type EntryType = 'file' | 'directory';
 export type RecallPage = 'library' | 'cards' | 'vectors' | 'history';
-export type RecallEntry = { path: string; name?: string; type: EntryType; size_bytes?: number };
-export type Recall = { path: string; content: string };
+export type RecallEntry = { path: string; name?: string; type: EntryType; size_bytes?: number; modified?: string };
+export type Recall = {
+  path: string;
+  content: string;
+  body?: string;
+  frontmatter?: Record<string, string>;
+  size_bytes?: number;
+};
+export type RecallCardSummary = {
+  path: string;
+  title: string;
+  project: string;
+  status: string;
+  card_type: string;
+  scope?: string;
+  confidence?: string;
+  tags?: string[];
+  size_bytes?: number;
+  modified?: string;
+};
 export type GitCommit = { hash: string; short_hash: string; date: string; author: string; subject: string };
 export type ChangedFile = { status: string; path: string };
 export type GitDiff = { ok?: boolean; git_repo?: boolean; dirty?: boolean; status?: string; stat?: string; files?: ChangedFile[] };
@@ -21,29 +39,6 @@ export type PendingRecallAction =
   | { kind: 'delete'; path: string; error?: string }
   | null;
 
-export type RecallCard = {
-  title: string;
-  content: string;
-  type: string;
-  project: string;
-  status: string;
-  confidence: string;
-  tags?: string[];
-  source: string;
-  evidence?: string;
-  path: string;
-};
-
-export type CardSearchResult = { path: string; title?: string; score?: number; size_bytes?: number };
-export type CardCaptureResult = {
-  ok: boolean;
-  card: RecallCard;
-  warnings?: string[];
-  capture_plan?: Record<string, unknown>;
-  similar_results?: CardSearchResult[];
-  similar_count?: number;
-};
-export type CardWriteResult = { ok: boolean; card: RecallCard; recall: Recall; warnings?: string[]; index_policy?: string };
 export type EmbeddingStatus = {
   enabled?: boolean;
   configured?: boolean;
@@ -58,19 +53,6 @@ export type EmbeddingStatus = {
 export type EmbeddingSearchResult = { path: string; title?: string; score: number };
 export type EmbeddingSearchResponse = { ok?: boolean; count?: number; model?: string; index?: { count?: number; dimension?: number }; results?: EmbeddingSearchResult[] };
 
-export type CardDraft = {
-  title: string;
-  content: string;
-  project: string;
-  type: string;
-  tags: string;
-  source: string;
-  evidence: string;
-  path: string;
-  allowWarnings: boolean;
-  capture: CardCaptureResult | null;
-};
-
 export type EmbeddingPanelState = {
   status: EmbeddingStatus | null;
   query: string;
@@ -80,6 +62,7 @@ export type EmbeddingPanelState = {
 export type RecallWorkspaceState = {
   entries: RecallEntry[];
   libraryEntries: RecallEntry[];
+  cardEntries: RecallCardSummary[];
   current: Recall | null;
   draftPath: string;
   draftContent: string;
@@ -95,7 +78,6 @@ export type RecallWorkspaceState = {
   notice: Notice;
   draftAvailable: boolean;
   pendingAction: PendingRecallAction;
-  card: CardDraft;
   embedding: EmbeddingPanelState;
 };
 
@@ -122,10 +104,6 @@ export type RecallWorkspaceActions = {
   saveRecall: () => void;
   setDraftPath: (value: string) => void;
   setDraftContent: (value: string) => void;
-  setCardField: (field: keyof Omit<CardDraft, 'capture' | 'allowWarnings'>, value: string) => void;
-  setAllowCardWarnings: (value: boolean) => void;
-  captureCard: (event?: FormEvent) => void;
-  writeCard: () => void;
   openSimilarCard: (path: string) => void;
   setEmbeddingQuery: (value: string) => void;
   searchCardEmbeddings: (event?: FormEvent) => void;

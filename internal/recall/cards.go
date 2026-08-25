@@ -83,6 +83,54 @@ type CardWriteResult struct {
 	IndexPolicy string   `json:"index_policy"`
 }
 
+// CardSummary 是经验卡片列表的只读展示模型。
+// 列表需要真实标题和生命周期信息，但不应为了展示把每张卡片正文都传给浏览器。
+type CardSummary struct {
+	Path       string   `json:"path"`
+	Title      string   `json:"title"`
+	Project    string   `json:"project"`
+	Status     string   `json:"status"`
+	CardType   string   `json:"card_type"`
+	Scope      string   `json:"scope,omitempty"`
+	Confidence string   `json:"confidence,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
+	SizeBytes  int      `json:"size_bytes,omitempty"`
+	Modified   string   `json:"modified,omitempty"`
+}
+
+func (s *Store) ListCards(maxEntries int) ([]CardSummary, error) {
+	entries, err := s.List("recall/managed/cards", maxEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	cards := make([]CardSummary, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Type != "file" {
+			continue
+		}
+		memory, err := s.Read(entry.Path)
+		if err != nil {
+			return nil, fmt.Errorf("read card %s: %w", entry.Path, err)
+		}
+		project, status, cardType := storedCardPathMetadata(entry.Path)
+		frontmatter := memory.Frontmatter
+		cards = append(cards, CardSummary{
+			Path:       entry.Path,
+			Title:      storedCardTitle(memory.Body, entry.Path),
+			Project:    firstStoredCardValue(frontmatter["project"], project, "global"),
+			Status:     firstStoredCardValue(frontmatter["status"], status, "unknown"),
+			CardType:   firstStoredCardValue(frontmatter["card_type"], cardType, "unknown"),
+			Scope:      strings.TrimSpace(frontmatter["scope"]),
+			Confidence: strings.TrimSpace(frontmatter["confidence"]),
+			Tags:       splitStoredCardTags(frontmatter["tags"]),
+			SizeBytes:  memory.SizeBytes,
+			Modified:   entry.Modified,
+		})
+	}
+	return cards, nil
+}
+
 func (s *Store) CaptureCard(req CardRequest) (CardCaptureResult, error) {
 	card, warnings, err := normalizeCard(req)
 	if err != nil {
@@ -267,6 +315,49 @@ func renderCardMarkdown(card Card) string {
 		b.WriteString(card.Boundary + "\n")
 	}
 	return b.String()
+}
+
+func storedCardTitle(body, path string) string {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "# ") {
+			if title := strings.TrimSpace(strings.TrimPrefix(line, "# ")); title != "" {
+				return title
+			}
+		}
+	}
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
+}
+
+func storedCardPathMetadata(path string) (project, status, cardType string) {
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts {
+		if part == "cards" && i+3 < len(parts) {
+			return parts[i+1], parts[i+2], parts[i+3]
+		}
+	}
+	return "", "", ""
+}
+
+func firstStoredCardValue(values ...string) string {
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func splitStoredCardTags(value string) []string {
+	return normalizeCardTags(strings.FieldsFunc(value, func(r rune) bool {
+		switch r {
+		case ',', '，', ';', '；':
+			return true
+		default:
+			return false
+		}
+	}))
 }
 
 func normalizeCardTags(tags []string) []string {

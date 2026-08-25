@@ -1,20 +1,5 @@
 import { loadRecallDraft } from '../../lib/drafts';
-import type { CardDraft, EmbeddingPanelState, PendingRecallAction, Recall, RecallEntry, RecallWorkspaceState, SyncStatus, GitCommit, GitDiff, Notice } from './types';
-
-function initialCard(): CardDraft {
-  return {
-    title: '',
-    content: '',
-    project: 'agentdock',
-    type: 'runbook',
-    tags: '',
-    source: 'nexus-recall-ui',
-    evidence: '',
-    path: '',
-    allowWarnings: false,
-    capture: null,
-  };
-}
+import type { EmbeddingPanelState, PendingRecallAction, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceState, SyncStatus, GitCommit, GitDiff, Notice } from './types';
 
 function initialEmbedding(): EmbeddingPanelState {
   return { status: null, query: '', results: [] };
@@ -26,6 +11,7 @@ export function initialRecallState(): RecallWorkspaceState {
   return {
     entries: [],
     libraryEntries: [],
+    cardEntries: [],
     current: null,
     draftPath: '',
     draftContent: '',
@@ -41,7 +27,6 @@ export function initialRecallState(): RecallWorkspaceState {
     notice: null,
     draftAvailable: Boolean(saved?.path || saved?.content),
     pendingAction: null,
-    card: initialCard(),
     embedding: initialEmbedding(),
   };
 }
@@ -52,6 +37,7 @@ type RecallAction =
   | { type: 'busy'; busy: boolean }
   | { type: 'notice'; notice: Notice }
   | { type: 'libraryEntries'; entries: RecallEntry[] }
+  | { type: 'cardEntries'; entries: RecallCardSummary[] }
   | { type: 'searchApplied'; query: string; entries: RecallEntry[] }
   | { type: 'syncState'; syncStatus: SyncStatus | null; gitDiff: GitDiff | null }
   | { type: 'commits'; commits: GitCommit[] }
@@ -70,10 +56,7 @@ type RecallAction =
   | { type: 'draftAvailable'; available: boolean }
   | { type: 'pending'; pendingAction: PendingRecallAction }
   | { type: 'pendingMovePath'; path: string }
-  | { type: 'pendingError'; error: string }
-  | { type: 'card:field'; field: Exclude<keyof CardDraft, 'capture' | 'allowWarnings'>; value: string }
-  | { type: 'card:capture'; capture: CardDraft['capture']; path?: string }
-  | { type: 'card:allowWarnings'; allowWarnings: boolean };
+  | { type: 'pendingError'; error: string };
 
 export function recallReducer(state: RecallWorkspaceState, action: RecallAction): RecallWorkspaceState {
   switch (action.type) {
@@ -91,6 +74,8 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
         libraryEntries: action.entries,
         entries: state.appliedQuery ? state.entries : action.entries,
       };
+    case 'cardEntries':
+      return { ...state, cardEntries: action.entries };
     case 'searchApplied':
       return { ...state, query: action.query, appliedQuery: action.query, entries: action.entries };
     case 'syncState':
@@ -155,11 +140,5 @@ export function recallReducer(state: RecallWorkspaceState, action: RecallAction)
         : state;
     case 'pendingError':
       return state.pendingAction ? { ...state, pendingAction: { ...state.pendingAction, error: action.error } } : state;
-    case 'card:field':
-      return { ...state, card: { ...state.card, [action.field]: action.value } };
-    case 'card:capture':
-      return { ...state, card: { ...state.card, capture: action.capture, path: action.path ?? state.card.path, allowWarnings: false } };
-    case 'card:allowWarnings':
-      return { ...state, card: { ...state.card, allowWarnings: action.allowWarnings } };
   }
 }

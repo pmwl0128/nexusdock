@@ -46,10 +46,3 @@ export function messageOf(reason: unknown): string {
 export function usesSinglePaneRecallLayout(): boolean {
   return window.matchMedia('(max-width: 980px)').matches;
 }
-
-export function csvTags(value: string): string[] {
-  return value.split(',').flatMap((tag) => {
-    const trimmed = tag.trim();
-    return trimmed ? [trimmed] : [];
-  });
-}

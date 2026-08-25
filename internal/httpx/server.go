@@ -492,12 +492,18 @@ func (s *Server) packMemories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listCards(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.store.List("recall/managed/cards", queryInt(r, "max_entries", 200))
+	maxEntries := queryInt(r, "max_entries", 200)
+	entries, err := s.store.List("recall/managed/cards", maxEntries)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "LIST_CARDS_FAILED", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "count": len(entries), "prefix": "recall/managed/cards"})
+	cards, err := s.store.ListCards(maxEntries)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "LIST_CARDS_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "cards": cards, "count": len(cards), "prefix": "recall/managed/cards"})
 }
 
 func (s *Server) captureCard(w http.ResponseWriter, r *http.Request) {

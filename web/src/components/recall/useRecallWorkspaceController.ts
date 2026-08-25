@@ -3,11 +3,10 @@ import { api } from '../../api/client';
 import { clearRecallDraft, loadRecallDraft, saveRecallDraft } from '../../lib/drafts';
 import { initialRecallState, recallReducer } from './recallState';
 import type {
-  CardDraft, CardCaptureResult, CardWriteResult, EmbeddingSearchResponse,
-  EmbeddingStatus, GitCommit, GitDiff, Recall, RecallEntry, RecallWorkspaceViewModel, SyncStatus,
+  EmbeddingSearchResponse, EmbeddingStatus, GitCommit, GitDiff, Recall, RecallCardSummary, RecallEntry, RecallWorkspaceViewModel, SyncStatus,
 } from './types';
 import {
-  NEW_RECALL_TEMPLATE, csvTags, initialPath, usesSinglePaneRecallLayout,
+  NEW_RECALL_TEMPLATE, initialPath, usesSinglePaneRecallLayout,
   messageOf, nameOf, normalizePath, updateRoute,
 } from './utils';
 
@@ -75,6 +74,11 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     return response.entries || [];
   }
 
+  async function fetchCardEntries(): Promise<RecallCardSummary[]> {
+    const response = await api<{ cards: RecallCardSummary[] }>('/v1/recall/cards?max_entries=1000');
+    return response.cards || [];
+  }
+
   async function fetchSearchEntries(query: string): Promise<RecallEntry[]> {
     const response = await api<{ results: Array<{ path: string; size_bytes?: number }> }>('/v1/recall/search', {
       method: 'POST',
@@ -93,9 +97,10 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     try {
       const libraryPromise = fetchLibraryEntries();
       const entriesPromise = query ? fetchSearchEntries(query) : libraryPromise;
-      const [libraryEntries, entries] = await Promise.all([libraryPromise, entriesPromise]);
+      const [libraryEntries, entries, cardEntries] = await Promise.all([libraryPromise, entriesPromise, fetchCardEntries()]);
       if (requestID !== entryRequestRef.current) return false;
       dispatch({ type: 'libraryEntries', entries: libraryEntries });
+      dispatch({ type: 'cardEntries', entries: cardEntries });
       dispatch({ type: 'searchApplied', query, entries });
       return true;
     } catch (reason) {
@@ -369,70 +374,6 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     }
   }
 
-  function cardPayload(extra: Record<string, unknown> = {}) {
-    return {
-      title: state.card.title.trim(),
-      content: state.card.content.trim(),
-      project: state.card.project.trim() || 'agentdock',
-      type: state.card.type,
-      status: 'inbox',
-      confidence: 'medium',
-      source: state.card.source.trim() || 'nexus-recall-ui',
-      evidence: state.card.evidence.trim(),
-      path: state.card.path.trim(),
-      tags: csvTags(state.card.tags),
-      ...extra,
-    };
-  }
-
-  async function captureCard(event?: FormEvent) {
-    event?.preventDefault();
-    if (!state.card.title.trim() || !state.card.content.trim()) {
-      dispatch({ type: 'notice', notice: { text: '卡片标题和内容不能为空。', danger: true } });
-      return;
-    }
-    dispatch({ type: 'busy', busy: true });
-    try {
-      const result = await api<CardCaptureResult>('/v1/recall/cards/capture', {
-        method: 'POST',
-        body: JSON.stringify(cardPayload({ max_results: 6 })),
-      });
-      dispatch({ type: 'card:capture', capture: result, path: result.card.path });
-      dispatch({ type: 'notice', notice: { text: result.similar_count ? `已生成候选，发现 ${result.similar_count} 条相似卡片。` : '已生成候选卡片。' } });
-    } catch (reason) {
-      dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
-    } finally {
-      dispatch({ type: 'busy', busy: false });
-    }
-  }
-
-  async function writeCard() {
-    if (blockIfUnsaved()) return;
-    if (!state.card.capture) {
-      dispatch({ type: 'notice', notice: { text: '请先生成候选卡片。', danger: true } });
-      return;
-    }
-    if ((state.card.capture.warnings?.length || 0) > 0 && !state.card.allowWarnings) {
-      dispatch({ type: 'notice', notice: { text: '候选卡片有警告，请确认后再写入。', danger: true } });
-      return;
-    }
-    dispatch({ type: 'busy', busy: true });
-    try {
-      const result = await api<CardWriteResult>('/v1/recall/cards', {
-        method: 'POST',
-        body: JSON.stringify(cardPayload({ confirmed: true, overwrite: false, allow_warnings: state.card.allowWarnings })),
-      });
-      await Promise.all([refreshEntries(), loadSyncState(), loadHistory(), loadEmbeddingStatus()]);
-      await openRecall(result.recall.path);
-      dispatch({ type: 'card:capture', capture: null });
-      dispatch({ type: 'notice', notice: { text: `卡片已写入：${result.card.path}` } });
-    } catch (reason) {
-      dispatch({ type: 'notice', notice: { text: messageOf(reason), danger: true } });
-    } finally {
-      dispatch({ type: 'busy', busy: false });
-    }
-  }
-
   async function reindexCards() {
     dispatch({ type: 'busy', busy: true });
     try {
@@ -537,10 +478,6 @@ export function useRecallWorkspaceController(refreshToken: number): RecallWorksp
     saveRecall: () => { void saveRecall(); },
     setDraftPath: (path: string) => dispatch({ type: 'draft:path', path }),
     setDraftContent: (content: string) => dispatch({ type: 'draft:content', content }),
-    setCardField: (field: keyof Omit<CardDraft, 'capture' | 'allowWarnings'>, value: string) => dispatch({ type: 'card:field', field, value }),
-    setAllowCardWarnings: (allowWarnings: boolean) => dispatch({ type: 'card:allowWarnings', allowWarnings }),
-    captureCard: (event?: FormEvent) => { void captureCard(event); },
-    writeCard: () => { void writeCard(); },
     openSimilarCard: openRecallFromUI,
     setEmbeddingQuery: (query: string) => dispatch({ type: 'embedding:query', query }),
     searchCardEmbeddings: (event?: FormEvent) => { void searchCardEmbeddings(event); },

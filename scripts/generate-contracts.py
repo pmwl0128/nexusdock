@@ -332,6 +332,22 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("title", "content", "type", "scope", "project", "status", "confidence", "source", "path"),
     )
+    schemas["RecallCardSummary"] = obj(
+        "经验卡片列表使用的只读摘要。",
+        {
+            "path": scalar("string", "卡片 Recall 相对路径。"),
+            "title": scalar("string", "从卡片正文标题解析出的展示标题。"),
+            "project": scalar("string", "项目标识。"),
+            "status": scalar("string", "卡片生命周期状态。"),
+            "card_type": scalar("string", "卡片类型。"),
+            "scope": scalar("string", "卡片作用域。"),
+            "confidence": scalar("string", "卡片可信度。"),
+            "tags": array("卡片标签。", scalar("string", "标签。")),
+            "size_bytes": scalar("integer", "卡片文件大小。", minimum=0),
+            "modified": scalar("string", "卡片文件最近修改时间。"),
+        },
+        ("path", "title", "project", "status", "card_type"),
+    )
     schemas["RecallCardCaptureResponse"] = obj(
         "卡片写入前的规范化、风险提示和去重计划。",
         {
@@ -356,14 +372,15 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ("ok", "card", "recall", "index_policy"),
     )
     schemas["RecallCardListResponse"] = obj(
-        "Recall 卡片文件列表。",
+        "Recall 卡片文件列表和展示摘要。",
         {
             "ok": scalar("boolean", "请求是否成功。"),
             "entries": array("卡片目录下的文件和目录。", ref("RecallFileEntry")),
-            "count": scalar("integer", "条目数量。", minimum=0),
+            "cards": array("只读卡片摘要。", ref("RecallCardSummary")),
+            "count": scalar("integer", "卡片数量。", minimum=0),
             "prefix": scalar("string", "固定为 recall/managed/cards。"),
         },
-        ("ok", "entries", "count", "prefix"),
+        ("ok", "entries", "cards", "count", "prefix"),
     )
     schemas["RecallCardSearchRequest"] = obj(
         "在 Recall 卡片目录中执行关键词搜索。",

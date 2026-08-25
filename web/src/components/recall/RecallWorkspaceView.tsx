@@ -16,7 +16,7 @@ type Props = RecallWorkspaceViewModel & {
 
 const recallNavigation: Array<{ id: RecallPage; label: string; description: string }> = [
   { id: 'library', label: '资料库', description: '浏览与编辑' },
-  { id: 'cards', label: '经验卡片', description: '捕获与写入' },
+  { id: 'cards', label: '经验卡片', description: '浏览与查看' },
   { id: 'vectors', label: '向量召回', description: '语义搜索' },
   { id: 'history', label: '同步历史', description: '状态与版本' },
 ];
@@ -42,7 +42,7 @@ export default function RecallWorkspaceView(props: Props) {
         <RecallEditor {...props} />
       </section>
     </>}
-    {props.page === 'cards' && <RecallExperienceCardsPage state={props.state} actions={props.actions} onOpenCard={openCardFromTools} />}
+    {props.page === 'cards' && <RecallExperienceCardsPage entries={props.state.cardEntries} loading={props.state.loading} />}
     {props.page === 'vectors' && <RecallVectorRecallPage state={props.state} actions={props.actions} onOpenCard={openCardFromTools} />}
     {props.page === 'history' && <RecallSyncHistoryPage state={props.state} dirty={props.dirty} actions={props.actions} />}
   </main>;
