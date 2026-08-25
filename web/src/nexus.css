@@ -383,7 +383,8 @@ summary::-webkit-details-marker { display: none; }
 .runtime-node-required p { margin: 0; color: var(--nx-muted); }
 
 .agentdock-nodes-panel { margin-bottom: 12px; border: 1px solid var(--nx-line); border-radius: 8px; background: #fff; }
-.agentdock-nodes-panel > header { padding: 13px 14px; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--nx-line); }
+.agentdock-nodes-panel > header { padding: 13px 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--nx-line); }
+.agentdock-node-actions { align-items: center; }
 .agentdock-node-list { display: grid; gap: 8px; padding: 12px 14px; }
 .agentdock-node-list > article { padding: 10px; display: grid; gap: 8px; border: 1px solid var(--nx-line); border-radius: 6px; }
 .agentdock-node-list > article.is-selected { border-color: #888; background: #f3f3f3; }
@@ -666,6 +667,55 @@ summary::-webkit-details-marker { display: none; }
 .mcp-empty strong { color: var(--nx-text); }
 .mcp-empty.is-detail { min-height: 240px; border: 1px solid var(--nx-line); border-radius: 7px; background: #fbfbfb; }
 
+/* 设置：一级入口保持在主侧栏，二级页面只承载当前配置域。 */
+.settings-page {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-subnav {
+  position: sticky;
+  top: 80px;
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.settings-subnav button {
+  min-width: 0;
+  min-height: 54px;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-subnav button:hover { background: var(--nx-soft-2); color: #171717; }
+.settings-subnav button.is-active { border-color: #d4d4d4; background: #f1f1f1; color: #171717; }
+.settings-subnav-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 5px; background: var(--nx-soft); }
+.settings-subnav strong,
+.settings-subnav small { display: block; }
+.settings-subnav strong { font-size: 12px; }
+.settings-subnav small { margin-top: 2px; color: var(--nx-muted); font-size: 10px; line-height: 1.35; }
+.settings-content { min-width: 0; }
+.system-settings-page { display: grid; gap: 12px; }
+.settings-section-heading { padding: 2px 2px 1px; }
+.settings-section-heading h2 { margin: 4px 0; font-size: 20px; letter-spacing: -.02em; }
+.settings-section-heading p { margin: 0; color: var(--nx-muted); font-size: 11px; }
+.settings-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 /* AI 设置 */
 .ai-settings-panel { display: grid; gap: 10px; }
 .ai-settings-heading { display: flex; justify-content: space-between; gap: 14px; align-items: end; }
@@ -758,6 +808,16 @@ summary::-webkit-details-marker { display: none; }
   .dashboard-grid-nexus,
   .dashboard-focus-grid,
   .settings-grid { grid-template-columns: 1fr; }
+  .settings-page { grid-template-columns: 1fr; gap: 10px; }
+  .settings-subnav { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 4px; }
+  .settings-subnav button { min-height: 44px; padding: 7px; gap: 6px; }
+  .settings-subnav-icon { width: 27px; height: 27px; }
+  .settings-subnav small { display: none; }
+  .settings-subnav strong { font-size: 11px; white-space: nowrap; }
+  .settings-section-heading { padding-top: 2px; }
+  .agentdock-nodes-panel > header { display: grid; }
+  .agentdock-node-actions { width: 100%; }
+  .agentdock-node-actions .nx-button { flex: 1; }
   .runtime-node-bar { align-items: flex-start; flex-direction: column; }
   .runtime-node-selector { width: 100%; }
   .runtime-node-selector select { flex: 1; min-width: 0; }

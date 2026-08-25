@@ -1,9 +1,9 @@
 import { formatTime, timeZoneLabel } from './lib/time';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Activity, Cable, ChevronRight,
+  Activity, BrainCircuit, Cable, ChevronRight,
   CircleAlert, Database, FileJson, Home, ListChecks, Menu, RefreshCw,
-  Settings, ShieldCheck, Wrench, X,
+  ServerCog, Settings, ShieldCheck, UserRound, Wrench, X,
 } from 'lucide-react';
 import RecallWorkspace from './RecallWorkspace';
 import { type WebSession } from './Auth';
@@ -21,8 +21,9 @@ import {
 } from './components/runtime/AgentDockNodes';
 import './nexus.css';
 
-type RuntimeSection = 'tasks' | 'skills' | 'templates' | 'mcp';
-type Section = 'home' | 'recall' | RuntimeSection | 'settings';
+type RuntimeSection = 'tasks' | 'skills' | 'mcp';
+type Section = 'home' | 'recall' | 'templates' | RuntimeSection | 'settings';
+type SettingsSection = 'account' | 'ai' | 'system';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 
@@ -75,13 +76,13 @@ type NavGroup = { label: string; items: SectionMeta[] };
 const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
   { id: 'tasks', label: '任务', icon: ListChecks },
   { id: 'skills', label: 'Skill', icon: Wrench },
-  { id: 'templates', label: '模板', icon: FileJson },
   { id: 'mcp', label: 'MCP', icon: Cable },
 ];
 
 const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home, scope: 'workspace' },
   { id: 'recall', label: 'Recall', icon: Database, scope: 'workspace' },
+  { id: 'templates', label: '模板', icon: FileJson, scope: 'workspace' },
   ...RUNTIME_SECTIONS.map((item) => ({ ...item, scope: 'runtime' })),
   { id: 'settings', label: '设置', icon: Settings, scope: 'system' },
 ];
@@ -92,6 +93,12 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'System', items: NAV.filter((item) => item.scope === 'system') },
 ];
 
+const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string; icon: typeof Settings }> = [
+  { id: 'account', label: '账号与会话', description: '登录、安全与活动会话', icon: UserRound },
+  { id: 'ai', label: 'AI 与向量', description: '模型、Embedding 与索引', icon: BrainCircuit },
+  { id: 'system', label: '系统与节点', description: 'AgentDock、运行状态与备份', icon: ServerCog },
+];
+
 function sectionFromHash(): Section {
   const section = window.location.hash.replace(/^#\/?/, '').split('/')[0];
   if (NAV.some((item) => item.id === section)) return section as Section;
@@ -99,6 +106,11 @@ function sectionFromHash(): Section {
   const params = new URLSearchParams(window.location.search);
   if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
   return 'home';
+}
+
+function settingsSectionFromHash(): SettingsSection {
+  const [, subsection] = window.location.hash.replace(/^#\/?/, '').split('/');
+  return SETTINGS_SECTIONS.some((item) => item.id === subsection) ? subsection as SettingsSection : 'account';
 }
 
 function unpackAPI<T>(body: unknown, fallback: T): T {
@@ -230,7 +242,8 @@ export default function App() {
         <div className="nexus-content">
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'recall' && <RecallWorkspace refreshToken={refreshToken} />}
-          {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} runtimeNodes={runtimeNodes} navigate={navigate} />}
+          {section === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
+          {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
           {section === 'settings' && <SettingsPage refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
         </div>
       </main>
@@ -294,32 +307,61 @@ function isRuntimeSection(section: Section): section is RuntimeSection {
 
 type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
 
-function RuntimeContent({ active, refreshToken, runtimeNodes, navigate }: {
+function RuntimeContent({ active, refreshToken, runtimeNodes }: {
   active: RuntimeSection;
   refreshToken: number;
   runtimeNodes: RuntimeNodesState;
-  navigate: (section: Section) => void;
 }) {
-  const requiresNode = active !== 'templates';
   return <section className={`runtime-standalone-page runtime-${active}-page`}>
-    {requiresNode && <div className="runtime-node-bar">
+    <div className="runtime-node-bar">
       <AgentDockNodeSelector nodes={runtimeNodes.nodes} selectedNodeID={runtimeNodes.selectedNodeID} onSelect={runtimeNodes.selectNode} />
       {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.online ? '在线' : '离线'}{runtimeNodes.selectedNode.os ? ` · ${runtimeNodes.selectedNode.os}/${runtimeNodes.selectedNode.arch}` : ''}</span>}
-    </div>}
-    {requiresNode && !runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button" onClick={() => navigate('settings')}>管理节点</button></AgentDockNodeRequired>}
+    </div>
+    {!runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button" onClick={() => { window.location.hash = 'settings/system'; }}>管理节点</button></AgentDockNodeRequired>}
     {active === 'tasks' && runtimeNodes.selectedNode && <TaskCenterPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
     {active === 'skills' && runtimeNodes.selectedNode && <SkillsPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
-    {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
     {active === 'mcp' && runtimeNodes.selectedNode && <MCPPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
   </section>;
 }
 
 function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; runtimeNodes: RuntimeNodesState }) {
+  const [active, setActive] = useState<SettingsSection>(settingsSectionFromHash);
+
+  useEffect(() => {
+    const onHash = () => setActive(settingsSectionFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  function navigate(next: SettingsSection) {
+    window.location.hash = `settings/${next}`;
+    setActive(next);
+  }
+
+  return <section className="settings-page">
+    <nav className="settings-subnav" aria-label="设置分类">
+      {SETTINGS_SECTIONS.map((item) => {
+        const Icon = item.icon;
+        return <button key={item.id} type="button" className={active === item.id ? 'is-active' : ''} aria-current={active === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>
+          <span className="settings-subnav-icon"><Icon size={17} /></span>
+          <span><strong>{item.label}</strong><small>{item.description}</small></span>
+        </button>;
+      })}
+    </nav>
+    <div className="settings-content">
+      {active === 'account' && <AccountSecurity />}
+      {active === 'ai' && <AISettingsPanel refreshToken={refreshToken} />}
+      {active === 'system' && <SystemSettingsPage refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
+    </div>
+  </section>;
+}
+
+function SystemSettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; runtimeNodes: RuntimeNodesState }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
   const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
-  return <>
-    <AccountSecurity />
-    <AISettingsPanel refreshToken={refreshToken} />
+
+  return <section className="system-settings-page">
+    <header className="settings-section-heading"><div><span className="nexus-eyebrow">SYSTEM</span><h2>系统与节点</h2><p>管理 AgentDock 节点，并查看 NexusDock 运行状态与备份。</p></div></header>
     <AgentDockNodesPanel
       nodes={runtimeNodes.nodes}
       selectedNodeID={runtimeNodes.selectedNodeID}
@@ -328,7 +370,7 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
       onReload={runtimeNodes.reload}
       onSelect={runtimeNodes.selectNode}
     />
-    <section className="settings-grid">
+    <section className="settings-grid settings-system-grid">
       <Panel icon={Activity} title="系统" subtitle="运行状态与数据位置">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
@@ -336,7 +378,7 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
       </Panel>
       <BackupPanel backup={backup.data} />
     </section>
-  </>;
+  </section>;
 }
 
 function BackupPanel({ backup }: { backup?: BackupStatus }) {
