@@ -240,7 +240,7 @@ export default function App() {
           </div>
         </header>
         <div className="nexus-content">
-          {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
+          {section === 'home' && <HomePage refreshToken={refreshToken} runtimeNodes={runtimeNodes} navigate={navigate} />}
           {section === 'recall' && <RecallWorkspace refreshToken={refreshToken} />}
           {section === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
           {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} runtimeNodes={runtimeNodes} />}
@@ -266,25 +266,35 @@ function SessionExpiredDialog() {
   return <dialog ref={dialogRef} className="session-expired-overlay" aria-labelledby="session-expired-title"><section className="session-expired-dialog"><span><CircleAlert size={22} /></span><h2 id="session-expired-title">会话已过期</h2><p>当前页面保持不变，失败的写操作不会自动重试。</p><button type="button" onClick={signInAgain}>重新登录</button></section></dialog>;
 }
 
-function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: (section: Section) => void }) {
+type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
+
+function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: number; runtimeNodes: RuntimeNodesState; navigate: (section: Section) => void }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
   const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
   const backup = backupResource.data;
-  const errors = [system.error, backupResource.error].filter(Boolean) as string[];
+  const enabledNodes = runtimeNodes.nodes.filter((node) => node.enabled);
+  const onlineNodes = enabledNodes.filter((node) => node.online);
+  const offlineNodes = enabledNodes.filter((node) => !node.online);
+  const errors = [system.error, backupResource.error, runtimeNodes.error].filter(Boolean) as string[];
   const systemTone = system.data.ok ? 'ok' : 'danger';
-  const needsAttention = !system.data.ok || backup?.state === 'failed' || errors.length > 0;
+  const nodesTone: Tone = runtimeNodes.loading ? 'muted' : offlineNodes.length > 0 ? 'danger' : enabledNodes.length > 0 ? 'ok' : 'muted';
+  const nodeSummary = runtimeNodes.loading ? '读取中' : enabledNodes.length > 0 ? `${onlineNodes.length}/${enabledNodes.length} 在线` : '暂无节点';
+  const needsAttention = !system.data.ok || backup?.state === 'failed' || offlineNodes.length > 0 || errors.length > 0;
 
   return <>
     <section className="nexus-overview-strip">
-      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 备份 {backup?.state || '待确认'}</p></div>
-      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={toneForStatus(backup?.state)}>备份</StatusBadge></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary} · 备份 {backup?.state || '待确认'}</p></div>
+      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={nodesTone}>节点 {nodeSummary}</StatusBadge><StatusBadge tone={toneForStatus(backup?.state)}>备份</StatusBadge></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
+
+    <NodeOverview runtimeNodes={runtimeNodes} />
 
     <section className="dashboard-grid-nexus dashboard-focus-grid">
       <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只显示会影响使用的问题">
         {!needsAttention ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
+          {offlineNodes.map((node) => <button type="button" className="attention-row" key={node.id} onClick={() => { window.location.hash = 'settings/system'; }}><StatusBadge tone="danger">离线</StatusBadge><span><strong>{node.name}</strong><small>{formatTime(node.last_seen_at, { compact: true })}</small></span><ChevronRight size={16} /></button>)}
           {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
           {errors.map((message) => <div className="nx-alert is-error" key={message}>{message}</div>)}
         </>}
@@ -301,11 +311,45 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
   </>;
 }
 
+function NodeOverview({ runtimeNodes }: { runtimeNodes: RuntimeNodesState }) {
+  const onlineCount = runtimeNodes.nodes.filter((node) => node.enabled && node.online).length;
+  return <section className="dashboard-node-section">
+    <header>
+      <div className="dashboard-node-heading"><span className="nexus-panel-icon"><ServerCog size={17} /></span><div><h3>AgentDock 节点</h3><p>{runtimeNodes.loading ? '正在读取节点状态…' : `${runtimeNodes.nodes.length} 个节点 · ${onlineCount} 在线`}</p></div></div>
+      <button type="button" className="nx-button is-secondary is-small" onClick={() => { window.location.hash = 'settings/system'; }}>管理节点</button>
+    </header>
+    <div className="dashboard-node-list">
+      {runtimeNodes.loading && runtimeNodes.nodes.length === 0 && <EmptyMini text="正在读取 AgentDock 节点…" />}
+      {!runtimeNodes.loading && runtimeNodes.nodes.length === 0 && <EmptyMini text="尚未配对 AgentDock 节点。" />}
+      {runtimeNodes.nodes.map((node) => {
+        const selected = runtimeNodes.selectedNodeID === node.id;
+        const statusTone: Tone = !node.enabled ? 'muted' : node.online ? 'ok' : 'danger';
+        const statusLabel = !node.enabled ? '已停用' : node.online ? '在线' : '离线';
+        return <article className={`dashboard-node-row ${selected ? 'is-selected' : ''}`} key={node.id}>
+          <div className="dashboard-node-identity">
+            <span className="dashboard-node-icon"><ServerCog size={17} /></span>
+            <span><strong>{node.name}</strong><small>{nodePlatformLabel(node.os, node.arch)}</small></span>
+          </div>
+          <div className="dashboard-node-meta">
+            <span><small>AgentDock</small><strong>{node.version ? `v${node.version}` : '未知'}</strong></span>
+            <span><small>工具</small><strong>{node.capabilities?.length || 0} 个</strong></span>
+            <span><small>最近在线</small><strong>{formatTime(node.last_seen_at, { compact: true })}</strong></span>
+          </div>
+          <div className="dashboard-node-badges">{selected && <StatusBadge tone="muted">当前</StatusBadge>}<StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></div>
+        </article>;
+      })}
+    </div>
+  </section>;
+}
+
+function nodePlatformLabel(os?: string, arch?: string): string {
+  const osLabel = os === 'darwin' ? 'macOS' : os === 'windows' ? 'Windows' : os === 'linux' ? 'Linux' : os || '';
+  return [osLabel, arch].filter(Boolean).join(' / ') || '等待首次连接';
+}
+
 function isRuntimeSection(section: Section): section is RuntimeSection {
   return RUNTIME_SECTIONS.some((item) => item.id === section);
 }
-
-type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
 
 function RuntimeContent({ active, refreshToken, runtimeNodes }: {
   active: RuntimeSection;
