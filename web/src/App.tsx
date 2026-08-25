@@ -228,7 +228,8 @@ function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: numb
   const systemTone = system.data.ok ? 'ok' : 'danger';
   const nodesTone: Tone = runtimeNodes.loading ? 'muted' : offlineNodes.length > 0 ? 'danger' : enabledNodes.length > 0 ? 'ok' : 'muted';
   const nodeSummary = runtimeNodes.loading ? '读取中' : enabledNodes.length > 0 ? `${onlineNodes.length}/${enabledNodes.length} 在线` : '暂无节点';
-  const needsAttention = !system.data.ok || offlineNodes.length > 0 || errors.length > 0;
+  const databaseAbnormal = system.live && !system.data.ok;
+  const needsAttention = databaseAbnormal || offlineNodes.length > 0 || errors.length > 0;
 
   return <>
     <section className="nexus-overview-strip">
@@ -239,21 +240,11 @@ function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: numb
 
     <NodeOverview runtimeNodes={runtimeNodes} />
 
-    <section className="dashboard-grid-nexus dashboard-focus-grid">
-      <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只显示会影响使用的问题">
-        {!needsAttention ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
-          {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
-          {offlineNodes.map((node) => <button type="button" className="attention-row" key={node.id} onClick={() => { window.location.hash = 'settings/system'; }}><StatusBadge tone="danger">离线</StatusBadge><span><strong>{node.name}</strong><small>{formatTime(node.last_seen_at, { compact: true })}</small></span><ChevronRight size={16} /></button>)}
-          {errors.map((message) => <div className="nx-alert is-error" key={message}>{message}</div>)}
-        </>}
-      </Panel>
-
-      <Panel icon={Activity} title="系统" subtitle="NexusDock 与数据库">
-        <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
-        <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
-        <details className="nexus-technical-details"><summary>技术信息</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
-      </Panel>
-    </section>
+    {needsAttention && <Panel className="dashboard-attention-panel" icon={CircleAlert} title="需要处理" subtitle="只显示会影响使用的问题">
+      {databaseAbnormal && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">异常</StatusBadge><span><strong>数据库异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
+      {offlineNodes.map((node) => <button type="button" className="attention-row" key={node.id} onClick={() => { window.location.hash = 'settings/system'; }}><StatusBadge tone="danger">离线</StatusBadge><span><strong>{node.name}</strong><small>{formatTime(node.last_seen_at, { compact: true })}</small></span><ChevronRight size={16} /></button>)}
+      {errors.map((message) => <div className="nx-alert is-error" key={message}>{message}</div>)}
+    </Panel>}
   </>;
 }
 
