@@ -4,7 +4,7 @@ import { api } from '../../api/client';
 import { formatTime } from '../../lib/time';
 import MobileDrilldownBar from '../MobileDrilldownBar';
 
-type WorkflowLocation = 'drafts' | 'published' | 'retired';
+type WorkflowStatus = 'active' | 'retired';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
 type WorkflowTemplateSummary = {
@@ -13,17 +13,14 @@ type WorkflowTemplateSummary = {
   title: string;
   description?: string;
   status: string;
-  location: WorkflowLocation;
   file_name: string;
   path: string;
   size_bytes: number;
   updated_at: string;
   step_count: number;
   keywords?: string[];
-  current?: boolean;
   version_count?: number;
   active_count?: number;
-  draft_count?: number;
   retired_count?: number;
   has_conflict?: boolean;
 };
@@ -40,22 +37,19 @@ type StepView = { id: string; title: string; phase: string; required: boolean; d
 type StepGroup = { phase: string; steps: StepView[] };
 type MatchView = { label: string; values: string[] };
 
-const LOCATIONS: Array<{ value: WorkflowLocation | 'all'; label: string }> = [
+const STATUS_FILTERS: Array<{ value: WorkflowStatus | 'all'; label: string }> = [
   { value: 'all', label: '全部' },
-  { value: 'drafts', label: '草稿' },
-  { value: 'published', label: '已发布' },
-  { value: 'retired', label: '已退役' },
+  { value: 'active', label: '当前' },
+  { value: 'retired', label: '历史' },
 ];
 
-function locationLabel(value: WorkflowLocation): string {
-  return value === 'drafts' ? '草稿' : value === 'published' ? '已发布' : '已退役';
+function statusLabel(status: string): string {
+  return status === 'active' ? '当前' : status === 'retired' ? '历史' : status;
 }
 
-function statusTone(template?: Pick<WorkflowTemplateSummary, 'location' | 'status'>): Tone {
+function statusTone(template?: Pick<WorkflowTemplateSummary, 'status'>): Tone {
   if (!template) return 'muted';
-  if (template.location === 'published' && template.status === 'active') return 'ok';
-  if (template.location === 'published' || template.location === 'drafts') return 'warn';
-  return 'muted';
+  return template.status === 'active' ? 'ok' : 'muted';
 }
 
 function templateDisplayTitle(template?: Pick<WorkflowTemplateSummary, 'title' | 'id' | 'file_name'>): string {
@@ -83,7 +77,7 @@ function parseTemplate(content: string): { body: Record<string, unknown>; id: st
 
 export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: number }) {
   const [items, setItems] = useState<WorkflowTemplateSummary[]>([]);
-  const [location, setLocation] = useState<WorkflowLocation | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<WorkflowStatus | 'all'>('all');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<WorkflowTemplateDetail | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -93,14 +87,14 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
 
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
-  useEffect(() => { void loadListRef.current(); }, [refreshToken, location]);
+  useEffect(() => { void loadListRef.current(); }, [refreshToken, statusFilter]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const scoped = location === 'all' ? items : items.filter((item) => item.location === location);
+    const scoped = statusFilter === 'all' ? items : items.filter((item) => item.status === statusFilter);
     if (!needle) return scoped;
     return scoped.filter((item) => [item.id, item.version, item.title, item.description, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
-  }, [items, location, query]);
+  }, [items, statusFilter, query]);
 
   const parsed = useMemo(() => parseTemplate(content), [content]);
 
@@ -110,7 +104,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     try {
       const result = await api<ListResponse>('/v1/workflow-templates?include_history=true');
       const nextItems = result.items || [];
-      const visibleItems = location === 'all' ? nextItems : nextItems.filter((item) => item.location === location);
+      const visibleItems = statusFilter === 'all' ? nextItems : nextItems.filter((item) => item.status === statusFilter);
       setItems(nextItems);
       const selectedStillVisible = visibleItems.find((item) => item.path === selected?.path);
       if (selectedStillVisible) await openTemplate(selectedStillVisible);
@@ -120,7 +114,7 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
         setContent('');
       }
     } catch (error) {
-      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : 'Workflow 读取失败' });
+      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '工作流模板读取失败' });
     } finally {
       setLoading(false);
     }
@@ -155,15 +149,15 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <section className={`workflow-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
       <aside className="workflow-list-panel mobile-drilldown-list">
         <div className="workflow-toolbar">
-          <label><span>状态</span><select aria-label="筛选模板状态" value={location} onChange={(event) => { setLocation(event.target.value as WorkflowLocation | 'all'); setMobileDetailOpen(false); }}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 Workflow 模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
+          <label><span>状态</span><select aria-label="筛选模板状态" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as WorkflowStatus | 'all'); setMobileDetailOpen(false); }}>{STATUS_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 工作流模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
         </div>
-        <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个模板</span><em>{location === 'all' ? '全部' : locationLabel(location)}</em></div>
+        <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个模板</span><em>{statusFilter === 'all' ? '全部' : statusLabel(statusFilter)}</em></div>
         <div className="workflow-list">
-          {loading ? <p className="empty-mini">正在读取 Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item, true)}>
+          {loading ? <p className="empty-mini">正在读取工作流模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item, true)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
-            <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `Active×${item.active_count}` : item.status || locationLabel(item.location)}</StatusPill>
+            <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `当前×${item.active_count}` : statusLabel(item.status)}</StatusPill>
           </button>)}
         </div>
       </aside>
@@ -189,7 +183,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
   return <article className="workflow-runtime-card">
     <header className="workflow-runtime-head">
       <div><span className="nexus-eyebrow">{selected.id}</span><h3>{parsed.title || selected.title || selected.file_name}</h3><p>{parsed.description || selected.description || '暂无模板说明。'}</p></div>
-      <div className="workflow-runtime-actions"><StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill><span className="workflow-step-count">{steps.length || selected.step_count || 0} 步</span></div>
+      <div className="workflow-runtime-actions"><StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `当前×${selected.active_count}` : statusLabel(selected.status)}</StatusPill><span className="workflow-step-count">{steps.length || selected.step_count || 0} 步</span></div>
     </header>
 
     <div className="workflow-runtime-meta"><span>版本 {selected.version}</span><span>{phases.length || 1} 个阶段</span><span>更新于 {formatTime(selected.updated_at)}</span></div>
@@ -216,7 +210,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
           <InfoTile label="模板 ID" value={parsed.id || selected.id} />
           <InfoTile label="文件名" value={selected.file_name} />
           <InfoTile label="版本数" value={String(selected.version_count ?? 1)} />
-          <InfoTile label="草稿 / 历史" value={`${selected.draft_count ?? 0} / ${selected.retired_count ?? 0}`} />
+          <InfoTile label="历史版本" value={String(selected.retired_count ?? 0)} />
           <InfoTile label="JSON" value={parsed.error || '可解析'} />
         </section>
         <div className="workflow-technical-actions"><button type="button" className="nx-button is-secondary" onClick={onCopy}><Copy size={15} />复制模板路径</button></div>

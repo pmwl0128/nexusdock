@@ -20,9 +20,7 @@ func TestWorkflowTemplateLifecycleMaintainsContentHashes(t *testing.T) {
 	dataDir := t.TempDir()
 	handler := newTestHandler(t, config.Config{NexusDataDir: dataDir})
 
-	saveWorkflowTemplateDraft(t, handler, "development.demo", "1.0.0")
 	publishWorkflowTemplate(t, handler, "development.demo", "1.0.0")
-	saveWorkflowTemplateDraft(t, handler, "development.demo", "1.1.0")
 	publishWorkflowTemplate(t, handler, "development.demo", "1.1.0")
 
 	server := &Server{cfg: config.Config{NexusDataDir: dataDir}}
@@ -44,8 +42,29 @@ func TestWorkflowTemplateLifecycleMaintainsContentHashes(t *testing.T) {
 	if active.Status != workflowTemplateActive || active.Hash != workflowTemplateHash(active) {
 		t.Fatalf("active template is inconsistent: status=%q hash=%q want_hash=%q", active.Status, active.Hash, workflowTemplateHash(active))
 	}
-	if _, err := os.Stat(server.workflowTemplatePath("drafts", "development.demo", "1.1.0")); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("published draft still exists: %v", err)
+}
+
+func TestWorkflowTemplatePublishNormalizesLifecycleMetadata(t *testing.T) {
+	dataDir := t.TempDir()
+	handler := newTestHandler(t, config.Config{NexusDataDir: dataDir})
+	template := testWorkflowTemplate("development.demo", "1.0.0")
+	template.Status = workflowTemplateRetired
+	template.Hash = "sha256:caller-controlled"
+	now := time.Now().UTC().Add(-time.Hour)
+	template.RetiredAt = &now
+
+	response := publishWorkflowTemplateValue(t, handler, template)
+	var result struct {
+		Template workflowTemplate `json:"template"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode publish response: %v", err)
+	}
+	if result.Template.Status != workflowTemplateActive || result.Template.RetiredAt != nil || result.Template.PublishedAt == nil {
+		t.Fatalf("publish did not normalize lifecycle metadata: %#v", result.Template)
+	}
+	if result.Template.Hash != workflowTemplateHash(result.Template) || result.Template.Hash == "sha256:caller-controlled" {
+		t.Fatalf("publish hash=%q is not server generated", result.Template.Hash)
 	}
 }
 
@@ -63,19 +82,16 @@ func TestWorkflowTemplatePublishFailureKeepsCurrentVersionActive(t *testing.T) {
 	next := testWorkflowTemplate(current.ID, "1.1.0")
 	next.Status = workflowTemplateActive
 	next.Hash = workflowTemplateHash(next)
-	if err := writeWorkflowTemplateJSON(server.workflowTemplatePath("drafts", next.ID, next.Version), next); err != nil {
-		t.Fatal(err)
-	}
 
 	failedPath := server.workflowTemplatePath("published", next.ID, next.Version)
-	cleanupPending, code, err := server.publishWorkflowTemplate(next, time.Now().UTC(), func(path string, value any) error {
+	code, err := server.publishWorkflowTemplate(next, time.Now().UTC(), func(path string, value any) error {
 		if path == failedPath {
 			return errors.New("injected publish failure")
 		}
 		return writeWorkflowTemplateJSON(path, value)
 	})
-	if err == nil || code != "WORKFLOW_PUBLISH_FAILED" || cleanupPending {
-		t.Fatalf("publish result cleanup_pending=%v code=%q err=%v", cleanupPending, code, err)
+	if err == nil || code != "WORKFLOW_PUBLISH_FAILED" {
+		t.Fatalf("publish result code=%q err=%v", code, err)
 	}
 	reloaded, err := server.loadWorkflowTemplate("published", current.ID, current.Version)
 	if err != nil {
@@ -86,9 +102,6 @@ func TestWorkflowTemplatePublishFailureKeepsCurrentVersionActive(t *testing.T) {
 	}
 	if _, err := os.Stat(failedPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("partial new template remains: %v", err)
-	}
-	if _, err := os.Stat(server.workflowTemplatePath("drafts", next.ID, next.Version)); err != nil {
-		t.Fatalf("draft was removed after failed publish: %v", err)
 	}
 }
 
@@ -110,15 +123,15 @@ func TestWorkflowTemplateRetirementFailureRollsBackAllVersions(t *testing.T) {
 	next.Hash = workflowTemplateHash(next)
 	failedPath := server.workflowTemplatePath("published", next.ID, "1.0.0")
 
-	cleanupPending, code, err := server.publishWorkflowTemplate(next, time.Now().UTC(), func(path string, value any) error {
+	code, err := server.publishWorkflowTemplate(next, time.Now().UTC(), func(path string, value any) error {
 		template, ok := value.(workflowTemplate)
 		if path == failedPath && ok && template.Status == workflowTemplateRetired {
 			return errors.New("injected retirement failure")
 		}
 		return writeWorkflowTemplateJSON(path, value)
 	})
-	if err == nil || code != "WORKFLOW_RETIRE_OLD_FAILED" || cleanupPending {
-		t.Fatalf("publish result cleanup_pending=%v code=%q err=%v", cleanupPending, code, err)
+	if err == nil || code != "WORKFLOW_RETIRE_OLD_FAILED" {
+		t.Fatalf("publish result code=%q err=%v", code, err)
 	}
 	for _, version := range []string{"0.9.0", "1.0.0"} {
 		reloaded, loadErr := server.loadWorkflowTemplate("published", next.ID, version)
@@ -134,9 +147,42 @@ func TestWorkflowTemplateRetirementFailureRollsBackAllVersions(t *testing.T) {
 	}
 }
 
+func TestWorkflowTemplateRetireUsesExplicitRoute(t *testing.T) {
+	dataDir := t.TempDir()
+	handler := newTestHandler(t, config.Config{NexusDataDir: dataDir})
+	publishWorkflowTemplate(t, handler, "development.demo", "1.0.0")
+
+	response := doJSON(t, handler, http.MethodPost, "/v1/workflow-templates/development.demo/1.0.0/retire", `{}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("retire workflow status=%d body=%s", response.Code, response.Body.String())
+	}
+	server := &Server{cfg: config.Config{NexusDataDir: dataDir}}
+	retired, err := server.loadWorkflowTemplate("published", "development.demo", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retired.Status != workflowTemplateRetired || retired.RetiredAt == nil {
+		t.Fatalf("retired template state=%q retired_at=%v", retired.Status, retired.RetiredAt)
+	}
+}
+
+func TestWorkflowTemplateLegacyLifecycleRoutesAreRemoved(t *testing.T) {
+	handler := newTestHandler(t, config.Config{NexusDataDir: t.TempDir()})
+	for _, path := range []string{
+		"/v1/workflow-templates/drafts",
+		"/v1/workflow-templates/development.demo/1.0.0/validate",
+		"/v1/workflow-templates/development.demo/1.0.0/publish",
+	} {
+		response := doJSON(t, handler, http.MethodPost, path, `{}`)
+		if response.Code != http.StatusNotFound && response.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("legacy lifecycle route %s status=%d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestWorkflowTemplateReadRejectsExtraPathSegments(t *testing.T) {
 	handler := newTestHandler(t, config.Config{NexusDataDir: t.TempDir()})
-	saveWorkflowTemplateDraft(t, handler, "development.demo", "1.0.0")
+	publishWorkflowTemplate(t, handler, "development.demo", "1.0.0")
 
 	response := doJSON(t, handler, http.MethodGet, "/v1/workflow-templates/development.demo/1.0.0/extra", "")
 	if response.Code != http.StatusNotFound {
@@ -144,24 +190,21 @@ func TestWorkflowTemplateReadRejectsExtraPathSegments(t *testing.T) {
 	}
 }
 
-func TestGetWorkflowTemplateDoesNotHideCorruptPublishedVersion(t *testing.T) {
+func TestGetWorkflowTemplateReportsCorruptPublishedVersion(t *testing.T) {
 	server := &Server{cfg: config.Config{NexusDataDir: t.TempDir()}}
 	if err := server.ensureWorkflowRegistryDirs(); err != nil {
 		t.Fatalf("ensure registry dirs: %v", err)
 	}
 
-	validDraft := testWorkflowTemplate("development.demo", "1.0.0")
-	if err := writeWorkflowTemplateJSON(server.workflowTemplatePath("drafts", validDraft.ID, validDraft.Version), validDraft); err != nil {
-		t.Fatalf("write draft: %v", err)
-	}
-	publishedPath := server.workflowTemplatePath("published", validDraft.ID, validDraft.Version)
+	template := testWorkflowTemplate("development.demo", "1.0.0")
+	publishedPath := server.workflowTemplatePath("published", template.ID, template.Version)
 	if err := os.WriteFile(publishedPath, []byte(`{"id":"development.demo","version":"1.0.0","unknown":true}`), 0o600); err != nil {
 		t.Fatalf("write corrupt published template: %v", err)
 	}
 
-	_, err := server.getWorkflowTemplate(validDraft.ID, validDraft.Version)
+	_, err := server.getWorkflowTemplate(template.ID, template.Version)
 	if err == nil || !strings.Contains(err.Error(), "published") {
-		t.Fatalf("corrupt published template was hidden by draft fallback: %v", err)
+		t.Fatalf("corrupt published template was not reported: %v", err)
 	}
 }
 
@@ -187,7 +230,6 @@ func TestWorkflowTemplateMatchStopsWithClientCancellation(t *testing.T) {
 		EmbeddingModel:    "test-model",
 		EmbeddingTimeout:  5 * time.Second,
 	})
-	saveWorkflowTemplateDraft(t, handler, "development.demo", "1.0.0")
 	publishWorkflowTemplate(t, handler, "development.demo", "1.0.0")
 
 	server := &Server{cfg: config.Config{NexusDataDir: dataDir, EmbeddingModel: "test-model"}}
@@ -230,25 +272,21 @@ func TestWorkflowTemplateMatchStopsWithClientCancellation(t *testing.T) {
 	}
 }
 
-func saveWorkflowTemplateDraft(t *testing.T, handler http.Handler, id, version string) {
-	t.Helper()
-	payload, err := json.Marshal(map[string]any{"template": testWorkflowTemplate(id, version)})
-	if err != nil {
-		t.Fatalf("marshal workflow draft: %v", err)
-	}
-	response := doJSON(t, handler, http.MethodPost, "/v1/workflow-templates/drafts", string(payload))
-	if response.Code != http.StatusOK {
-		t.Fatalf("save workflow draft status=%d body=%s", response.Code, response.Body.String())
-	}
-}
-
 func publishWorkflowTemplate(t *testing.T, handler http.Handler, id, version string) {
 	t.Helper()
-	path := "/v1/workflow-templates/" + id + "/" + version + "/publish"
-	response := doJSON(t, handler, http.MethodPost, path, `{}`)
+	response := publishWorkflowTemplateValue(t, handler, testWorkflowTemplate(id, version))
 	if response.Code != http.StatusOK {
 		t.Fatalf("publish workflow status=%d body=%s", response.Code, response.Body.String())
 	}
+}
+
+func publishWorkflowTemplateValue(t *testing.T, handler http.Handler, template workflowTemplate) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{"template": template})
+	if err != nil {
+		t.Fatalf("marshal workflow template: %v", err)
+	}
+	return doJSON(t, handler, http.MethodPost, "/v1/workflow-templates/publish", string(payload))
 }
 
 func testWorkflowTemplate(id, version string) workflowTemplate {
@@ -257,7 +295,6 @@ func testWorkflowTemplate(id, version string) workflowTemplate {
 		Version:     version,
 		Title:       "Demo workflow",
 		Description: "Workflow registry behavior test.",
-		Status:      workflowTemplateDraft,
 		Match: workflowMatchRule{
 			Keywords: []string{"demo"},
 			Devices:  []string{"DockMini"},
@@ -275,13 +312,14 @@ func TestWorkflowTemplateRegistryFilesRemainPrivate(t *testing.T) {
 	if err := server.ensureWorkflowRegistryDirs(); err != nil {
 		t.Fatalf("ensure registry dirs: %v", err)
 	}
-	for _, area := range []string{"drafts", "published"} {
-		info, err := os.Stat(filepath.Join(server.workflowRegistryRoot(), area))
-		if err != nil {
-			t.Fatalf("stat %s: %v", area, err)
-		}
-		if info.Mode().Perm() != 0o700 {
-			t.Fatalf("%s permissions=%#o want 0700", area, info.Mode().Perm())
-		}
+	info, err := os.Stat(filepath.Join(server.workflowRegistryRoot(), "published"))
+	if err != nil {
+		t.Fatalf("stat published: %v", err)
+	}
+	if info.Mode().Perm() != 0o700 {
+		t.Fatalf("published permissions=%#o want 0700", info.Mode().Perm())
+	}
+	if _, err := os.Stat(filepath.Join(server.workflowRegistryRoot(), "drafts")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("drafts directory should not be created: %v", err)
 	}
 }

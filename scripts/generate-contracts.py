@@ -810,9 +810,8 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "RuntimeSkillId": path_param("skillID", "AgentDock Runtime skill ID。", uuid=False),
         "RuntimeSkillFilePath": path_param("filePath", "AgentDock Runtime Skill 文件相对路径。", uuid=False),
         "RuntimeMCPName": path_param("name", "AgentDock 动态 MCP 服务名称。", uuid=False),
-        "WorkflowTemplateId": path_param("templateID", "Nexus Workflow 模板 ID。", uuid=False),
-        "WorkflowTemplateVersion": path_param("version", "Nexus Workflow 模板版本。", uuid=False),
-        "WorkflowTemplateAction": path_param("action", "Nexus Workflow 模板动作。", uuid=False),
+        "WorkflowTemplateId": path_param("templateID", "Nexus 工作流模板 ID。", uuid=False),
+        "WorkflowTemplateVersion": path_param("version", "Nexus 工作流模板版本。", uuid=False),
     }
 
     def body(schema: dict[str, Any] = generic) -> dict[str, Any]:
@@ -1106,21 +1105,21 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/workflow-templates": {
             "get": operation(
                 "listWorkflowTemplates",
-                "列出 Nexus Workflow 模板",
+                "列出 Nexus 工作流模板",
                 params=[
-                    q("status", "按模板状态过滤。", enum=["draft", "active", "retired"]),
+                    q("status", "按模板状态过滤。", enum=["active", "retired"]),
                     q("q", "在模板摘要中搜索。"),
                     q("include_history", "未指定状态时是否返回全部历史版本。", "boolean"),
                     q("view", "history 等价于 include_history=true。", enum=["history"]),
                 ],
             )
         },
-        "/v1/workflow-templates/drafts": {"post": operation("saveWorkflowTemplateDraft", "保存 Nexus Workflow 模板草稿", request=body())},
-        "/v1/workflow-templates/match": {"post": operation("matchWorkflowTemplates", "匹配 Nexus Workflow 模板", request=body())},
-        "/v1/workflow-templates/reindex": {"post": operation("reindexWorkflowTemplates", "重建 Nexus Workflow 模板向量索引", request=body())},
-        "/v1/workflow-templates/vector-index": {"get": operation("getWorkflowTemplateVectorIndex", "读取 Nexus Workflow 模板向量索引状态")},
-        "/v1/workflow-templates/{templateID}/{version}": {"get": operation("getWorkflowTemplate", "读取 Nexus Workflow 模板详情", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion")])},
-        "/v1/workflow-templates/{templateID}/{version}/{action}": {"post": operation("manageWorkflowTemplate", "验证、发布或退役 Nexus Workflow 模板", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion"), p("WorkflowTemplateAction")])},
+        "/v1/workflow-templates/publish": {"post": operation("publishWorkflowTemplate", "发布 Nexus 工作流模板", request=body())},
+        "/v1/workflow-templates/match": {"post": operation("matchWorkflowTemplates", "匹配 Nexus 工作流模板", request=body())},
+        "/v1/workflow-templates/reindex": {"post": operation("reindexWorkflowTemplates", "重建 Nexus 工作流模板向量索引", request=body())},
+        "/v1/workflow-templates/vector-index": {"get": operation("getWorkflowTemplateVectorIndex", "读取 Nexus 工作流模板向量索引状态")},
+        "/v1/workflow-templates/{templateID}/{version}": {"get": operation("getWorkflowTemplate", "读取 Nexus 工作流模板详情", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion")])},
+        "/v1/workflow-templates/{templateID}/{version}/retire": {"post": operation("retireWorkflowTemplate", "退役 Nexus 工作流模板", params=[p("WorkflowTemplateId"), p("WorkflowTemplateVersion")])},
     }
 
     return {

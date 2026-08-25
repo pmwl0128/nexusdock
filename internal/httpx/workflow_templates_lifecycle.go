@@ -9,7 +9,6 @@ import (
 type workflowCounter struct {
 	Versions int `json:"versions"`
 	Active   int `json:"active"`
-	Draft    int `json:"draft"`
 	Retired  int `json:"retired"`
 }
 
@@ -23,17 +22,14 @@ func workflowTemplateCounters(items []workflowTemplateSummary) map[string]workfl
 		if seen[item.ID] == nil {
 			seen[item.ID] = make(map[string]bool)
 		}
-		key := item.Location + "/" + item.FileName
 		counter := counters[item.ID]
-		if !seen[item.ID][key] {
+		if !seen[item.ID][item.FileName] {
 			counter.Versions++
-			seen[item.ID][key] = true
+			seen[item.ID][item.FileName] = true
 		}
 		switch item.Status {
 		case "active":
 			counter.Active++
-		case "draft", "validated":
-			counter.Draft++
 		case "retired":
 			counter.Retired++
 		}
@@ -46,10 +42,8 @@ func attachWorkflowTemplateCounters(summary *workflowTemplateSummary, all []work
 	counter := workflowTemplateCounters(all)[summary.ID]
 	summary.VersionCount = counter.Versions
 	summary.ActiveCount = counter.Active
-	summary.DraftCount = counter.Draft
 	summary.RetiredCount = counter.Retired
 	summary.HasConflict = counter.Active > 1
-	summary.Current = summary.Status == "active" && summary.Location == "published"
 }
 
 func currentWorkflowTemplates(all []workflowTemplateSummary) []workflowTemplateSummary {
@@ -76,8 +70,8 @@ func currentWorkflowTemplates(all []workflowTemplateSummary) []workflowTemplateS
 }
 
 func workflowTemplateRank(candidate, current workflowTemplateSummary) bool {
-	candidateRank := workflowTemplateStatusRank(candidate)
-	currentRank := workflowTemplateStatusRank(current)
+	candidateRank := workflowTemplateStatusRank(candidate.Status)
+	currentRank := workflowTemplateStatusRank(current.Status)
 	if candidateRank != currentRank {
 		return candidateRank > currentRank
 	}
@@ -87,17 +81,14 @@ func workflowTemplateRank(candidate, current workflowTemplateSummary) bool {
 	return candidate.UpdatedAt.After(current.UpdatedAt)
 }
 
-func workflowTemplateStatusRank(item workflowTemplateSummary) int {
-	if item.Location == "published" && item.Status == "active" {
-		return 4
-	}
-	if item.Location == "drafts" && (item.Status == "validated" || item.Status == "draft") {
-		return 3
-	}
-	if item.Location == "published" && item.Status == "retired" {
+func workflowTemplateStatusRank(status string) int {
+	if status == "active" {
 		return 2
 	}
-	return 1
+	if status == "retired" {
+		return 1
+	}
+	return 0
 }
 
 func sortWorkflowTemplates(items []workflowTemplateSummary) {
@@ -108,7 +99,7 @@ func sortWorkflowTemplates(items []workflowTemplateSummary) {
 		if cmp := compareWorkflowVersions(items[i].Version, items[j].Version); cmp != 0 {
 			return cmp > 0
 		}
-		return items[i].Location < items[j].Location
+		return items[i].UpdatedAt.After(items[j].UpdatedAt)
 	})
 }
 

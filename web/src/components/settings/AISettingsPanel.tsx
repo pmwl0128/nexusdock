@@ -217,7 +217,7 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
 
       <section className="ai-config-section">
         <header className="ai-config-head">
-          <div className="ai-config-title"><span className="nexus-panel-icon"><DatabaseZap size={17} /></span><div><h3>向量检索</h3><p>供 Recall 语义搜索与 Workflow 模板匹配共用，兼容 OpenAI Embeddings API。</p></div></div>
+          <div className="ai-config-title"><span className="nexus-panel-icon"><DatabaseZap size={17} /></span><div><h3>向量检索</h3><p>供 Recall 语义搜索与工作流模板匹配共用，兼容 OpenAI Embeddings API。</p></div></div>
           <div className="ai-config-head-actions">
             <div className="ai-service-status"><span className={`ai-status-dot ${reachableTone}`} /><span><strong>{embeddingState}</strong><small>{embeddingMeta}</small></span></div>
             <label className="ai-switch-row">

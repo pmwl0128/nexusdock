@@ -13,17 +13,14 @@ type workflowTemplateSummary struct {
 	Title        string    `json:"title"`
 	Description  string    `json:"description,omitempty"`
 	Status       string    `json:"status"`
-	Location     string    `json:"location"`
 	FileName     string    `json:"file_name"`
 	Path         string    `json:"path"`
 	SizeBytes    int64     `json:"size_bytes"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	StepCount    int       `json:"step_count"`
 	Keywords     []string  `json:"keywords,omitempty"`
-	Current      bool      `json:"current"`
 	VersionCount int       `json:"version_count,omitempty"`
 	ActiveCount  int       `json:"active_count,omitempty"`
-	DraftCount   int       `json:"draft_count,omitempty"`
 	RetiredCount int       `json:"retired_count,omitempty"`
 	HasConflict  bool      `json:"has_conflict,omitempty"`
 }
@@ -38,9 +35,8 @@ func (s *Server) attachWorkflowTemplateFileMetadata(summary *workflowTemplateSum
 	if summary == nil || summary.ID == "" || summary.Version == "" {
 		return
 	}
-	area := workflowTemplateStorageArea(summary.Status)
-	summary.Path = filepath.ToSlash(filepath.Join("workflow-templates", area, summary.FileName))
-	info, err := os.Stat(s.workflowTemplatePath(area, summary.ID, summary.Version))
+	summary.Path = filepath.ToSlash(filepath.Join("workflow-templates", "published", summary.FileName))
+	info, err := os.Stat(s.workflowTemplatePath("published", summary.ID, summary.Version))
 	if err != nil {
 		return
 	}
@@ -48,19 +44,8 @@ func (s *Server) attachWorkflowTemplateFileMetadata(summary *workflowTemplateSum
 	summary.UpdatedAt = info.ModTime().UTC()
 }
 
-func workflowLocationFromStatus(status string) string {
-	switch status {
-	case "draft", "validated":
-		return "drafts"
-	case "retired":
-		return "retired"
-	default:
-		return "published"
-	}
-}
-
 func templateSummaryMatches(summary workflowTemplateSummary, query string) bool {
-	haystack := strings.ToLower(strings.Join([]string{summary.ID, summary.Version, summary.Title, summary.Description, summary.Status, summary.Location, summary.FileName}, " "))
+	haystack := strings.ToLower(strings.Join([]string{summary.ID, summary.Version, summary.Title, summary.Description, summary.Status, summary.FileName}, " "))
 	if strings.Contains(haystack, query) {
 		return true
 	}
