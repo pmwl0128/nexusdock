@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Check, Copy, FileJson, Search } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, Copy, FileJson, History, Search } from 'lucide-react';
 import { api } from '../../api/client';
 import { formatTime } from '../../lib/time';
 import MobileDrilldownBar from '../MobileDrilldownBar';
 
 type WorkflowStatus = 'active' | 'retired';
-type Tone = 'ok' | 'warn' | 'danger' | 'muted';
+type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'muted';
+type DetailMode = 'current' | 'history' | 'history-detail';
 
 type WorkflowTemplateSummary = {
   id: string;
   version: string;
   title: string;
   description?: string;
-  status: string;
+  status: WorkflowStatus;
   file_name: string;
   path: string;
   size_bytes: number;
@@ -37,19 +38,13 @@ type StepView = { id: string; title: string; phase: string; required: boolean; d
 type StepGroup = { phase: string; steps: StepView[] };
 type MatchView = { label: string; values: string[] };
 
-const STATUS_FILTERS: Array<{ value: WorkflowStatus | 'all'; label: string }> = [
-  { value: 'all', label: '全部' },
-  { value: 'active', label: '当前' },
-  { value: 'retired', label: '历史' },
-];
-
-function statusLabel(status: string): string {
-  return status === 'active' ? '当前' : status === 'retired' ? '历史' : status;
+function statusLabel(status: WorkflowStatus): string {
+  return status === 'active' ? '当前版本' : '历史版本';
 }
 
 function statusTone(template?: Pick<WorkflowTemplateSummary, 'status'>): Tone {
   if (!template) return 'muted';
-  return template.status === 'active' ? 'ok' : 'muted';
+  return template.status === 'active' ? 'info' : 'muted';
 }
 
 function templateDisplayTitle(template?: Pick<WorkflowTemplateSummary, 'title' | 'id' | 'file_name'>): string {
@@ -57,7 +52,14 @@ function templateDisplayTitle(template?: Pick<WorkflowTemplateSummary, 'title' |
 }
 
 function templateListMeta(template: WorkflowTemplateSummary): string {
-  return [template.version || '未标记版本', `${template.step_count || 0} 步`, `${template.version_count ?? 1} 个版本`].join(' · ');
+  return [`v${template.version || '—'}`, `${template.step_count || 0} 步`, `${template.version_count ?? 1} 个版本`].join(' · ');
+}
+
+function sortTemplateVersions(items: WorkflowTemplateSummary[]): WorkflowTemplateSummary[] {
+  return [...items].sort((left, right) => {
+    if (left.status !== right.status) return left.status === 'active' ? -1 : 1;
+    return right.version.localeCompare(left.version, undefined, { numeric: true, sensitivity: 'base' });
+  });
 }
 
 function parseTemplate(content: string): { body: Record<string, unknown>; id: string; version: string; title: string; description: string; stepCount: number; error?: string } {
@@ -77,41 +79,44 @@ function parseTemplate(content: string): { body: Record<string, unknown>; id: st
 
 export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: number }) {
   const [items, setItems] = useState<WorkflowTemplateSummary[]>([]);
-  const [statusFilter, setStatusFilter] = useState<WorkflowStatus | 'all'>('all');
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<WorkflowTemplateDetail | null>(null);
+  const [selectedCurrent, setSelectedCurrent] = useState<WorkflowTemplateDetail | null>(null);
+  const [selectedHistory, setSelectedHistory] = useState<WorkflowTemplateDetail | null>(null);
+  const [historyVersions, setHistoryVersions] = useState<WorkflowTemplateSummary[]>([]);
+  const [detailMode, setDetailMode] = useState<DetailMode>('current');
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
-  const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
   const loadListRef = useRef(loadList);
   loadListRef.current = loadList;
-  useEffect(() => { void loadListRef.current(); }, [refreshToken, statusFilter]);
+  useEffect(() => { void loadListRef.current(); }, [refreshToken]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const scoped = statusFilter === 'all' ? items : items.filter((item) => item.status === statusFilter);
-    if (!needle) return scoped;
-    return scoped.filter((item) => [item.id, item.version, item.title, item.description, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
-  }, [items, statusFilter, query]);
+    if (!needle) return items;
+    return items.filter((item) => [item.id, item.version, item.title, item.description, ...(item.keywords || [])].filter(Boolean).join(' ').toLowerCase().includes(needle));
+  }, [items, query]);
 
-  const parsed = useMemo(() => parseTemplate(content), [content]);
+  const visibleDetail = detailMode === 'history-detail' ? selectedHistory : selectedCurrent;
+  const parsed = useMemo(() => parseTemplate(visibleDetail?.content || ''), [visibleDetail]);
 
   async function loadList() {
     setLoading(true);
     setNotice(null);
     try {
-      const result = await api<ListResponse>('/v1/workflow-templates?include_history=true');
-      const nextItems = result.items || [];
-      const visibleItems = statusFilter === 'all' ? nextItems : nextItems.filter((item) => item.status === statusFilter);
+      // 默认列表接口就是“当前视图”。历史版本只在用户进入某个模板的历史页时按需读取。
+      const result = await api<ListResponse>('/v1/workflow-templates');
+      const nextItems = (result.items || []).filter((item) => item.status === 'active');
       setItems(nextItems);
-      const selectedStillVisible = visibleItems.find((item) => item.path === selected?.path);
-      if (selectedStillVisible) await openTemplate(selectedStillVisible);
-      else if (visibleItems[0]) await openTemplate(visibleItems[0]);
+      const target = nextItems.find((item) => item.id === selectedCurrent?.id) || nextItems[0];
+      if (target) await openCurrentTemplate(target);
       else {
-        setSelected(null);
-        setContent('');
+        setSelectedCurrent(null);
+        setSelectedHistory(null);
+        setHistoryVersions([]);
+        setDetailMode('current');
       }
     } catch (error) {
       setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '工作流模板读取失败' });
@@ -120,27 +125,86 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     }
   }
 
-  async function openTemplate(template: WorkflowTemplateSummary, revealOnMobile = false) {
+  async function readTemplate(template: WorkflowTemplateSummary, aggregate: WorkflowTemplateSummary = template): Promise<WorkflowTemplateDetail> {
+    const result = await api<DetailResponse>(`/v1/workflow-templates/${encodeURIComponent(template.id)}/${encodeURIComponent(template.version)}`);
+    return {
+      ...result.template_summary,
+      version_count: aggregate.version_count ?? result.template_summary.version_count,
+      active_count: aggregate.active_count ?? result.template_summary.active_count,
+      retired_count: aggregate.retired_count ?? result.template_summary.retired_count,
+      has_conflict: aggregate.has_conflict ?? result.template_summary.has_conflict,
+      content: JSON.stringify(result.template, null, 2),
+      json: result.template,
+    };
+  }
+
+  async function openCurrentTemplate(template: WorkflowTemplateSummary, revealOnMobile = false) {
     setNotice(null);
     try {
-      const result = await api<DetailResponse>(`/v1/workflow-templates/${encodeURIComponent(template.id)}/${encodeURIComponent(template.version)}`);
-      const detail: WorkflowTemplateDetail = {
-        ...result.template_summary,
-        content: JSON.stringify(result.template, null, 2),
-        json: result.template,
-      };
-      setSelected(detail);
-      setContent(detail.content);
+      const detail = await readTemplate(template);
+      setSelectedCurrent(detail);
+      setSelectedHistory(null);
+      setHistoryVersions([]);
+      setDetailMode('current');
       if (revealOnMobile) setMobileDetailOpen(true);
     } catch (error) {
       setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '模板详情读取失败' });
     }
   }
 
+  async function openHistory() {
+    if (!selectedCurrent) return;
+    setHistoryLoading(true);
+    setNotice(null);
+    try {
+      const queryValue = encodeURIComponent(selectedCurrent.id);
+      const result = await api<ListResponse>(`/v1/workflow-templates?include_history=true&q=${queryValue}`);
+      const versions = sortTemplateVersions((result.items || []).filter((item) => item.id === selectedCurrent.id));
+      setHistoryVersions(versions);
+      setSelectedHistory(null);
+      setDetailMode('history');
+    } catch (error) {
+      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '历史版本读取失败' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openHistoryVersion(template: WorkflowTemplateSummary) {
+    if (template.status === 'active') {
+      setSelectedHistory(null);
+      setDetailMode('current');
+      return;
+    }
+    setNotice(null);
+    try {
+      setSelectedHistory(await readTemplate(template, selectedCurrent || template));
+      setDetailMode('history-detail');
+    } catch (error) {
+      setNotice({ tone: 'danger', text: error instanceof Error ? error.message : '历史版本详情读取失败' });
+    }
+  }
+
   function copyPath() {
-    if (!selected) return;
-    void navigator.clipboard?.writeText(selected.path);
+    if (!visibleDetail) return;
+    void navigator.clipboard?.writeText(visibleDetail.path);
     setNotice({ tone: 'ok', text: '模板路径已复制。' });
+  }
+
+  function showCurrentDetail() {
+    setSelectedHistory(null);
+    setDetailMode('current');
+  }
+
+  function mobileBar() {
+    if (!selectedCurrent) return null;
+    if (detailMode === 'history') {
+      return <MobileDrilldownBar label="历史版本" title={templateDisplayTitle(selectedCurrent)} meta={`${historyVersions.length} 个版本`} backLabel="返回当前版本" onBack={showCurrentDetail} />;
+    }
+    if (detailMode === 'history-detail' && selectedHistory) {
+      return <MobileDrilldownBar label="历史版本" title={templateDisplayTitle(selectedHistory)} meta={`v${selectedHistory.version}`} backLabel="返回历史版本" onBack={() => setDetailMode('history')} />;
+    }
+    return <MobileDrilldownBar label="模板详情" title={templateDisplayTitle(selectedCurrent)} meta={`v${selectedCurrent.version} · 当前版本`} backLabel="返回模板列表" onBack={() => setMobileDetailOpen(false)} />;
   }
 
   return <section className="workflow-page">
@@ -149,28 +213,48 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     <section className={`workflow-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
       <aside className="workflow-list-panel mobile-drilldown-list">
         <div className="workflow-toolbar">
-          <label><span>状态</span><select aria-label="筛选模板状态" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as WorkflowStatus | 'all'); setMobileDetailOpen(false); }}>{STATUS_FILTERS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-          <label className="workflow-search"><Search size={15} /><input aria-label="搜索 工作流模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
+          <label className="workflow-search"><Search size={15} /><input aria-label="搜索工作流模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
         </div>
-        <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个模板</span><em>{statusFilter === 'all' ? '全部' : statusLabel(statusFilter)}</em></div>
+        <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个工作流模板</span><em>仅显示当前版本</em></div>
         <div className="workflow-list">
-          {loading ? <p className="empty-mini">正在读取工作流模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item, true)}>
+          {loading ? <p className="empty-mini">正在读取工作流模板…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.id} className={selectedCurrent?.id === item.id ? 'is-active' : ''} aria-pressed={selectedCurrent?.id === item.id} onClick={() => void openCurrentTemplate(item, true)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
-            <StatusPill tone={item.has_conflict ? 'danger' : statusTone(item)}>{item.has_conflict ? `当前×${item.active_count}` : statusLabel(item.status)}</StatusPill>
+            {item.has_conflict && <StatusPill tone="danger">当前×{item.active_count}</StatusPill>}
           </button>)}
         </div>
       </aside>
 
       <main className="workflow-runtime-viewer mobile-drilldown-detail">
-        {selected && <MobileDrilldownBar label="模板详情" title={templateDisplayTitle(selected)} meta={selected.version || selected.status} backLabel="返回模板列表" onBack={() => setMobileDetailOpen(false)} />}
-        {!selected ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个模板查看执行步骤。</p></div> : <RuntimeTemplateViewer selected={selected} parsed={parsed} onCopy={copyPath} />}
+        {mobileBar()}
+        {!selectedCurrent ? <div className="empty-state"><span><FileJson size={24} /></span><h3>选择模板</h3><p>从左侧选择一个模板查看执行步骤。</p></div>
+          : detailMode === 'history' ? <WorkflowHistoryViewer selected={selectedCurrent} versions={historyVersions} loading={historyLoading} onBack={showCurrentDetail} onOpenVersion={(version) => void openHistoryVersion(version)} />
+            : visibleDetail && <>
+              {detailMode === 'history-detail' && <div className="workflow-detail-context"><button type="button" className="nx-button is-secondary is-small" onClick={() => setDetailMode('history')}><ArrowLeft size={14} />返回历史版本</button><span>正在查看 v{visibleDetail.version}</span></div>}
+              <RuntimeTemplateViewer selected={visibleDetail} parsed={parsed} onCopy={copyPath} onOpenHistory={detailMode === 'current' ? () => void openHistory() : undefined} historyLoading={historyLoading} />
+            </>}
       </main>
     </section>
   </section>;
 }
 
-function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: WorkflowTemplateDetail; parsed: ReturnType<typeof parseTemplate>; onCopy: () => void }) {
+function WorkflowHistoryViewer({ selected, versions, loading, onBack, onOpenVersion }: { selected: WorkflowTemplateDetail; versions: WorkflowTemplateSummary[]; loading: boolean; onBack: () => void; onOpenVersion: (template: WorkflowTemplateSummary) => void }) {
+  return <article className="workflow-history-card">
+    <header className="workflow-history-head">
+      <div><button type="button" className="workflow-history-back" onClick={onBack}><ArrowLeft size={14} />返回当前版本</button><span className="nexus-eyebrow">{selected.id}</span><h3>历史版本</h3><p>{templateDisplayTitle(selected)}</p></div>
+      <span className="workflow-history-count">{versions.length} 个版本</span>
+    </header>
+    <div className="workflow-history-list">
+      {loading ? <EmptyMini>正在读取历史版本…</EmptyMini> : versions.length <= 1 ? <div className="workflow-history-empty"><History size={22} /><strong>还没有历史版本</strong><span>发布新版本后，旧版本会自动进入这里。</span></div> : versions.map((version) => <button type="button" key={version.path} onClick={() => onOpenVersion(version)}>
+        <span className="workflow-history-version"><strong>v{version.version}</strong><small>更新于 {formatTime(version.updated_at)}</small></span>
+        <StatusPill tone={statusTone(version)}>{statusLabel(version.status)}</StatusPill>
+        <ChevronRight size={15} />
+      </button>)}
+    </div>
+  </article>;
+}
+
+function RuntimeTemplateViewer({ selected, parsed, onCopy, onOpenHistory, historyLoading = false }: { selected: WorkflowTemplateDetail; parsed: ReturnType<typeof parseTemplate>; onCopy: () => void; onOpenHistory?: () => void; historyLoading?: boolean }) {
   const match = record(parsed.body.match);
   const steps = stepViews(parsed.body.steps);
   const conditions = stringValues(parsed.body.completion_conditions);
@@ -186,7 +270,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
       <div className="workflow-runtime-actions"><StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `当前×${selected.active_count}` : statusLabel(selected.status)}</StatusPill><span className="workflow-step-count">{steps.length || selected.step_count || 0} 步</span></div>
     </header>
 
-    <div className="workflow-runtime-meta"><span>版本 {selected.version}</span><span>{phases.length || 1} 个阶段</span><span>更新于 {formatTime(selected.updated_at)}</span></div>
+    <div className="workflow-runtime-meta"><span>版本 {selected.version}</span><span>{phases.length || 1} 个阶段</span><span>更新于 {formatTime(selected.updated_at)}</span>{onOpenHistory && (selected.retired_count ?? 0) > 0 && <button type="button" className="workflow-history-link" onClick={onOpenHistory} disabled={historyLoading}><History size={13} />{historyLoading ? '读取中…' : `历史版本 ${selected.retired_count}`}<ChevronRight size={13} /></button>}</div>
 
     <section className="workflow-runtime-section">
       <SectionTitle title="执行步骤" subtitle="按阶段查看任务主流程。" />

@@ -1231,3 +1231,39 @@ summary::-webkit-details-marker { display: none; }
   .dashboard-node-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
   .dashboard-node-meta strong { font-size: 10px; }
 }
+
+/* 工作流模板：历史版本下沉到模板详情，主列表保持当前版本视图。 */
+.workflow-history-link { margin-left: auto; padding: 0; display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--nx-info); font: inherit; cursor: pointer; }
+.workflow-history-link:hover { text-decoration: underline; }
+.workflow-history-link:disabled { color: var(--nx-muted); cursor: default; text-decoration: none; }
+.workflow-detail-context { margin-bottom: 8px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--nx-line); border-radius: 7px; background: #fff; }
+.workflow-detail-context span { color: var(--nx-muted); font-size: 10px; }
+.workflow-history-card { overflow: hidden; border: 1px solid var(--nx-line); border-radius: 7px; background: #fff; }
+.workflow-history-head { padding: 16px 18px; display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--nx-line); }
+.workflow-history-head > div { min-width: 0; }
+.workflow-history-head h3 { margin: 5px 0; font-size: 20px; }
+.workflow-history-head p { margin: 0; color: var(--nx-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-history-back { margin: 0 0 12px; padding: 0; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--nx-muted); font-size: 10px; cursor: pointer; }
+.workflow-history-back:hover { color: var(--nx-text); }
+.workflow-history-count { flex: 0 0 auto; color: var(--nx-muted); font-size: 10px; }
+.workflow-history-list { padding: 8px; display: grid; gap: 3px; }
+.workflow-history-list > button { width: 100%; min-width: 0; padding: 10px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 10px; align-items: center; border: 1px solid transparent; border-radius: 5px; background: transparent; text-align: left; cursor: pointer; }
+.workflow-history-list > button:hover { border-color: var(--nx-line); background: var(--nx-soft-2); }
+.workflow-history-list > button > svg { color: var(--nx-muted); }
+.workflow-history-version { min-width: 0; }
+.workflow-history-version strong,
+.workflow-history-version small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-history-version strong { font-size: 12px; }
+.workflow-history-version small { margin-top: 3px; color: var(--nx-muted); font-size: 10px; }
+.workflow-history-empty { min-height: 180px; display: grid; place-items: center; align-content: center; gap: 6px; color: var(--nx-muted); text-align: center; }
+.workflow-history-empty strong { color: var(--nx-text); font-size: 12px; }
+.workflow-history-empty span { font-size: 10px; }
+
+@media (max-width: 820px) {
+  .workflow-history-back { display: none; }
+  .workflow-history-head { padding: 14px; display: grid; gap: 10px; }
+  .workflow-history-count { justify-self: start; }
+  .workflow-history-list > button { padding: 9px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .workflow-detail-context { display: none; }
+  .workflow-history-link { margin-left: 0; }
+}
