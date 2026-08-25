@@ -37,6 +37,19 @@ type SystemStatus = {
   recall_repo_dir?: string;
 };
 
+type RuntimeOverview = {
+  ok: boolean;
+  tasks?: { active_recent_24h?: number };
+  skills?: { count?: number };
+  mcp?: { count?: number };
+};
+
+type RuntimeOverviewTotals = {
+  skills: number;
+  mcp: number;
+  activeRecent24h: number;
+};
+
 type Resource<T> = { data: T; live: boolean; loading: boolean; error?: string };
 
 type SectionMeta = { id: Section; label: string; icon: typeof Home; scope: string };
@@ -219,22 +232,78 @@ function SessionExpiredDialog() {
 
 type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
 
+const emptyRuntimeOverviewTotals: RuntimeOverviewTotals = { skills: 0, mcp: 0, activeRecent24h: 0 };
+
+function useRuntimeOverviewTotals(runtimeNodes: RuntimeNodesState, refreshToken: number): Resource<RuntimeOverviewTotals> {
+  const enabledNodes = runtimeNodes.nodes.filter((node) => node.enabled);
+  const onlineNodeIDs = enabledNodes.filter((node) => node.online).map((node) => node.id).sort();
+  const onlineNodeKey = onlineNodeIDs.join('|');
+  const allEnabledNodesOnline = enabledNodes.length === onlineNodeIDs.length;
+  const [state, setState] = useState<Resource<RuntimeOverviewTotals>>({ data: emptyRuntimeOverviewTotals, live: false, loading: true });
+
+  useEffect(() => {
+    if (runtimeNodes.loading) {
+      setState((current) => ({ ...current, loading: true, error: undefined }));
+      return undefined;
+    }
+    if (enabledNodes.length === 0) {
+      setState({ data: emptyRuntimeOverviewTotals, live: true, loading: false });
+      return undefined;
+    }
+    // 总览展示全局数量；只要有启用节点离线，就不拿在线节点的部分结果冒充总数。
+    if (!allEnabledNodesOnline) {
+      setState({ data: emptyRuntimeOverviewTotals, live: false, loading: false });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setState((current) => ({ ...current, loading: true, error: undefined }));
+    const nodeIDs = onlineNodeKey.split('|').filter(Boolean);
+    Promise.all(nodeIDs.map((nodeID) => api<RuntimeOverview>(`/v1/runtime/nodes/${encodeURIComponent(nodeID)}/overview`))).then((summaries) => {
+      if (cancelled) return;
+      const totals = summaries.reduce<RuntimeOverviewTotals>((result, summary) => ({
+        skills: result.skills + (summary.skills?.count || 0),
+        mcp: result.mcp + (summary.mcp?.count || 0),
+        activeRecent24h: result.activeRecent24h + (summary.tasks?.active_recent_24h || 0),
+      }), { ...emptyRuntimeOverviewTotals });
+      setState({ data: totals, live: true, loading: false });
+    }).catch((error) => {
+      if (!cancelled) setState({ data: emptyRuntimeOverviewTotals, live: false, loading: false, error: messageOf(error) });
+    });
+    return () => { cancelled = true; };
+  }, [allEnabledNodesOnline, enabledNodes.length, onlineNodeKey, refreshToken, runtimeNodes.loading]);
+
+  return state;
+}
+
+function OverviewMetric({ label, value, tone = 'muted' }: { label: string; value: string; tone?: Tone }) {
+  return <div className={`nexus-overview-metric is-${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+}
+
 function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: number; runtimeNodes: RuntimeNodesState; navigate: (section: Section) => void }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
+  const runtimeOverview = useRuntimeOverviewTotals(runtimeNodes, refreshToken);
   const enabledNodes = runtimeNodes.nodes.filter((node) => node.enabled);
   const onlineNodes = enabledNodes.filter((node) => node.online);
   const offlineNodes = enabledNodes.filter((node) => !node.online);
-  const errors = [system.error, runtimeNodes.error].filter(Boolean) as string[];
+  const errors = [system.error, runtimeNodes.error, runtimeOverview.error].filter(Boolean) as string[];
   const systemTone = system.data.ok ? 'ok' : 'danger';
   const nodesTone: Tone = runtimeNodes.loading ? 'muted' : offlineNodes.length > 0 ? 'danger' : enabledNodes.length > 0 ? 'ok' : 'muted';
   const nodeSummary = runtimeNodes.loading ? '读取中' : enabledNodes.length > 0 ? `${onlineNodes.length}/${enabledNodes.length} 在线` : '暂无节点';
+  const runtimeMetric = (value: number) => runtimeOverview.loading ? '读取中' : runtimeOverview.live ? String(value) : '—';
   const databaseAbnormal = system.live && !system.data.ok;
   const needsAttention = databaseAbnormal || offlineNodes.length > 0 || errors.length > 0;
 
   return <>
     <section className="nexus-overview-strip">
       <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary}</p></div>
-      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={nodesTone}>节点 {nodeSummary}</StatusBadge></div>
+      <div className="nexus-overview-status" aria-label="运行概览">
+        <OverviewMetric label="Nexus" value={system.loading ? '读取中' : system.data.ok ? '正常' : '异常'} tone={systemTone} />
+        <OverviewMetric label="节点" value={nodeSummary} tone={nodesTone} />
+        <OverviewMetric label="Skill" value={runtimeMetric(runtimeOverview.data.skills)} />
+        <OverviewMetric label="MCP" value={runtimeMetric(runtimeOverview.data.mcp)} />
+        <OverviewMetric label="24h 进行中" value={runtimeMetric(runtimeOverview.data.activeRecent24h)} />
+      </div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 

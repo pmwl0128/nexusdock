@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-const runtimeTaskListLimit = 200
+const (
+	runtimeTaskListLimit = 200
+	recentTaskWindow     = 24 * time.Hour
+)
 
 type opsTaskStep struct {
 	ID     string `json:"id"`
@@ -113,25 +116,36 @@ func (s *Server) runtimeOverview(w http.ResponseWriter, r *http.Request) {
 	nodeID := r.PathValue("nodeID")
 	tasks, taskErr := s.collectOpsTasksFromRuntime(r.Context(), nodeID, runtimeTaskListLimit)
 	skills, skillErr := s.collectOpsSkillsFromRuntime(r.Context(), nodeID)
-	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0}
+	mcp, mcpErr := s.runtimeGet(r.Context(), nodeID, "/internal/runtime/mcp", nil)
+	counts := map[string]int{"active": 0, "completed": 0, "blocked": 0, "active_recent_24h": 0}
+	recentCutoff := time.Now().UTC().Add(-recentTaskWindow)
 	for _, task := range tasks {
 		counts[task.Status]++
+		if task.Status == "active" && taskUpdatedSince(task.UpdatedAt, recentCutoff) {
+			counts["active_recent_24h"]++
+		}
 	}
 	payload := map[string]any{
-		"ok":         taskErr == nil && skillErr == nil,
+		"ok":         taskErr == nil && skillErr == nil && mcpErr == nil,
 		"tasks":      counts,
 		"skills":     map[string]any{"count": len(skills), "items": firstSkills(skills, 6)},
+		"mcp":        map[string]any{"count": len(opsArray(mcp["servers"]))},
 		"paths":      s.opsPaths(),
 		"node_id":    nodeID,
 		"source":     "agentdock-runtime-api",
 		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}
-	if taskErr != nil || skillErr != nil {
-		err := firstOpsError(taskErr, skillErr)
+	if taskErr != nil || skillErr != nil || mcpErr != nil {
+		err := firstOpsError(taskErr, skillErr, mcpErr)
 		writeJSON(w, runtimeErrorHTTPStatus(err), runtimeUnavailablePayload(err))
 		return
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+func taskUpdatedSince(value string, cutoff time.Time) bool {
+	updatedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(value))
+	return err == nil && !updatedAt.Before(cutoff)
 }
 
 func (s *Server) runtimeTasks(w http.ResponseWriter, r *http.Request) {
