@@ -83,6 +83,9 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 			writeAuthError(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "invalid username or password")
 			return
 		}
+		if s.logger != nil {
+			s.logger.Error("administrator login failed", "request_id", requestIDFromWriter(w), "error", err)
+		}
 		writeAuthError(w, http.StatusInternalServerError, "LOGIN_FAILED", "unable to create login session")
 		return
 	}

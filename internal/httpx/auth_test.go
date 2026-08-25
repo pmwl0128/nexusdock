@@ -1,10 +1,12 @@
 package httpx
 
 import (
+	"bytes"
 	"crypto/tls"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/uvwt/nexusdock/internal/auth"
@@ -161,5 +163,44 @@ func TestClientIPPrefixUsesNearestUntrustedForwardedHop(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "198.51.100.99, 203.0.113.72, 192.168.1.10")
 	if got := server.clientIPPrefix(req); got != "203.0.113.0/24" {
 		t.Fatalf("client IP prefix=%q want=%q", got, "203.0.113.0/24")
+	}
+}
+
+func TestLoginLogsInternalSessionFailureWithoutExposingIt(t *testing.T) {
+	db, err := core.OpenSQLite(t.Context(), ":memory:", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := core.EnsureSchema(t.Context(), db); err != nil {
+		t.Fatal(err)
+	}
+	authService := auth.NewService(db)
+	if err := authService.InitializeAdmin(t.Context(), "owner", "correct horse battery staple"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(t.Context(), `CREATE TRIGGER fail_session_insert BEFORE INSERT ON user_sessions BEGIN SELECT RAISE(ABORT, 'test session insert failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+
+	var logs bytes.Buffer
+	server := &Server{cfg: config.Config{}, logger: slog.New(slog.NewTextHandler(&logs, nil)), auth: authService}
+	req := httptest.NewRequest(http.MethodPost, "https://nexus.example/v1/auth/login", strings.NewReader(`{"username":"owner","password":"correct horse battery staple"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://nexus.example")
+	res := httptest.NewRecorder()
+
+	server.login(res, req)
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("login status=%d body=%s", res.Code, res.Body.String())
+	}
+	if !strings.Contains(logs.String(), "test session insert failure") {
+		t.Fatalf("internal login failure was not logged: %s", logs.String())
+	}
+	if strings.Contains(res.Body.String(), "test session insert failure") || strings.Contains(res.Body.String(), "correct horse battery staple") {
+		t.Fatalf("internal login failure leaked to response: %s", res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "LOGIN_FAILED") {
+		t.Fatalf("generic login error missing: %s", res.Body.String())
 	}
 }
