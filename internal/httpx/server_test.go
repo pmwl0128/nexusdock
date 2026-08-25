@@ -322,3 +322,16 @@ func TestRuntimeRoutesRequireExplicitNodeID(t *testing.T) {
 		}
 	}
 }
+
+func TestRetiredRoutesAreNotRegistered(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	for _, path := range []string{"/v1/schedules", "/v1/backup/status"} {
+		t.Run(path, func(t *testing.T) {
+			res := httptest.NewRecorder()
+			h.ServeHTTP(res, httptest.NewRequest(http.MethodGet, path, nil))
+			if res.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want 404", res.Code)
+			}
+		})
+	}
+}

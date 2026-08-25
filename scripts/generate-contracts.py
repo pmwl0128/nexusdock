@@ -207,46 +207,6 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("ok", "service", "database", "schema_version", "nexus_data_dir", "recall_repo_dir"),
     )
-    schemas["BackupHistory"] = obj(
-        "一次备份执行的脱敏结果。",
-        {
-            "schema_version": scalar("integer", "状态文件版本。", minimum=0),
-            "state": enum("备份状态。", ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]),
-            "message": scalar("string", "状态说明。"),
-            "started_at": TIMESTAMP,
-            "completed_at": TIMESTAMP,
-            "host": scalar("string", "执行主机。"),
-            "archive": scalar("string", "归档文件名。"),
-            "archive_size": scalar("integer", "归档字节数。", minimum=0),
-            "sha256": scalar("string", "归档 SHA-256。"),
-            "remote_path": scalar("string", "脱敏后的远端路径。"),
-        },
-        ("state",),
-    )
-    schemas["BackupStatus"] = obj(
-        "AgentDock 与 Nexus 的单一备份状态。",
-        {
-            "id": scalar("string", "稳定备份标识。"),
-            "title": scalar("string", "备份名称。"),
-            "description": scalar("string", "备份内容说明。"),
-            "provider": scalar("string", "计划执行提供方。"),
-            "host": scalar("string", "执行主机。"),
-            "enabled": scalar("boolean", "备份是否启用。"),
-            "schedule": scalar("string", "可读计划。"),
-            "schedule_type": scalar("string", "计划类型。"),
-            "state": enum("备份状态。", ["never_run", "queued", "running", "success", "failed", "unknown", "disabled"]),
-            "last_started_at": TIMESTAMP,
-            "last_completed_at": TIMESTAMP,
-            "next_run_at": TIMESTAMP,
-            "message": scalar("string", "状态说明。"),
-            "archive": scalar("string", "最近归档文件名。"),
-            "archive_size": scalar("integer", "最近归档字节数。", minimum=0),
-            "sha256": scalar("string", "最近归档 SHA-256。"),
-            "remote_path": scalar("string", "脱敏后的远端路径。"),
-            "history": array("最近备份历史。", ref("BackupHistory")),
-        },
-        ("id", "title", "provider", "host", "enabled", "schedule", "state", "next_run_at", "history"),
-    )
     schemas["RecallEntry"] = obj(
         "Markdown 召回条目。",
         {
@@ -898,7 +858,6 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "/v1/settings/ai/test/embedding": {
             "post": operation("testEmbeddingConnection", "使用已保存配置测试 Embedding 服务连接", success=ok(ref("RuntimeAIConnectionTestResponse")))
         },
-        "/v1/backup/status": {"get": operation("getBackupStatus", "读取 AgentDock 与 Nexus 备份状态", success=ok(ref("BackupStatus")))},
         "/v1/auth/status": {
             "get": operation("getAuthStatus", "读取管理员初始化状态", success=ok(ref("AuthStatusResponse")))
         },
@@ -1155,7 +1114,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         "info": {
             "title": "NexusDock API",
             "version": "1.0.0",
-            "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖 Recall、备份、账号会话和 AgentDock Runtime 视图。",
+            "description": "个人 NexusDock 控制台的当前 HTTP 契约，覆盖 Recall、账号会话和 AgentDock Runtime 视图。",
         },
         "servers": [{"url": "/", "description": "当前 Nexus 实例。"}],
         "paths": paths,

@@ -129,11 +129,6 @@ func TestPublicAPIStatusAndErrorEnvelope(t *testing.T) {
 	if embedding.Code != http.StatusOK || embedding.Body["ok"] != true || embedding.Body["enabled"] != false || embedding.Body["configured"] != false {
 		t.Fatalf("embedding status=%d body=%#v", embedding.Code, embedding.Body)
 	}
-	backup := decodeJSON(t, handler, http.MethodGet, "/v1/backup/status", "")
-	if backup.Code != http.StatusOK || backup.Body["id"] != "nexusdock-backup" || backup.Body["provider"] != "launchd" {
-		t.Fatalf("backup status=%d body=%#v", backup.Code, backup.Body)
-	}
-
 	create := decodeJSON(t, handler, http.MethodPost, "/v1/recall", `{"path":"recall/docs/inbox/client.md","content":"# Client contract\n"}`)
 	if create.Code != http.StatusOK {
 		t.Fatalf("create status=%d body=%#v", create.Code, create.Body)

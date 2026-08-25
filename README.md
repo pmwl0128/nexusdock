@@ -12,7 +12,7 @@ NexusDock 适合已经在一台或多台设备上使用 AgentDock，希望统一
 - **MCP 管理**：通过 NexusDock 管理选定 AgentDock 节点上的 HTTP 或 stdio MCP 服务、工具发现和隔离环境变量。
 - **Workflow 模板**：集中浏览、匹配和维护可复用的任务工作流模板。
 - **统一 MCP**：客户端只连接 NexusDock `/mcp`；Recall 等中心工具只出现一次，设备工具通过必填 `node_id` 路由。
-- **安全与状态**：管理员登录、浏览器会话管理、短时单次配对码、设备身份 Token、备份状态和系统健康检查。
+- **安全与状态**：管理员登录、浏览器会话管理、短时单次配对码、设备身份 Token 和系统健康检查。
 - **自托管 Web 控制台**：桌面端与移动端均可使用，后端 API 与前端由同一个服务提供。
 
 ## 快速开始
@@ -96,7 +96,7 @@ docker compose up -d nexusdock
 curl http://127.0.0.1:18777/health
 ```
 
-认证后还可检查 `/v1/system/status`、`/v1/backup/status`、`/v1/runtime/nodes` 和 `/v1/workflow-templates`，并对 `nexus.db` 执行 SQLite `quick_check`。
+认证后还可检查 `/v1/system/status`、`/v1/runtime/nodes` 和 `/v1/workflow-templates`，并对 `nexus.db` 执行 SQLite `quick_check`。
 
 然后在浏览器打开：
 
@@ -171,7 +171,7 @@ RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 | --- | --- | --- |
 | `NEXUS_HOST` | `127.0.0.1` | 监听地址；Docker 镜像内默认为 `0.0.0.0` |
 | `NEXUS_PORT` | `18777` | HTTP 端口 |
-| `NEXUS_DATA_DIR` | `./nexus-data` | SQLite、备份和系统密钥目录；容器内为 `/var/lib/nexus` |
+| `NEXUS_DATA_DIR` | `./nexus-data` | SQLite 和系统密钥目录；容器内为 `/var/lib/nexus` |
 | `NEXUS_AUTH_TOKEN` | 空 | 程序化 `/v1` API 的 Bearer Token |
 | `NEXUS_REQUIRE_AUTH` | `false` | 为 `true` 时，没有配置 API Token 将拒绝启动 |
 | `NEXUS_AUTH_ALLOW_INSECURE_HTTP` | `false` | 是否允许通过 HTTP 提交浏览器登录；仅限本机调试 |
@@ -186,14 +186,13 @@ RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 
 完整示例见 [`.env.example`](./.env.example)。
 
-## 数据与备份
+## 数据
 
 默认数据结构：
 
 ```text
 NEXUS_DATA_DIR/
   nexus.db
-  backups/
   secrets/
 
 RECALL_REPO_DIR/
@@ -201,12 +200,6 @@ RECALL_REPO_DIR/
   profile.md
   recall/
 ```
-
-至少应备份：
-
-1. `NEXUS_DATA_DIR/nexus.db` 及对应 WAL/SHM；
-2. 整个 `RECALL_REPO_DIR`；
-3. Git 远端凭据的安全副本（如确有需要）。
 
 不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。系统状态只写入 `NEXUS_DATA_DIR`，不得放到 `RECALL_REPO_DIR/.nexus`。恢复数据库后需要让仍持有有效 Device Token 的 AgentDock 重新连接；数据库异常时不要反复重启容器，回退应恢复上一个已验证镜像和部署前数据库快照。
 

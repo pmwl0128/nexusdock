@@ -255,7 +255,7 @@
 
 .dashboard-grid-nexus,
 .settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-.dashboard-focus-grid { grid-template-columns: 1.15fr 1fr 1fr; align-items: stretch; }
+.dashboard-focus-grid { grid-template-columns: 1.15fr 1fr; align-items: stretch; }
 .dashboard-attention-panel { order: -1; }
 
 .dashboard-node-section {
@@ -382,7 +382,6 @@
 button.attention-row { cursor: pointer; }
 
 .nexus-technical-details,
-.backup-history-details,
 .ops-secondary-details,
 .workflow-secondary-details {
   margin-top: 8px;
@@ -390,7 +389,6 @@ button.attention-row { cursor: pointer; }
 }
 
 .nexus-technical-details > summary,
-.backup-history-details > summary,
 .ops-secondary-details > summary,
 .workflow-secondary-details > summary,
 .ops-json-panel > summary,
@@ -404,11 +402,6 @@ button.attention-row { cursor: pointer; }
 }
 summary::-webkit-details-marker { display: none; }
 
-.backup-history { display: grid; gap: 8px; padding: 6px 0; }
-.backup-history > div { display: flex; gap: 9px; align-items: flex-start; }
-.backup-history strong,
-.backup-history small { display: block; }
-.backup-history small { color: var(--nx-muted); font-size: 10px; }
 
 /* AgentDock 节点 */
 .runtime-node-bar {
@@ -850,7 +843,7 @@ summary::-webkit-details-marker { display: none; }
 .settings-section-heading { padding: 2px 2px 1px; }
 .settings-section-heading h2 { margin: 4px 0; font-size: 20px; letter-spacing: -.02em; }
 .settings-section-heading p { margin: 0; color: var(--nx-muted); font-size: 11px; }
-.settings-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-system-grid { grid-template-columns: 1fr; }
 
 /* AI 设置：配置域纵向展开，避免在同一行压缩两套复杂表单。 */
 .ai-settings-panel { width: min(100%, 980px); display: grid; gap: 14px; }

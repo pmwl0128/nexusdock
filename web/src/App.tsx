@@ -1,4 +1,4 @@
-import { formatTime, timeZoneLabel } from './lib/time';
+import { formatTime } from './lib/time';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Activity, BrainCircuit, Cable, ChevronRight,
@@ -26,37 +26,6 @@ type Section = 'home' | 'recall' | 'templates' | RuntimeSection | 'settings';
 type SettingsSection = 'account' | 'ai' | 'system';
 type Tone = 'ok' | 'warn' | 'danger' | 'muted';
 
-
-type BackupHistory = {
-  state: string;
-  message?: string;
-  started_at?: string;
-  completed_at?: string;
-  archive?: string;
-  archive_size?: number;
-  sha256?: string;
-  remote_path?: string;
-};
-
-type BackupStatus = {
-  id: string;
-  title: string;
-  description?: string;
-  provider: string;
-  host: string;
-  enabled: boolean;
-  schedule: string;
-  state: string;
-  last_started_at?: string;
-  last_completed_at?: string;
-  next_run_at?: string;
-  message?: string;
-  archive?: string;
-  archive_size?: number;
-  sha256?: string;
-  remote_path?: string;
-  history?: BackupHistory[];
-};
 
 type SystemStatus = {
   ok: boolean;
@@ -96,7 +65,7 @@ const NAV_GROUPS: NavGroup[] = [
 const SETTINGS_SECTIONS: Array<{ id: SettingsSection; label: string; description: string; icon: typeof Settings }> = [
   { id: 'account', label: '账号与会话', description: '登录、安全与活动会话', icon: UserRound },
   { id: 'ai', label: 'AI 与向量', description: '模型、Embedding 与索引', icon: BrainCircuit },
-  { id: 'system', label: '系统与节点', description: 'AgentDock、运行状态与备份', icon: ServerCog },
+  { id: 'system', label: '系统与节点', description: 'AgentDock、节点与系统状态', icon: ServerCog },
 ];
 
 function sectionFromHash(): Section {
@@ -144,39 +113,6 @@ function useResource<T>(path: string, fallback: T, refreshToken: number): Resour
 }
 
 
-
-function formatBytes(value?: number): string {
-  if (value === undefined || value < 0) return '暂无';
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit += 1;
-  }
-  return `${size.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
-}
-
-function toneForStatus(status?: string): Tone {
-  if (!status) return 'muted';
-  if (['online', 'healthy', 'success', 'succeeded', 'completed', 'ready', 'mounted', 'listed'].includes(status)) return 'ok';
-  if (['failed', 'offline', 'blocked', 'revoked', 'expired'].includes(status)) return 'danger';
-  if (['degraded', 'pending', 'running', 'queued', 'uploading', 'downloading', 'listing'].includes(status)) return 'warn';
-  return 'muted';
-}
-
-function backupStateLabel(state?: string): string {
-  switch (state) {
-    case 'never_run': return '尚未运行';
-    case 'running': return '备份中';
-    case 'success':
-    case 'succeeded':
-    case 'completed': return '正常';
-    case 'failed': return '失败';
-    case 'disabled': return '已关闭';
-    default: return state || '待确认';
-  }
-}
 
 export default function App() {
   const [section, setSection] = useState<Section>(sectionFromHash);
@@ -283,21 +219,19 @@ type RuntimeNodesState = ReturnType<typeof useAgentDockNodes>;
 
 function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: number; runtimeNodes: RuntimeNodesState; navigate: (section: Section) => void }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
-  const backupResource = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
-  const backup = backupResource.data;
   const enabledNodes = runtimeNodes.nodes.filter((node) => node.enabled);
   const onlineNodes = enabledNodes.filter((node) => node.online);
   const offlineNodes = enabledNodes.filter((node) => !node.online);
-  const errors = [system.error, backupResource.error, runtimeNodes.error].filter(Boolean) as string[];
+  const errors = [system.error, runtimeNodes.error].filter(Boolean) as string[];
   const systemTone = system.data.ok ? 'ok' : 'danger';
   const nodesTone: Tone = runtimeNodes.loading ? 'muted' : offlineNodes.length > 0 ? 'danger' : enabledNodes.length > 0 ? 'ok' : 'muted';
   const nodeSummary = runtimeNodes.loading ? '读取中' : enabledNodes.length > 0 ? `${onlineNodes.length}/${enabledNodes.length} 在线` : '暂无节点';
-  const needsAttention = !system.data.ok || backup?.state === 'failed' || offlineNodes.length > 0 || errors.length > 0;
+  const needsAttention = !system.data.ok || offlineNodes.length > 0 || errors.length > 0;
 
   return <>
     <section className="nexus-overview-strip">
-      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary} · 备份 {backupStateLabel(backup?.state)}</p></div>
-      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={nodesTone}>节点 {nodeSummary}</StatusBadge><StatusBadge tone={toneForStatus(backup?.state)}>备份</StatusBadge></div>
+      <div><span className="nexus-kicker">个人控制台</span><h2>{needsAttention ? '有项目需要处理' : '核心服务正常'}</h2><p>数据库 {system.data.database || 'unknown'} · 节点 {nodeSummary}</p></div>
+      <div className="nexus-overview-status"><StatusBadge tone={systemTone}>Nexus</StatusBadge><StatusBadge tone={nodesTone}>节点 {nodeSummary}</StatusBadge></div>
     </section>
     {errors.length > 0 && <InlineAlert tone="danger" title="部分数据读取失败" message={errors.join('；')} />}
 
@@ -308,7 +242,6 @@ function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: numb
         {!needsAttention ? <EmptyMini text="当前没有需要立刻处理的对象。" /> : <>
           {!system.data.ok && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">error</StatusBadge><span><strong>系统状态异常</strong><small>{system.data.database || 'unknown'}</small></span><ChevronRight size={16} /></button>}
           {offlineNodes.map((node) => <button type="button" className="attention-row" key={node.id} onClick={() => { window.location.hash = 'settings/system'; }}><StatusBadge tone="danger">离线</StatusBadge><span><strong>{node.name}</strong><small>{formatTime(node.last_seen_at, { compact: true })}</small></span><ChevronRight size={16} /></button>)}
-          {backup?.state === 'failed' && <button type="button" className="attention-row" onClick={() => navigate('settings')}><StatusBadge tone="danger">failed</StatusBadge><span><strong>备份失败</strong><small>{backup.message || formatTime(backup.last_completed_at || backup.last_started_at)}</small></span><ChevronRight size={16} /></button>}
           {errors.map((message) => <div className="nx-alert is-error" key={message}>{message}</div>)}
         </>}
       </Panel>
@@ -318,8 +251,6 @@ function HomePage({ refreshToken, runtimeNodes, navigate }: { refreshToken: numb
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <details className="nexus-technical-details"><summary>技术信息</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
       </Panel>
-
-      <BackupPanel backup={backup} />
     </section>
   </>;
 }
@@ -415,10 +346,9 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
 
 function SystemSettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; runtimeNodes: RuntimeNodesState }) {
   const system = useResource<SystemStatus>('/v1/system/status', { ok: false, service: 'nexusdock', database: 'unknown', schema_version: 0, nexus_data_dir: '', recall_repo_dir: '' }, refreshToken);
-  const backup = useResource<BackupStatus | undefined>('/v1/backup/status', undefined, refreshToken);
 
   return <section className="system-settings-page">
-    <header className="settings-section-heading"><div><span className="nexus-eyebrow">SYSTEM</span><h2>系统与节点</h2><p>管理 AgentDock 节点，并查看 NexusDock 运行状态与备份。</p></div></header>
+    <header className="settings-section-heading"><div><span className="nexus-eyebrow">SYSTEM</span><h2>系统与节点</h2><p>管理 AgentDock 节点，并查看 NexusDock 运行状态。</p></div></header>
     <AgentDockNodesPanel
       nodes={runtimeNodes.nodes}
       selectedNodeID={runtimeNodes.selectedNodeID}
@@ -433,22 +363,8 @@ function SystemSettingsPage({ refreshToken, runtimeNodes }: { refreshToken: numb
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <details className="nexus-technical-details"><summary>数据与版本</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
       </Panel>
-      <BackupPanel backup={backup.data} />
     </section>
   </section>;
-}
-
-function BackupPanel({ backup }: { backup?: BackupStatus }) {
-  return <Panel icon={Database} title="备份" subtitle="自动备份状态">
-    {backup ? <>
-      <SettingValue label="状态" value={backupStateLabel(backup.state)} tone={toneForStatus(backup.state)} />
-      <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />
-      <SettingValue label="下次运行" value={formatTime(backup.next_run_at)} />
-      {backup.message && <div className="nx-alert is-info">{backup.message}</div>}
-      <details className="nexus-technical-details"><summary>备份详情</summary><SettingValue label="主机" value={backup.host || '暂无'} /><SettingValue label="计划" value={backup.schedule || '暂无'} /><SettingValue label="显示时区" value={timeZoneLabel()} /><SettingValue label="归档大小" value={formatBytes(backup.archive_size)} /><SettingValue label="远端路径" value={backup.remote_path || '暂无'} mono /><SettingValue label="SHA256" value={backup.sha256 || '暂无'} mono /></details>
-      {backup.history?.length ? <details className="backup-history-details"><summary>最近备份（{backup.history.length}）</summary><div className="backup-history">{backup.history.slice(0, 5).map((item, index) => <div key={`${item.started_at || index}:${item.state}`}><StatusBadge tone={toneForStatus(item.state)}>{item.state}</StatusBadge><span><strong>{formatTime(item.completed_at || item.started_at)}</strong><small>{item.archive || item.remote_path || item.message || '暂无详情'}</small></span></div>)}</div></details> : null}
-    </> : <EmptyMini text="暂无备份状态。" />}
-  </Panel>;
 }
 
 function Panel({ title, subtitle, icon: Icon, className = '', children }: { title: string; subtitle: string; icon?: typeof Home; className?: string; children: ReactNode }) { return <article className={`nexus-panel ${className}`.trim()}><header>{Icon && <span className="nexus-panel-icon"><Icon size={17} /></span>}<div><h3>{title}</h3><p>{subtitle}</p></div></header><div className="panel-body">{children}</div></article>; }

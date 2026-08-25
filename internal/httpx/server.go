@@ -169,7 +169,6 @@ func (s *Server) Handler() http.Handler {
 		s.registerPrivateNoteRoutes(mux, deviceProtected)
 	}
 	s.registerWebAuthRoutes(mux)
-	mux.HandleFunc("GET /v1/backup/status", protected(s.getBackupStatus))
 	mux.HandleFunc("GET /v1/sync/status", deviceProtected(s.syncStatus))
 	mux.HandleFunc("GET /v1/git/diff", protected(s.gitDiff))
 	mux.HandleFunc("POST /v1/git/discard", protected(s.gitDiscard))

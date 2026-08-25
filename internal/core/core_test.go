@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -88,39 +87,5 @@ func TestTxManagerRollsBackOnError(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("count = %d, want rollback to 0", count)
-	}
-}
-
-func TestSQLiteBackupHookCreatesPrivateBackup(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "nexus.db")
-	db, err := OpenSQLite(ctx, path, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.ExecContext(ctx, `CREATE TABLE existing(value TEXT); INSERT INTO existing VALUES('kept')`); err != nil {
-		t.Fatal(err)
-	}
-	backupDir := filepath.Join(dir, "backups")
-	hook := SQLiteBackupHook{SourcePath: path, Directory: backupDir}
-	if err := hook.Backup(ctx, db); err != nil {
-		t.Fatal(err)
-	}
-	entries, err := os.ReadDir(backupDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("backup count = %d, want 1", len(entries))
-	}
-	info, err := entries[0].Info()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("backup mode = %o, want 600", info.Mode().Perm())
 	}
 }

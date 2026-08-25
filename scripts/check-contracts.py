@@ -14,7 +14,6 @@ CONTRACTS = ROOT / "contracts"
 HTTP_SOURCE = ROOT / "internal" / "httpx"
 
 REQUIRED_PATHS = {
-    "/v1/backup/status",
     "/v1/recall",
     "/v1/runtime/nodes",
     "/v1/runtime/nodes/{nodeID}/tasks",
@@ -23,6 +22,7 @@ REQUIRED_PATHS = {
     "/v1/workflow-templates",
 }
 FORBIDDEN_PATH_PREFIXES = (
+    "/v1/backup",
     "/v1/" + "arti" + "facts",
     "/v1/" + "arti" + "fact-fetches",
     "/v1/devices/{deviceId}/" + "arti" + "facts",
