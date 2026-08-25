@@ -331,7 +331,6 @@ function NodeOverview({ runtimeNodes, runtimeMetrics }: { runtimeNodes: RuntimeN
       {runtimeNodes.loading && runtimeNodes.nodes.length === 0 && <EmptyMini text="正在读取 AgentDock 节点…" />}
       {!runtimeNodes.loading && runtimeNodes.nodes.length === 0 && <EmptyMini text="尚未配对 AgentDock 节点。" />}
       {runtimeNodes.nodes.map((node) => {
-        const selected = runtimeNodes.selectedNodeID === node.id;
         const statusTone: Tone = !node.enabled ? 'muted' : node.online ? 'ok' : 'danger';
         const statusLabel = !node.enabled ? '已停用' : node.online ? '在线' : '离线';
         const metrics = runtimeMetrics.data[node.id];
@@ -340,7 +339,7 @@ function NodeOverview({ runtimeNodes, runtimeMetrics }: { runtimeNodes: RuntimeN
           if (runtimeMetrics.loading && !metrics) return '读取中';
           return metrics ? String(value ?? 0) : '—';
         };
-        return <article className={`dashboard-node-row ${selected ? 'is-selected' : ''}`} key={node.id}>
+        return <article className="dashboard-node-row" key={node.id}>
           <div className="dashboard-node-identity">
             <span className="dashboard-node-icon"><ServerCog size={17} /></span>
             <span><strong>{node.name}</strong><small>{nodePlatformLabel(node.os, node.arch)}</small></span>
@@ -353,7 +352,7 @@ function NodeOverview({ runtimeNodes, runtimeMetrics }: { runtimeNodes: RuntimeN
             <span><small>工具</small><strong>{node.capabilities?.length || 0} 个</strong></span>
             <span><small>最近在线</small><strong>{formatTime(node.last_seen_at, { compact: true })}</strong></span>
           </div>
-          <div className="dashboard-node-badges">{selected && <StatusBadge tone="info">当前</StatusBadge>}<StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></div>
+          <div className="dashboard-node-badges"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></div>
         </article>;
       })}
     </div>

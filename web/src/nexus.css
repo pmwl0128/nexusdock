@@ -304,17 +304,15 @@
 .dashboard-node-row {
   min-width: 0;
   min-height: 68px;
-  padding: 11px 14px 11px 12px;
+  padding: 11px 14px;
   display: grid;
   grid-template-columns: minmax(180px, .9fr) minmax(620px, 2.8fr) auto;
   gap: 18px;
   align-items: center;
-  border-left: 2px solid transparent;
   border-bottom: 1px solid #ededed;
 }
 
 .dashboard-node-row:last-child { border-bottom: 0; }
-.dashboard-node-row.is-selected { border-left-color: #171717; background: #fafafa; }
 .dashboard-node-identity { min-width: 0; gap: 10px; }
 .dashboard-node-icon { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border-radius: 6px; background: var(--nx-soft); color: #333; }
 .dashboard-node-identity > span:last-child { min-width: 0; }
