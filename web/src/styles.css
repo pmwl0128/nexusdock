@@ -4,20 +4,20 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  --nx-bg: #f5f5f5;
+  --nx-bg: #f6f6f6;
   --nx-surface: #ffffff;
-  --nx-surface-soft: #fafafa;
-  --nx-sidebar: #f2f2f2;
-  --nx-line: #dedede;
-  --nx-line-strong: #c6c6c6;
+  --nx-surface-soft: #f8f8f8;
+  --nx-sidebar: #f7f7f7;
+  --nx-line: #e1e1e1;
+  --nx-line-strong: #cccccc;
   --nx-text: #171717;
   --nx-text-soft: #454545;
-  --nx-muted: #747474;
-  --nx-subtle: #9a9a9a;
+  --nx-muted: #666666;
+  --nx-subtle: #8b8b8b;
   --nx-strong: #000000;
   --nx-inverse: #ffffff;
-  --nx-soft: #ececec;
-  --nx-soft-2: #f0f0f0;
+  --nx-soft: #efefef;
+  --nx-soft-2: #f4f4f4;
   --nx-radius: 6px;
   --nx-radius-large: 10px;
 }
