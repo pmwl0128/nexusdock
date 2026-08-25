@@ -35,7 +35,7 @@ export function updateRoute(path = '', query = '') {
   params.delete('prefix');
   if (path) params.set('path', path); else params.delete('path');
   if (query) params.set('q', query); else params.delete('q');
-  const next = `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}#recall`;
+  const next = `${window.location.pathname}${params.size ? `?${params.toString()}` : ''}#recall/library`;
   window.history.replaceState(null, '', next);
 }
 

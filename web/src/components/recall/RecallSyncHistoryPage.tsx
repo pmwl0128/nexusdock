@@ -3,10 +3,10 @@ import type { RecallWorkspaceViewModel } from './types';
 
 type Props = Pick<RecallWorkspaceViewModel, 'state' | 'dirty' | 'actions'>;
 
-export default function RecallSyncPanels({ state, dirty, actions }: Props) {
-  return <section className="recall-lower">
-    <article className="recall-sync">
-      <div className="recall-panel-head"><div><h2>同步</h2><p>只提供明确的更新与保存动作</p></div></div>
+export default function RecallSyncHistoryPage({ state, dirty, actions }: Props) {
+  return <section className="recall-sync-page">
+    <article className="recall-tool-panel recall-sync-panel">
+      <div className="recall-panel-head"><div><h2>同步状态</h2><p>查看当前分支状态，并执行明确的拉取或保存动作。</p></div></div>
       <div className="recall-sync-state">
         <div><span>分支</span><strong>{String(state.syncStatus?.branch || '默认')}</strong></div>
         <div><span>领先</span><strong>{String(state.syncStatus?.ahead ?? '0')}</strong></div>
@@ -20,8 +20,8 @@ export default function RecallSyncPanels({ state, dirty, actions }: Props) {
       </div>
     </article>
 
-    <article className="recall-history">
-      <div className="recall-panel-head"><div><h2>最近版本</h2><p>仅展示时间线；详细 Diff 交给 Git 工具或 Agent</p></div></div>
+    <article className="recall-tool-panel recall-history-panel">
+      <div className="recall-panel-head"><div><h2>同步历史</h2><p>展示最近版本时间线；详细 Diff 继续交给 Git 工具或 Agent。</p></div></div>
       <div className="recall-commits">
         {state.commits.length === 0 ? <p className="recall-empty">暂无版本记录。</p> : state.commits.map((commit) => (
           <div key={commit.hash}>

@@ -1,6 +1,7 @@
 import type { FormEvent, RefObject } from 'react';
 
 export type EntryType = 'file' | 'directory';
+export type RecallPage = 'library' | 'cards' | 'vectors' | 'history';
 export type RecallEntry = { path: string; name?: string; type: EntryType; size_bytes?: number };
 export type Recall = { path: string; content: string };
 export type GitCommit = { hash: string; short_hash: string; date: string; author: string; subject: string };
@@ -50,8 +51,7 @@ export type EmbeddingStatus = {
   model?: string;
   endpoint?: string;
   index_path?: string;
-  count?: number;
-  dimension?: number;
+  index?: { model?: string; count?: number; dimension?: number; updated_at?: string };
   error?: string;
   reason?: string;
 };

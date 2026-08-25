@@ -1,15 +1,17 @@
-import { Cpu, FileText, Search, Sparkles } from 'lucide-react';
+import { FileText, Sparkles } from 'lucide-react';
 import type { RecallWorkspaceViewModel } from './types';
 import { nameOf } from './utils';
 
-type Props = Pick<RecallWorkspaceViewModel, 'state' | 'actions'>;
+type Props = Pick<RecallWorkspaceViewModel, 'state' | 'actions'> & {
+  onOpenCard: (path: string) => void;
+};
 
-export default function RecallCardsConsole({ state, actions }: Props) {
-  const { card, embedding, busy } = state;
-  return <section className="recall-card-console">
-    <article className="recall-card-panel">
+export default function RecallExperienceCardsPage({ state, actions, onOpenCard }: Props) {
+  const { card, busy } = state;
+  return <section className="recall-tool-page">
+    <article className="recall-tool-panel">
       <div className="recall-panel-head">
-        <div><h2>经验卡片</h2><p>先生成候选和相似检查，再确认写入 cards/。</p></div>
+        <div><h2>经验卡片</h2><p>生成候选、检查相似经验，再确认写入受管卡片目录。</p></div>
         <span className={`recall-health ${card.capture?.warnings?.length ? 'warn' : 'ok'}`}>{card.capture ? '候选已生成' : '待捕获'}</span>
       </div>
       <form className="recall-card-form" onSubmit={actions.captureCard}>
@@ -27,28 +29,7 @@ export default function RecallCardsConsole({ state, actions }: Props) {
           {card.capture?.warnings?.length ? <label className="recall-card-check"><input type="checkbox" checked={card.allowWarnings} onChange={(event) => actions.setAllowCardWarnings(event.target.checked)} />已人工确认警告</label> : null}
         </div>
       </form>
-      {card.capture && <div className="recall-card-review"><strong>{card.capture.card.path}</strong>{card.capture.warnings?.map((warning) => <p key={warning} className="warn">{warning}</p>)}{(card.capture.similar_results || []).map((item) => <button key={item.path} type="button" onClick={() => actions.openSimilarCard(item.path)}><FileText size={14} /><span>{item.title || nameOf(item.path)}</span><em>{item.path}</em></button>)}</div>}
-    </article>
-
-    <article className="recall-card-panel">
-      <div className="recall-panel-head">
-        <div><h2>向量召回</h2><p>只搜索 cards/，用于高信噪比经验召回。</p></div>
-        <span className={`recall-health ${embedding.status?.reachable ? 'ok' : 'warn'}`}>{embedding.status?.reachable ? 'BGE-M3 可达' : '未就绪'}</span>
-      </div>
-      <div className="recall-card-embed-status">
-        <div><span>模型</span><strong>{embedding.status?.model || '未知'}</strong></div>
-        <div><span>维度</span><strong>{String(embedding.status?.dimension || '—')}</strong></div>
-        <div><span>索引</span><strong>{String(embedding.status?.count || '—')}</strong></div>
-      </div>
-      <form className="recall-card-search" onSubmit={actions.searchCardEmbeddings}>
-        <Search size={15} />
-        <input aria-label="搜索经验卡片" value={embedding.query} onChange={(event) => actions.setEmbeddingQuery(event.target.value)} placeholder="搜索经验卡片" />
-        <button type="submit" disabled={busy}>向量搜索</button>
-        <button type="button" onClick={actions.reindexCards} disabled={busy}><Cpu size={15} />重建索引</button>
-      </form>
-      <div className="recall-card-results">
-        {embedding.results.length === 0 ? <p className="recall-empty">暂无向量搜索结果。</p> : embedding.results.map((item) => <button key={item.path} type="button" onClick={() => actions.openSimilarCard(item.path)}><strong>{item.title || nameOf(item.path)}</strong><small>{item.path}</small><em>{item.score.toFixed(4)}</em></button>)}
-      </div>
+      {card.capture && <div className="recall-card-review"><strong>{card.capture.card.path}</strong>{card.capture.warnings?.map((warning) => <p key={warning} className="warn">{warning}</p>)}{(card.capture.similar_results || []).map((item) => <button key={item.path} type="button" onClick={() => onOpenCard(item.path)}><FileText size={14} /><span>{item.title || nameOf(item.path)}</span><em>{item.path}</em></button>)}</div>}
     </article>
   </section>;
 }
