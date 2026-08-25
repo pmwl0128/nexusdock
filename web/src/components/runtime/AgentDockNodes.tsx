@@ -167,7 +167,7 @@ export function AgentDockNodesPanel({ nodes, selectedNodeID, loading, error, onR
       <div><span className="nexus-eyebrow">RUNTIME NODES</span><h2>AgentDock 节点</h2><p>AgentDock 主动连接 Nexus；无需设备公网地址，也无需向 Nexus 提供 AgentDock Token。</p></div>
       <div className="agentdock-node-actions">
         <button type="button" className="nx-button is-secondary" onClick={onReload} disabled={loading}><RefreshCw size={15} />刷新</button>
-        <button type="button" className="nx-button is-primary" onClick={() => void createPairingCode()} disabled={busy === 'pair'}><CirclePlus size={15} />{busy === 'pair' ? '生成中…' : '配对设备'}</button>
+        <button type="button" className="nx-button" onClick={() => void createPairingCode()} disabled={busy === 'pair'}><CirclePlus size={15} />{busy === 'pair' ? '生成中…' : '配对设备'}</button>
       </div>
     </header>
 
@@ -189,14 +189,14 @@ export function AgentDockNodesPanel({ nodes, selectedNodeID, loading, error, onR
     </div>
 
     {pairing && <Dialog title="配对 AgentDock" description={`配对码将在 ${new Date(pairing.expires_at).toLocaleString()} 失效，且只能使用一次。`} onClose={() => setPairing(null)} wide>
-      <div className="agentdock-node-delete"><p>在目标设备执行以下命令，然后重启 AgentDock：</p><code>{pairCommand}</code><footer><button type="button" className="nx-button is-primary" onClick={() => void navigator.clipboard.writeText(pairCommand)}>复制命令</button></footer></div>
+      <div className="agentdock-node-delete"><p>在目标设备执行以下命令，然后重启 AgentDock：</p><code>{pairCommand}</code><footer><button type="button" className="nx-button" onClick={() => void navigator.clipboard.writeText(pairCommand)}>复制命令</button></footer></div>
     </Dialog>}
 
     {editing && <Dialog title={`编辑 ${editing.name}`} description="设备身份和连接凭据由配对流程管理。" onClose={() => setEditing(null)}>
       <form className="agentdock-node-form" onSubmit={submitEdit}>
         <label className="is-wide"><span>显示名称</span><input required maxLength={100} value={editName} onChange={(event) => setEditName(event.target.value)} /></label>
         <label className="agentdock-node-check"><input type="checkbox" checked={editEnabled} onChange={(event) => setEditEnabled(event.target.checked)} /><span>启用节点</span></label>
-        <footer><button type="button" className="nx-button is-secondary" onClick={() => setEditing(null)}>取消</button><button type="submit" className="nx-button is-primary" disabled={busy === 'save'}>{busy === 'save' ? '保存中…' : '保存'}</button></footer>
+        <footer><button type="button" className="nx-button is-secondary" onClick={() => setEditing(null)}>取消</button><button type="submit" className="nx-button" disabled={busy === 'save'}>{busy === 'save' ? '保存中…' : '保存'}</button></footer>
       </form>
     </Dialog>}
 

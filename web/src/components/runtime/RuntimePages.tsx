@@ -182,8 +182,8 @@ export function TaskCenterPage({ nodeID, refreshToken }: { nodeID: string; refre
   return <>
     <OpsShell error={resource.error || allResource.error}>
       {notice && <div className="nx-alert is-success" role="status">{notice}<button type="button" onClick={() => setNotice('')}>关闭</button></div>}
-      <div className={`ops-toolbar is-console ops-task-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => { setStatus(item); setMobileDetailOpen(false); }}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><button type="button" className={`nx-button is-secondary is-small ops-recent-filter ${recentOnly ? 'is-active' : ''}`} aria-pressed={recentOnly} onClick={() => { setRecentOnly((current) => !current); setMobileDetailOpen(false); }}><Clock3 size={15} />最近 24 小时</button><span className="ops-task-toolbar-meta"><span className="ops-auto-refresh"><i aria-hidden="true" />自动刷新</span><span className="ops-count">显示 {tasks.length} 条</span></span></div>
-      <section className={`ops-master-detail ops-task-master-detail mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+      <div className="ops-toolbar is-console"><div className="ops-segmented">{(['active', 'blocked', 'completed', 'all'] as TaskStatus[]).map((item) => <button type="button" key={item} className={status === item ? 'is-active' : ''} aria-pressed={status === item} onClick={() => { setStatus(item); setMobileDetailOpen(false); }}><span>{taskStatusLabels[item]}</span><em>{statusCounts[item]}</em></button>)}</div><label className="ops-search"><Search size={15} /><input aria-label="搜索任务" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索任务或当前步骤" /></label><button type="button" className={`nx-button is-secondary is-small ${recentOnly ? 'is-active' : ''}`} aria-pressed={recentOnly} onClick={() => { setRecentOnly((current) => !current); setMobileDetailOpen(false); }}><Clock3 size={15} />最近 24 小时</button><span className="ops-task-toolbar-meta"><span className="ops-auto-refresh"><i aria-hidden="true" />自动刷新</span><span className="ops-count">显示 {tasks.length} 条</span></span></div>
+      <section className={`ops-master-detail mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
         <div className="ops-task-rail mobile-drilldown-list">
           {tasks.length === 0 ? <EmptyOps text={recentOnly ? '最近 24 小时没有匹配任务。' : '没有匹配任务。'} /> : tasks.map((task) => <button type="button" key={task.id} className={`ops-task-line ${selected?.id === task.id ? 'is-selected' : ''}`} aria-pressed={selected?.id === task.id} onClick={() => { setSelectedId(task.id); setMobileDetailOpen(true); }}><span className="ops-task-line-title"><strong>{taskDisplayTitle(task)}</strong><span className={`ops-task-state tone-${toneForTask(task)}`}>{taskStatusLabel(task.status)}</span></span><TaskProgress task={task} compact /><small>{taskCurrentText(task)}</small></button>)}
         </div>
@@ -221,12 +221,12 @@ export function SkillsPage({ nodeID, refreshToken }: { nodeID: string; refreshTo
   const selected = filtered.find((item) => `${item.source}:${item.id}` === selectedKey) || filtered[0];
   const detail = useOptionalOpsResource<SkillDetailResponse>(selected ? `${runtimeBase}/skills/${encodeURIComponent(selected.source)}/${encodeURIComponent(selected.id)}` : '', { ok: false, skill: selected as OpsSkillDetail }, refreshToken);
   return <OpsShell error={resource.error}>
-    <div className={`ops-toolbar skill-toolbar mobile-list-toolbar ${mobileDetailOpen ? 'is-detail-open' : ''}`}>
+    <div className="ops-toolbar skill-toolbar">
       <label className="ops-search"><Search size={15} /><input aria-label="搜索 Skill" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索名称或说明" /></label>
       <span className="ops-count">{filtered.length} / {resource.data.count}</span>
     </div>
     <section className={`ops-master-detail skills-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
-      <div className="ops-task-rail ops-skill-rail mobile-drilldown-list">
+      <div className="ops-task-rail mobile-drilldown-list">
         {filtered.length === 0 ? <EmptyOps text="没有匹配的 Skill。" /> : filtered.map((skill) => <button type="button" key={`${skill.source}:${skill.id}`} className={`ops-task-line ${selected?.source === skill.source && selected?.id === skill.id ? 'is-selected' : ''}`} aria-pressed={selected?.source === skill.source && selected?.id === skill.id} onClick={() => { setSelectedKey(`${skill.source}:${skill.id}`); setMobileDetailOpen(true); }}><span className="ops-card-icon"><Layers size={16} /></span><span><strong>{skill.title || skill.id}</strong><small>{skill.active_version || '未标记版本'} · {skill.file_count > 0 ? `${skill.file_count} 个文件` : '文件按需读取'}</small></span></button>)}
       </div>
       <div className="mobile-drilldown-detail">
@@ -243,7 +243,7 @@ function TaskDetail({ task, detail, loading, error, deleting, onDelete }: { task
   const steps = taskSteps(detail?.steps);
   const currentStep = full.current_step || steps.find((step) => step.status === 'in_progress') || steps.find((step) => step.status === 'pending');
   const currentTitle = currentStep?.title || (full.status === 'completed' ? '任务已完成' : full.status === 'blocked' ? '任务已阻塞' : '等待下一步');
-  return <article className="ops-task-detail ops-task-detail-simple">
+  return <article className="ops-task-detail">
     <header>
       <div><span>任务</span><h3>{taskDisplayTitle(full)}</h3>{full.goal && <p>{full.goal}</p>}</div>
       <div className="ops-task-detail-actions">
@@ -282,7 +282,7 @@ function SkillDetailContent({ nodeID, skill, detail, loading, error, refreshToke
   const manifest = asRecord(raw?.manifest);
   const selection = asRecord(raw?.selection);
 
-  return <article className="ops-task-detail ops-skill-detail">
+  return <article className="ops-task-detail">
     <header className="ops-skill-head">
       <div><span>Skill</span><h3>{full.title || full.id}</h3><p>{full.description || '暂无用途说明。'}</p></div>
       <StatusBadge tone={toneForStatus(full.status)}>{full.active_version || full.status}</StatusBadge>
@@ -399,7 +399,7 @@ function RawJsonPanel({ title, value }: { title: string; value: unknown }) {
   return <details className="ops-json-panel"><summary>{title}</summary><pre>{JSON.stringify(value, null, 2)}</pre></details>;
 }
 
-function OpsShell({ error, children }: { error?: string; children: ReactNode }) { return <section className="ops-page ops-console">{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
+function OpsShell({ error, children }: { error?: string; children: ReactNode }) { return <section className="ops-page">{error && <div className="nx-alert is-error">{error}</div>}{children}</section>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
 function StatusBadge({ tone, children }: { tone: Tone; children: ReactNode }) { return <span className={`status-badge tone-${tone}`}><span />{children}</span>; }
 function EmptyOps({ text }: { text: string }) { return <p className="empty-mini">{text}</p>; }

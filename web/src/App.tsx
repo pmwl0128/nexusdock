@@ -92,23 +92,10 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'System', items: NAV.filter((item) => item.scope === 'system') },
 ];
 
-const LEGACY_RUNTIME_SECTIONS: Record<string, RuntimeSection> = {
-  tasks: 'tasks',
-  cleanup: 'tasks',
-  skills: 'skills',
-  templates: 'templates',
-  mcp: 'mcp',
-};
-
-function hashParts(): string[] {
-  return window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-}
-
 function sectionFromHash(): Section {
-  const [first, second] = hashParts();
-  if (first === 'runtime') return LEGACY_RUNTIME_SECTIONS[second] || 'tasks';
-  if (LEGACY_RUNTIME_SECTIONS[first]) return LEGACY_RUNTIME_SECTIONS[first];
-  if (NAV.some((item) => item.id === first)) return first as Section;
+  const section = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (NAV.some((item) => item.id === section)) return section as Section;
+
   const params = new URLSearchParams(window.location.search);
   if (params.has('tab') || params.has('path') || params.has('prefix') || params.has('q')) return 'recall';
   return 'home';
@@ -240,7 +227,7 @@ export default function App() {
             <span className="nexus-session-user" title={session?.username || '管理员会话'}><span className="nexus-avatar">{sessionName.charAt(0).toUpperCase()}</span><span>{sessionName}</span></span>
           </div>
         </header>
-        <div className={`nexus-content nexus-section-${section}`}>
+        <div className="nexus-content">
           {section === 'home' && <HomePage refreshToken={refreshToken} navigate={navigate} />}
           {section === 'recall' && <RecallWorkspace refreshToken={refreshToken} />}
           {isRuntimeSection(section) && <RuntimeContent active={section} refreshToken={refreshToken} runtimeNodes={runtimeNodes} navigate={navigate} />}
@@ -290,13 +277,13 @@ function HomePage({ refreshToken, navigate }: { refreshToken: number; navigate: 
         </>}
       </Panel>
 
-      <Panel className="dashboard-system-panel" icon={Activity} title="系统" subtitle="NexusDock 与数据库">
+      <Panel icon={Activity} title="系统" subtitle="NexusDock 与数据库">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={systemTone} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <details className="nexus-technical-details"><summary>技术信息</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
       </Panel>
 
-      <BackupPanel backup={backup} className="dashboard-backup-panel" />
+      <BackupPanel backup={backup} />
     </section>
   </>;
 }
@@ -319,7 +306,7 @@ function RuntimeContent({ active, refreshToken, runtimeNodes, navigate }: {
       <AgentDockNodeSelector nodes={runtimeNodes.nodes} selectedNodeID={runtimeNodes.selectedNodeID} onSelect={runtimeNodes.selectNode} />
       {runtimeNodes.selectedNode && <span>{runtimeNodes.selectedNode.online ? '在线' : '离线'}{runtimeNodes.selectedNode.os ? ` · ${runtimeNodes.selectedNode.os}/${runtimeNodes.selectedNode.arch}` : ''}</span>}
     </div>}
-    {requiresNode && !runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button is-primary" onClick={() => navigate('settings')}>管理节点</button></AgentDockNodeRequired>}
+    {requiresNode && !runtimeNodes.selectedNode && <AgentDockNodeRequired><button type="button" className="nx-button" onClick={() => navigate('settings')}>管理节点</button></AgentDockNodeRequired>}
     {active === 'tasks' && runtimeNodes.selectedNode && <TaskCenterPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
     {active === 'skills' && runtimeNodes.selectedNode && <SkillsPage key={runtimeNodes.selectedNode.id} nodeID={runtimeNodes.selectedNode.id} refreshToken={refreshToken} />}
     {active === 'templates' && <WorkflowTemplatesPage refreshToken={refreshToken} />}
@@ -341,19 +328,19 @@ function SettingsPage({ refreshToken, runtimeNodes }: { refreshToken: number; ru
       onReload={runtimeNodes.reload}
       onSelect={runtimeNodes.selectNode}
     />
-    <section className="settings-grid compact-settings">
-      <Panel className="settings-system-panel" icon={Activity} title="系统" subtitle="运行状态与数据位置">
+    <section className="settings-grid">
+      <Panel icon={Activity} title="系统" subtitle="运行状态与数据位置">
         <SettingValue label="服务" value={system.data.service || 'nexusdock'} tone={system.data.ok ? 'ok' : 'danger'} />
         <SettingValue label="数据库" value={system.data.database || 'unknown'} tone={system.data.database === 'ok' ? 'ok' : 'danger'} />
         <details className="nexus-technical-details"><summary>数据与版本</summary><SettingValue label="Schema" value={String(system.data.schema_version || 0)} /><SettingValue label="Nexus 数据" value={system.data.nexus_data_dir || '暂无'} mono /><SettingValue label="Recall 仓库" value={system.data.recall_repo_dir || '暂无'} mono /></details>
       </Panel>
-      <BackupPanel backup={backup.data} className="settings-backup-panel" />
+      <BackupPanel backup={backup.data} />
     </section>
   </>;
 }
 
-function BackupPanel({ backup, className }: { backup?: BackupStatus; className?: string }) {
-  return <Panel className={className} icon={Database} title="备份" subtitle="自动备份状态">
+function BackupPanel({ backup }: { backup?: BackupStatus }) {
+  return <Panel icon={Database} title="备份" subtitle="自动备份状态">
     {backup ? <>
       <SettingValue label="状态" value={backup.state || 'unknown'} tone={toneForStatus(backup.state)} />
       <SettingValue label="最近完成" value={formatTime(backup.last_completed_at)} />

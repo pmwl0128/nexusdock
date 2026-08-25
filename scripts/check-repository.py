@@ -18,6 +18,11 @@ FORBIDDEN_TRACKED_PREFIXES = (
     "web/tsconfig.tsbuildinfo",
 )
 FORBIDDEN_TRACKED_PARTS = ("/__pycache__/",)
+FORBIDDEN_WEB_STYLE_FILES = (
+    "web/src/theme.css",
+    "web/src/recall-nexus.css",
+    "web/src/components/recall/recall-explorer.css",
+)
 LEGACY_AUTH_TOKENS = (
     "AGENTDOCK_NEXUS_",
     "NEXUS_USERNAME",
@@ -54,15 +59,20 @@ REQUIRED_COMPOSE_TOKENS = (
 REQUIRED_WEB_SHELL_TOKENS = (
     '<meta name="color-scheme" content="light" />',
     '<meta name="supported-color-schemes" content="light" />',
-    '<meta name="theme-color" content="#f3f4f8" />',
+    '<meta name="theme-color" content="#f5f5f5" />',
 )
 FORBIDDEN_WEB_SHELL_TOKENS = (
     "color-scheme: dark",
     'meta[name="theme-color"]',
 )
 REQUIRED_MOBILE_SIDEBAR_TOKENS = (
-    "visibility:hidden;pointer-events:none",
-    ".nexus-sidebar.is-open{transform:translateX(0);visibility:visible;pointer-events:auto",
+    "transform: translateX(-105%);",
+    "visibility: hidden;",
+    "pointer-events: none;",
+    ".nexus-sidebar.is-open",
+    "transform: translateX(0);",
+    "visibility: visible;",
+    "pointer-events: auto;",
 )
 FORBIDDEN_CLOSED_SIDEBAR_SHADOW = (
     "transition:transform .2s ease;box-shadow:20px 0 60px",
@@ -127,6 +137,10 @@ def main() -> int:
         if any(part in f"/{path}" for part in FORBIDDEN_TRACKED_PARTS):
             errors.append(f"Python 缓存不应被 Git 跟踪: {path}")
 
+    for path in FORBIDDEN_WEB_STYLE_FILES:
+        if (ROOT / path).exists():
+            errors.append(f"旧前端样式层不应重新进入仓库: {path}")
+
     agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
     if "Trellis" in agents or ".trellis" in agents:
         errors.append("AGENTS.md 仍依赖已退出的 Trellis 工作流")
@@ -170,9 +184,8 @@ def main() -> int:
     for token in REQUIRED_MOBILE_SIDEBAR_TOKENS:
         if token not in nexus_css:
             errors.append(f"移动端关闭侧栏缺少隐藏边界: {token}")
-    combined_mobile_css = nexus_css + "\n" + (ROOT / "web" / "src" / "theme.css").read_text(encoding="utf-8")
     for token in FORBIDDEN_CLOSED_SIDEBAR_SHADOW:
-        if token in combined_mobile_css:
+        if token in nexus_css:
             errors.append(f"移动端关闭侧栏不应保留可见阴影: {token}")
 
     for path in ("bin/__probe__", "nexus-data/__probe__", "recall/__probe__", "web/node_modules/__probe__"):

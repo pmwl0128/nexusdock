@@ -3,39 +3,80 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  --nx-bg: #f5f5f5;
+  --nx-surface: #ffffff;
+  --nx-surface-soft: #fafafa;
+  --nx-sidebar: #f2f2f2;
+  --nx-line: #dedede;
+  --nx-line-strong: #c6c6c6;
+  --nx-text: #171717;
+  --nx-text-soft: #454545;
+  --nx-muted: #747474;
+  --nx-subtle: #9a9a9a;
+  --nx-strong: #000000;
+  --nx-inverse: #ffffff;
+  --nx-soft: #ececec;
+  --nx-soft-2: #f0f0f0;
+  --nx-radius: 6px;
+  --nx-radius-large: 10px;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html,
 body,
-#root {
-  min-height: 100%;
-}
+#root { min-height: 100%; }
 
-html {
-  background: #f4f6f8;
-}
+html { background: var(--nx-bg); }
 
 body {
   margin: 0;
   min-width: 320px;
-  color: #172033;
-  background: #f4f6f8;
-  font: 14px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--nx-text);
+  background: var(--nx-bg);
+  font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 button,
 input,
 select,
+textarea { font: inherit; }
+
+button { color: inherit; }
+
+input,
+select,
 textarea {
-  font: inherit;
+  color: var(--nx-text);
+  background: var(--nx-surface);
 }
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, .28);
+  outline-offset: 2px;
+}
+
+::selection { background: #d8d8d8; }
 
 pre,
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
+
+button,
+summary { -webkit-tap-highlight-color: transparent; }
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled { cursor: not-allowed; opacity: .5; }
+
+.spin { animation: nx-spin .8s linear infinite; }
+
+@keyframes nx-spin { to { transform: rotate(360deg); } }

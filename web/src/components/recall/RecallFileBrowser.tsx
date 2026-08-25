@@ -140,7 +140,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
       const tree = treeRef.current;
       const active = Array.from(tree?.querySelectorAll<HTMLButtonElement>('[data-recall-path]') || [])
         .find((item) => item.dataset.recallPath === state.current?.path);
-      const scroller = tree?.closest<HTMLElement>('.mem-lite-files');
+      const scroller = tree?.closest<HTMLElement>('.recall-files');
       if (!active || !scroller) return;
 
       const itemRect = active.getBoundingClientRect();
@@ -232,7 +232,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
       return <button
         type="button"
         key={entry.path}
-        className={`mem-lite-tree-row mem-lite-tree-file ${active ? 'active' : ''}`}
+        className={`recall-tree-row ${active ? 'active' : ''}`}
         style={treeIndent(depth)}
         role="treeitem"
         aria-level={depth + 1}
@@ -242,9 +242,9 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
         data-recall-path={entry.path}
         onClick={() => actions.openRecall(entry.path)}
       >
-        <span className="mem-lite-tree-spacer" />
+        <span className="recall-tree-spacer" />
         <FileText size={15} />
-        <span className="mem-lite-tree-label"><strong>{nameOf(entry.path)}</strong></span>
+        <span className="recall-tree-label"><strong>{nameOf(entry.path)}</strong></span>
       </button>;
     });
   }
@@ -254,10 +254,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
     const ToggleIcon = collapsed ? ChevronRight : ChevronDown;
     const FolderIcon = collapsed ? Folder : FolderOpen;
 
-    return <div className="mem-lite-tree-folder" key={folder.path} style={treeIndent(depth)}>
+    return <div className="recall-tree-folder" key={folder.path} style={treeIndent(depth)}>
       <button
         type="button"
-        className="mem-lite-tree-row mem-lite-tree-folder-row"
+        className="recall-tree-row recall-tree-folder-row"
         role="treeitem"
         aria-level={depth + 1}
         aria-expanded={!collapsed}
@@ -267,10 +267,10 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
       >
         <ToggleIcon size={14} />
         <FolderIcon size={16} />
-        <span className="mem-lite-tree-label"><strong>{folder.name}</strong></span>
+        <span className="recall-tree-label"><strong>{folder.name}</strong></span>
         <em>{folder.fileCount}</em>
       </button>
-      {!collapsed && <div className="mem-lite-tree-children" role="group">
+      {!collapsed && <div className="recall-tree-children" role="group">
         {folder.folders.map((child) => renderFolder(child, depth + 1))}
         {renderFiles(folder.files, depth + 1)}
       </div>}
@@ -278,7 +278,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
   }
 
   function renderSearchResults() {
-    return <ul className="mem-lite-search-results" aria-label={`“${state.appliedQuery}”的搜索结果`}>
+    return <ul className="recall-search-results" aria-label={`“${state.appliedQuery}”的搜索结果`}>
       {fileEntries.map((entry) => {
         const active = state.current?.path === entry.path;
         return <li key={entry.path}>
@@ -289,7 +289,7 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
             title={entry.path}
             onClick={() => actions.openRecall(entry.path)}
           >
-            <span className="mem-lite-search-result-icon"><FileText size={16} /></span>
+            <span className="recall-search-result-icon"><FileText size={16} /></span>
             <span><strong>{nameOf(entry.path)}</strong><small>{parentPath(entry.path)}</small></span>
             <ChevronRight size={16} />
           </button>
@@ -301,14 +301,14 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
   const canClearSearch = Boolean(state.query || state.appliedQuery);
   const initializingLibrary = state.loading && state.libraryEntries.length === 0;
 
-  return <aside className="mem-lite-browser" aria-busy={state.loading}>
-    <div className="mem-lite-panel-head mem-lite-browser-head">
+  return <aside className="recall-browser" aria-busy={state.loading}>
+    <div className="recall-panel-head recall-browser-head">
       <div><h2>召回内容</h2><p aria-live="polite">{resultSummary}</p></div>
-      <button type="button" className="mem-lite-new" onClick={actions.startNew} title="新建召回条目"><Plus size={16} /><span>新建</span></button>
+      <button type="button" className="recall-new" onClick={actions.startNew} title="新建召回条目"><Plus size={16} /><span>新建</span></button>
     </div>
-    <div className="mem-lite-browser-tools">
+    <div className="recall-browser-tools">
       <form
-        className="mem-lite-search"
+        className="recall-search"
         role="search"
         aria-label="搜索召回内容"
         onSubmit={(event) => {
@@ -331,28 +331,28 @@ export default function RecallFileBrowser({ state, fileEntries, actions }: Props
           }}
           placeholder="搜索召回内容"
         />
-        <span className="mem-lite-search-actions">
-          {canClearSearch && <button type="button" className="mem-lite-search-clear" aria-label="清除搜索" title="清除搜索" disabled={initializingLibrary} onClick={actions.clearSearch}><X size={14} /></button>}
+        <span className="recall-search-actions">
+          {canClearSearch && <button type="button" className="recall-search-clear" aria-label="清除搜索" title="清除搜索" disabled={initializingLibrary} onClick={actions.clearSearch}><X size={14} /></button>}
           <button type="submit" disabled={initializingLibrary} aria-label={state.loading ? '重新执行搜索' : '执行搜索'}>{state.loading ? '搜索中' : '搜索'}</button>
         </span>
       </form>
-      <div className="mem-lite-tree-toolbar">
+      <div className="recall-tree-toolbar">
         <span>{searchActive ? <><Search size={14} />搜索结果</> : <><FolderOpen size={14} />目录</>}</span>
         {searchActive
           ? <small role="status">{fileEntries.length} 个结果</small>
           : <button type="button" onClick={toggleAllFolders} disabled={folderPaths.length === 0}>{allCollapsed ? '展开全部' : '收起全部'}</button>}
       </div>
     </div>
-    <div className="mem-lite-files">
-      {state.loading ? <p className="mem-lite-empty">正在读取召回内容…</p>
-        : fileEntries.length === 0 ? <div className="mem-lite-search-empty">
+    <div className="recall-files">
+      {state.loading ? <p className="recall-empty">正在读取召回内容…</p>
+        : fileEntries.length === 0 ? <div className="recall-search-empty">
           <Search size={22} />
           <strong>{searchActive ? '没有匹配的召回内容' : '召回库还是空的'}</strong>
           <span>{searchActive ? `没有找到与“${state.appliedQuery}”匹配的文件。` : '创建第一条召回内容，之后可以在这里浏览。'}</span>
           {searchActive && <button type="button" onClick={actions.clearSearch}>查看全部文件</button>}
         </div>
         : searchActive ? renderSearchResults()
-          : <div ref={treeRef} className="mem-lite-tree" role="tree" aria-label="召回库文件树" onKeyDown={handleTreeKeyDown}><div className="mem-lite-tree-root">
+          : <div ref={treeRef} className="recall-tree" role="tree" aria-label="召回库文件树" onKeyDown={handleTreeKeyDown}><div className="recall-tree-root">
             {root.folders.map((folder) => renderFolder(folder, 0))}
             {renderFiles(root.files, 0)}
           </div></div>}

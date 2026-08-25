@@ -149,17 +149,17 @@ export default function WorkflowTemplatesPage({ refreshToken }: { refreshToken: 
     setNotice({ tone: 'ok', text: '模板路径已复制。' });
   }
 
-  return <section className="workflow-page workflow-runtime-page workflow-focus-page">
+  return <section className="workflow-page">
     {notice && <div className={`nx-alert is-${notice.tone === 'danger' ? 'error' : notice.tone === 'ok' ? 'success' : 'warning'}`}>{notice.text}</div>}
 
-    <section className={`workflow-layout workflow-runtime-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
-      <aside className="workflow-list-panel workflow-runtime-list-panel mobile-drilldown-list">
+    <section className={`workflow-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
+      <aside className="workflow-list-panel mobile-drilldown-list">
         <div className="workflow-toolbar">
           <label><span>状态</span><select aria-label="筛选模板状态" value={location} onChange={(event) => { setLocation(event.target.value as WorkflowLocation | 'all'); setMobileDetailOpen(false); }}>{LOCATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
           <label className="workflow-search"><Search size={15} /><input aria-label="搜索 Workflow 模板" value={query} onChange={(event) => { setQuery(event.target.value); setMobileDetailOpen(false); }} placeholder="搜索标题或关键词" /></label>
         </div>
         <div className="workflow-list-summary"><strong>{filtered.length}</strong><span>个模板</span><em>{location === 'all' ? '全部' : locationLabel(location)}</em></div>
-        <div className="workflow-list workflow-runtime-list">
+        <div className="workflow-list">
           {loading ? <p className="empty-mini">正在读取 Workflow…</p> : filtered.length === 0 ? <p className="empty-mini">没有匹配的模板。</p> : filtered.map((item) => <button type="button" key={item.path} className={selected?.path === item.path ? 'is-active' : ''} aria-pressed={selected?.path === item.path} onClick={() => void openTemplate(item, true)}>
             <span className="workflow-file-icon"><FileJson size={16} /></span>
             <span><strong>{templateDisplayTitle(item)}</strong><small>{templateListMeta(item)}</small></span>
@@ -186,7 +186,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
   const phases = stepGroups.flatMap((group) => group.phase ? [group.phase] : []);
   const raw = selected.json || parsed.body;
 
-  return <article className="workflow-runtime-card workflow-focus-card">
+  return <article className="workflow-runtime-card">
     <header className="workflow-runtime-head">
       <div><span className="nexus-eyebrow">{selected.id}</span><h3>{parsed.title || selected.title || selected.file_name}</h3><p>{parsed.description || selected.description || '暂无模板说明。'}</p></div>
       <div className="workflow-runtime-actions"><StatusPill tone={selected.has_conflict ? 'danger' : statusTone(selected)}>{selected.has_conflict ? `Active×${selected.active_count}` : selected.status || selected.location}</StatusPill><span className="workflow-step-count">{steps.length || selected.step_count || 0} 步</span></div>
@@ -194,7 +194,7 @@ function RuntimeTemplateViewer({ selected, parsed, onCopy }: { selected: Workflo
 
     <div className="workflow-runtime-meta"><span>版本 {selected.version}</span><span>{phases.length || 1} 个阶段</span><span>更新于 {formatTime(selected.updated_at)}</span></div>
 
-    <section className="workflow-runtime-section workflow-primary-section">
+    <section className="workflow-runtime-section">
       <SectionTitle title="执行步骤" subtitle="按阶段查看任务主流程。" />
       {steps.length === 0 ? <EmptyMini>没有步骤。</EmptyMini> : <div className="workflow-phase-list">{stepGroups.map((group) => <div className="workflow-phase-block" key={group.phase}><header><span>{group.phase}</span><strong>{group.steps.length} 步</strong></header><div className="workflow-step-list">{group.steps.map((step, index) => <StepCard key={`${group.phase}:${step.id}:${index}`} step={step} index={steps.indexOf(step) + 1} />)}</div></div>)}</div>}
     </section>

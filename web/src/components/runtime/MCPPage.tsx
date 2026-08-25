@@ -202,7 +202,7 @@ export default function MCPPage({ nodeID, refreshToken }: { nodeID: string; refr
     {notice && <div className={`nx-alert is-${notice.tone}`} role="status"><span>{notice.text}</span><button type="button" onClick={() => setNotice(null)}>关闭</button></div>}
     <header className="mcp-heading">
       <div><span className="nexus-eyebrow">AGENTDOCK RUNTIME</span><h2>MCP 服务</h2><p>Nexus 仅转发 AgentDock 的动态 MCP 管理接口；密钥值不会回显。</p></div>
-      <button type="button" className="nx-button is-primary" onClick={() => setAddOpen(true)}><CirclePlus size={16} />添加 MCP</button>
+      <button type="button" className="nx-button" onClick={() => setAddOpen(true)}><CirclePlus size={16} />添加 MCP</button>
     </header>
 
     <section className={`mcp-layout mobile-drilldown ${mobileDetailOpen ? 'is-detail-open' : 'is-list-open'}`}>
@@ -219,7 +219,7 @@ export default function MCPPage({ nodeID, refreshToken }: { nodeID: string; refr
         </div>
       </aside>
 
-      <main className="mcp-detail-panel mobile-drilldown-detail">
+      <main className="mobile-drilldown-detail">
         {selected && <MobileDrilldownBar label="MCP 详情" title={selected.name} meta={selected.transport} onBack={() => setMobileDetailOpen(false)} />}
         {selected && detail ? <MCPDetail
           server={detail.server}
@@ -251,7 +251,7 @@ export default function MCPPage({ nodeID, refreshToken }: { nodeID: string; refr
           <label className="is-wide"><span>工作目录</span><input value={addForm.cwd} onChange={(event) => setAddForm({ ...addForm, cwd: event.target.value })} placeholder="可选" /></label>
         </>}
         <label className="mcp-check is-wide"><input type="checkbox" checked={addForm.enabled} onChange={(event) => setAddForm({ ...addForm, enabled: event.target.checked })} /><span>添加后立即启用</span></label>
-        <footer><button type="button" className="nx-button is-secondary" onClick={() => setAddOpen(false)}>取消</button><button type="submit" className="nx-button is-primary" disabled={busy === 'add'}>{busy === 'add' ? '正在添加…' : '添加 MCP'}</button></footer>
+        <footer><button type="button" className="nx-button is-secondary" onClick={() => setAddOpen(false)}>取消</button><button type="submit" className="nx-button" disabled={busy === 'add'}>{busy === 'add' ? '正在添加…' : '添加 MCP'}</button></footer>
       </form>
     </Dialog>}
 
@@ -291,7 +291,7 @@ function MCPDetail({ server, config, envItems, envKey, envValue, busy, onEnvKey,
     <section className="mcp-section"><h4>连接配置</h4><dl><div><dt>{config.transport === 'stdio' ? '命令' : 'URL'}</dt><dd>{config.transport === 'stdio' ? [config.command, ...(config.args || [])].filter(Boolean).join(' ') : config.url || '暂无'}</dd></div>{config.cwd && <div><dt>工作目录</dt><dd>{config.cwd}</dd></div>}</dl></section>
     <section className="mcp-section"><div className="mcp-section-head"><div><h4>隔离环境</h4><p>只显示变量名和是否已配置，永不读取原值。</p></div><KeyRound size={18} /></div>
       <div className="mcp-env-list">{envItems.length === 0 ? <p className="empty-mini">尚未配置环境变量。</p> : envItems.map((item) => <div key={item.key}><span><strong>{item.key}</strong><small>{item.configured ? '已配置' : '空值'}</small></span><button type="button" disabled={!!busy} onClick={() => onRemoveEnvironment(item.key)}>删除</button></div>)}</div>
-      <form className="mcp-env-form" onSubmit={onSaveEnvironment}><label><span>变量名</span><input required value={envKey} onChange={(event) => onEnvKey(event.target.value)} placeholder="API_TOKEN" autoComplete="off" /></label><label><span>变量值</span><input required type="password" value={envValue} onChange={(event) => onEnvValue(event.target.value)} placeholder="保存后不会再显示" autoComplete="new-password" /></label><button type="submit" className="nx-button is-primary" disabled={!!busy}><KeyRound size={15} />保存变量</button></form>
+      <form className="mcp-env-form" onSubmit={onSaveEnvironment}><label><span>变量名</span><input required value={envKey} onChange={(event) => onEnvKey(event.target.value)} placeholder="API_TOKEN" autoComplete="off" /></label><label><span>变量值</span><input required type="password" value={envValue} onChange={(event) => onEnvValue(event.target.value)} placeholder="保存后不会再显示" autoComplete="new-password" /></label><button type="submit" className="nx-button" disabled={!!busy}><KeyRound size={15} />保存变量</button></form>
     </section>
   </article>;
 }

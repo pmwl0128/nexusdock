@@ -1,0 +1,369 @@
+/* Recall 工作区：独立业务布局，共享 NexusDock 的中性色板与控件尺度。 */
+.recall-workspace {
+  display: grid;
+  gap: 10px;
+  color: var(--nx-text);
+}
+
+.recall-workspace button { font: inherit; }
+
+.recall-header {
+  min-height: 72px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--nx-text);
+}
+
+.recall-kicker {
+  color: var(--nx-muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .14em;
+}
+
+.recall-header h1 { margin: 3px 0 0; font-size: 21px; letter-spacing: -.02em; }
+.recall-header-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+
+.recall-header button,
+.recall-new,
+.recall-editor-actions button,
+.recall-panel-head button,
+.recall-sync-actions button,
+.recall-dialog-actions button,
+.recall-card-actions button,
+.recall-card-results button,
+.recall-card-review button {
+  min-height: 34px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.recall-header button.primary { border-color: #171717; background: #171717; color: #fff; }
+.recall-header button:not(.primary) { border-color: var(--nx-line-strong); background: #fff; color: #333; }
+.recall-workspace button.primary { border-color: #171717; background: #171717; color: #fff; }
+.recall-workspace button.danger { border-color: #444; background: #444; color: #fff; }
+
+.recall-health {
+  min-height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d1d1d1;
+  border-radius: 999px;
+  background: #f0f0f0;
+  color: #444;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.recall-notice {
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #e6e6e6;
+  color: #444;
+  font-size: 11px;
+}
+.recall-notice-close { margin-left: auto; border: 0 !important; background: transparent !important; color: #555 !important; }
+.recall-draft-restore,
+.recall-draft-discard { min-height: 30px !important; }
+
+.recall-stats {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.recall-stats > div {
+  min-width: 0;
+  min-height: 64px;
+  padding: 11px 13px;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+  border-right: 1px solid var(--nx-line);
+}
+.recall-stats > div:last-child { border-right: 0; }
+.recall-stats svg { grid-row: 1 / 3; color: #555; }
+.recall-stats span { color: var(--nx-muted); font-size: 9px; }
+.recall-stats strong { font-size: 17px; }
+
+.recall-grid {
+  min-height: 520px;
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0,1fr);
+  gap: 10px;
+}
+
+.recall-browser,
+.recall-editor,
+.recall-sync,
+.recall-history,
+.recall-card-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.recall-panel-head,
+.recall-browser-head {
+  min-height: 50px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--nx-line);
+  background: #fafafa;
+}
+
+.recall-panel-head h2,
+.recall-browser-head h2 { margin: 0; font-size: 13px; }
+.recall-panel-head p,
+.recall-browser-head p { margin: 2px 0 0; color: var(--nx-muted); font-size: 9px; }
+
+.recall-browser-tools {
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.recall-search {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: 6px;
+  background: #fff;
+}
+.recall-search > svg { margin-left: 9px; color: var(--nx-muted); flex: none; }
+.recall-search input { min-width: 0; width: 100%; height: 100%; border: 0; outline: 0; background: transparent; }
+.recall-search-actions { height: 100%; display: flex; border-left: 1px solid var(--nx-line); }
+.recall-search-actions button,
+.recall-search-clear { min-width: 34px; height: 100%; padding: 0 8px; border: 0; background: transparent; color: #555; cursor: pointer; }
+.recall-search-actions button { white-space: nowrap; }
+
+.recall-new { flex: none; }
+
+.recall-files {
+  min-height: 390px;
+  max-height: 590px;
+  overflow: auto;
+}
+
+.recall-tree-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ededed;
+  background: #fafafa;
+  color: var(--nx-muted);
+  font-size: 9px;
+}
+.recall-tree-toolbar button { min-height: 26px; padding: 0 6px; border: 0; background: transparent; color: #555; cursor: pointer; font-size: 9px; }
+
+.recall-tree { padding: 5px; }
+.recall-tree-root,
+.recall-tree-children { display: grid; gap: 1px; }
+.recall-tree-children { margin-left: 0; }
+
+.recall-tree-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 7px 5px calc(7px + (var(--tree-depth, 0) * 15px));
+  display: grid;
+  grid-template-columns: auto auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #444;
+  cursor: pointer;
+  text-align: left;
+}
+.recall-tree-row:hover { background: #f0f0f0; }
+.recall-tree-row.active { border-color: #bdbdbd; background: #ececec; color: #171717; }
+.recall-tree-spacer { width: 14px; }
+.recall-tree-label { min-width: 0; }
+.recall-tree-label strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-weight: 600; }
+.recall-tree-folder-row em { color: var(--nx-subtle); font-size: 9px; font-style: normal; }
+
+.recall-search-results { margin: 0; padding: 5px; display: grid; gap: 2px; list-style: none; }
+.recall-search-results button { width: 100%; min-width: 0; padding: 7px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 7px; align-items: center; border: 1px solid transparent; border-radius: 5px; background: transparent; text-align: left; cursor: pointer; }
+.recall-search-results button:hover { background: #f0f0f0; }
+.recall-search-results button.active { border-color: #bdbdbd; background: #ececec; }
+.recall-search-result-icon { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 5px; background: var(--nx-soft); color: #555; }
+.recall-search-results strong,
+.recall-search-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recall-search-results strong { font-size: 10px; }
+.recall-search-results small { margin-top: 2px; color: var(--nx-muted); font-size: 9px; }
+.recall-search-empty { min-height: 250px; padding: 24px; display: grid; place-content: center; justify-items: center; gap: 5px; color: var(--nx-muted); text-align: center; }
+.recall-search-empty strong { color: var(--nx-text); }
+
+.recall-empty { margin: 0; padding: 24px 12px; color: var(--nx-muted); text-align: center; }
+.recall-empty.large { min-height: 300px; display: grid; place-content: center; justify-items: center; gap: 6px; }
+
+.recall-edit-body { padding: 12px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.recall-edit-body label { display: grid; gap: 5px; color: var(--nx-muted); font-size: 9px; }
+.recall-edit-body label.content { grid-column: 1 / -1; }
+.recall-edit-body input,
+.recall-edit-body textarea,
+.recall-card-form input,
+.recall-card-form select,
+.recall-card-form textarea,
+.recall-card-search input,
+.recall-dialog-body input {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--nx-text);
+  outline: 0;
+}
+.recall-edit-body input:focus,
+.recall-edit-body textarea:focus,
+.recall-card-form input:focus,
+.recall-card-form select:focus,
+.recall-card-form textarea:focus,
+.recall-card-search input:focus,
+.recall-dialog-body input:focus { border-color: #777; }
+.recall-edit-body textarea { min-height: 310px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; }
+.recall-editor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.recall-mobile-back { display: none !important; }
+.recall-preview { padding: 13px; min-height: 300px; overflow: auto; line-height: 1.65; }
+.recall-preview h1,
+.recall-preview h2,
+.recall-preview h3 { margin: 1em 0 .5em; }
+.recall-preview pre { padding: 10px; overflow: auto; border-radius: 5px; background: #f5f5f5; }
+
+.recall-advanced {
+  border: 1px solid var(--nx-line);
+  border-radius: 7px;
+  background: #fff;
+}
+.recall-advanced > summary { padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; list-style: none; cursor: pointer; }
+.recall-advanced > summary strong { font-size: 12px; }
+.recall-advanced > summary span { color: var(--nx-muted); font-size: 9px; }
+.recall-advanced[open] > summary { border-bottom: 1px solid var(--nx-line); }
+
+.recall-card-console { padding: 10px; display: grid; grid-template-columns: minmax(0,1.2fr) minmax(300px,.8fr); gap: 10px; }
+.recall-card-panel { border-radius: 6px; }
+.recall-card-form { padding: 10px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.recall-card-form label,
+.recall-card-check { display: grid; gap: 5px; color: var(--nx-muted); font-size: 9px; }
+.recall-card-form label.wide { grid-column: 1 / -1; }
+.recall-card-form textarea { min-height: 92px; resize: vertical; }
+.recall-card-actions { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+.recall-card-check { display: inline-flex; align-items: center; grid-auto-flow: column; }
+.recall-card-check input { width: auto; }
+.recall-card-review,
+.recall-card-results { padding: 0 10px 10px; display: grid; gap: 5px; }
+.recall-card-review .warn { margin: 0; padding: 7px 8px; border: 1px solid var(--nx-line); border-radius: 5px; background: #ececec; color: #444; font-size: 10px; }
+.recall-card-embed-status { padding: 10px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.recall-card-embed-status > div { padding: 8px; border: 1px solid var(--nx-line); border-radius: 5px; }
+.recall-card-embed-status span,
+.recall-card-results small { display: block; color: var(--nx-muted); font-size: 9px; }
+.recall-card-embed-status strong { display: block; margin-top: 3px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recall-card-search { margin: 10px; display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; gap: 6px; align-items: center; }
+
+.recall-lower { padding: 0 10px 10px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.recall-sync,
+.recall-history { border-radius: 6px; }
+.recall-sync-state { padding: 10px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 5px; }
+.recall-sync-state > div { padding: 7px; border: 1px solid var(--nx-line); border-radius: 5px; }
+.recall-sync-state span { display: block; color: var(--nx-muted); font-size: 9px; }
+.recall-sync-state strong { display: block; margin-top: 3px; font-size: 11px; }
+.recall-sync-actions { padding: 0 10px 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.recall-commits { padding: 7px 10px 10px; display: grid; gap: 5px; }
+.recall-commits > div { padding: 7px 0; border-bottom: 1px solid #ededed; }
+.recall-commits > div:last-child { border-bottom: 0; }
+.recall-commits strong,
+.recall-commits small { display: block; }
+.recall-commits small { margin-top: 2px; color: var(--nx-muted); font-size: 9px; }
+
+/* Recall 对话框内容由共享 Dialog 提供外壳。 */
+.recall-dialog-body { display: grid; gap: 10px; }
+.recall-dialog-body label { display: grid; gap: 5px; color: var(--nx-muted); font-size: 10px; }
+.recall-dialog-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.recall-dialog-error,
+.recall-danger-box { padding: 9px; border: 1px solid var(--nx-line); border-radius: 5px; background: #e1e1e1; color: #333; font-size: 10px; }
+.recall-dialog-body code { padding: 2px 4px; border-radius: 3px; background: var(--nx-soft); }
+
+@media (max-width: 980px) {
+  .recall-grid { grid-template-columns: minmax(260px, 320px) minmax(0,1fr); }
+  .recall-card-console { grid-template-columns: 1fr; }
+  .recall-lower { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 820px) {
+  .recall-header { min-height: 0; padding: 13px; align-items: flex-start; }
+  .recall-header h1 { font-size: 20px; }
+  .recall-header-actions { justify-content: flex-end; }
+  .recall-header-actions button span { display: none; }
+  .recall-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .recall-stats > div:nth-child(2) { border-right: 0; }
+  .recall-stats > div:nth-child(-n+2) { border-bottom: 1px solid var(--nx-line); }
+  .recall-grid { display: block; min-height: 0; }
+  .recall-browser,
+  .recall-editor { min-height: 420px; }
+  .recall-workspace.is-detail-open .recall-browser { display: none; }
+  .recall-workspace:not(.is-detail-open) .recall-editor { display: none; }
+  .recall-mobile-back { display: inline-flex !important; }
+  .recall-files { max-height: none; }
+  .recall-browser-tools { padding: 8px; display: grid; gap: 7px; }
+  .recall-search-actions button { min-width: 48px; }
+  .recall-tree-toolbar {
+    position: static;
+    padding: 7px 2px 0;
+    border-top: 1px solid var(--nx-line);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .recall-edit-body { grid-template-columns: 1fr; }
+  .recall-edit-body label.content { grid-column: auto; }
+  .recall-edit-body textarea { min-height: 260px; }
+  .recall-card-form { grid-template-columns: 1fr; }
+  .recall-card-form label.wide,
+  .recall-card-actions { grid-column: auto; }
+  .recall-card-embed-status { grid-template-columns: 1fr; }
+  .recall-card-search { grid-template-columns: auto minmax(0,1fr) auto; }
+  .recall-card-search > :last-child { grid-column: 2 / -1; }
+  .recall-sync-state { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}

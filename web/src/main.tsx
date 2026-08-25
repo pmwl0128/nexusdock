@@ -3,9 +3,6 @@ import App from './App';
 import { LoginPage } from './Auth';
 import CredentialUpdatePage from './CredentialUpdatePage';
 import './styles.css';
-import './recall-nexus.css';
-import './components/recall/recall-explorer.css';
-import './theme.css';
 
 const pathname = window.location.pathname;
 const isLoginPage = pathname === '/login';

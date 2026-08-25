@@ -94,16 +94,8 @@ export function LoginPage() {
 
   return (
     <main className="auth-shell">
-      <section className="auth-story" aria-label="NexusDock">
+      <section className="auth-login" aria-label="NexusDock">
         <div className="auth-brand"><span aria-hidden="true">N</span><strong>NexusDock</strong></div>
-        <div className="auth-story-copy">
-          <p className="auth-kicker">PRIVATE CONSOLE</p>
-          <h1>一处管理 Recall、任务与自动化。</h1>
-          <p>使用管理员会话进入 NexusDock。运行时和脚本继续通过受控 Token 工作。</p>
-        </div>
-        <div className="auth-security-note"><ShieldCheck size={18} /><span>HttpOnly Session · SameSite Strict · CSRF 防护</span></div>
-      </section>
-      <section className="auth-panel">
         <form className="auth-card" aria-labelledby="login-title" onSubmit={submit}>
           <header><span className="auth-card-icon"><LockKeyhole size={21} /></span><div><h2 id="login-title">登录控制台</h2><p>使用 NexusDock 管理员账号继续</p></div></header>
           {params.get('changed') === '1' && <div className="auth-success" role="status"><CheckCircle2 size={17} />密码已更新，请重新登录。</div>}
@@ -117,6 +109,7 @@ export function LoginPage() {
           </button>
           <p id="login-help" className="auth-help">忘记密码时，请在 DockMini 本机使用管理员恢复命令。Nexus 不提供公网找回入口。</p>
         </form>
+        <div className="auth-security-note"><ShieldCheck size={15} /><span>HttpOnly Session · SameSite Strict · CSRF 防护</span></div>
       </section>
     </main>
   );

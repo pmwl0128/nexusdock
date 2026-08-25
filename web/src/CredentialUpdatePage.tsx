@@ -47,7 +47,7 @@ export default function CredentialUpdatePage() {
   }
 
   return (
-    <main className="auth-shell auth-shell-single">
+    <main className="auth-shell">
       <section className="auth-panel">
         <form className="auth-card" aria-labelledby="credential-title" aria-busy={!session || submitting} onSubmit={submit}>
           <header><span className="auth-card-icon"><KeyRound size={21} /></span><div><h2 id="credential-title">{session?.must_change_password ? '首次登录安全更新' : '修改管理员密码'}</h2><p>更新后所有浏览器会话都会立即退出</p></div></header>

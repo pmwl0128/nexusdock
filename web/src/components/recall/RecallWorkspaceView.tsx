@@ -9,16 +9,16 @@ import RecallStats from './RecallStats';
 import RecallSyncPanels from './RecallSyncPanels';
 
 export default function RecallWorkspaceView(props: RecallWorkspaceViewModel) {
-  return <main className={`mem-lite ${props.detailOpen ? 'is-detail-open' : ''}`}>
+  return <main className={`recall-workspace ${props.detailOpen ? 'is-detail-open' : ''}`}>
     <RecallHeader {...props} />
     <RecallNoticeArea {...props} />
     <RecallActionDialog {...props} />
     <RecallStats {...props} />
-    <section className="mem-lite-grid">
+    <section className="recall-grid">
       <RecallFileBrowser {...props} />
       <RecallEditor {...props} />
     </section>
-    <details className="mem-lite-advanced">
+    <details className="recall-advanced">
       <summary><strong>高级工具</strong><span>经验卡片、向量召回、同步历史</span></summary>
       <RecallCardsConsole {...props} />
       <RecallSyncPanels {...props} />

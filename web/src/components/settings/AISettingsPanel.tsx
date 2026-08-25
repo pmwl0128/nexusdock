@@ -221,7 +221,7 @@ export default function AISettingsPanel({ refreshToken }: { refreshToken: number
         </div>
       </article>
 
-      <footer className="ai-settings-actions"><span>API Key 只返回“已配置”状态，明文不会从服务端读取。</span><button type="submit" className="nx-button is-primary" disabled={loading || saving}><Save size={15} />{saving ? '保存中…' : '保存并应用'}</button></footer>
+      <footer className="ai-settings-actions"><span>API Key 只返回“已配置”状态，明文不会从服务端读取。</span><button type="submit" className="nx-button" disabled={loading || saving}><Save size={15} />{saving ? '保存中…' : '保存并应用'}</button></footer>
     </form>
   </section>;
 }
