@@ -124,9 +124,17 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 }
 
 func nodeMCPTool(descriptor agentdock.ToolDescriptor) *mcpsdk.Tool {
+	title, description := descriptor.Title, descriptor.Description
+	inputSchema, outputSchema := nodeInputSchema(descriptor.InputSchema), descriptor.OutputSchema
+	if descriptor.Name == agentDockContextToolName {
+		title = "AgentDock fleet context"
+		description = "Return one combined context for all enabled AgentDock nodes, including node-local capabilities and shared Nexus context."
+		inputSchema = descriptor.InputSchema
+		outputSchema = fleetAgentDockContextOutputSchema(descriptor.OutputSchema)
+	}
 	tool := &mcpsdk.Tool{
-		Name: descriptor.Name, Title: descriptor.Title, Description: descriptor.Description,
-		InputSchema: nodeInputSchema(descriptor.InputSchema), OutputSchema: descriptor.OutputSchema,
+		Name: descriptor.Name, Title: title, Description: description,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	}
 	if len(descriptor.Annotations) > 0 {
 		encoded, _ := json.Marshal(descriptor.Annotations)
@@ -146,6 +154,9 @@ func (s *Server) nodeToolHandler(name string) mcpsdk.ToolHandler {
 		arguments, err := toolArguments(request)
 		if err != nil {
 			return nil, err
+		}
+		if name == agentDockContextToolName {
+			return s.callFleetAgentDockContext(ctx)
 		}
 		return s.callNodeTool(ctx, name, arguments)
 	}
