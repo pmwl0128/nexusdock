@@ -71,7 +71,7 @@ const RUNTIME_SECTIONS: RuntimeSectionMeta[] = [
 const NAV: SectionMeta[] = [
   { id: 'home', label: '总览', icon: Home, scope: 'workspace' },
   { id: 'recall', label: 'Recall', icon: Database, scope: 'workspace' },
-  { id: 'templates', label: '模板', icon: FileJson, scope: 'workspace' },
+  { id: 'templates', label: 'Workflow', icon: FileJson, scope: 'workspace' },
   ...RUNTIME_SECTIONS.map((item) => ({ ...item, scope: 'runtime' })),
   { id: 'settings', label: '设置', icon: Settings, scope: 'system' },
 ];

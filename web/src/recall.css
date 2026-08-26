@@ -43,12 +43,13 @@
   min-width: 0;
   padding: 7px 10px;
   display: grid;
+  place-items: center;
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
   color: var(--nx-text);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
 }
 .recall-subnav button:hover { background: var(--nx-soft-2); }
 .recall-subnav button.is-active { border-color: #c7c7c7; background: #ededed; }
