@@ -162,6 +162,7 @@ RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 | --- | --- | --- |
 | `NEXUS_HOST` | `127.0.0.1` | 监听地址；Docker 镜像内默认为 `0.0.0.0` |
 | `NEXUS_PORT` | `18777` | HTTP 端口 |
+| `NEXUS_PUBLIC_URL` | 空 | 对外 HTTPS origin，例如 `https://nexus.example.com`；MCP Apps 使用它作为 `ui.domain`，提交 ChatGPT 应用时需要唯一域 |
 | `NEXUS_DATA_DIR` | `./nexus-data` | SQLite 和系统密钥目录；容器内为 `/var/lib/nexus` |
 | `NEXUS_AUTH_TOKEN` | 空 | 程序化 `/v1` API 的 Bearer Token |
 | `NEXUS_REQUIRE_AUTH` | `false` | 为 `true` 时，没有配置 API Token 将拒绝启动 |

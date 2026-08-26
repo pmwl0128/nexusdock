@@ -7,12 +7,15 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/nexusdock/internal/agentdock"
+	"github.com/uvwt/nexusdock/internal/config"
 )
 
 func TestSyncMCPAppResourcesPublishesToolUIResources(t *testing.T) {
 	const uri = "ui://agentdock/file-change"
+	const domain = "https://nexus.example.test"
 	sdk := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test", Version: "1"}, nil)
 	server := &Server{
+		cfg:       config.Config{PublicURL: domain},
 		mcpServer: sdk,
 		mcpTools: map[string]publishedNodeTool{
 			"file_edit": {Descriptor: agentdock.ToolDescriptor{
@@ -57,19 +60,20 @@ func TestSyncMCPAppResourcesPublishesToolUIResources(t *testing.T) {
 		t.Fatalf("listed resource = %#v", listed)
 	}
 	ui, ok := listed.Meta["ui"].(map[string]any)
-	if !ok || ui["prefersBorder"] != true || ui["domain"] != nil {
+	if !ok || ui["prefersBorder"] != true || ui["domain"] != domain {
 		t.Fatalf("resource ui meta = %#v", listed.Meta)
 	}
 }
 
-func TestDecodeNodeMCPAppResourceSanitizesNodeDomain(t *testing.T) {
+func TestDecodeNodeMCPAppResourceReplacesNodeDomainWithNexusDomain(t *testing.T) {
 	const uri = "ui://agentdock/task-progress"
+	const domain = "https://nexus.example.test"
 	read, err := decodeNodeMCPAppResource(uri, map[string]any{
 		"contents": []any{map[string]any{
 			"uri": uri, "mimeType": mcpAppMIMEType, "text": "<!doctype html>",
 			"_meta": map[string]any{"ui": map[string]any{"domain": "https://dockmini.example.test"}},
 		}},
-	})
+	}, domain)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +84,8 @@ func TestDecodeNodeMCPAppResourceSanitizesNodeDomain(t *testing.T) {
 	if !ok || ui["prefersBorder"] != true {
 		t.Fatalf("sanitized meta = %#v", read.Contents[0].Meta)
 	}
-	if _, exists := ui["domain"]; exists {
-		t.Fatalf("node widget domain leaked through Nexus: %#v", ui)
+	if ui["domain"] != domain {
+		t.Fatalf("Nexus widget domain = %#v", ui)
 	}
 }
 

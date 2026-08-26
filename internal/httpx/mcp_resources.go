@@ -44,7 +44,7 @@ func (s *Server) syncMCPAppResources() {
 			Title:       "AgentDock MCP App",
 			Description: "MCP App resource relayed from a compatible AgentDock node.",
 			MIMEType:    mcpAppMIMEType,
-			Meta:        nexusMCPAppResourceMeta(),
+			Meta:        nexusMCPAppResourceMeta(s.cfg.PublicURL),
 		}, func(ctx context.Context, request *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
 			if request == nil || request.Params == nil || request.Params.URI != uri {
 				return nil, mcpsdk.ResourceNotFoundError(uri)
@@ -100,7 +100,7 @@ func (s *Server) readPublishedMCPAppResource(ctx context.Context, uri string) (*
 			lastErr = invokeErr
 			continue
 		}
-		read, decodeErr := decodeNodeMCPAppResource(uri, result)
+		read, decodeErr := decodeNodeMCPAppResource(uri, result, s.cfg.PublicURL)
 		if decodeErr != nil {
 			lastErr = decodeErr
 			continue
@@ -134,7 +134,7 @@ func (s *Server) nodeProvidesPublishedMCPAppResource(descriptors []agentdock.Too
 	return false
 }
 
-func decodeNodeMCPAppResource(uri string, result map[string]any) (*mcpsdk.ReadResourceResult, error) {
+func decodeNodeMCPAppResource(uri string, result map[string]any, publicURL string) (*mcpsdk.ReadResourceResult, error) {
 	encoded, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("编码节点 MCP App resource: %w", err)
@@ -150,8 +150,8 @@ func decodeNodeMCPAppResource(uri string, result map[string]any) (*mcpsdk.ReadRe
 		if content == nil || content.URI != uri || content.MIMEType != mcpAppMIMEType || content.Text == "" {
 			return nil, fmt.Errorf("节点 MCP App resource %s 返回了无效内容", uri)
 		}
-		// Resource 由 Nexus 对外提供，不能把节点自身的 widget domain 暴露成 Nexus resource 元数据。
-		content.Meta = nexusMCPAppResourceMeta()
+		// Resource 由 Nexus 对外提供，不能沿用节点域；组件必须使用 Nexus 自己的唯一公网 origin。
+		content.Meta = nexusMCPAppResourceMeta(publicURL)
 	}
 	return &read, nil
 }
@@ -178,14 +178,18 @@ func mcpAppResourceName(uri string) string {
 	return "agentdock-" + name
 }
 
-func nexusMCPAppResourceMeta() mcpsdk.Meta {
-	return mcpsdk.Meta{"ui": map[string]any{
+func nexusMCPAppResourceMeta(publicURL string) mcpsdk.Meta {
+	ui := map[string]any{
 		"csp": map[string]any{
 			"connectDomains":  []string{},
 			"resourceDomains": []string{},
 		},
 		"prefersBorder": true,
-	}}
+	}
+	if domain := strings.TrimRight(strings.TrimSpace(publicURL), "/"); domain != "" {
+		ui["domain"] = domain
+	}
+	return mcpsdk.Meta{"ui": ui}
 }
 
 func sortedMCPAppResourceURIs(resources map[string]struct{}) []string {

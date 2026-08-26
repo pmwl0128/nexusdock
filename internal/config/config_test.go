@@ -34,20 +34,39 @@ func TestFromEnvUsesNexusDataDirAndRecallRepoDir(t *testing.T) {
 func TestFromEnvUsesNexusAndRecallVariables(t *testing.T) {
 	t.Setenv("NEXUS_HOST", "0.0.0.0")
 	t.Setenv("NEXUS_PORT", "18000")
+	t.Setenv("NEXUS_PUBLIC_URL", "https://nexus.example.com/")
 	t.Setenv("NEXUS_AUTH_TOKEN", "nexus-token")
 	t.Setenv("NEXUS_REQUIRE_AUTH", "true")
 	t.Setenv("RECALL_EMBEDDING_INDEX_FILE", "/tmp/recall-index.json")
 
 	cfg := FromEnv()
 
-	if cfg.Host != "0.0.0.0" || cfg.Port != 18000 {
-		t.Fatalf("Nexus host/port should be used, got %s:%d", cfg.Host, cfg.Port)
+	if cfg.Host != "0.0.0.0" || cfg.Port != 18000 || cfg.PublicURL != "https://nexus.example.com" {
+		t.Fatalf("Nexus endpoint settings should be used, got %s:%d public=%q", cfg.Host, cfg.Port, cfg.PublicURL)
 	}
 	if cfg.AuthToken != "nexus-token" || !cfg.RequireAuth {
 		t.Fatalf("Nexus auth settings should be used, token=%q require=%v", cfg.AuthToken, cfg.RequireAuth)
 	}
 	if cfg.EmbeddingIndexFile != "/tmp/recall-index.json" {
 		t.Fatalf("Recall embedding index should be used, got %q", cfg.EmbeddingIndexFile)
+	}
+}
+
+func TestValidateStartupRejectsInvalidPublicURL(t *testing.T) {
+	for _, publicURL := range []string{
+		"http://nexus.example.com",
+		"https://nexus.example.com/path",
+		"https://user@nexus.example.com",
+		"https://nexus.example.com?query=1",
+	} {
+		cfg := Config{PublicURL: publicURL}
+		if err := cfg.ValidateStartup(); err == nil {
+			t.Fatalf("invalid NEXUS_PUBLIC_URL %q was accepted", publicURL)
+		}
+	}
+
+	if err := (Config{PublicURL: "https://nexus.example.com"}).ValidateStartup(); err != nil {
+		t.Fatalf("valid NEXUS_PUBLIC_URL rejected: %v", err)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 type Config struct {
 	Host                  string
 	Port                  int
+	PublicURL             string
 	NexusDataDir          string
 	RecallRepoDir         string
 	AuthToken             string
@@ -44,6 +46,7 @@ func FromEnv() Config {
 	cfg := Config{
 		Host:                  getenv("NEXUS_HOST", "127.0.0.1"),
 		Port:                  getenvInt("NEXUS_PORT", 18777),
+		PublicURL:             strings.TrimRight(strings.TrimSpace(os.Getenv("NEXUS_PUBLIC_URL")), "/"),
 		NexusDataDir:          nexusDataDir,
 		RecallRepoDir:         recallRepoDir,
 		AuthToken:             strings.TrimSpace(os.Getenv("NEXUS_AUTH_TOKEN")),
@@ -130,6 +133,12 @@ func splitCSV(value string) []string {
 }
 
 func (c Config) ValidateStartup() error {
+	if c.PublicURL != "" {
+		parsed, err := url.Parse(c.PublicURL)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+			return fmt.Errorf("NEXUS_PUBLIC_URL must be an HTTPS origin without path, query, fragment, or user info: %q", c.PublicURL)
+		}
+	}
 	if !c.RequireAuth {
 		return nil
 	}
