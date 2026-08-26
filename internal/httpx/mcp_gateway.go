@@ -56,6 +56,7 @@ func (s *Server) initializeMCPGateway() {
 		}
 		// 启动时也核对一次已发布目录，清理旧版本遗留但 fleet 已不再提供的 stale tool。
 		s.reconcileNodeToolContracts(s.publishedNodeToolNames())
+		s.syncMCPAppResources()
 	}
 	s.mcpHandler = mcpsdk.NewStreamableHTTPHandler(
 		func(*http.Request) *mcpsdk.Server { return s.mcpServer },
@@ -64,6 +65,7 @@ func (s *Server) initializeMCPGateway() {
 }
 
 func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
+	defer s.syncMCPAppResources()
 	helloToolNames := make(map[string]struct{}, len(hello.Tools))
 	for _, descriptor := range hello.Tools {
 		if _, central := nexusToolNames[descriptor.Name]; central || strings.TrimSpace(descriptor.Name) == "" {
@@ -98,7 +100,11 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 			s.mcpTools[name] = candidate
 		}
 		s.mcpToolsMu.Unlock()
-		if exists && (published.ContractHash != contractHash || !containsToolContractHash(published.AcceptedSemanticHashes, contractHash)) {
+		if exists && (published.ContractHash != contractHash ||
+			!containsToolContractHash(published.AcceptedSemanticHashes, contractHash) ||
+			!jsonValuesEqual(published.Descriptor.Meta, descriptor.Meta) ||
+			!jsonValuesEqual(published.Descriptor.Annotations, descriptor.Annotations) ||
+			published.Descriptor.NexusResourceRelay != descriptor.NexusResourceRelay) {
 			// schema 不同不等于不兼容；由 Fleet 合并器决定能否安全形成同一代公开契约。
 			if err := s.reconcileFleetNodeTool(name); err != nil && s.logger != nil {
 				s.logger.Warn("检查 AgentDock 工具契约兼容性失败", "tool", name, "error", err)

@@ -79,13 +79,14 @@ type Hello struct {
 }
 
 type ToolDescriptor struct {
-	Name         string         `json:"name"`
-	Title        string         `json:"title,omitempty"`
-	Description  string         `json:"description,omitempty"`
-	InputSchema  map[string]any `json:"inputSchema"`
-	OutputSchema map[string]any `json:"outputSchema,omitempty"`
-	Meta         map[string]any `json:"_meta,omitempty"`
-	Annotations  map[string]any `json:"annotations,omitempty"`
+	Name               string         `json:"name"`
+	Title              string         `json:"title,omitempty"`
+	Description        string         `json:"description,omitempty"`
+	InputSchema        map[string]any `json:"inputSchema"`
+	OutputSchema       map[string]any `json:"outputSchema,omitempty"`
+	Meta               map[string]any `json:"_meta,omitempty"`
+	Annotations        map[string]any `json:"annotations,omitempty"`
+	NexusResourceRelay bool           `json:"nexus_resource_relay,omitempty"`
 }
 
 type Store struct {

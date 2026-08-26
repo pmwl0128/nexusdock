@@ -46,7 +46,6 @@ type comparableToolContract struct {
 	InputSchema  map[string]any `json:"inputSchema"`
 	OutputSchema map[string]any `json:"outputSchema,omitempty"`
 	Meta         map[string]any `json:"_meta,omitempty"`
-	Annotations  map[string]any `json:"annotations,omitempty"`
 }
 
 func toolContractHash(descriptor agentdock.ToolDescriptor) (string, error) {
@@ -73,8 +72,25 @@ func comparableContract(descriptor agentdock.ToolDescriptor) (comparableToolCont
 	}
 	return comparableToolContract{
 		InputSchema: inputSchema, OutputSchema: outputSchema,
-		Meta: descriptor.Meta, Annotations: descriptor.Annotations,
+		Meta: executionToolMeta(descriptor.Meta),
 	}, nil
+}
+
+func executionToolMeta(meta map[string]any) map[string]any {
+	if len(meta) == 0 {
+		return nil
+	}
+	execution := make(map[string]any, len(meta))
+	for key, value := range meta {
+		if key == "ui" {
+			continue
+		}
+		execution[key] = value
+	}
+	if len(execution) == 0 {
+		return nil
+	}
+	return execution
 }
 
 // semanticSchemaMap 只去掉不影响校验结果的展示字段，并规范 JSON Schema 中本身无顺序语义的集合。
@@ -299,18 +315,22 @@ func (s *Server) reconcileFleetNodeTool(name string) error {
 	}
 
 	s.mcpToolsMu.Lock()
-	defer s.mcpToolsMu.Unlock()
 	published, exists := s.mcpTools[name]
-	if exists && published.ContractHash == candidate.ContractHash && reflect.DeepEqual(published.AcceptedSemanticHashes, candidate.AcceptedSemanticHashes) {
+	descriptorChanged := !exists || !reflect.DeepEqual(published.Descriptor, candidate.Descriptor)
+	if exists && published.ContractHash == candidate.ContractHash &&
+		reflect.DeepEqual(published.AcceptedSemanticHashes, candidate.AcceptedSemanticHashes) && !descriptorChanged {
+		s.mcpToolsMu.Unlock()
 		return nil
 	}
 	if err := s.persistPublishedNodeTool(ctx, candidate); err != nil {
+		s.mcpToolsMu.Unlock()
 		return err
 	}
-	if s.mcpServer != nil && (!exists || published.ContractHash != candidate.ContractHash) {
+	if s.mcpServer != nil && descriptorChanged {
 		s.mcpServer.AddTool(nodeMCPTool(candidate.Descriptor), s.nodeToolHandler(name))
 	}
 	s.mcpTools[name] = candidate
+	s.mcpToolsMu.Unlock()
 	return nil
 }
 
@@ -334,8 +354,8 @@ func mergeFleetToolDescriptors(descriptors []agentdock.ToolDescriptor) (agentdoc
 		acceptedHashes = append(acceptedHashes, hash)
 	}
 	for _, descriptor := range descriptors[1:] {
-		if !jsonValuesEqual(merged.Meta, descriptor.Meta) || !jsonValuesEqual(merged.Annotations, descriptor.Annotations) {
-			return agentdock.ToolDescriptor{}, nil, fmt.Errorf("%w: %s meta/annotations", errIncompatibleToolContract, merged.Name)
+		if !jsonValuesEqual(executionToolMeta(merged.Meta), executionToolMeta(descriptor.Meta)) {
+			return agentdock.ToolDescriptor{}, nil, fmt.Errorf("%w: %s execution meta", errIncompatibleToolContract, merged.Name)
 		}
 		merged.InputSchema, err = mergeSchemaMaps("inputSchema", merged.InputSchema, descriptor.InputSchema)
 		if err != nil {
@@ -346,7 +366,120 @@ func mergeFleetToolDescriptors(descriptors []agentdock.ToolDescriptor) (agentdoc
 			return agentdock.ToolDescriptor{}, nil, err
 		}
 	}
+	// _meta.ui 与 annotations 不改变节点能否执行输入/输出契约；其余 _meta 仍属于调用适配契约。
+	// UI 仅在所有 provider 都声明 Nexus Resource relay 时发布；安全提示按 MCP 默认语义保守合并。
+	merged.NexusResourceRelay = allDescriptorsSupportResourceRelay(descriptors)
+	merged.Meta = mergeFleetToolMeta(descriptors, merged.NexusResourceRelay)
+	merged.Annotations = mergeFleetToolAnnotations(descriptors)
 	return merged, normalizeToolContractHashes(acceptedHashes), nil
+}
+
+func allDescriptorsSupportResourceRelay(descriptors []agentdock.ToolDescriptor) bool {
+	if len(descriptors) == 0 {
+		return false
+	}
+	for _, descriptor := range descriptors {
+		if !descriptor.NexusResourceRelay {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeFleetToolMeta(descriptors []agentdock.ToolDescriptor, resourceRelay bool) map[string]any {
+	if len(descriptors) == 0 || len(descriptors[0].Meta) == 0 {
+		return nil
+	}
+	common := make(map[string]any, len(descriptors[0].Meta))
+	for key, value := range descriptors[0].Meta {
+		if key == "ui" && !resourceRelay {
+			continue
+		}
+		common[key] = value
+	}
+	for _, descriptor := range descriptors[1:] {
+		for key, value := range common {
+			other, ok := descriptor.Meta[key]
+			if !ok || !jsonValuesEqual(value, other) {
+				delete(common, key)
+			}
+		}
+	}
+	if len(common) == 0 {
+		return nil
+	}
+	return common
+}
+
+func mergeFleetToolAnnotations(descriptors []agentdock.ToolDescriptor) map[string]any {
+	hasAnnotations := false
+	for _, descriptor := range descriptors {
+		if len(descriptor.Annotations) > 0 {
+			hasAnnotations = true
+			break
+		}
+	}
+	if !hasAnnotations {
+		return nil
+	}
+
+	// MCP defaults: readOnly=false, destructive=true, idempotent=false, openWorld=true.
+	// 只在所有 provider 都给出更安全的保证时收紧提示；任一 provider 可能产生副作用或访问开放世界时保持保守值。
+	readOnly := true
+	idempotent := true
+	destructive := false
+	openWorld := false
+	for _, descriptor := range descriptors {
+		annotations := descriptor.Annotations
+		readOnly = readOnly && annotationBool(annotations, "readOnlyHint", false)
+		idempotent = idempotent && annotationBool(annotations, "idempotentHint", false)
+		destructive = destructive || annotationBool(annotations, "destructiveHint", true)
+		openWorld = openWorld || annotationBool(annotations, "openWorldHint", true)
+	}
+
+	merged := mergeFleetToolAnnotationCommonValues(descriptors)
+	if merged == nil {
+		merged = make(map[string]any, 4)
+	}
+	merged["readOnlyHint"] = readOnly
+	merged["destructiveHint"] = destructive
+	merged["idempotentHint"] = idempotent
+	merged["openWorldHint"] = openWorld
+	return merged
+}
+
+func mergeFleetToolAnnotationCommonValues(descriptors []agentdock.ToolDescriptor) map[string]any {
+	if len(descriptors) == 0 || len(descriptors[0].Annotations) == 0 {
+		return nil
+	}
+	common := make(map[string]any, len(descriptors[0].Annotations))
+	for key, value := range descriptors[0].Annotations {
+		common[key] = value
+	}
+	for _, descriptor := range descriptors[1:] {
+		for key, value := range common {
+			other, ok := descriptor.Annotations[key]
+			if !ok || !jsonValuesEqual(value, other) {
+				delete(common, key)
+			}
+		}
+	}
+	if len(common) == 0 {
+		return nil
+	}
+	return common
+}
+
+func annotationBool(annotations map[string]any, key string, defaultValue bool) bool {
+	value, ok := annotations[key]
+	if !ok || value == nil {
+		return defaultValue
+	}
+	parsed, ok := value.(bool)
+	if !ok {
+		return defaultValue
+	}
+	return parsed
 }
 
 func cloneToolDescriptor(descriptor agentdock.ToolDescriptor) (agentdock.ToolDescriptor, error) {
@@ -564,6 +697,7 @@ func containsToolContractHash(hashes []string, target string) bool {
 }
 
 func (s *Server) reconcileNodeToolContracts(names []string) {
+	defer s.syncMCPAppResources()
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		name = strings.TrimSpace(name)

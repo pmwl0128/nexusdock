@@ -99,6 +99,8 @@ type Server struct {
 	mcpReconcileMu       sync.Mutex
 	mcpToolsMu           sync.RWMutex
 	mcpTools             map[string]publishedNodeTool
+	mcpResourcesMu       sync.RWMutex
+	mcpResources         map[string]struct{}
 }
 
 type ServerOption func(*Server)
@@ -135,7 +137,10 @@ func WithMCPTokenStore(store *auth.MCPTokenStore) ServerOption {
 }
 
 func NewServer(cfg config.Config, store *recall.Store, versions *versioning.Manager, logger *slog.Logger, options ...ServerOption) *Server {
-	server := &Server{cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, versions: versions, logger: logger, stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]publishedNodeTool)}
+	server := &Server{
+		cfg: cfg, aiCfg: cfg, aiCfgSet: true, store: store, versions: versions, logger: logger,
+		stage3Wake: make(chan struct{}, 1), mcpTools: make(map[string]publishedNodeTool), mcpResources: make(map[string]struct{}),
+	}
 	for _, option := range options {
 		option(server)
 	}

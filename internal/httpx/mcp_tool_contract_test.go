@@ -55,6 +55,101 @@ func TestToolContractHashIgnoresSchemaPresentationOnly(t *testing.T) {
 	}
 }
 
+func TestToolContractHashIgnoresToolPresentationMetadata(t *testing.T) {
+	base := platformContractDescriptor("file_edit", map[string]any{
+		"path": map[string]any{"type": "string"},
+	}, []any{"path"})
+	presented, err := cloneToolDescriptor(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presented.Meta = map[string]any{"ui": map[string]any{"resourceUri": "ui://agentdock/file-change"}}
+	presented.Annotations = map[string]any{
+		"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false,
+	}
+	presented.NexusResourceRelay = true
+
+	baseHash, err := toolContractHash(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	presentedHash, err := toolContractHash(presented)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseHash != presentedHash {
+		t.Fatalf("presentation metadata altered execution hash: %s != %s", baseHash, presentedHash)
+	}
+
+	withExecutionMeta, err := cloneToolDescriptor(presented)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withExecutionMeta.Meta["file_arg_rewrite_paths"] = []any{"path"}
+	executionMetaHash, err := toolContractHash(withExecutionMeta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executionMetaHash == presentedHash {
+		t.Fatal("non-UI _meta was incorrectly ignored by the execution hash")
+	}
+}
+
+func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T) {
+	old := platformContractDescriptor("file_edit", map[string]any{
+		"path": map[string]any{"type": "string"},
+	}, []any{"path"})
+	old.Meta = map[string]any{
+		"shared": "same",
+		"ui":     map[string]any{"resourceUri": "ui://agentdock/file-change"},
+	}
+
+	newDescriptor, err := cloneToolDescriptor(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newDescriptor.NexusResourceRelay = true
+	newDescriptor.Annotations = map[string]any{
+		"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false,
+	}
+
+	merged, accepted, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{old, newDescriptor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accepted) != 1 {
+		t.Fatalf("same execution schema should have one accepted hash: %#v", accepted)
+	}
+	if merged.Meta["shared"] != "same" || merged.Meta["ui"] != nil {
+		t.Fatalf("merged meta = %#v", merged.Meta)
+	}
+	wantAnnotations := map[string]any{
+		"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true,
+	}
+	if !reflect.DeepEqual(merged.Annotations, wantAnnotations) {
+		t.Fatalf("merged annotations = %#v, want %#v", merged.Annotations, wantAnnotations)
+	}
+
+	updatedOld, err := cloneToolDescriptor(newDescriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedOld.Annotations = map[string]any{
+		"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false,
+	}
+	converged, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{updatedOld, newDescriptor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ui, ok := converged.Meta["ui"].(map[string]any)
+	if !ok || ui["resourceUri"] != "ui://agentdock/file-change" {
+		t.Fatalf("converged ui meta = %#v", converged.Meta["ui"])
+	}
+	if converged.Annotations["destructiveHint"] != false || converged.Annotations["idempotentHint"] != true || converged.Annotations["openWorldHint"] != false {
+		t.Fatalf("converged annotations = %#v", converged.Annotations)
+	}
+}
+
 func TestMergeFleetToolDescriptorsSupportsPlatformOptionalProperties(t *testing.T) {
 	tests := []struct {
 		name string
