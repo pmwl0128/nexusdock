@@ -821,6 +821,7 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
     parameters = {
         "SessionId": path_param("sessionID", "浏览器 Session ID。", uuid=False),
         "RecallPath": path_param("path", "URL 编码后的召回相对路径。", uuid=False),
+        "EvolutionId": path_param("evolutionID", "Evolution 生命周期记录 ID。", uuid=False),
         "RuntimeNodeId": path_param("nodeID", "Nexus 中登记的 AgentDock 节点 ID。", uuid=False),
         "RuntimeTaskId": path_param("taskID", "AgentDock Runtime task ID。", uuid=False),
         "RuntimeSkillSource": path_param("source", "AgentDock Runtime skill source。", uuid=False),
@@ -979,6 +980,12 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 request=body(ref("RecallCardSearchRequest")),
                 success=ok(ref("RecallCardSearchResponse")),
             )
+        },
+        "/v1/evolution/lifecycle": {
+            "get": operation("listEvolutionLifecycle", "只读列出 Evolution 生命周期记录")
+        },
+        "/v1/evolution/lifecycle/{evolutionID}": {
+            "get": operation("getEvolutionLifecycle", "只读读取 Evolution 生命周期记录详情", params=[p("EvolutionId")])
         },
         "/v1/embeddings/status": {
             "get": operation("getEmbeddingStatus", "读取 Recall 嵌入服务和索引状态", success=ok(ref("EmbeddingStatusResponse")))

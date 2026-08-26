@@ -170,7 +170,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/settings/ai/test/stage3", protected(s.testStage3Connection))
 	mux.HandleFunc("POST /v1/settings/ai/test/embedding", protected(s.testEmbeddingConnection))
 	s.registerRuntimeRoutes(mux, protected)
-	s.registerEvolutionLifecycleRoutes(mux)
+	s.registerEvolutionLifecycleRoutes(mux, protected)
 	s.registerWorkflowTemplateRoutes(mux, deviceProtected)
 	if s.privateNotes != nil {
 		s.registerPrivateNoteRoutes(mux, deviceProtected)

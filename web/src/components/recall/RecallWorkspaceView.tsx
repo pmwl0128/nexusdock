@@ -2,6 +2,7 @@ import type { RecallPage, RecallWorkspaceViewModel } from './types';
 import RecallActionDialog from './RecallActionDialog';
 import RecallEditor from './RecallEditor';
 import RecallExperienceCardsPage from './RecallExperienceCardsPage';
+import RecallEvolutionPage from './RecallEvolutionPage';
 import RecallFileBrowser from './RecallFileBrowser';
 import RecallHeader from './RecallHeader';
 import RecallNoticeArea from './RecallNoticeArea';
@@ -11,12 +12,14 @@ import RecallVectorRecallPage from './RecallVectorRecallPage';
 
 type Props = RecallWorkspaceViewModel & {
   page: RecallPage;
+  refreshToken: number;
   onNavigate: (page: RecallPage) => void;
 };
 
 const recallNavigation: Array<{ id: RecallPage; label: string }> = [
   { id: 'library', label: '资料库' },
   { id: 'cards', label: '经验卡片' },
+  { id: 'evolution', label: '进化' },
   { id: 'vectors', label: '向量召回' },
   { id: 'history', label: '版本历史' },
 ];
@@ -43,6 +46,7 @@ export default function RecallWorkspaceView(props: Props) {
       </section>
     </>}
     {props.page === 'cards' && <RecallExperienceCardsPage entries={props.state.cardEntries} loading={props.state.loading} />}
+    {props.page === 'evolution' && <RecallEvolutionPage refreshToken={props.refreshToken} />}
     {props.page === 'vectors' && <RecallVectorRecallPage state={props.state} actions={props.actions} onOpenCard={openCardFromTools} />}
     {props.page === 'history' && <RecallVersionHistoryPage state={props.state} changedCount={props.changedCount} dirty={props.dirty} actions={props.actions} />}
   </main>;

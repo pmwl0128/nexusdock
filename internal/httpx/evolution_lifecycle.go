@@ -8,9 +8,85 @@ import (
 	"github.com/uvwt/nexusdock/internal/recall"
 )
 
-func (s *Server) registerEvolutionLifecycleRoutes(mux *http.ServeMux) {
+type evolutionLifecycleSummary struct {
+	EvolutionID     string   `json:"evolution_id"`
+	Title           string   `json:"title"`
+	Statement       string   `json:"statement"`
+	Type            string   `json:"type"`
+	Scope           string   `json:"scope"`
+	Project         string   `json:"project"`
+	Device          string   `json:"device,omitempty"`
+	Status          string   `json:"status"`
+	Revision        int64    `json:"revision"`
+	SupportCount    int      `json:"support_count"`
+	ContradictCount int      `json:"contradict_count"`
+	EvidenceCount   int      `json:"evidence_count"`
+	Tags            []string `json:"tags,omitempty"`
+	UpdatedAt       string   `json:"updated_at"`
+}
+
+type evolutionLifecycleDetail struct {
+	evolutionLifecycleSummary
+	CanonicalKey  string                     `json:"canonical_key,omitempty"`
+	PolicyVersion string                     `json:"policy_version"`
+	Source        string                     `json:"source,omitempty"`
+	Evidence      []recall.LifecycleEvidence `json:"evidence,omitempty"`
+	SupersededBy  string                     `json:"superseded_by,omitempty"`
+	CreatedAt     string                     `json:"created_at"`
+}
+
+func evolutionSummary(record recall.LifecycleRecord) evolutionLifecycleSummary {
+	return evolutionLifecycleSummary{
+		EvolutionID: record.EvolutionID, Title: record.Title, Statement: record.Statement,
+		Type: record.Type, Scope: record.Scope, Project: record.Project, Device: record.Device,
+		Status: record.Status, Revision: record.Revision, SupportCount: record.SupportCount,
+		ContradictCount: record.ContradictCount, EvidenceCount: len(record.Evidence), Tags: record.Tags,
+		UpdatedAt: record.UpdatedAt,
+	}
+}
+
+func evolutionDetail(record recall.LifecycleRecord) evolutionLifecycleDetail {
+	return evolutionLifecycleDetail{
+		evolutionLifecycleSummary: evolutionSummary(record),
+		CanonicalKey:              record.CanonicalKey, PolicyVersion: record.PolicyVersion, Source: record.Source,
+		Evidence: record.Evidence, SupersededBy: record.SupersededBy, CreatedAt: record.CreatedAt,
+	}
+}
+
+func (s *Server) registerEvolutionLifecycleRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
+	// 浏览器只获得只读视图；生命周期写入继续只允许 AgentDock / 程序化 API 走 internal transition。
+	mux.HandleFunc("GET /v1/evolution/lifecycle", protected(s.evolutionLifecycleList))
+	mux.HandleFunc("GET /v1/evolution/lifecycle/{evolutionID}", protected(s.evolutionLifecycleRead))
 	mux.HandleFunc("POST /internal/recall/lifecycle/query", s.withEvolutionAccess(s.lifecycleQuery))
 	mux.HandleFunc("POST /internal/recall/lifecycle/transition", s.withEvolutionAccess(s.lifecycleTransition))
+}
+
+func (s *Server) evolutionLifecycleList(w http.ResponseWriter, _ *http.Request) {
+	records, err := s.store.QueryLifecycle(recall.LifecycleQuery{Limit: 100})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "LIFECYCLE_QUERY_FAILED", "failed to read evolution lifecycle")
+		return
+	}
+
+	items := make([]evolutionLifecycleSummary, 0, len(records))
+	for _, record := range records {
+		items = append(items, evolutionSummary(record))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"records": items, "count": len(items)})
+}
+
+func (s *Server) evolutionLifecycleRead(w http.ResponseWriter, r *http.Request) {
+	evolutionID := strings.TrimSpace(r.PathValue("evolutionID"))
+	records, err := s.store.QueryLifecycle(recall.LifecycleQuery{EvolutionID: evolutionID, Limit: 1})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "LIFECYCLE_QUERY_FAILED", err.Error())
+		return
+	}
+	if len(records) == 0 {
+		writeError(w, http.StatusNotFound, "EVOLUTION_NOT_FOUND", "evolution record not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"record": evolutionDetail(records[0])})
 }
 
 func (s *Server) withEvolutionAccess(next http.HandlerFunc) http.HandlerFunc {

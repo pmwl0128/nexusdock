@@ -1,7 +1,7 @@
 import type { FormEvent, RefObject } from 'react';
 
 export type EntryType = 'file' | 'directory';
-export type RecallPage = 'library' | 'cards' | 'vectors' | 'history';
+export type RecallPage = 'library' | 'cards' | 'evolution' | 'vectors' | 'history';
 export type RecallEntry = { path: string; name?: string; type: EntryType; size_bytes?: number; modified?: string };
 export type Recall = {
   path: string;
