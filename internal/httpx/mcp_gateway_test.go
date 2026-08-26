@@ -13,6 +13,33 @@ import (
 	"github.com/uvwt/nexusdock/internal/versioning"
 )
 
+func TestInitializeMCPGatewayAdvertisesFixedInstructions(t *testing.T) {
+	server := &Server{mcpTools: make(map[string]publishedNodeTool), mcpResources: make(map[string]struct{})}
+	server.initializeMCPGateway()
+
+	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
+	serverSession, err := server.mcpServer.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "nexusdock-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+
+	result := clientSession.InitializeResult()
+	if result == nil {
+		t.Fatal("InitializeResult is nil")
+	}
+	if result.Instructions != nexusServerInstructions {
+		t.Fatalf("Instructions = %q, want %q", result.Instructions, nexusServerInstructions)
+	}
+}
+
 func TestNodeInputSchemaRequiresNodeID(t *testing.T) {
 	schema := nodeInputSchema(map[string]any{
 		"type": "object", "properties": map[string]any{"path": map[string]any{"type": "string"}}, "required": []any{"path"},

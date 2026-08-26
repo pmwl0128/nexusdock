@@ -16,6 +16,12 @@ import (
 	"github.com/uvwt/nexusdock/internal/recall"
 )
 
+const nexusServerInstructions = "NexusDock 可以连接并统一操作多台 AgentDock 设备。" +
+	"需要操作具体设备时，先确定目标 AgentDock 节点；目标设备不明确时，优先调用 `node_list` 获取可用节点。" +
+	"优先调用 `agentdock_context` 获取目标设备可用于操作用户设备的核心能力、Skill、动态 MCP、Workflow 模板、重要上下文和长期记忆索引。" +
+	"需要查找或读取长期记忆时使用 `recall_*`；需要查找或使用 Workflow 模板时使用 `workflow_template_manage`；" +
+	"处理多步骤任务时使用 `task_manage` 记录和维护任务进度。根据用户需求选择合适的设备和能力，检查、操作并验证设备状态。"
+
 var nexusToolNames = map[string]struct{}{
 	"node_list":        {},
 	"recall_bootstrap": {}, "recall_search": {}, "recall_read": {},
@@ -25,7 +31,10 @@ var nexusToolNames = map[string]struct{}{
 func (s *Server) initializeMCPGateway() {
 	s.mcpServer = mcpsdk.NewServer(
 		&mcpsdk.Implementation{Name: "nexusdock", Version: "1"},
-		&mcpsdk.ServerOptions{Capabilities: &mcpsdk.ServerCapabilities{}},
+		&mcpsdk.ServerOptions{
+			Capabilities: &mcpsdk.ServerCapabilities{},
+			Instructions: nexusServerInstructions,
+		},
 	)
 	for _, definition := range nexusToolDefinitions() {
 		definition := definition
