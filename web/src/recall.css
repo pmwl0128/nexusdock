@@ -287,7 +287,18 @@
 .recall-edit-body textarea { min-height: 310px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.55; }
 .recall-editor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .recall-mobile-back { display: none !important; }
-.recall-preview { padding: 13px; min-height: 300px; overflow: auto; line-height: 1.65; }
+.recall-preview {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 300px;
+  margin: 0;
+  padding: 13px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.65;
+}
 .recall-preview h1,
 .recall-preview h2,
 .recall-preview h3 { margin: 1em 0 .5em; }
