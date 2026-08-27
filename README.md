@@ -1,101 +1,127 @@
 # NexusDock
 
-NexusDock 是面向个人和可信小型环境的 AgentDock 中心服务。它把多台 AgentDock 节点、长期记忆、工作流模板、运行状态和管理入口集中到一个自托管 Web 控制台中。
+**NexusDock 是 AgentDock 的自托管中心服务。** 你可以把多台 AgentDock 设备接入一个 Web 控制台，统一管理节点、长期记忆、工作流和 MCP，并让支持 MCP 的客户端通过一个入口访问整套设备能力。
 
-NexusDock 适合已经在一台或多台设备上使用 AgentDock，希望统一查看任务、Skill、MCP、记忆和运行状态的用户。它不是 AgentDock 的替代品：任务和工具仍在各个 AgentDock 节点上运行，NexusDock 负责集中管理、查询和协调。
+适合已经在 Mac、Windows 或服务器上使用 AgentDock，希望获得统一管理入口、跨设备 Recall 和记忆能力的个人用户或可信小型环境。
 
-## 主要能力
+- AgentDock：<https://github.com/uvwt/agentdock>
+- Docker Hub：<https://hub.docker.com/r/agentdockio/nexusdock>
+- GitHub：<https://github.com/uvwt/nexusdock>
+- 当前稳定版本：`v0.1.0`
 
-- **Recall 记忆库**：浏览、搜索、创建和编辑 Markdown / 文本记忆，查看 Git 变更与历史，并按需同步远端仓库。
-- **经验卡片与向量召回**：把可复用结论整理为经验卡片；配置兼容的 Embeddings 服务后可进行语义搜索和索引重建。
-- **多节点 Runtime**：配对多台 AgentDock，节点主动连接 Nexus，按节点查看任务、Skill、动态 MCP 和运行概况。
-- **MCP 管理**：通过 NexusDock 管理选定 AgentDock 节点上的 HTTP 或 stdio MCP 服务、工具发现和隔离环境变量。
-- **工作流模板**：集中浏览、匹配和维护可复用的任务工作流模板。
-- **统一 MCP**：客户端只连接 NexusDock `/mcp`；Recall 等中心工具只出现一次，设备工具通过必填 `node_id` 路由。
-- **安全与状态**：管理员登录、浏览器会话管理、短时单次配对码、设备身份 Token 和系统健康检查。
-- **自托管 Web 控制台**：桌面端与移动端均可使用，后端 API 与前端由同一个服务提供。
+## 你可以用它做什么
+
+- **统一管理 AgentDock 节点**：查看多台设备是否在线，以及各节点的任务、Skill、动态 MCP 和运行状态。
+- **集中使用 Recall**：在 Web 中浏览、搜索、编辑 Markdown / 文本记忆，管理经验卡片、本地 Git 历史和向量召回。
+- **统一 MCP 入口**：客户端只连接 NexusDock `/mcp`，中心工具只出现一次，设备工具通过 `node_id` 路由到具体 AgentDock。
+- **管理工作流模板**：集中维护和匹配可复用的任务流程。
+- **安全配对设备**：AgentDock 主动连接 NexusDock，不要求每台设备暴露公网入口。
+- **桌面与手机访问**：Web 控制台针对桌面和移动端都做了适配。
+
+NexusDock **不会替代 AgentDock**。真正的命令执行、文件操作、浏览器、Skill 和设备能力仍运行在各个 AgentDock 节点上；NexusDock 负责集中管理、记忆、路由和协调。
 
 ## 快速开始
 
-### 1. 准备环境
+普通用户不需要从源码构建，直接使用官方 Docker 镜像即可。
 
-需要：
+官方镜像同时发布到：
 
-- Docker 与 Docker Compose
-- Git
-- 一个可写的数据目录
-
-克隆仓库：
-
-```bash
-git clone https://github.com/uvwt/nexusdock.git
-cd nexusdock
-cp .env.example .env
+```text
+agentdockio/nexusdock
+ghcr.io/uvwt/nexusdock
 ```
 
-生成一个仅用于程序化 API 的随机 Bearer Token：
+推荐生产环境固定具体版本，例如 `0.1.0`。
+
+### 1. 创建目录和配置
+
+```bash
+mkdir nexusdock
+cd nexusdock
+mkdir -p nexus-data recall
+```
+
+生成一个随机 API Token：
 
 ```bash
 openssl rand -hex 32
 ```
 
-编辑 `.env`，至少确认以下配置：
+新建 `.env`：
 
 ```dotenv
-NEXUS_DATA_DIR=./nexus-data
 NEXUS_AUTH_TOKEN=<粘贴刚才生成的随机值>
-NEXUS_REQUIRE_AUTH=true
-
-RECALL_REPO_DIR=./recall
-```
-
-本机通过 `http://127.0.0.1` 试用时，还需要临时允许 HTTP 登录：
-
-```dotenv
+NEXUS_PUBLIC_URL=
 NEXUS_AUTH_ALLOW_INSECURE_HTTP=true
 ```
 
-远程访问时不要保留这个设置，应使用 HTTPS，详见[安全部署](#安全部署)。
+> `NEXUS_AUTH_ALLOW_INSECURE_HTTP=true` 只适合本机 `http://127.0.0.1` 首次试用。通过域名远程访问时应使用 HTTPS，并把它改成 `false`。
 
-### 2. 创建数据目录
-
-```bash
-mkdir -p nexus-data recall
-```
-
-默认镜像使用 UID/GID `10001:10001` 运行。Linux 使用宿主机绑定目录时，首次启动前执行：
+Linux 使用宿主机绑定目录时，首次启动前建议：
 
 ```bash
 sudo chown -R 10001:10001 nexus-data recall
 ```
 
+### 2. 创建 Compose 文件
 
-### 3. 初始化管理员
+新建 `compose.yaml`：
 
-官方镜像同时发布到 `ghcr.io/uvwt/nexusdock` 与 `agentdockio/nexusdock`。正式版本使用 `0.1.0`、`0.1`、`latest` 与 `sha-<commit>` 标签；仓库自带 Compose 默认仍从当前源码构建，便于本地开发与精确复现。
+```yaml
+services:
+  nexusdock:
+    image: agentdockio/nexusdock:0.1.0
+    container_name: nexusdock
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:18777:18777"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=0700
+    volumes:
+      - ./nexus-data:/var/lib/nexus
+      - ./recall:/recall
+    environment:
+      NEXUS_AUTH_TOKEN: ${NEXUS_AUTH_TOKEN}
+      NEXUS_REQUIRE_AUTH: "true"
+      NEXUS_AUTH_ALLOW_INSECURE_HTTP: ${NEXUS_AUTH_ALLOW_INSECURE_HTTP:-false}
+      NEXUS_PUBLIC_URL: ${NEXUS_PUBLIC_URL:-}
+      NEXUS_DATA_DIR: /var/lib/nexus
+      RECALL_REPO_DIR: /recall
+      NEXUS_TRUSTED_PROXIES: "127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16"
+```
+
+如果更喜欢 GHCR，只需要把镜像改成：
+
+```yaml
+image: ghcr.io/uvwt/nexusdock:0.1.0
+```
+
+### 3. 创建管理员
 
 ```bash
-docker compose build nexusdock
 docker compose run --rm nexusdock admin init owner
 ```
 
-命令会在终端中要求输入并确认管理员密码。密码只写入 NexusDock 的 SQLite 数据库，不需要放进 `.env` 或 Compose 文件。
+终端会要求输入并确认管理员密码。密码保存在 NexusDock 数据库中，不需要写进 `.env`。
 
-### 4. 启动服务
+### 4. 启动 NexusDock
 
 ```bash
-docker compose up -d nexusdock
+docker compose up -d
 ```
 
-检查服务：
+检查健康状态：
 
 ```bash
 curl http://127.0.0.1:18777/health
 ```
 
-认证后还可检查 `/v1/system/status`、`/v1/runtime/nodes` 和 `/v1/workflow-templates`，并对 `nexus.db` 执行 SQLite `quick_check`。
-
-然后在浏览器打开：
+然后打开：
 
 ```text
 http://127.0.0.1:18777
@@ -103,51 +129,60 @@ http://127.0.0.1:18777
 
 使用刚才创建的管理员账号登录。
 
-## 首次使用
+## 连接 AgentDock
 
-### 连接 AgentDock 节点
-
-在 NexusDock 设置页点击“配对设备”，复制生成的命令并在目标设备运行：
+在 NexusDock Web 控制台进入设置页，点击 **配对设备**。复制页面生成的命令，在目标 AgentDock 设备上执行，例如：
 
 ```bash
 agentdock nexus pair --endpoint https://nexus.example.com --code pair_xxx
 ```
 
-重启 AgentDock 后，它会主动建立到 NexusDock 的 WSS 长连接。只需要 NexusDock 具备公网 HTTPS 地址；AgentDock 可以位于 NAT 或无入站公网的网络中。Nexus 不保存 AgentDock 地址和 AgentDock `/mcp` Token，Device Token 仅表达固定设备身份，不提供权限 scope 配置。
+重启 AgentDock 后，节点会主动建立到 NexusDock 的 WSS 连接。
 
-客户端可继续直连某台 AgentDock 的 `/mcp`，也可只连接 NexusDock 的 `/mcp` 使用汇总模式。直连模式的本地工具、认证与部署方式不变。
+这种模式的好处是：
 
-### 连接 NexusDock MCP
+- 只需要 NexusDock 有可访问的 HTTPS 地址；
+- AgentDock 可以位于 NAT、家庭网络或没有入站公网的设备中；
+- NexusDock 不需要保存 AgentDock 的公网地址或 AgentDock `/mcp` Token；
+- 每台设备拥有独立的设备身份。
 
-支持 OAuth 的 MCP 客户端可直接连接 NexusDock `/mcp` 并完成浏览器授权。不支持 OAuth、需要固定凭据的客户端，可在 Web 控制台的“设置 → MCP 接入”查看专用 Access Token，并使用：
+AgentDock 仍然可以继续独立使用；接入 NexusDock 不会改变原有的本地 MCP、认证和工具行为。
+
+## 连接 MCP 客户端
+
+支持 OAuth 的 MCP 客户端可以直接连接：
+
+```text
+https://你的-nexus-域名/mcp
+```
+
+并通过浏览器完成授权。
+
+对于不支持 OAuth、需要固定 Token 的客户端，可以在 NexusDock 的 **设置 → MCP 接入** 中查看专用 Access Token，然后使用：
 
 ```text
 Authorization: Bearer <Access Token>
 ```
 
-这个 Token 只允许访问 `/mcp`，不能访问 `/v1` 管理 API。点击“重置 Token”后旧值立即失效；新值会保存在 `NEXUS_DATA_DIR/secrets/mcp-access-token`，服务重启后保持不变。
+这个 Token 只允许访问 `/mcp`，不能用于管理 API。重置后旧 Token 会立即失效。
 
-### 使用 Recall
+## Recall
 
-Recall 仓库默认位于 `RECALL_REPO_DIR`。你可以在 Web 控制台中：
+Recall 是 NexusDock 的长期记忆工作区，默认位于 `RECALL_REPO_DIR`。
+
+你可以在 Web 控制台中：
 
 - 新建、编辑、移动和删除 `.md`、`.markdown`、`.txt` 文件；
 - 按关键词搜索记忆；
-- 查看本地改动和版本历史；
-- 把稳定经验整理为卡片；
-- 配置 Embeddings 后进行向量搜索。
+- 查看本地修改和 Git 版本历史；
+- 把稳定经验整理成经验卡片；
+- 配置 Embeddings 后使用向量召回。
 
-Recall 内容本身是普通 Git 仓库，可以继续使用现有的 Git 托管和备份方式。
-
-### 本地版本与数据保护
-
-当 `RECALL_REPO_DIR` 是 Git 仓库时，NexusDock 会在自身写入 Recall 后记录本地 Git 版本，并在 Web 控制台展示本地变更和版本历史。NexusDock 不配置、读取或访问 Git remote，也不提供远端同步或备份功能。
-
-生产环境的数据保护由服务器管理员负责。至少应按部署策略保护 `NEXUS_DATA_DIR` 和 `RECALL_REPO_DIR`；可以使用宿主机快照、文件备份、Git 或其他运维工具，但这些都不属于 NexusDock 服务职责。
+Recall 本身仍然是普通 Git 仓库。NexusDock 负责本地文件与版本能力，**不会自动配置、读取或操作 Git remote**；远端备份策略由你自己决定。
 
 ### 启用向量召回
 
-NexusDock 支持 OpenAI 兼容的 `/v1/embeddings` 接口。示例：
+NexusDock 支持 OpenAI 兼容的 `/v1/embeddings` 接口：
 
 ```dotenv
 RECALL_EMBEDDING_ENABLED=true
@@ -156,100 +191,144 @@ RECALL_EMBEDDING_MODEL=BAAI/bge-m3
 RECALL_EMBEDDING_TIMEOUT_SECONDS=30
 ```
 
-未配置 Embeddings 时，普通文件浏览、关键词搜索和本地版本历史仍可正常使用。
+不配置 Embeddings 时，文件浏览、关键词搜索和本地 Git 历史仍然可以正常使用。
 
-## 配置参考
+## 镜像版本
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `NEXUS_HOST` | `127.0.0.1` | 监听地址；Docker 镜像内默认为 `0.0.0.0` |
-| `NEXUS_PORT` | `18777` | HTTP 端口 |
-| `NEXUS_PUBLIC_URL` | 空 | 对外 HTTPS origin，例如 `https://nexus.example.com`；MCP Apps 使用它作为 `ui.domain`，提交 ChatGPT 应用时需要唯一域 |
-| `NEXUS_DATA_DIR` | `./nexus-data` | SQLite 和系统密钥目录；容器内为 `/var/lib/nexus` |
-| `NEXUS_AUTH_TOKEN` | 空 | 程序化 `/v1` API 的 Bearer Token |
-| `NEXUS_REQUIRE_AUTH` | `false` | 为 `true` 时，没有配置 API Token 将拒绝启动 |
-| `NEXUS_AUTH_ALLOW_INSECURE_HTTP` | `false` | 是否允许通过 HTTP 提交浏览器登录；仅限本机调试 |
-| `NEXUS_TRUSTED_PROXIES` | `127.0.0.1,::1` | 允许提供 `X-Forwarded-*` 的反向代理地址 |
-| `NEXUS_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error` |
-| `RECALL_REPO_DIR` | `./recall` | Recall Git 仓库目录；容器内为 `/recall` |
-| `RECALL_EMBEDDING_ENABLED` | `false` | 是否启用经验卡片向量索引 |
-| `RECALL_EMBEDDING_ENDPOINT` | 空 | OpenAI 兼容 Embeddings 地址 |
-| `RECALL_EMBEDDING_MODEL` | `BAAI/bge-m3` | Embeddings 模型 |
+NexusDock 同步发布 Docker Hub 与 GHCR 多架构镜像，支持 `linux/amd64` 和 `linux/arm64`。
 
-完整示例见 [`.env.example`](./.env.example)。
+| 标签 | 用途 |
+| --- | --- |
+| `0.1.0` | 固定到当前具体版本，推荐生产使用 |
+| `0.1` | 跟随 `0.1.x` 系列更新 |
+| `latest` | 当前最新稳定版本 |
+| `sha-<commit>` | 固定到某个 Git commit，适合精确回滚与排障 |
 
-## 数据
+例如：
 
-默认数据结构：
+```bash
+docker pull agentdockio/nexusdock:0.1.0
+docker pull ghcr.io/uvwt/nexusdock:0.1.0
+```
+
+## 升级
+
+如果 Compose 使用固定版本，先把 `image:` 改成想升级的版本，然后执行：
+
+```bash
+docker compose pull
+docker compose up -d
+curl http://127.0.0.1:18777/health
+```
+
+升级前建议备份 `nexus-data` 和 `recall`。需要回滚时，把 `image:` 改回上一个已验证版本，再重新 `pull` / `up -d`。
+
+不要运行两个 NexusDock 实例同时写同一份 `nexus-data`。
+
+## 数据与备份
+
+默认需要持久化两类数据：
 
 ```text
-NEXUS_DATA_DIR/
+nexus-data/
   nexus.db
   secrets/
     mcp-access-token
 
-RECALL_REPO_DIR/
+recall/
   .git/
-  profile.md
-  recall/
+  ...
 ```
 
-不要让两个 NexusDock 实例同时写同一个 SQLite 数据库。系统状态只写入 `NEXUS_DATA_DIR`，不得放到 `RECALL_REPO_DIR/.nexus`。恢复数据库后需要让仍持有有效 Device Token 的 AgentDock 重新连接；数据库异常时不要反复重启容器，回退应恢复上一个已验证镜像和部署前数据库快照。
+- `nexus-data`：账户、设备、系统状态和 NexusDock 自身密钥。
+- `recall`：长期记忆与本地 Git 历史。
+
+生产环境至少应同时备份这两个目录。可以使用宿主机快照、文件备份或自己的 Git 备份流程。
+
+## 常用配置
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `NEXUS_PORT` | `18777` | HTTP 服务端口 |
+| `NEXUS_PUBLIC_URL` | 空 | 对外 HTTPS 地址，例如 `https://nexus.example.com` |
+| `NEXUS_DATA_DIR` | `./nexus-data` | SQLite 与系统密钥目录；容器内使用 `/var/lib/nexus` |
+| `NEXUS_AUTH_TOKEN` | 空 | 程序化 `/v1` API Bearer Token |
+| `NEXUS_REQUIRE_AUTH` | `false` | 开启后，没有配置 API Token 时拒绝启动 |
+| `NEXUS_AUTH_ALLOW_INSECURE_HTTP` | `false` | 允许通过 HTTP 提交浏览器登录；仅建议本机调试使用 |
+| `NEXUS_TRUSTED_PROXIES` | `127.0.0.1,::1` | 允许提供 `X-Forwarded-*` 的反向代理地址 |
+| `NEXUS_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error` |
+| `RECALL_REPO_DIR` | `./recall` | Recall 仓库目录；容器内使用 `/recall` |
+| `RECALL_EMBEDDING_ENABLED` | `false` | 是否启用向量索引 |
+| `RECALL_EMBEDDING_ENDPOINT` | 空 | OpenAI 兼容 Embeddings 地址 |
+| `RECALL_EMBEDDING_MODEL` | `BAAI/bge-m3` | Embeddings 模型 |
+
+仓库中的完整示例见 [`.env.example`](./.env.example)。
 
 ## 安全部署
 
-NexusDock 面向个人和可信环境，不应直接暴露在公网。
+NexusDock 面向个人和可信环境。远程使用时建议：
 
-远程访问时建议：
-
-- 让 Docker 端口继续只绑定 `127.0.0.1`；
+- Docker 端口继续只绑定 `127.0.0.1`；
 - 使用 Caddy、Nginx、Traefik 或 Cloudflare Tunnel 提供 HTTPS；
+- 设置正确的 `NEXUS_PUBLIC_URL`；
 - 保持 `NEXUS_AUTH_ALLOW_INSECURE_HTTP=false`；
-- 只把实际反向代理地址加入 `NEXUS_TRUSTED_PROXIES`；
+- 只把实际反向代理加入 `NEXUS_TRUSTED_PROXIES`；
 - 使用高强度管理员密码和随机 `NEXUS_AUTH_TOKEN`；
-- 限制 `nexus-data`、Recall 仓库和凭据文件的宿主机权限。
+- 限制 `nexus-data`、Recall 和其他凭据文件的宿主机权限。
 
-Compose 默认以 `10001:10001` 运行，根文件系统只读，并丢掉全部 Linux capability。
+官方镜像默认使用 UID/GID `10001:10001`，根文件系统只读，并丢弃全部 Linux capabilities。
 
-浏览器使用管理员会话 Cookie，程序化 `/v1` 客户端使用：
+## 管理员密码恢复
 
-```text
-Authorization: Bearer <NEXUS_AUTH_TOKEN>
-```
-
-客户端自行设置的 `Host`、`X-Forwarded-For` 或 `X-Forwarded-Proto` 不会自动获得本地访问权限。
-
-## 管理员恢复
-
-忘记密码时，在服务所在主机的终端执行：
+如果忘记管理员密码，在部署主机上执行：
 
 ```bash
 docker compose run --rm nexusdock admin recover owner
 ```
 
-该操作需要直接访问 `NEXUS_DATA_DIR`，不会通过 Web 或远程 API 修改密码。
+恢复操作直接访问持久化数据库，不通过 Web 或远程 API 修改密码。
 
-## 从源码运行
+## 常见问题
 
-需要 Go `1.26.3`、Node.js/npm 和 Python 3：
+**本机打开页面后无法登录？**
+
+确认本机 HTTP 试用时设置了 `NEXUS_AUTH_ALLOW_INSECURE_HTTP=true`。正式远程部署请改回 `false` 并使用 HTTPS。
+
+**Linux 启动时报 `permission denied`？**
+
+确认 `nexus-data` 和 `recall` 对 UID/GID `10001:10001` 可写。
+
+**AgentDock 配对后没有上线？**
+
+确认 NexusDock 的 HTTPS/WSS 地址可从目标设备访问，然后重启目标 AgentDock。设备不需要开放入站端口。
+
+**容器显示 unhealthy？**
+
+先检查：
 
 ```bash
-make web-deps
-make build
-./bin/nexusdock
+docker compose logs --tail=200 nexusdock
+curl http://127.0.0.1:18777/health
 ```
 
-本地开发常用检查：
+## 从源码开发
+
+这一部分只面向希望修改 NexusDock 本身的开发者。普通部署不需要安装 Go 或 Node.js。
+
+```bash
+git clone https://github.com/uvwt/nexusdock.git
+cd nexusdock
+make web-deps
+make build
+```
+
+开发检查：
 
 ```bash
 make check
 make ci
 ```
 
-`make check` 会执行 Go 格式、依赖、测试、`go vet`、公共契约和仓库边界检查；`make ci` 还会构建前端、执行 race 测试并生成生产二进制。
+仓库自带的 `docker-compose.yml` 默认从当前源码构建 `nexusdock:local`，用于本地开发和精确复现；普通用户建议使用上面的官方镜像部署方式。
 
-## 公共契约
-
-HTTP API 与 DTO 定义在 `scripts/generate-contracts.py`。修改接口后执行 `make contracts`。
-
-公开错误码必须列入 `scripts/check-contracts.py` 的 `ERROR_CODES`，并与源码中的公开错误码一致。Runtime 上游私有错误码只能通过 `upstream_code` 透传。
+更多开发约束见 [`AGENTS.md`](./AGENTS.md)。
