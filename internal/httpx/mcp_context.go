@@ -9,6 +9,7 @@ import (
 	"time"
 
 	protocol "github.com/uvwt/agentdock-protocol"
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
@@ -287,7 +288,7 @@ func deviceNodeCapabilities(capabilities []string) []string {
 		if capability == "" {
 			continue
 		}
-		if _, central := nexusToolNames[capability]; central {
+		if mcpcontract.IsCanonicalTool(capability) {
 			continue
 		}
 		if _, exists := seen[capability]; exists {
@@ -297,77 +298,4 @@ func deviceNodeCapabilities(capabilities []string) []string {
 		out = append(out, capability)
 	}
 	return out
-}
-
-func fleetAgentDockContextOutputSchema() map[string]any {
-	contextItemSchema := map[string]any{
-		"type":       "object",
-		"properties": map[string]any{"name": stringProperty("Capability name."), "description": stringProperty("Short capability description.")},
-		"required":   []string{"name"}, "additionalProperties": false,
-	}
-	skillSchema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"name": stringProperty("Skill name."), "description": stringProperty("Short capability description."),
-			"file": stringProperty("skill:// URI for the active SKILL.md."), "bundled": booleanProperty("Whether the Skill is bundled by AgentDock."),
-		},
-		"required": []string{"name", "description", "file"}, "additionalProperties": false,
-	}
-	warningSchema := map[string]any{
-		"type":       "object",
-		"properties": map[string]any{"source": stringProperty("Context section identifier."), "message": stringProperty("Safe warning message.")},
-		"required":   []string{"source", "message"}, "additionalProperties": false,
-	}
-	rulesSchema := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
-	localContextSchema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"skills":      map[string]any{"type": "array", "items": skillSchema},
-			"dynamic_mcp": map[string]any{"type": "array", "items": contextItemSchema},
-			"acp": map[string]any{
-				"type": "object", "properties": map[string]any{
-					"enabled": booleanProperty("Whether ACP is enabled."), "agent": stringProperty("Configured ACP agent name."), "description": stringProperty("Short ACP usage orientation."),
-				}, "required": []string{"enabled", "agent", "description"}, "additionalProperties": false,
-			},
-			"rules":    rulesSchema,
-			"warnings": map[string]any{"type": "array", "items": warningSchema},
-		},
-		"required": []string{"skills", "dynamic_mcp", "rules"}, "additionalProperties": false,
-	}
-	sharedSchema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"workflow_templates": map[string]any{"type": "array", "items": contextItemSchema},
-			"recall": map[string]any{
-				"type": "object", "properties": map[string]any{
-					"enabled": booleanProperty("Whether NexusDock Recall is available."),
-					"items":   map[string]any{"type": "array", "items": contextItemSchema},
-				}, "required": []string{"enabled", "items"}, "additionalProperties": false,
-			},
-			"rules":    rulesSchema,
-			"warnings": map[string]any{"type": "array", "items": warningSchema},
-		},
-		"required": []string{"workflow_templates", "recall", "rules"}, "additionalProperties": false,
-	}
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"nodes": map[string]any{
-				"type": "array", "description": "Enabled AgentDock nodes and their node-local context.",
-				"items": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"node_id": map[string]any{"type": "string"}, "name": map[string]any{"type": "string"},
-						"online": map[string]any{"type": "boolean"}, "version": map[string]any{"type": "string"},
-						"os": map[string]any{"type": "string"}, "arch": map[string]any{"type": "string"},
-						"capabilities": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-						"context":      localContextSchema, "error": map[string]any{"type": "string"},
-					},
-					"required": []string{"node_id", "name", "online", "capabilities"}, "additionalProperties": false,
-				},
-			},
-			"shared": sharedSchema,
-		},
-		"required": []string{"nodes", "shared"}, "additionalProperties": false,
-	}
 }

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
@@ -215,7 +216,7 @@ func (s *Server) loadPublishedNodeTools(ctx context.Context) error {
 		return err
 	}
 	for _, contract := range contracts {
-		if _, central := nexusToolNames[contract.ToolName]; central {
+		if mcpcontract.IsCanonicalTool(contract.ToolName) {
 			// 已提升为 Nexus 中央工具的旧节点契约不再属于 fleet 发布状态，启动时直接清掉持久化残留。
 			if err := s.agentDock.DeletePublishedToolContract(ctx, contract.ToolName); err != nil {
 				return err

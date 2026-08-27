@@ -11,28 +11,6 @@ import (
 
 const workflowCompositionNextAction = "Combine these templates for the current user goal: prune irrelevant steps, deduplicate, order the remaining steps, and merge completion conditions. Then call task_manage create with source_template_ids, composed steps, and completion_conditions."
 
-func workflowTemplateManageInputSchema() map[string]any {
-	return requiredObjectSchema(map[string]any{
-		"action": map[string]any{
-			"type": "string", "description": "Workflow template action. publish accepts a complete template; get_many returns full active templates that the model must compose before task creation.",
-			"enum": []string{"publish", "retire", "list", "get", "get_many", "match", "vector_index"},
-		},
-		"template":    map[string]any{"type": "object", "additionalProperties": true, "description": "Complete workflow template for publish."},
-		"template_id": stringProperty("Workflow template id."),
-		"template_ids": map[string]any{
-			"type": "array", "minItems": 2, "maxItems": 3, "items": map[string]any{"type": "string"},
-			"description": "Two or three active template ids for get_many. The returned templates must be pruned, deduplicated, ordered, and combined by the model.",
-		},
-		"template_version":     stringProperty("Workflow template version for exact get or retire actions. Omit it for get to resolve the current active version."),
-		"template_status":      enumProperty("active", "retired"),
-		"allow_long_template":  booleanProperty("Allow a workflow template to exceed default guardrails. Provide long_template_reason when true."),
-		"long_template_reason": stringProperty("Reason required when allow_long_template=true."),
-		"goal":                 stringProperty("Goal text for match."),
-		"device":               stringProperty("Optional device hint for match."),
-		"type":                 stringProperty("Optional workflow type hint for match. This maps to template match.type."),
-	}, "action")
-}
-
 func (s *Server) callWorkflowTemplateManage(ctx context.Context, args map[string]any) (map[string]any, error) {
 	action := strings.ToLower(stringArgument(args, "action"))
 	switch action {

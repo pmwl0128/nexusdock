@@ -84,7 +84,7 @@ func TestHelloRequiresExplicitUIResources(t *testing.T) {
 	}
 }
 
-func TestHelloPersistsValidatedUIResources(t *testing.T) {
+func TestHelloPreservesUIResourcesWithoutCatalogFiltering(t *testing.T) {
 	store, _ := newTestStore(t)
 	pairing, err := store.CreatePairingCode(t.Context())
 	if err != nil {
@@ -96,7 +96,8 @@ func TestHelloPersistsValidatedUIResources(t *testing.T) {
 	}
 	resources := []UIResourceCapability{
 		{URI: protocol.ContextUIResourceURI, Contract: protocol.ContextUIContract, MIMEType: protocol.MCPAppMIMEType},
-		{URI: protocol.WorkflowUIResourceURI, Contract: protocol.WorkflowUIContract, MIMEType: protocol.MCPAppMIMEType},
+		{URI: "ui://agentdock/future-widget", Contract: "agentdock.future-widget.v7", MIMEType: "application/vnd.agentdock.widget+json"},
+		{URI: protocol.WorkflowUIResourceURI, Contract: "agentdock.workflow.v99", MIMEType: "text/html;profile=future-mcp-app"},
 	}
 	if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
 		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: resources,
@@ -108,15 +109,37 @@ func TestHelloPersistsValidatedUIResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, resources) {
-		t.Fatalf("ui_resources = %#v, want %#v", got, resources)
+		t.Fatalf("ui_resources = %#v, want exact %#v", got, resources)
 	}
+}
 
-	bad := resources[0]
-	bad.Contract = "agentdock.context.fleet.v0"
+func TestHelloRejectsStructurallyInvalidUIResources(t *testing.T) {
+	store, _ := newTestStore(t)
+	pairing, err := store.CreatePairingCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := store.Pair(t.Context(), PairInput{Code: pairing.Code, DeviceID: "device_ui_invalid", Name: "DockMini"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []UIResourceCapability{
+		{URI: "https://example.test/widget", Contract: "future.v1", MIMEType: "text/html"},
+		{URI: "ui://agentdock/future", Contract: "", MIMEType: "text/html"},
+		{URI: "ui://agentdock/future", Contract: "future.v1", MIMEType: "not a mime"},
+	}
+	for _, resource := range tests {
+		if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
+			DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: []UIResourceCapability{resource},
+		}); err == nil {
+			t.Fatalf("structurally invalid ui resource was accepted: %#v", resource)
+		}
+	}
+	duplicate := UIResourceCapability{URI: "ui://agentdock/future", Contract: "future.v1", MIMEType: "text/html"}
 	if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
-		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: []UIResourceCapability{bad},
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: []UIResourceCapability{duplicate, duplicate},
 	}); err == nil {
-		t.Fatal("mismatched renderer contract was accepted")
+		t.Fatal("duplicate ui resource URI was accepted")
 	}
 }
 

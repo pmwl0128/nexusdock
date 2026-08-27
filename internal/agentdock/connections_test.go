@@ -71,7 +71,7 @@ func TestHubInvokesConnectedNode(t *testing.T) {
 	}
 }
 
-func TestHubRejectsInvalidBridgeV2UIResourceHandshake(t *testing.T) {
+func TestHubRejectsStructurallyInvalidBridgeV2UIResourceHandshake(t *testing.T) {
 	tests := []struct {
 		name  string
 		hello map[string]any
@@ -84,12 +84,12 @@ func TestHubRejectsInvalidBridgeV2UIResourceHandshake(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong renderer contract",
+			name: "malformed renderer URI",
 			hello: map[string]any{
 				"protocol_version": ConnectionProtocolVersion,
 				"tools":            []any{},
 				"ui_resources": []any{map[string]any{
-					"uri": protocol.ContextUIResourceURI, "contract": "agentdock.context.fleet.v0", "mime_type": protocol.MCPAppMIMEType,
+					"uri": "https://example.test/widget", "contract": "future.v1", "mime_type": "text/html",
 				}},
 			},
 		},

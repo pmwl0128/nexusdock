@@ -3,8 +3,10 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/core"
+	"github.com/uvwt/nexusdock/internal/recall"
 )
 
 func newNodeTestServer(t *testing.T) *Server {
@@ -98,6 +101,55 @@ func TestDeviceTokenAccessesOnlyExplicitDeviceRoutes(t *testing.T) {
 	server.withAPIAccess(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })(adminResponse, request)
 	if adminResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("admin route status=%d, want 401", adminResponse.Code)
+	}
+}
+
+func TestDeviceTokenRecallPreviewUsesRealStoreWithoutPersistence(t *testing.T) {
+	server := newNodeTestServer(t)
+	store, err := recall.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.store = store
+
+	pairing, err := server.agentDock.CreatePairingCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := server.agentDock.Pair(t.Context(), agentdock.PairInput{Code: pairing.Code, DeviceID: "device_preview_12345678", Name: "DockMini"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued, err := server.auth.IssueToken(t.Context(), core.Actor{Type: core.ActorDevice, ID: node.ID}, "device_token", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := server.Handler()
+	body := `{"path":"recall/docs/inbox/http-preview.md","content":"# Preview\n\nno persistence"}`
+	unauthorized := httptest.NewRecorder()
+	handler.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, "/v1/recall/preview", strings.NewReader(body)))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized preview status=%d body=%s", unauthorized.Code, unauthorized.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/recall/preview", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+issued.Token)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("device preview status=%d body=%s", response.Code, response.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["dry_run"] != true || payload["path"] != "recall/docs/inbox/http-preview.md" {
+		t.Fatalf("preview payload=%#v", payload)
+	}
+	if _, err := store.Read("recall/docs/inbox/http-preview.md"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("preview persisted Recall entry: %v", err)
 	}
 }
 

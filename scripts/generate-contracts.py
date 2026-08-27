@@ -275,6 +275,18 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("ok", "recall"),
     )
+    schemas["RecallWritePreviewResponse"] = obj(
+        "Recall 写入预检结果；只执行真实写入会使用的路径、内容和覆盖校验，不产生持久化副作用。",
+        {
+            "ok": scalar("boolean", "请求是否成功。"),
+            "path": scalar("string", "规范化后的 Recall 相对路径。"),
+            "proposed_content": scalar("string", "真实写入时会持久化的规范化内容。"),
+            "overwrite": scalar("boolean", "预检使用的覆盖语义。"),
+            "dry_run": scalar("boolean", "固定为 true，表示未执行持久化写入。"),
+            "confirmed": scalar("boolean", "请求携带的确认标记；预检本身不要求确认。"),
+        },
+        ("ok", "path", "proposed_content", "overwrite", "dry_run", "confirmed"),
+    )
     schemas["RecallSearchResult"] = obj(
         "Recall 关键词搜索命中。",
         {
@@ -947,6 +959,14 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
                 request=body(ref("RecallWriteRequest")),
                 success=ok(ref("RecallRecordResponse")),
             ),
+        },
+        "/v1/recall/preview": {
+            "post": operation(
+                "previewRecallWrite",
+                "预检 Recall 写入且不持久化",
+                request=body(ref("RecallWriteRequest")),
+                success=ok(ref("RecallWritePreviewResponse")),
+            )
         },
         "/v1/recall/move": {"post": operation("moveRecall", "移动召回条目", request=body())},
         "/v1/recall/search": {"post": operation("searchRecall", "搜索召回内容", request=body())},

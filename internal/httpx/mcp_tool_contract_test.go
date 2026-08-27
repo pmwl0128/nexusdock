@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
@@ -63,7 +64,7 @@ func TestToolContractHashIgnoresToolPresentationMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	presented.Meta = map[string]any{"ui": map[string]any{"resourceUri": "ui://agentdock/file-change"}}
+	presented.Meta = map[string]any{"ui": map[string]any{"resourceUri": protocol.FileChangeUIResourceURI}}
 	presented.Annotations = map[string]any{
 		"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false,
 	}
@@ -100,7 +101,7 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 	}, []any{"path"})
 	old.Meta = map[string]any{
 		"shared": "same",
-		"ui":     map[string]any{"resourceUri": "ui://agentdock/file-change"},
+		"ui":     map[string]any{"resourceUri": protocol.FileChangeUIResourceURI},
 	}
 
 	newDescriptor, err := cloneToolDescriptor(old)
@@ -145,7 +146,7 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 		t.Fatal(err)
 	}
 	ui, ok := converged.Meta["ui"].(map[string]any)
-	if !ok || ui["resourceUri"] != "ui://agentdock/file-change" {
+	if !ok || ui["resourceUri"] != protocol.FileChangeUIResourceURI {
 		t.Fatalf("converged ui meta = %#v", converged.Meta["ui"])
 	}
 	if converged.Annotations["destructiveHint"] != false || converged.Annotations["idempotentHint"] != true || converged.Annotations["openWorldHint"] != false {
@@ -160,7 +161,7 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondPresentation.Meta["ui"] = map[string]any{"resourceUri": "ui://agentdock/task-progress"}
+	secondPresentation.Meta["ui"] = map[string]any{"resourceUri": protocol.TaskProgressUIResourceURI}
 
 	mixedPresentation, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{firstPresentation, secondPresentation})
 	if err != nil {

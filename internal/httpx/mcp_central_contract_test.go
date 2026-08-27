@@ -4,61 +4,48 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 )
 
-func TestCentralToolDefinitionsCarryOutputSchemaAndSafetyAnnotations(t *testing.T) {
-	expected := map[string]struct {
-		readOnly    bool
-		destructive bool
-		openWorld   bool
-	}{
-		"agentdock_context":        {readOnly: true},
-		"workflow_template_manage": {destructive: true},
-		"recall_bootstrap":         {readOnly: true},
-		"recall_search":            {readOnly: true},
-		"recall_read":              {readOnly: true},
-		"recall_write":             {destructive: true},
-		"recall_maintain":          {destructive: true},
-		"private_note_manage":      {destructive: true},
-	}
-
-	seen := make(map[string]bool, len(expected))
+func TestCentralToolDefinitionsMatchCanonicalContract(t *testing.T) {
+	definitions := make(map[string]any, len(mcpcontract.ToolNames()))
 	for _, tool := range nexusToolDefinitions() {
-		want, ok := expected[tool.Name]
-		if !ok {
-			continue
-		}
-		seen[tool.Name] = true
-		if tool.OutputSchema == nil {
-			t.Fatalf("%s missing outputSchema", tool.Name)
-		}
-		output, ok := tool.OutputSchema.(map[string]any)
-		if !ok || output["type"] != "object" {
-			t.Fatalf("%s outputSchema=%#v", tool.Name, tool.OutputSchema)
-		}
-		wantAdditionalProperties := tool.Name != "agentdock_context"
-		if output["additionalProperties"] != wantAdditionalProperties {
-			t.Fatalf("%s additionalProperties=%#v want %v", tool.Name, output["additionalProperties"], wantAdditionalProperties)
-		}
-		if tool.Annotations == nil {
-			t.Fatalf("%s missing annotations", tool.Name)
-		}
-		if tool.Annotations.ReadOnlyHint != want.readOnly {
-			t.Fatalf("%s readOnlyHint=%v want %v", tool.Name, tool.Annotations.ReadOnlyHint, want.readOnly)
-		}
-		if tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint != want.destructive {
-			t.Fatalf("%s destructiveHint=%v want %v", tool.Name, tool.Annotations.DestructiveHint, want.destructive)
-		}
-		if tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint != want.openWorld {
-			t.Fatalf("%s openWorldHint=%v want %v", tool.Name, tool.Annotations.OpenWorldHint, want.openWorld)
-		}
-		if tool.Annotations.IdempotentHint {
-			t.Fatalf("%s idempotentHint drifted from AgentDock", tool.Name)
-		}
+		definitions[tool.Name] = tool
 	}
-	for name := range expected {
-		if !seen[name] {
+	if len(definitions) != len(mcpcontract.ToolNames()) {
+		t.Fatalf("central tool count=%d want=%d", len(definitions), len(mcpcontract.ToolNames()))
+	}
+	for _, name := range mcpcontract.ToolNames() {
+		raw, ok := definitions[name]
+		if !ok {
 			t.Fatalf("central tool %s missing", name)
+		}
+		tool := raw.(*mcpsdk.Tool)
+		wantInput, _ := mcpcontract.InputSchema(name)
+		if !reflect.DeepEqual(tool.InputSchema, wantInput) {
+			t.Fatalf("%s input schema drifted from canonical contract", name)
+		}
+		var wantOutput map[string]any
+		if name == mcpcontract.ToolAgentDockContext {
+			wantOutput = mcpcontract.FleetAgentDockContextOutputSchema()
+		} else {
+			wantOutput, _ = mcpcontract.OutputSchema(name)
+		}
+		if !reflect.DeepEqual(tool.OutputSchema, wantOutput) {
+			t.Fatalf("%s output schema drifted from canonical contract", name)
+		}
+		wantAnnotations, _ := mcpcontract.AnnotationContract(name)
+		if tool.Annotations == nil ||
+			tool.Annotations.ReadOnlyHint != wantAnnotations.ReadOnlyHint ||
+			!reflect.DeepEqual(tool.Annotations.DestructiveHint, wantAnnotations.DestructiveHint) ||
+			!reflect.DeepEqual(tool.Annotations.OpenWorldHint, wantAnnotations.OpenWorldHint) {
+			t.Fatalf("%s annotations drifted: got=%#v want=%#v", name, tool.Annotations, wantAnnotations)
+		}
+		wantIdempotent := wantAnnotations.IdempotentHint != nil && *wantAnnotations.IdempotentHint
+		if tool.Annotations.IdempotentHint != wantIdempotent {
+			t.Fatalf("%s idempotentHint=%v want=%v", name, tool.Annotations.IdempotentHint, wantIdempotent)
 		}
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	protocol "github.com/uvwt/agentdock-protocol"
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -23,12 +24,6 @@ const nexusServerInstructions = "NexusDock 可以连接并统一操作多台 Age
 	"需要操作具体设备时，根据 `agentdock_context` 返回的节点信息选择目标 `node_id`。" +
 	"需要查找或读取长期记忆时使用 `recall_*`；需要查找或使用 Workflow 模板时使用 `workflow_template_manage`；" +
 	"处理多步骤任务时使用 `task_manage` 记录和维护任务进度。根据用户需求选择合适的设备和能力，检查、操作并验证设备状态。"
-
-var nexusToolNames = map[string]struct{}{
-	"agentdock_context": {}, "workflow_template_manage": {},
-	"recall_bootstrap": {}, "recall_search": {}, "recall_read": {},
-	"recall_write": {}, "recall_maintain": {}, "private_note_manage": {},
-}
 
 func (s *Server) initializeMCPGateway() {
 	s.mcpServer = mcpsdk.NewServer(
@@ -83,7 +78,7 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 	defer s.syncMCPAppResources()
 	helloToolNames := make(map[string]struct{}, len(hello.Tools))
 	for _, descriptor := range hello.Tools {
-		if _, central := nexusToolNames[descriptor.Name]; central || strings.TrimSpace(descriptor.Name) == "" {
+		if mcpcontract.IsCanonicalTool(descriptor.Name) || strings.TrimSpace(descriptor.Name) == "" {
 			continue
 		}
 		helloToolNames[descriptor.Name] = struct{}{}
@@ -429,8 +424,8 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 func (s *Server) callRecallWriteOperation(ctx context.Context, args map[string]any, target, action string) (map[string]any, error) {
 	dryRun := boolArgument(args, "dry_run")
 	confirmed := boolArgument(args, "confirmed")
-	previewOnly := dryRun || !confirmed
 	if target == "card" {
+		previewOnly := dryRun || !confirmed
 		var request recall.CardRequest
 		if err := decodeMap(args, &request); err != nil {
 			return nil, err
@@ -458,12 +453,15 @@ func (s *Server) callRecallWriteOperation(ctx context.Context, args map[string]a
 	}
 	path := stringArgument(args, "path")
 	if action == "delete" {
-		if previewOnly {
+		if dryRun {
 			current, err := s.store.Read(path)
 			if err != nil {
 				return nil, err
 			}
 			return asMap(map[string]any{"path": path, "dry_run": true, "would_delete": true, "size_bytes": current.SizeBytes})
+		}
+		if !confirmed {
+			return nil, recall.ErrConfirmationNeeded
 		}
 		err := s.store.Delete(path, true)
 		if err == nil {
@@ -482,6 +480,7 @@ func (s *Server) callRecallWriteOperation(ctx context.Context, args map[string]a
 	hasBeforeEdit := false
 	switch action {
 	case "plan", "create":
+		request.Overwrite = false
 	case "replace":
 		request.Overwrite = true
 	case "append", "patch":
@@ -540,7 +539,11 @@ func (s *Server) callRecallWriteOperation(ctx context.Context, args map[string]a
 	default:
 		return nil, fmt.Errorf("unsupported markdown action: %s", action)
 	}
-	if action == "plan" || previewOnly {
+	previewOnly := action == "plan" || dryRun
+	if action == "replace" || action == "append" || action == "patch" {
+		previewOnly = previewOnly || !confirmed
+	}
+	if previewOnly {
 		preview, err := s.store.PreviewWrite(request)
 		if err != nil {
 			return nil, err

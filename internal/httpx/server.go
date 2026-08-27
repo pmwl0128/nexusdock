@@ -187,6 +187,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/git/commit", protected(s.gitRecordVersion))
 	mux.HandleFunc("GET /v1/recall", deviceProtected(s.listMemories))
 	mux.HandleFunc("POST /v1/recall", deviceProtected(s.writeRecall))
+	mux.HandleFunc("POST /v1/recall/preview", deviceProtected(s.previewRecall))
 	mux.HandleFunc("POST /v1/recall/move", deviceProtected(s.moveRecall))
 	mux.HandleFunc("POST /v1/recall/search", deviceProtected(s.searchMemories))
 	mux.HandleFunc("POST /v1/recall/pack", deviceProtected(s.packMemories))
@@ -341,6 +342,22 @@ func (s *Server) readRecall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "recall": mem})
+}
+
+func (s *Server) previewRecall(w http.ResponseWriter, r *http.Request) {
+	var req recall.WriteRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	preview, err := s.store.PreviewWrite(req)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "PREVIEW_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "path": preview.Path, "proposed_content": preview.ProposedContent,
+		"overwrite": preview.Overwrite, "dry_run": true, "confirmed": req.Confirmed,
+	})
 }
 
 func (s *Server) writeRecall(w http.ResponseWriter, r *http.Request) {

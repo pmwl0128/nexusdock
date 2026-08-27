@@ -151,7 +151,7 @@ func TestNodeProvidesUIResourceRequiresExactCapability(t *testing.T) {
 		t.Fatal("exact ui_resources capability was rejected")
 	}
 	wrongContract := valid
-	wrongContract.Contract = "agentdock.context.fleet.v0"
+	wrongContract.Contract = protocol.ContextUIContract + ".mismatch"
 	if nodeProvidesUIResource([]agentdock.UIResourceCapability{wrongContract}, protocol.ContextUIResourceURI, protocol.ContextUIContract) {
 		t.Fatal("wrong renderer contract was accepted")
 	}

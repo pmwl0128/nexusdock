@@ -10,11 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
-	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
@@ -238,7 +239,7 @@ func (s *Store) UpdateHello(ctx context.Context, nodeID string, hello Hello) (No
 	if err != nil {
 		return Node{}, fmt.Errorf("编码 AgentDock 能力: %w", err)
 	}
-	uiResources, err := normalizeUIResources(hello.UIResources)
+	uiResources, err := validateUIResources(hello.UIResources)
 	if err != nil {
 		return Node{}, err
 	}
@@ -386,33 +387,37 @@ func scanNode(scanner interface{ Scan(...any) error }) (Node, error) {
 	return node, nil
 }
 
-func normalizeUIResources(values []UIResourceCapability) ([]UIResourceCapability, error) {
+func validateUIResources(values []UIResourceCapability) ([]UIResourceCapability, error) {
 	if values == nil {
 		return nil, invalid("AgentDock Bridge v2 握手必须声明 ui_resources")
 	}
 	seen := make(map[string]struct{}, len(values))
-	normalized := make([]UIResourceCapability, 0, len(values))
 	for _, value := range values {
-		uri := strings.TrimSpace(value.URI)
-		contract := strings.TrimSpace(value.Contract)
-		mimeType := strings.TrimSpace(value.MIMEType)
-		expectedContract, known := protocol.UIResourceContract(uri)
-		if !known {
-			return nil, invalid("AgentDock 声明了未知 UI resource: " + uri)
+		uri := value.URI
+		if strings.TrimSpace(uri) != uri {
+			return nil, invalid("AgentDock UI resource URI 不能包含首尾空白: " + uri)
 		}
-		if contract != expectedContract {
-			return nil, invalid("AgentDock UI resource contract 不兼容: " + uri)
+		parsed, err := url.Parse(uri)
+		if err != nil || parsed.Scheme != "ui" || parsed.Host == "" {
+			return nil, invalid("AgentDock UI resource URI 无效: " + uri)
 		}
-		if mimeType != protocol.MCPAppMIMEType {
-			return nil, invalid("AgentDock UI resource MIME type 不兼容: " + uri)
+		if value.Contract == "" || strings.TrimSpace(value.Contract) != value.Contract {
+			return nil, invalid("AgentDock UI resource contract 无效: " + uri)
+		}
+		if value.MIMEType == "" || strings.TrimSpace(value.MIMEType) != value.MIMEType {
+			return nil, invalid("AgentDock UI resource MIME type 无效: " + uri)
+		}
+		if _, _, err := mime.ParseMediaType(value.MIMEType); err != nil {
+			return nil, invalid("AgentDock UI resource MIME type 无效: " + uri)
 		}
 		if _, duplicate := seen[uri]; duplicate {
 			return nil, invalid("AgentDock UI resource 重复声明: " + uri)
 		}
 		seen[uri] = struct{}{}
-		normalized = append(normalized, UIResourceCapability{URI: uri, Contract: contract, MIMEType: mimeType})
 	}
-	return normalized, nil
+	// 握手层只验证结构，不按当前 Nexus renderer catalog 过滤或改写能力。
+	// 这样新 URI / contract / MIME 可以被旧 Nexus 原样持久化，真正渲染时再做精确匹配。
+	return append([]UIResourceCapability(nil), values...), nil
 }
 
 func normalizeCapabilities(values []string) []string {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
 	"github.com/uvwt/nexusdock/internal/versioning"
@@ -22,13 +23,140 @@ func newRecallToolTestServer(t *testing.T) (*Server, *recall.Store) {
 	return &Server{store: store, versions: manager}, store
 }
 
+func TestRecallWriteMatchesCanonicalBehaviorCases(t *testing.T) {
+	for _, behavior := range mcpcontract.RecallWriteBehaviorCases() {
+		t.Run(behavior.Name, func(t *testing.T) {
+			server, store := newRecallToolTestServer(t)
+			args := recallWriteBehaviorArgs(behavior)
+			before, existedBefore := prepareRecallWriteBehaviorFixture(t, store, behavior)
+
+			result, err := server.callRecallWrite(t.Context(), args)
+			got := classifyRecallWriteOutcome(behavior, result, err)
+			if got != behavior.Expected {
+				t.Fatalf("outcome=%s want=%s result=%#v err=%v", got, behavior.Expected, result, err)
+			}
+			assertRecallWriteBehaviorState(t, store, behavior, result, before, existedBefore)
+		})
+	}
+}
+
+func recallWriteBehaviorArgs(behavior mcpcontract.RecallWriteBehaviorCase) map[string]any {
+	args := map[string]any{
+		"target": behavior.Target, "action": behavior.Action,
+		"confirmed": behavior.Confirmed,
+	}
+	if behavior.DryRun {
+		args["dry_run"] = true
+	}
+	if behavior.Path != "" {
+		args["path"] = behavior.Path
+	}
+	switch behavior.Target {
+	case "card":
+		args["title"] = "Canonical behavior card"
+		args["content"] = "A reusable canonical behavior statement with enough detail to pass card validation without warnings."
+	case "markdown":
+		switch behavior.Action {
+		case "append":
+			args["content"] = "appended line\n"
+		case "patch":
+			args["old"] = "value: old"
+			args["new"] = "value: new"
+		case "update_fact":
+			args["key"] = "value"
+			args["value"] = "new"
+		case "diff":
+			args["content"] = "# Existing\n\nvalue: new\n"
+		case "delete":
+		default:
+			args["content"] = "# Canonical\n\nvalue: new\n"
+		}
+	}
+	return args
+}
+
+func prepareRecallWriteBehaviorFixture(t *testing.T, store *recall.Store, behavior mcpcontract.RecallWriteBehaviorCase) (string, bool) {
+	t.Helper()
+	if behavior.Target != "markdown" || behavior.Path == "" || !behavior.Existing {
+		return "", false
+	}
+	content := "# Existing\n\nvalue: old\n"
+	if _, err := store.Write(recall.WriteRequest{Path: behavior.Path, Content: content, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := store.Read(behavior.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stored.Content, true
+}
+
+func classifyRecallWriteOutcome(behavior mcpcontract.RecallWriteBehaviorCase, result map[string]any, err error) mcpcontract.RecallWriteOutcome {
+	if err != nil {
+		return mcpcontract.RecallWriteError
+	}
+	if behavior.Action == "diff" {
+		return mcpcontract.RecallWriteReadOnly
+	}
+	if dryRun, _ := result["dry_run"].(bool); dryRun {
+		return mcpcontract.RecallWritePreview
+	}
+	return mcpcontract.RecallWriteMutation
+}
+
+func assertRecallWriteBehaviorState(t *testing.T, store *recall.Store, behavior mcpcontract.RecallWriteBehaviorCase, result map[string]any, before string, existedBefore bool) {
+	t.Helper()
+	if behavior.Target == "card" {
+		card, _ := result["card"].(map[string]any)
+		path, _ := card["path"].(string)
+		if path == "" {
+			return
+		}
+		_, err := store.Read(path)
+		if behavior.Expected == mcpcontract.RecallWriteMutation && err != nil {
+			t.Fatalf("card mutation did not persist %q: %v", path, err)
+		}
+		if behavior.Expected != mcpcontract.RecallWriteMutation && !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("non-mutating card behavior persisted %q: %v", path, err)
+		}
+		return
+	}
+	if behavior.Path == "" {
+		return
+	}
+	after, err := store.Read(behavior.Path)
+	if behavior.Expected == mcpcontract.RecallWriteMutation {
+		if behavior.Action == "delete" {
+			if !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("delete mutation left %q: %v", behavior.Path, err)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("mutation did not persist %q: %v", behavior.Path, err)
+		}
+		return
+	}
+	if existedBefore {
+		if err != nil {
+			t.Fatalf("non-mutating behavior removed %q: %v", behavior.Path, err)
+		}
+		if after.Content != before {
+			t.Fatalf("non-mutating behavior changed %q: got %q want %q", behavior.Path, after.Content, before)
+		}
+		return
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("non-mutating behavior created %q: %v", behavior.Path, err)
+	}
+}
+
 func TestRecallWriteMarkdownDryRunAndPlanNeverPersist(t *testing.T) {
 	server, store := newRecallToolTestServer(t)
 	path := "recall/docs/inbox/mcp-dry-run.md"
 
 	for _, args := range []map[string]any{
 		{"target": "markdown", "action": "create", "path": path, "content": "# Dry run", "confirmed": true, "dry_run": true},
-		{"target": "markdown", "action": "create", "path": path, "content": "# Unconfirmed"},
 		{"target": "markdown", "action": "plan", "path": path, "content": "# Plan", "confirmed": true},
 	} {
 		result, err := server.callRecallWrite(t.Context(), args)
