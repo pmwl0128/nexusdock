@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/uvwt/nexusdock/internal/agentdock"
@@ -239,19 +240,19 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 		if err := socket.ReadJSON(&invoke); err != nil {
 			return
 		}
-		var call struct {
-			Tool      string         `json:"tool"`
-			Arguments map[string]any `json:"arguments"`
-		}
-		if err := json.Unmarshal(invoke.Arguments, &call); err != nil {
-			t.Errorf("decode context call: %v", err)
+		if invoke.Operation != nexusLocalContextOperation {
+			t.Errorf("fleet context operation = %q", invoke.Operation)
 			return
 		}
-		if call.Tool != agentDockContextToolName {
-			t.Errorf("fleet context called %q", call.Tool)
+		var arguments map[string]any
+		if len(invoke.Arguments) > 0 {
+			if err := json.Unmarshal(invoke.Arguments, &arguments); err != nil {
+				t.Errorf("decode context arguments: %v", err)
+				return
+			}
 		}
-		if localOnly, _ := call.Arguments[nexusLocalAgentDockContextArgument].(bool); !localOnly {
-			t.Errorf("fleet context did not request node-local context: %#v", call.Arguments)
+		if len(arguments) != 0 {
+			t.Errorf("bridge-private context operation received public tool arguments: %#v", arguments)
 		}
 		_ = socket.WriteJSON(map[string]any{
 			"type": "tool.result", "request_id": invoke.RequestID,
@@ -260,5 +261,88 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 				"content": []map[string]any{{"type": "text", "text": "context"}},
 			},
 		})
+	}()
+}
+
+func TestFleetContextReturnsPartialResultWhenNodeContextTimesOut(t *testing.T) {
+	store := newHTTPTestAgentDockStore(t)
+	descriptor := fleetContextTestDescriptor()
+	node := pairHTTPTestNode(t, store, "device_context_timeout", "DockSlow", "2.0.0", descriptor)
+	hub := agentdock.NewHub(store)
+	connectStalledFleetContextTestNode(t, hub, node, descriptor)
+	recallStore, err := recall.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{
+		cfg: config.Config{NexusDataDir: t.TempDir()}, store: recallStore,
+		agentDock: store, agentDockHub: hub,
+	}
+
+	started := time.Now()
+	result, err := server.callFleetAgentDockContextWithTimeout(t.Context(), 30*time.Millisecond)
+	if err != nil {
+		t.Fatalf("fleet context err=%v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("fleet context timeout took %v", elapsed)
+	}
+	var fleet fleetAgentDockContext
+	if err := decodeMap(result, &fleet); err != nil {
+		t.Fatal(err)
+	}
+	if len(fleet.Nodes) != 1 || !fleet.Nodes[0].Online || fleet.Nodes[0].Error != "context timeout" || fleet.Nodes[0].Context != nil {
+		t.Fatalf("timeout node=%#v", fleet.Nodes)
+	}
+	if fleet.Shared.Rules == nil {
+		t.Fatalf("partial result lost Nexus-owned shared context: %#v", fleet.Shared)
+	}
+}
+
+func connectStalledFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdock.Node, descriptor agentdock.ToolDescriptor) {
+	t.Helper()
+	connected := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := hub.Accept(w, r, node.ID); err != nil {
+			t.Errorf("accept stalled context node: %v", err)
+			return
+		}
+		close(connected)
+	}))
+	t.Cleanup(server.Close)
+
+	socket, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = socket.Close() })
+	if err := socket.WriteJSON(map[string]any{
+		"type": "node.hello", "protocol_version": agentdock.ConnectionProtocolVersion,
+		"hello": agentdock.Hello{
+			DeviceID: node.DeviceID, Version: node.Version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
+			OS: node.OS, Arch: node.Arch, Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var ready map[string]any
+	if err := socket.ReadJSON(&ready); err != nil || ready["type"] != "node.ready" {
+		t.Fatalf("ready=%#v err=%v", ready, err)
+	}
+	<-connected
+
+	go func() {
+		var invoke map[string]any
+		if err := socket.ReadJSON(&invoke); err != nil {
+			return
+		}
+		if invoke["operation"] != nexusLocalContextOperation {
+			t.Errorf("stalled context operation=%#v", invoke)
+			return
+		}
+		var cancel map[string]any
+		if err := socket.ReadJSON(&cancel); err == nil && cancel["type"] != "tool.cancel" {
+			t.Errorf("expected tool.cancel after timeout, got %#v", cancel)
+		}
 	}()
 }

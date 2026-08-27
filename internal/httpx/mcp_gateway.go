@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	pathpkg "path"
 	"regexp"
-	"sort"
 	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -117,7 +118,8 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 			!containsToolContractHash(published.AcceptedSemanticHashes, contractHash) ||
 			!jsonValuesEqual(published.Descriptor.Meta, descriptor.Meta) ||
 			!jsonValuesEqual(published.Descriptor.Annotations, descriptor.Annotations) ||
-			published.Descriptor.NexusResourceRelay != descriptor.NexusResourceRelay) {
+			published.Descriptor.NexusResourceRelay != descriptor.NexusResourceRelay ||
+			published.Descriptor.NexusResourceContract != descriptor.NexusResourceContract) {
 			// schema 不同不等于不兼容；由 Fleet 合并器决定能否安全形成同一代公开契约。
 			if err := s.reconcileFleetNodeTool(name); err != nil && s.logger != nil {
 				s.logger.Warn("检查 AgentDock 工具契约兼容性失败", "tool", name, "error", err)
@@ -289,6 +291,37 @@ func prettyJSON(value any) string {
 	return string(encoded)
 }
 
+func (s *Server) decorateRecallSearchResults(results []recall.SearchResult) ([]map[string]any, error) {
+	baseURL, _ := url.Parse(strings.TrimSpace(s.cfg.PublicURL))
+	validBaseURL := baseURL != nil && baseURL.IsAbs() && baseURL.Host != ""
+	decorated := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		item, err := asMap(result)
+		if err != nil {
+			return nil, err
+		}
+		path := strings.TrimSpace(result.Path)
+		if path == "" {
+			continue
+		}
+		item["id"] = path
+		if strings.TrimSpace(result.Title) == "" {
+			name := pathpkg.Base(path)
+			item["title"] = strings.TrimSuffix(name, pathpkg.Ext(name))
+		}
+		if validBaseURL {
+			sourceURL := *baseURL
+			query := sourceURL.Query()
+			query.Set("path", path)
+			sourceURL.RawQuery = query.Encode()
+			sourceURL.Fragment = "recall/library"
+			item["url"] = sourceURL.String()
+		}
+		decorated = append(decorated, item)
+	}
+	return decorated, nil
+}
+
 func (s *Server) callNexusTool(ctx context.Context, name string, args map[string]any) (map[string]any, error) {
 	switch name {
 	case "agentdock_context":
@@ -321,21 +354,30 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 			}
 			compacted = append(compacted, item)
 		}
-		return asMap(map[string]any{"ok": true, "bootstrap": true, "compact": !boolArgument(args, "include_body"), "sections": compacted, "count": len(compacted), "bytes": used, "max_bytes": maxBytes, "recall_store": "NexusDock Recall"})
+		return asMap(map[string]any{"bootstrap": true, "compact": !boolArgument(args, "include_body"), "project": "agentdock", "sections": compacted, "count": len(compacted), "bytes": used, "max_bytes": maxBytes, "recall_store": "NexusDock Recall", "recall_endpoint": s.cfg.PublicURL})
 	case "recall_search":
 		query := stringArgument(args, "query")
 		if query == "" {
 			return nil, errors.New("query is required")
 		}
+		kind := strings.ToLower(stringArgumentDefault(args, "kind", "all"))
 		prefix := ""
-		if strings.EqualFold(stringArgument(args, "kind"), "card") {
+		switch kind {
+		case "card":
 			prefix = "recall/managed/cards"
+		case "all", "markdown":
+		default:
+			return nil, fmt.Errorf("unsupported recall_search kind: %s", kind)
 		}
 		results, err := s.store.Search(query, prefix, intArgument(args, "max_results", 20))
 		if err != nil {
 			return nil, err
 		}
-		return asMap(map[string]any{"ok": true, "query": query, "results": results, "count": len(results), "recall_store": "NexusDock Recall"})
+		decorated, err := s.decorateRecallSearchResults(results)
+		if err != nil {
+			return nil, err
+		}
+		return asMap(map[string]any{"query": query, "recall_kind": kind, "results": decorated, "count": len(decorated), "recall_store": "NexusDock Recall", "recall_endpoint": s.cfg.PublicURL})
 	case "recall_read":
 		path := stringArgument(args, "path")
 		if strings.HasPrefix(path, "private-notes/") {
@@ -354,7 +396,7 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 		if boolArgument(args, "include_raw") {
 			item["raw_content"] = content
 		}
-		return asMap(map[string]any{"ok": true, "recall": item, "recall_store": "NexusDock Recall"})
+		return asMap(map[string]any{"recall": item, "recall_store": "NexusDock Recall", "recall_endpoint": s.cfg.PublicURL})
 	case "recall_write":
 		return s.callRecallWrite(ctx, args)
 	case "recall_maintain":
@@ -375,6 +417,17 @@ func centralToolResultMeta(name string, args map[string]any) mcpsdk.Meta {
 
 func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[string]any, error) {
 	target, action := strings.ToLower(stringArgument(args, "target")), strings.ToLower(stringArgument(args, "action"))
+	result, err := s.callRecallWriteOperation(ctx, args, target, action)
+	if result != nil {
+		delete(result, "ok")
+		result["recall_target"] = target
+		result["recall_action"] = action
+		result["recall_endpoint"] = s.cfg.PublicURL
+	}
+	return result, err
+}
+
+func (s *Server) callRecallWriteOperation(ctx context.Context, args map[string]any, target, action string) (map[string]any, error) {
 	dryRun := boolArgument(args, "dry_run")
 	confirmed := boolArgument(args, "confirmed")
 	previewOnly := dryRun || !confirmed
@@ -411,13 +464,13 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 			if err != nil {
 				return nil, err
 			}
-			return asMap(map[string]any{"ok": true, "path": path, "dry_run": true, "would_delete": true, "size_bytes": current.SizeBytes})
+			return asMap(map[string]any{"path": path, "dry_run": true, "would_delete": true, "size_bytes": current.SizeBytes})
 		}
 		err := s.store.Delete(path, true)
 		if err == nil {
 			s.versions.MarkChanged(ctx)
 		}
-		return asMap(map[string]any{"ok": err == nil, "path": path, "deleted": err == nil}, err)
+		return asMap(map[string]any{"path": path, "deleted": err == nil}, err)
 	}
 	if action == "update_fact" {
 		return s.updateRecallFacts(ctx, path, args)
@@ -426,29 +479,65 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 	if err := decodeMap(args, &request); err != nil {
 		return nil, err
 	}
+	var beforeEdit string
+	hasBeforeEdit := false
 	switch action {
 	case "plan", "create":
 	case "replace":
 		request.Overwrite = true
-	case "append", "patch", "diff":
+	case "append", "patch":
 		current, err := s.store.Read(path)
 		if err != nil {
 			return nil, err
 		}
-		content := current.Content
-		if action == "append" {
-			content += stringArgument(args, "append")
-		} else {
-			old, replacement := stringArgument(args, "old"), stringArgument(args, "new")
-			if old == "" || !strings.Contains(content, old) {
-				return nil, errors.New("patch old text was not found")
+		appendText := stringArgument(args, "append")
+		if action == "append" && strings.TrimSpace(appendText) == "" {
+			appendText = stringArgument(args, "content")
+		}
+		if action == "append" && strings.TrimSpace(appendText) == "" {
+			return nil, errors.New("append or content is required")
+		}
+		old, replacement := "", ""
+		section, sectionContent := "", ""
+		if action == "patch" {
+			old, replacement = stringArgument(args, "old"), stringArgument(args, "new")
+			section, sectionContent = stringArgument(args, "section"), stringArgument(args, "section_content")
+			if strings.TrimSpace(section) != "" && sectionContent == "" {
+				sectionContent = stringArgument(args, "content")
 			}
-			content = strings.Replace(content, old, replacement, 1)
 		}
-		if action == "diff" {
-			return asMap(map[string]any{"ok": true, "path": path, "changed": content != current.Content, "proposed_content": content})
+		content, _, err := recall.ApplyMarkdownPatch(current.Content, old, replacement, section, sectionContent, appendText)
+		if err != nil {
+			return nil, err
 		}
+		beforeEdit, hasBeforeEdit = current.Content, true
 		request.Content, request.Overwrite = content, true
+	case "diff":
+		current, err := s.store.Read(path)
+		if err != nil {
+			return nil, err
+		}
+		proposed := stringArgument(args, "content")
+		changeCount := 0
+		if proposed == "" {
+			proposed, changeCount, err = recall.ApplyMarkdownPatch(
+				current.Content,
+				stringArgument(args, "old"), stringArgument(args, "new"),
+				stringArgument(args, "section"), stringArgument(args, "section_content"), stringArgument(args, "append"),
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+		maxBytes := intArgument(args, "max_bytes", 60000)
+		if maxBytes <= 0 {
+			maxBytes = 60000
+		}
+		diff := recall.UnifiedDiff(path, current.Content, proposed, maxBytes)
+		return asMap(map[string]any{
+			"path": path, "changed": current.Content != proposed, "diff": diff,
+			"truncated": len(diff) >= maxBytes, "change_count": changeCount,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported markdown action: %s", action)
 	}
@@ -457,32 +546,50 @@ func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[
 		if err != nil {
 			return nil, err
 		}
-		return asMap(map[string]any{
-			"ok": true, "dry_run": true, "path": preview.Path,
+		result := map[string]any{
+			"dry_run": true, "confirmed": confirmed, "path": preview.Path,
 			"proposed_content": preview.ProposedContent, "overwrite": preview.Overwrite,
-		})
+		}
+		if hasBeforeEdit {
+			maxBytes := intArgument(args, "max_bytes", 60000)
+			if maxBytes <= 0 {
+				maxBytes = 60000
+			}
+			diff := recall.UnifiedDiff(path, beforeEdit, preview.ProposedContent, maxBytes)
+			result["changed"] = beforeEdit != preview.ProposedContent
+			result["diff"] = diff
+			result["truncated"] = len(diff) >= maxBytes
+		}
+		return asMap(result)
 	}
 	result, err := s.store.Write(request)
 	if err == nil {
 		s.versions.MarkChanged(ctx)
 	}
-	return asMap(map[string]any{"ok": err == nil, "recall": result, "recall_store": "NexusDock Recall"}, err)
+	return asMap(map[string]any{"recall": result, "recall_store": "NexusDock Recall"}, err)
 }
 
 func (s *Server) callRecallMaintain(ctx context.Context, args map[string]any) (map[string]any, error) {
-	action := strings.ToLower(stringArgument(args, "action"))
-	if action == "" {
-		action = "list"
+	action := strings.ToLower(stringArgumentDefault(args, "action", "list"))
+	result, err := s.callRecallMaintainOperation(ctx, args, action)
+	if result != nil {
+		delete(result, "ok")
+		result["recall_action"] = action
+		result["recall_endpoint"] = s.cfg.PublicURL
 	}
+	return result, err
+}
+
+func (s *Server) callRecallMaintainOperation(ctx context.Context, args map[string]any, action string) (map[string]any, error) {
 	switch action {
 	case "list":
 		entries, err := s.store.List(stringArgument(args, "prefix"), intArgument(args, "max_entries", 200))
-		return asMap(map[string]any{"ok": err == nil, "entries": entries, "count": len(entries)}, err)
+		return asMap(map[string]any{"entries": entries, "count": len(entries)}, err)
 	case "lint":
 		return s.lintRecall(args)
 	case "embedding_status":
 		if s.currentEmbedding() == nil {
-			return asMap(map[string]any{"ok": true, "enabled": false})
+			return asMap(map[string]any{"enabled": false})
 		}
 		return asMap(s.currentEmbedding().Status(ctx))
 	case "reindex", "reindex_cards":
@@ -505,9 +612,9 @@ func (s *Server) updateRecallFacts(ctx context.Context, path string, args map[st
 		return nil, errors.New("path is required")
 	}
 	facts := make(map[string]string)
-	if key := stringArgument(args, "key"); key != "" {
+	if key := strings.TrimSpace(stringArgument(args, "key")); key != "" {
 		value, exists := args["value"]
-		if !exists {
+		if !exists || value == nil {
 			return nil, errors.New("value is required when key is provided")
 		}
 		facts[key] = fmt.Sprint(value)
@@ -519,40 +626,27 @@ func (s *Server) updateRecallFacts(ctx context.Context, path string, args map[st
 			}
 		}
 	}
-	if len(facts) == 0 {
-		return nil, errors.New("provide key/value or facts")
-	}
 	current, err := s.store.Read(path)
 	if err != nil {
 		return nil, err
 	}
-	updated := current.Content
-	keys := make([]string, 0, len(facts))
-	for key := range facts {
-		keys = append(keys, key)
+	updated, updates, err := recall.UpdateMarkdownFacts(
+		current.Content, stringArgument(args, "section"), facts, boolArgument(args, "append_if_missing"),
+	)
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(keys)
-	missing := make([]string, 0)
-	for _, key := range keys {
-		pattern := regexp.MustCompile(`(?m)^(\s*(?:[-*]\s*)?` + regexp.QuoteMeta(key) + `\s*[:=]\s*).*$`)
-		if pattern.MatchString(updated) {
-			updated = pattern.ReplaceAllStringFunc(updated, func(line string) string {
-				matches := pattern.FindStringSubmatch(line)
-				return matches[1] + facts[key]
-			})
-			continue
-		}
-		if boolArgument(args, "append_if_missing") {
-			updated = strings.TrimRight(updated, "\n") + "\n" + key + ": " + facts[key] + "\n"
-			continue
-		}
-		missing = append(missing, key)
+	maxBytes := intArgument(args, "max_bytes", 60000)
+	if maxBytes <= 0 {
+		maxBytes = 60000
 	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("facts not found: %s", strings.Join(missing, ", "))
+	diff := recall.UnifiedDiff(path, current.Content, updated, maxBytes)
+	changed := updated != current.Content
+	preview := map[string]any{
+		"path": path, "changed": changed, "confirmed": boolArgument(args, "confirmed"),
+		"updates": updates, "diff": diff, "truncated": len(diff) >= maxBytes,
 	}
-	preview := map[string]any{"ok": true, "path": path, "changed": updated != current.Content, "proposed_content": updated}
-	if boolArgument(args, "dry_run") || !boolArgument(args, "confirmed") || updated == current.Content {
+	if boolArgument(args, "dry_run") || !boolArgument(args, "confirmed") || !changed {
 		preview["dry_run"] = true
 		return asMap(preview)
 	}
@@ -560,7 +654,10 @@ func (s *Server) updateRecallFacts(ctx context.Context, path string, args map[st
 	if err == nil {
 		s.versions.MarkChanged(ctx)
 	}
-	return asMap(map[string]any{"ok": err == nil, "path": path, "changed": true, "written": err == nil, "recall": result}, err)
+	return asMap(map[string]any{
+		"path": path, "changed": true, "confirmed": true, "written": err == nil,
+		"updates": updates, "diff": diff, "truncated": len(diff) >= maxBytes, "recall": result,
+	}, err)
 }
 
 func (s *Server) lintRecall(args map[string]any) (map[string]any, error) {
@@ -603,7 +700,7 @@ func (s *Server) lintRecall(args map[string]any) (map[string]any, error) {
 			}
 		}
 	}
-	return asMap(map[string]any{"ok": true, "terms": terms, "regex": boolArgument(args, "regex"), "files_scanned": filesScanned, "finding_count": len(findings), "findings": findings, "truncated": len(findings) >= maximum})
+	return asMap(map[string]any{"terms": terms, "regex": boolArgument(args, "regex"), "files_scanned": filesScanned, "finding_count": len(findings), "findings": findings, "truncated": len(findings) >= maximum})
 }
 
 func (s *Server) callPrivateNote(ctx context.Context, args map[string]any) (map[string]any, error) {
@@ -611,10 +708,21 @@ func (s *Server) callPrivateNote(ctx context.Context, args map[string]any) (map[
 		return nil, errors.New("private notes are not configured")
 	}
 	action := strings.ToLower(stringArgument(args, "action"))
+	result, err := s.callPrivateNoteOperation(ctx, args, action)
+	if result != nil {
+		delete(result, "ok")
+		result["action"] = action
+		result["private_note_store"] = "NexusDock Private Notes"
+		result["recall_endpoint"] = s.cfg.PublicURL
+	}
+	return result, err
+}
+
+func (s *Server) callPrivateNoteOperation(ctx context.Context, args map[string]any, action string) (map[string]any, error) {
 	switch action {
 	case "search":
 		results, err := s.privateNotes.Search(ctx, stringArgument(args, "query"), intArgument(args, "max_results", 8))
-		return asMap(map[string]any{"ok": err == nil, "action": action, "results": results, "count": len(results)}, err)
+		return asMap(map[string]any{"action": action, "results": results, "count": len(results)}, err)
 	case "read":
 		result, err := s.privateNotes.Read(stringArgument(args, "path"), intArgument(args, "max_bytes", 256000))
 		return asMap(result, err)

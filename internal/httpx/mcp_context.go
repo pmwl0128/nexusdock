@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
 const (
-	agentDockContextToolName           = "agentdock_context"
-	nexusLocalAgentDockContextArgument = "_nexus_local_only"
+	agentDockContextToolName   = "agentdock_context"
+	nexusLocalContextOperation = "context.local"
+	agentDockNodeInvokeTimeout = 8 * time.Second
 )
 
 var nexusSharedAgentDockRules = []string{
@@ -93,6 +95,10 @@ type fleetAgentDockSharedContext struct {
 }
 
 func (s *Server) callFleetAgentDockContext(ctx context.Context) (map[string]any, error) {
+	return s.callFleetAgentDockContextWithTimeout(ctx, agentDockNodeInvokeTimeout)
+}
+
+func (s *Server) callFleetAgentDockContextWithTimeout(ctx context.Context, leafTimeout time.Duration) (map[string]any, error) {
 	if s.agentDock == nil || s.agentDockHub == nil {
 		return nil, errors.New("AgentDock 节点运行时不可用")
 	}
@@ -130,11 +136,15 @@ func (s *Server) callFleetAgentDockContext(ctx context.Context) (map[string]any,
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			remote, invokeErr := s.agentDockHub.Invoke(ctx, node.ID, "tool.call", map[string]any{
-				"tool": agentDockContextToolName, "arguments": map[string]any{nexusLocalAgentDockContextArgument: true},
-			})
+			leafCtx, cancel := context.WithTimeout(ctx, leafTimeout)
+			defer cancel()
+			remote, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, nexusLocalContextOperation, map[string]any{})
 			if invokeErr != nil {
-				fleet.Nodes[index].Error = invokeErr.Error()
+				if errors.Is(invokeErr, context.DeadlineExceeded) {
+					fleet.Nodes[index].Error = "context timeout"
+				} else {
+					fleet.Nodes[index].Error = invokeErr.Error()
+				}
 				return
 			}
 			providerContext, decodeErr := decodeAgentDockContextResult(remote)

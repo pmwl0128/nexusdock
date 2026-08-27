@@ -190,6 +190,7 @@ func normalizeCard(req CardRequest) (Card, []string, error) {
 	if content == "" {
 		content = strings.TrimSpace(req.Summary)
 	}
+	rawProject := strings.TrimSpace(req.Project)
 	card := Card{
 		Title:      strings.TrimSpace(req.Title),
 		Content:    content,
@@ -215,14 +216,18 @@ func normalizeCard(req CardRequest) (Card, []string, error) {
 	if !card.Type.Valid() {
 		return Card{}, nil, fmt.Errorf("invalid card type %q", card.Type)
 	}
+	if card.Project == "" {
+		card.Project = "global"
+	}
 	if card.Scope == "" {
-		card.Scope = ScopeProject
+		if rawProject == "" || strings.EqualFold(card.Project, "global") {
+			card.Scope = ScopeGlobal
+		} else {
+			card.Scope = ScopeProject
+		}
 	}
 	if !card.Scope.Valid() || card.Scope == ScopeInbox || card.Scope == ScopeProfile || card.Scope == ScopeOps || card.Scope == ScopeAgent {
 		return Card{}, nil, fmt.Errorf("invalid card scope %q", card.Scope)
-	}
-	if card.Project == "" {
-		card.Project = "global"
 	}
 	if card.Status == "" {
 		card.Status = StatusInbox

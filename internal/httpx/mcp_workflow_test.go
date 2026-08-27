@@ -65,3 +65,29 @@ func TestCentralWorkflowTemplateManageSchemaHasNoNodeID(t *testing.T) {
 	}
 	t.Fatal("central workflow_template_manage tool is missing")
 }
+
+func TestCentralWorkflowListDefaultsToCurrentVersionPerTemplate(t *testing.T) {
+	server := &Server{cfg: config.Config{NexusDataDir: t.TempDir()}}
+	for _, version := range []string{"1.0.0", "2.0.0"} {
+		if _, err := server.publishWorkflowTemplateValue(testWorkflowTemplate("development.current", version)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	listed, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{"action": "list"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listed["count"] != 1 {
+		t.Fatalf("default list=%#v", listed)
+	}
+	templates, ok := listed["templates"].([]workflowTemplateSummary)
+	if !ok || len(templates) != 1 || templates[0].ID != "development.current" || templates[0].Version != "2.0.0" {
+		t.Fatalf("default current templates=%#v", listed["templates"])
+	}
+
+	retired, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{"action": "list", "template_status": "retired"})
+	if err != nil || retired["count"] != 1 {
+		t.Fatalf("retired history=%#v err=%v", retired, err)
+	}
+}

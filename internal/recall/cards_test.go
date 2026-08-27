@@ -77,3 +77,21 @@ func TestCardWriteUsesCardsPathAndReviewGate(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeCardDefaultsScopeFromProject(t *testing.T) {
+	global, _, err := normalizeCard(CardRequest{Title: "Global default", Content: "A reusable global card statement with enough detail for validation."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if global.Project != "global" || global.Scope != ScopeGlobal {
+		t.Fatalf("global defaults = project %q scope %q", global.Project, global.Scope)
+	}
+
+	project, _, err := normalizeCard(CardRequest{Title: "Project default", Content: "A reusable project card statement with enough detail for validation.", Project: "agentdock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if project.Project != "agentdock" || project.Scope != ScopeProject {
+		t.Fatalf("project defaults = project %q scope %q", project.Project, project.Scope)
+	}
+}

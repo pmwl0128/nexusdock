@@ -148,6 +148,25 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 	if converged.Annotations["destructiveHint"] != false || converged.Annotations["idempotentHint"] != true || converged.Annotations["openWorldHint"] != false {
 		t.Fatalf("converged annotations = %#v", converged.Annotations)
 	}
+
+	firstRenderer, err := cloneToolDescriptor(newDescriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstRenderer.NexusResourceContract = "agentdock.file-change.v1"
+	secondRenderer, err := cloneToolDescriptor(firstRenderer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRenderer.NexusResourceContract = "agentdock.file-change.v2"
+
+	mixedRenderers, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{firstRenderer, secondRenderer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mixedRenderers.NexusResourceRelay || mixedRenderers.NexusResourceContract != "" || mixedRenderers.Meta["ui"] != nil {
+		t.Fatalf("mixed renderer contracts must not publish shared UI: %#v", mixedRenderers)
+	}
 }
 
 func TestMergeFleetToolDescriptorsSupportsPlatformOptionalProperties(t *testing.T) {

@@ -46,7 +46,9 @@ type Recall struct {
 
 type SearchResult struct {
 	Path          string            `json:"path"`
+	ID            string            `json:"id,omitempty"`
 	Title         string            `json:"title,omitempty"`
+	URL           string            `json:"url,omitempty"`
 	Snippet       string            `json:"snippet"`
 	Frontmatter   map[string]string `json:"frontmatter"`
 	MatchedTerms  []string          `json:"matched_terms,omitempty"`

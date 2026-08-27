@@ -129,6 +129,9 @@ func (s *Server) callWorkflowTemplateManage(ctx context.Context, args map[string
 		for _, template := range templates {
 			summaries = append(summaries, s.workflowTemplateSummary(template))
 		}
+		if status == "" {
+			summaries = currentWorkflowTemplates(summaries)
+		}
 		return map[string]any{
 			"ok": true, "action": action, "templates": summaries, "count": len(summaries),
 			"workflow_dir": s.workflowRegistryRoot(), "source": "nexus-registry",

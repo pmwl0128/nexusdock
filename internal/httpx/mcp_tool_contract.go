@@ -376,6 +376,11 @@ func mergeFleetToolDescriptors(descriptors []agentdock.ToolDescriptor) (agentdoc
 	// _meta.ui 与 annotations 不改变节点能否执行输入/输出契约；其余 _meta 仍属于调用适配契约。
 	// UI 仅在所有 provider 都声明 Nexus Resource relay 时发布；安全提示按 MCP 默认语义保守合并。
 	merged.NexusResourceRelay = allDescriptorsSupportResourceRelay(descriptors)
+	if merged.NexusResourceRelay {
+		merged.NexusResourceContract = descriptors[0].NexusResourceContract
+	} else {
+		merged.NexusResourceContract = ""
+	}
 	merged.Meta = mergeFleetToolMeta(descriptors, merged.NexusResourceRelay)
 	merged.Annotations = mergeFleetToolAnnotations(descriptors)
 	return merged, normalizeToolContractHashes(acceptedHashes), nil
@@ -385,8 +390,9 @@ func allDescriptorsSupportResourceRelay(descriptors []agentdock.ToolDescriptor) 
 	if len(descriptors) == 0 {
 		return false
 	}
+	resourceContract := descriptors[0].NexusResourceContract
 	for _, descriptor := range descriptors {
-		if !descriptor.NexusResourceRelay {
+		if !descriptor.NexusResourceRelay || descriptor.NexusResourceContract != resourceContract {
 			return false
 		}
 	}

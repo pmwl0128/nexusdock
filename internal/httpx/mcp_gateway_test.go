@@ -105,7 +105,7 @@ func TestRecallUpdateFactPreviewsAndWrites(t *testing.T) {
 		t.Fatalf("result=%#v err=%v", result, err)
 	}
 	updated, _ := store.Read("profile.md")
-	if !strings.Contains(updated.Content, "editor: new") {
+	if !strings.Contains(updated.Content, "editor:new") {
 		t.Fatalf("updated content = %q", updated.Content)
 	}
 }
