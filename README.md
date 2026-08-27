@@ -72,7 +72,7 @@ sudo chown -R 10001:10001 nexus-data recall
 
 ### 3. 初始化管理员
 
-官方 GHCR 镜像发布在 `ghcr.io/uvwt/nexusdock:latest`；仓库自带 Compose 默认仍从当前源码构建，便于本地开发与精确复现。
+官方镜像同时发布到 `ghcr.io/uvwt/nexusdock` 与 `agentdockio/nexusdock`。正式版本使用 `0.1.0`、`0.1`、`latest` 与 `sha-<commit>` 标签；仓库自带 Compose 默认仍从当前源码构建，便于本地开发与精确复现。
 
 ```bash
 docker compose build nexusdock
