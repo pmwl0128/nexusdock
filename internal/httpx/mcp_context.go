@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
 const (
 	agentDockContextToolName   = "agentdock_context"
-	nexusLocalContextOperation = "context.local"
 	agentDockNodeInvokeTimeout = 8 * time.Second
 )
 
@@ -138,7 +138,7 @@ func (s *Server) callFleetAgentDockContextWithTimeout(ctx context.Context, leafT
 			defer wait.Done()
 			leafCtx, cancel := context.WithTimeout(ctx, leafTimeout)
 			defer cancel()
-			remote, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, nexusLocalContextOperation, map[string]any{})
+			remote, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, protocol.OperationContextLocal, map[string]any{})
 			if invokeErr != nil {
 				if errors.Is(invokeErr, context.DeadlineExceeded) {
 					fleet.Nodes[index].Error = "context timeout"

@@ -10,16 +10,8 @@ import (
 	"time"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
-)
-
-const agentDockMCPAppResourcePrefix = "ui://agentdock/"
-const mcpAppMIMEType = "text/html;profile=mcp-app"
-
-const (
-	contextMCPAppResourceContract  = "agentdock.context.fleet.v1"
-	recallMCPAppResourceContract   = "agentdock.recall.v1"
-	workflowMCPAppResourceContract = "agentdock.workflow.v1"
 )
 
 func (s *Server) syncMCPAppResources() {
@@ -27,7 +19,13 @@ func (s *Server) syncMCPAppResources() {
 		return
 	}
 
-	desired := s.publishedMCPAppResourceURIs()
+	desired, err := s.publishedMCPAppResourceURIs(context.Background())
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("同步 AgentDock MCP App resource 目录失败", "error", err)
+		}
+		return
+	}
 	s.mcpResourcesMu.Lock()
 	defer s.mcpResourcesMu.Unlock()
 	if s.mcpResources == nil {
@@ -51,7 +49,7 @@ func (s *Server) syncMCPAppResources() {
 			Name:        mcpAppResourceName(uri),
 			Title:       "AgentDock MCP App",
 			Description: "MCP App resource relayed from a compatible AgentDock node.",
-			MIMEType:    mcpAppMIMEType,
+			MIMEType:    protocol.MCPAppMIMEType,
 			Meta:        nexusMCPAppResourceMeta(s.cfg.PublicURL),
 		}, func(ctx context.Context, request *mcpsdk.ReadResourceRequest) (*mcpsdk.ReadResourceResult, error) {
 			if request == nil || request.Params == nil || request.Params.URI != uri {
@@ -63,23 +61,32 @@ func (s *Server) syncMCPAppResources() {
 	}
 }
 
-func (s *Server) publishedMCPAppResourceURIs() map[string]struct{} {
-	s.mcpToolsMu.RLock()
-	defer s.mcpToolsMu.RUnlock()
-	uris := map[string]struct{}{
-		agentDockContextUIResourceURI: {},
-		recallUIResourceURI:           {},
-		workflowUIResourceURI:         {},
+func (s *Server) publishedMCPAppResourceURIs(ctx context.Context) (map[string]struct{}, error) {
+	uris := make(map[string]struct{})
+	if s == nil || s.agentDock == nil {
+		return uris, nil
 	}
-	for _, published := range s.mcpTools {
-		if !published.Descriptor.NexusResourceRelay {
+	nodes, err := s.agentDock.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, node := range nodes {
+		if !node.Enabled {
 			continue
 		}
-		if uri := toolUIResourceURI(published.Descriptor); uri != "" {
-			uris[uri] = struct{}{}
+		resources, err := s.agentDock.UIResources(ctx, node.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, resource := range resources {
+			expectedContract, known := protocol.UIResourceContract(resource.URI)
+			if !known || resource.Contract != expectedContract || resource.MIMEType != protocol.MCPAppMIMEType {
+				continue
+			}
+			uris[resource.URI] = struct{}{}
 		}
 	}
-	return uris
+	return uris, nil
 }
 
 func (s *Server) readPublishedMCPAppResource(ctx context.Context, uri string) (*mcpsdk.ReadResourceResult, error) {
@@ -90,70 +97,12 @@ func (s *Server) readPublishedMCPAppResource(ctx context.Context, uri string) (*
 	if err != nil {
 		return nil, err
 	}
-	if isCentralMCPAppResourceURI(uri) {
-		return s.readCentralMCPAppResource(ctx, nodes, uri)
-	}
-
-	foundProvider := false
-	var lastErr error
-	for _, node := range nodes {
-		descriptors, descriptorErr := s.agentDock.ToolDescriptors(ctx, node.ID)
-		if descriptorErr != nil {
-			lastErr = descriptorErr
-			continue
-		}
-		if !s.nodeProvidesPublishedMCPAppResource(descriptors, uri) {
-			continue
-		}
-		foundProvider = true
-		if !node.Enabled || !s.agentDockHub.Online(node.ID) {
-			continue
-		}
-
-		leafCtx, cancel := context.WithTimeout(ctx, agentDockNodeInvokeTimeout)
-		result, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, "resource.read", map[string]any{"uri": uri})
-		cancel()
-		if invokeErr != nil {
-			if errors.Is(invokeErr, context.DeadlineExceeded) {
-				lastErr = errors.New("resource timeout")
-			} else {
-				lastErr = invokeErr
-			}
-			continue
-		}
-		read, decodeErr := decodeNodeMCPAppResource(uri, result, s.cfg.PublicURL)
-		if decodeErr != nil {
-			lastErr = decodeErr
-			continue
-		}
-		return read, nil
-	}
-
-	if !foundProvider {
-		return nil, mcpsdk.ResourceNotFoundError(uri)
-	}
-	if lastErr != nil {
-		return nil, fmt.Errorf("读取 AgentDock MCP App resource %s: %w", uri, lastErr)
-	}
-	return nil, fmt.Errorf("AgentDock MCP App resource %s 当前没有在线 provider", uri)
+	return s.readMCPAppResourceWithTimeout(ctx, nodes, uri, agentDockNodeInvokeTimeout)
 }
 
-func isCentralMCPAppResourceURI(uri string) bool {
-	switch uri {
-	case agentDockContextUIResourceURI, recallUIResourceURI, workflowUIResourceURI:
-		return true
-	default:
-		return false
-	}
-}
-
-func (s *Server) readCentralMCPAppResource(ctx context.Context, nodes []agentdock.Node, uri string) (*mcpsdk.ReadResourceResult, error) {
-	return s.readCentralMCPAppResourceWithTimeout(ctx, nodes, uri, agentDockNodeInvokeTimeout)
-}
-
-func (s *Server) readCentralMCPAppResourceWithTimeout(ctx context.Context, nodes []agentdock.Node, uri string, leafTimeout time.Duration) (*mcpsdk.ReadResourceResult, error) {
-	expectedContract := centralMCPAppResourceContract(uri)
-	if expectedContract == "" {
+func (s *Server) readMCPAppResourceWithTimeout(ctx context.Context, nodes []agentdock.Node, uri string, leafTimeout time.Duration) (*mcpsdk.ReadResourceResult, error) {
+	expectedContract, known := protocol.UIResourceContract(uri)
+	if !known {
 		return nil, mcpsdk.ResourceNotFoundError(uri)
 	}
 	foundCompatibleProvider := false
@@ -162,20 +111,21 @@ func (s *Server) readCentralMCPAppResourceWithTimeout(ctx context.Context, nodes
 		if !node.Enabled {
 			continue
 		}
-		descriptors, descriptorErr := s.agentDock.ToolDescriptors(ctx, node.ID)
-		if descriptorErr != nil {
-			lastErr = descriptorErr
+		resources, resourceErr := s.agentDock.UIResources(ctx, node.ID)
+		if resourceErr != nil {
+			lastErr = resourceErr
 			continue
 		}
-		if !nodeProvidesCentralMCPAppResource(descriptors, uri, expectedContract) {
+		if !nodeProvidesUIResource(resources, uri, expectedContract) {
 			continue
 		}
 		foundCompatibleProvider = true
 		if !s.agentDockHub.Online(node.ID) {
 			continue
 		}
+
 		leafCtx, cancel := context.WithTimeout(ctx, leafTimeout)
-		result, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, "resource.read", map[string]any{"uri": uri})
+		result, invokeErr := s.agentDockHub.Invoke(leafCtx, node.ID, protocol.OperationResourceRead, map[string]any{"uri": uri})
 		cancel()
 		if invokeErr != nil {
 			if errors.Is(invokeErr, context.DeadlineExceeded) {
@@ -193,50 +143,17 @@ func (s *Server) readCentralMCPAppResourceWithTimeout(ctx context.Context, nodes
 		return read, nil
 	}
 	if !foundCompatibleProvider {
-		return nil, fmt.Errorf("中央 MCP App resource %s 没有兼容 contract %s 的 AgentDock provider", uri, expectedContract)
+		return nil, fmt.Errorf("MCP App resource %s 没有兼容 contract %s 的 AgentDock provider", uri, expectedContract)
 	}
 	if lastErr != nil {
-		return nil, fmt.Errorf("读取中央 MCP App resource %s: %w", uri, lastErr)
+		return nil, fmt.Errorf("读取 MCP App resource %s: %w", uri, lastErr)
 	}
-	return nil, fmt.Errorf("中央 MCP App resource %s 当前没有在线兼容 AgentDock provider", uri)
+	return nil, fmt.Errorf("MCP App resource %s 当前没有在线兼容 AgentDock provider", uri)
 }
 
-func centralMCPAppResourceContract(uri string) string {
-	switch uri {
-	case agentDockContextUIResourceURI:
-		return contextMCPAppResourceContract
-	case recallUIResourceURI:
-		return recallMCPAppResourceContract
-	case workflowUIResourceURI:
-		return workflowMCPAppResourceContract
-	default:
-		return ""
-	}
-}
-
-func nodeProvidesCentralMCPAppResource(descriptors []agentdock.ToolDescriptor, uri, expectedContract string) bool {
-	for _, descriptor := range descriptors {
-		if descriptor.NexusResourceRelay &&
-			descriptor.NexusResourceContract == expectedContract &&
-			toolUIResourceURI(descriptor) == uri {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Server) nodeProvidesPublishedMCPAppResource(descriptors []agentdock.ToolDescriptor, uri string) bool {
-	for _, descriptor := range descriptors {
-		if !descriptor.NexusResourceRelay || toolUIResourceURI(descriptor) != uri {
-			continue
-		}
-		published, ok := s.publishedNodeTool(descriptor.Name)
-		if !ok || toolUIResourceURI(published.Descriptor) != uri ||
-			published.Descriptor.NexusResourceContract != descriptor.NexusResourceContract {
-			continue
-		}
-		hash, err := toolContractHash(descriptor)
-		if err == nil && containsToolContractHash(published.AcceptedSemanticHashes, hash) {
+func nodeProvidesUIResource(resources []agentdock.UIResourceCapability, uri, expectedContract string) bool {
+	for _, resource := range resources {
+		if resource.URI == uri && resource.Contract == expectedContract && resource.MIMEType == protocol.MCPAppMIMEType {
 			return true
 		}
 	}
@@ -256,7 +173,7 @@ func decodeNodeMCPAppResource(uri string, result map[string]any, publicURL strin
 		return nil, fmt.Errorf("节点 MCP App resource %s 内容为空", uri)
 	}
 	for _, content := range read.Contents {
-		if content == nil || content.URI != uri || content.MIMEType != mcpAppMIMEType || content.Text == "" {
+		if content == nil || content.URI != uri || content.MIMEType != protocol.MCPAppMIMEType || content.Text == "" {
 			return nil, fmt.Errorf("节点 MCP App resource %s 返回了无效内容", uri)
 		}
 		// Resource 由 Nexus 对外提供，不能沿用节点域；组件必须使用 Nexus 自己的唯一公网 origin。
@@ -265,21 +182,23 @@ func decodeNodeMCPAppResource(uri string, result map[string]any, publicURL strin
 	return &read, nil
 }
 
-func toolUIResourceURI(descriptor agentdock.ToolDescriptor) string {
+// toolBoundUIResourceURI reads only presentation binding from a published tool descriptor.
+// Provider capability is never inferred here; resource.read routing uses persisted ui_resources instead.
+func toolBoundUIResourceURI(descriptor agentdock.ToolDescriptor) string {
 	ui, ok := descriptor.Meta["ui"].(map[string]any)
 	if !ok {
 		return ""
 	}
 	uri, _ := ui["resourceUri"].(string)
 	uri = strings.TrimSpace(uri)
-	if !strings.HasPrefix(uri, agentDockMCPAppResourcePrefix) {
+	if _, known := protocol.UIResourceContract(uri); !known {
 		return ""
 	}
 	return uri
 }
 
 func mcpAppResourceName(uri string) string {
-	name := strings.TrimPrefix(uri, agentDockMCPAppResourcePrefix)
+	name := strings.TrimPrefix(uri, protocol.AgentDockUIResourcePrefix)
 	name = strings.Trim(strings.ReplaceAll(name, "/", "-"), "-")
 	if name == "" {
 		return "agentdock-mcp-app"

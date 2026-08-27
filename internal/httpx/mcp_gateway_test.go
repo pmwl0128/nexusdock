@@ -259,7 +259,7 @@ func pairHTTPTestNode(t *testing.T, store *agentdock.Store, deviceID, name, vers
 	}
 	node, err = store.UpdateHello(t.Context(), node.ID, agentdock.Hello{
 		DeviceID: node.DeviceID, Version: version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
-		Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor},
+		Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor}, UIResources: []agentdock.UIResourceCapability{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -327,7 +327,7 @@ func TestRegisterNodeToolsRetiresToolWhenLastProviderDropsCapability(t *testing.
 	server.registerNodeTools(node, agentdock.Hello{Tools: []agentdock.ToolDescriptor{descriptor}})
 
 	updated, err := store.UpdateHello(t.Context(), node.ID, agentdock.Hello{
-		DeviceID: node.DeviceID, Version: "1.9.1", ProtocolVersion: agentdock.ConnectionProtocolVersion,
+		DeviceID: node.DeviceID, Version: "1.9.1", ProtocolVersion: agentdock.ConnectionProtocolVersion, UIResources: []agentdock.UIResourceCapability{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -373,7 +373,7 @@ func updateHTTPTestNodeContract(t *testing.T, store *agentdock.Store, node agent
 	t.Helper()
 	updated, err := store.UpdateHello(t.Context(), node.ID, agentdock.Hello{
 		DeviceID: node.DeviceID, Version: version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
-		Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor},
+		Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor}, UIResources: []agentdock.UIResourceCapability{},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -6,6 +6,7 @@ require (
 	filippo.io/age v1.2.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/uvwt/agentdock-protocol v0.0.0-20260827062209-801b6428dd74
 	golang.org/x/crypto v0.37.0
 	modernc.org/sqlite v1.39.1
 )

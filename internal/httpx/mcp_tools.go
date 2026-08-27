@@ -1,11 +1,8 @@
 package httpx
 
-import mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
-
-const (
-	agentDockContextUIResourceURI = "ui://agentdock/context"
-	recallUIResourceURI           = "ui://agentdock/recall"
-	workflowUIResourceURI         = "ui://agentdock/workflow"
+import (
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	protocol "github.com/uvwt/agentdock-protocol"
 )
 
 func nexusToolDefinitions() []*mcpsdk.Tool {
@@ -15,7 +12,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			Description: "Return one combined context for all enabled AgentDock nodes, including node-local capabilities and Nexus-owned shared Workflow and Recall context.",
 			InputSchema: objectSchema(map[string]any{}), OutputSchema: fleetAgentDockContextOutputSchema(),
 			Annotations: centralReadOnlyAnnotations(false),
-			Meta:        centralToolUIResourceMeta(agentDockContextUIResourceURI),
+			Meta:        centralToolUIResourceMeta(protocol.ContextUIResourceURI),
 		},
 		{Name: "recall_bootstrap", Title: "Bootstrap NexusDock Recall context", Description: "Load high-priority Recall context once from NexusDock.", InputSchema: objectSchema(map[string]any{
 			"max_bytes":   integerProperty("Maximum combined Recall pack bytes."),
@@ -23,7 +20,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 		}), OutputSchema: centralToolOutputSchema("recall_bootstrap"), Annotations: centralReadOnlyAnnotations(false)},
 		{Name: "recall_search", Title: "Search NexusDock Recall", Description: "Search Markdown documents and cards in the central Recall store.", InputSchema: requiredObjectSchema(map[string]any{
 			"query": stringProperty("Text query."), "kind": enumProperty("all", "markdown", "card"), "max_results": integerProperty("Maximum results."),
-		}, "query"), OutputSchema: centralToolOutputSchema("recall_search"), Annotations: centralReadOnlyAnnotations(false), Meta: centralToolUIResourceMeta(recallUIResourceURI)},
+		}, "query"), OutputSchema: centralToolOutputSchema("recall_search"), Annotations: centralReadOnlyAnnotations(false), Meta: centralToolUIResourceMeta(protocol.RecallUIResourceURI)},
 		{Name: "recall_read", Title: "Read NexusDock Recall entry", Description: "Read one central Recall entry by path.", InputSchema: requiredObjectSchema(map[string]any{
 			"path": stringProperty("Recall-relative path."), "include_raw": booleanProperty("Include raw Markdown."),
 		}, "path"), OutputSchema: centralToolOutputSchema("recall_read"), Annotations: centralReadOnlyAnnotations(false)},
@@ -38,7 +35,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			"section_content": stringProperty("Patch only: new body for the selected Markdown section."), "key": stringProperty("Update_fact only: fact key to update."),
 			"value": stringProperty("Update_fact only: new fact value."), "facts": mapStringProperty("Update_fact only: multiple key/value facts to update."),
 			"append_if_missing": booleanProperty("Update_fact only: append missing keys to the selected section or document instead of failing."), "max_bytes": integerProperty("Maximum diff/output bytes."),
-		}, "target", "action"), OutputSchema: centralToolOutputSchema("recall_write"), Annotations: centralMutatingAnnotations(true, false), Meta: centralToolUIResourceMeta(recallUIResourceURI)},
+		}, "target", "action"), OutputSchema: centralToolOutputSchema("recall_write"), Annotations: centralMutatingAnnotations(true, false), Meta: centralToolUIResourceMeta(protocol.RecallUIResourceURI)},
 		{Name: "recall_maintain", Title: "Maintain NexusDock Recall", Description: "Inspect sync/index state or rebuild the central Recall index.", InputSchema: objectSchema(map[string]any{
 			"action": enumProperty("list", "lint", "embedding_status", "reindex", "reindex_cards"), "prefix": stringProperty("Optional prefix."), "max_entries": integerProperty("Maximum entries."),
 			"terms": arrayStringProperty("Terms or regular expressions to find."), "regex": booleanProperty("Treat terms as regular expressions."), "max_findings": integerProperty("Maximum lint findings."),

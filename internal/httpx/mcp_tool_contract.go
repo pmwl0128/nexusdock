@@ -373,41 +373,19 @@ func mergeFleetToolDescriptors(descriptors []agentdock.ToolDescriptor) (agentdoc
 			return agentdock.ToolDescriptor{}, nil, err
 		}
 	}
-	// _meta.ui 与 annotations 不改变节点能否执行输入/输出契约；其余 _meta 仍属于调用适配契约。
-	// UI 仅在所有 provider 都声明 Nexus Resource relay 时发布；安全提示按 MCP 默认语义保守合并。
-	merged.NexusResourceRelay = allDescriptorsSupportResourceRelay(descriptors)
-	if merged.NexusResourceRelay {
-		merged.NexusResourceContract = descriptors[0].NexusResourceContract
-	} else {
-		merged.NexusResourceContract = ""
-	}
-	merged.Meta = mergeFleetToolMeta(descriptors, merged.NexusResourceRelay)
+	// _meta.ui 是展示绑定，不属于节点 resource provider 能力；只有所有 provider 展示元数据一致时才保留。
+	// resource.read provider 由 Hello.ui_resources 独立决定，安全提示仍按 MCP 默认语义保守合并。
+	merged.Meta = mergeFleetToolMeta(descriptors)
 	merged.Annotations = mergeFleetToolAnnotations(descriptors)
 	return merged, normalizeToolContractHashes(acceptedHashes), nil
 }
 
-func allDescriptorsSupportResourceRelay(descriptors []agentdock.ToolDescriptor) bool {
-	if len(descriptors) == 0 {
-		return false
-	}
-	resourceContract := descriptors[0].NexusResourceContract
-	for _, descriptor := range descriptors {
-		if !descriptor.NexusResourceRelay || descriptor.NexusResourceContract != resourceContract {
-			return false
-		}
-	}
-	return true
-}
-
-func mergeFleetToolMeta(descriptors []agentdock.ToolDescriptor, resourceRelay bool) map[string]any {
+func mergeFleetToolMeta(descriptors []agentdock.ToolDescriptor) map[string]any {
 	if len(descriptors) == 0 || len(descriptors[0].Meta) == 0 {
 		return nil
 	}
 	common := make(map[string]any, len(descriptors[0].Meta))
 	for key, value := range descriptors[0].Meta {
-		if key == "ui" && !resourceRelay {
-			continue
-		}
 		common[key] = value
 	}
 	for _, descriptor := range descriptors[1:] {

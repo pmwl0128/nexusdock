@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
 const (
-	ConnectionProtocolVersion = "1"
 	maxConnectionMessageBytes = 8 << 20
 	heartbeatInterval         = 30 * time.Second
 )
@@ -23,36 +23,6 @@ var (
 	ErrNodeOffline      = errors.New("AgentDock 节点当前离线")
 	ErrNodeDisconnected = errors.New("AgentDock 节点连接已断开")
 )
-
-type RemoteError struct {
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Category  string         `json:"category,omitempty"`
-	Retryable bool           `json:"retryable,omitempty"`
-	Details   map[string]any `json:"details,omitempty"`
-}
-
-func (e *RemoteError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.Message != "" {
-		return e.Message
-	}
-	return e.Code
-}
-
-type connectionMessage struct {
-	Type        string          `json:"type"`
-	RequestID   string          `json:"request_id,omitempty"`
-	Operation   string          `json:"operation,omitempty"`
-	Arguments   json.RawMessage `json:"arguments,omitempty"`
-	Result      json.RawMessage `json:"result,omitempty"`
-	Error       *RemoteError    `json:"error,omitempty"`
-	Hello       *Hello          `json:"hello,omitempty"`
-	Protocol    string          `json:"protocol_version,omitempty"`
-	HeartbeatMS int             `json:"heartbeat_ms,omitempty"`
-}
 
 type pendingResult struct {
 	result json.RawMessage
@@ -131,7 +101,7 @@ func (h *Hub) Accept(w http.ResponseWriter, r *http.Request, nodeID string) erro
 		connection.close(err)
 		return fmt.Errorf("读取 AgentDock 握手: %w", err)
 	}
-	if first.Type != "node.hello" || first.Hello == nil || first.Protocol != ConnectionProtocolVersion {
+	if first.Type != protocol.MessageNodeHello || first.Hello == nil || first.ProtocolVersion != ConnectionProtocolVersion || first.Hello.ProtocolVersion != ConnectionProtocolVersion {
 		connection.close(errors.New("invalid AgentDock handshake"))
 		return errors.New("AgentDock 节点握手无效")
 	}
@@ -141,7 +111,7 @@ func (h *Hub) Accept(w http.ResponseWriter, r *http.Request, nodeID string) erro
 		return err
 	}
 	if err := connection.write(connectionMessage{
-		Type: "node.ready", Protocol: ConnectionProtocolVersion, HeartbeatMS: int(heartbeatInterval / time.Millisecond),
+		Type: protocol.MessageNodeReady, ProtocolVersion: ConnectionProtocolVersion, HeartbeatMS: int(heartbeatInterval / time.Millisecond),
 	}); err != nil {
 		connection.close(err)
 		return fmt.Errorf("确认 AgentDock 握手: %w", err)
@@ -188,13 +158,13 @@ func (h *Hub) Invoke(ctx context.Context, nodeID, operation string, arguments an
 	}
 	defer connection.removePending(requestID)
 
-	if err := connection.write(connectionMessage{Type: "tool.invoke", RequestID: requestID, Operation: operation, Arguments: encoded}); err != nil {
+	if err := connection.write(connectionMessage{Type: protocol.MessageToolInvoke, RequestID: requestID, Operation: operation, Arguments: encoded}); err != nil {
 		connection.close(err)
 		return nil, ErrNodeDisconnected
 	}
 	select {
 	case <-ctx.Done():
-		_ = connection.write(connectionMessage{Type: "tool.cancel", RequestID: requestID})
+		_ = connection.write(connectionMessage{Type: protocol.MessageToolCancel, RequestID: requestID})
 		return nil, ctx.Err()
 	case response := <-resultChannel:
 		if response.err != nil {
@@ -224,16 +194,16 @@ func (h *Hub) readLoop(connection *nodeConnection) {
 		}
 		_ = connection.socket.SetReadDeadline(time.Now().Add(2 * heartbeatInterval))
 		switch message.Type {
-		case "tool.result":
+		case protocol.MessageToolResult:
 			connection.resolve(message.RequestID, pendingResult{result: message.Result})
-		case "tool.error":
+		case protocol.MessageToolError:
 			if message.Error == nil {
 				message.Error = &RemoteError{Code: "NODE_BAD_RESPONSE", Message: "AgentDock 返回了空错误"}
 			}
 			connection.resolve(message.RequestID, pendingResult{err: message.Error})
-		case "node.heartbeat":
+		case protocol.MessageNodeHeartbeat:
 			_ = h.store.Touch(context.Background(), connection.nodeID)
-			_ = connection.write(connectionMessage{Type: "node.heartbeat"})
+			_ = connection.write(connectionMessage{Type: protocol.MessageNodeHeartbeat})
 		}
 	}
 }

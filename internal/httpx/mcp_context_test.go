@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -216,16 +217,16 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 	}
 	t.Cleanup(func() { _ = socket.Close() })
 	if err := socket.WriteJSON(map[string]any{
-		"type": "node.hello", "protocol_version": agentdock.ConnectionProtocolVersion,
+		"type": protocol.MessageNodeHello, "protocol_version": agentdock.ConnectionProtocolVersion,
 		"hello": agentdock.Hello{
 			DeviceID: node.DeviceID, Version: node.Version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
-			OS: node.OS, Arch: node.Arch, Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor},
+			OS: node.OS, Arch: node.Arch, Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor}, UIResources: []agentdock.UIResourceCapability{},
 		},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var ready map[string]any
-	if err := socket.ReadJSON(&ready); err != nil || ready["type"] != "node.ready" {
+	if err := socket.ReadJSON(&ready); err != nil || ready["type"] != protocol.MessageNodeReady {
 		t.Fatalf("ready=%#v err=%v", ready, err)
 	}
 	<-connected
@@ -240,7 +241,7 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 		if err := socket.ReadJSON(&invoke); err != nil {
 			return
 		}
-		if invoke.Operation != nexusLocalContextOperation {
+		if invoke.Operation != protocol.OperationContextLocal {
 			t.Errorf("fleet context operation = %q", invoke.Operation)
 			return
 		}
@@ -255,7 +256,7 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 			t.Errorf("bridge-private context operation received public tool arguments: %#v", arguments)
 		}
 		_ = socket.WriteJSON(map[string]any{
-			"type": "tool.result", "request_id": invoke.RequestID,
+			"type": protocol.MessageToolResult, "request_id": invoke.RequestID,
 			"result": map[string]any{
 				"isError": false, "structuredContent": structured,
 				"content": []map[string]any{{"type": "text", "text": "context"}},
@@ -317,16 +318,16 @@ func connectStalledFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node a
 	}
 	t.Cleanup(func() { _ = socket.Close() })
 	if err := socket.WriteJSON(map[string]any{
-		"type": "node.hello", "protocol_version": agentdock.ConnectionProtocolVersion,
+		"type": protocol.MessageNodeHello, "protocol_version": agentdock.ConnectionProtocolVersion,
 		"hello": agentdock.Hello{
 			DeviceID: node.DeviceID, Version: node.Version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
-			OS: node.OS, Arch: node.Arch, Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor},
+			OS: node.OS, Arch: node.Arch, Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor}, UIResources: []agentdock.UIResourceCapability{},
 		},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	var ready map[string]any
-	if err := socket.ReadJSON(&ready); err != nil || ready["type"] != "node.ready" {
+	if err := socket.ReadJSON(&ready); err != nil || ready["type"] != protocol.MessageNodeReady {
 		t.Fatalf("ready=%#v err=%v", ready, err)
 	}
 	<-connected
@@ -336,12 +337,12 @@ func connectStalledFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node a
 		if err := socket.ReadJSON(&invoke); err != nil {
 			return
 		}
-		if invoke["operation"] != nexusLocalContextOperation {
+		if invoke["operation"] != protocol.OperationContextLocal {
 			t.Errorf("stalled context operation=%#v", invoke)
 			return
 		}
 		var cancel map[string]any
-		if err := socket.ReadJSON(&cancel); err == nil && cancel["type"] != "tool.cancel" {
+		if err := socket.ReadJSON(&cancel); err == nil && cancel["type"] != protocol.MessageToolCancel {
 			t.Errorf("expected tool.cancel after timeout, got %#v", cancel)
 		}
 	}()

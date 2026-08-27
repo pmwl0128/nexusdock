@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
@@ -74,7 +75,7 @@ func (s *Server) runtimeRequest(ctx context.Context, nodeID, method, path string
 	if len(requestBody) > 0 {
 		arguments["body"] = json.RawMessage(requestBody)
 	}
-	result, err := s.agentDockHub.Invoke(requestCtx, nodeID, "runtime.request", arguments)
+	result, err := s.agentDockHub.Invoke(requestCtx, nodeID, protocol.OperationRuntimeRequest, arguments)
 	if err != nil {
 		return nil, runtimeBridgeError(err)
 	}

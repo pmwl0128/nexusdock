@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
@@ -65,29 +66,6 @@ type PairInput struct {
 type UpdateInput struct {
 	Name    *string `json:"name,omitempty"`
 	Enabled *bool   `json:"enabled,omitempty"`
-}
-
-type Hello struct {
-	DeviceID         string           `json:"device_id"`
-	Version          string           `json:"version"`
-	ProtocolVersion  string           `json:"protocol_version"`
-	OS               string           `json:"os"`
-	Arch             string           `json:"arch"`
-	Capabilities     []string         `json:"capabilities"`
-	ToolContractHash string           `json:"tool_contract_hash"`
-	Tools            []ToolDescriptor `json:"tools"`
-}
-
-type ToolDescriptor struct {
-	Name                  string         `json:"name"`
-	Title                 string         `json:"title,omitempty"`
-	Description           string         `json:"description,omitempty"`
-	InputSchema           map[string]any `json:"inputSchema"`
-	OutputSchema          map[string]any `json:"outputSchema,omitempty"`
-	Meta                  map[string]any `json:"_meta,omitempty"`
-	Annotations           map[string]any `json:"annotations,omitempty"`
-	NexusResourceRelay    bool           `json:"nexus_resource_relay,omitempty"`
-	NexusResourceContract string         `json:"nexus_resource_contract,omitempty"`
 }
 
 type Store struct {
@@ -260,6 +238,14 @@ func (s *Store) UpdateHello(ctx context.Context, nodeID string, hello Hello) (No
 	if err != nil {
 		return Node{}, fmt.Errorf("编码 AgentDock 能力: %w", err)
 	}
+	uiResources, err := normalizeUIResources(hello.UIResources)
+	if err != nil {
+		return Node{}, err
+	}
+	encodedUIResources, err := json.Marshal(uiResources)
+	if err != nil {
+		return Node{}, fmt.Errorf("编码 AgentDock UI resource 能力: %w", err)
+	}
 	now := s.now().UTC()
 	descriptors, err := json.Marshal(hello.Tools)
 	if err != nil {
@@ -283,6 +269,12 @@ func (s *Store) UpdateHello(ctx context.Context, nodeID string, hello Hello) (No
 	if err != nil {
 		return Node{}, fmt.Errorf("保存 AgentDock 工具契约: %w", err)
 	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO agentdock_ui_resources(node_id, resources_json, updated_at)
+		VALUES(?, ?, ?) ON CONFLICT(node_id) DO UPDATE SET resources_json = excluded.resources_json, updated_at = excluded.updated_at`,
+		nodeID, string(encodedUIResources), now.Format(time.RFC3339Nano))
+	if err != nil {
+		return Node{}, fmt.Errorf("保存 AgentDock UI resource 能力: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return Node{}, fmt.Errorf("提交 AgentDock 握手事务: %w", err)
 	}
@@ -303,6 +295,22 @@ func (s *Store) ToolDescriptors(ctx context.Context, nodeID string) ([]ToolDescr
 		return nil, fmt.Errorf("解析 AgentDock 工具契约: %w", err)
 	}
 	return descriptors, nil
+}
+
+func (s *Store) UIResources(ctx context.Context, nodeID string) ([]UIResourceCapability, error) {
+	var encoded string
+	err := s.db.QueryRowContext(ctx, `SELECT resources_json FROM agentdock_ui_resources WHERE node_id = ?`, strings.TrimSpace(nodeID)).Scan(&encoded)
+	if errors.Is(err, sql.ErrNoRows) {
+		return []UIResourceCapability{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("读取 AgentDock UI resource 能力: %w", err)
+	}
+	var resources []UIResourceCapability
+	if err := json.Unmarshal([]byte(encoded), &resources); err != nil {
+		return nil, fmt.Errorf("解析 AgentDock UI resource 能力: %w", err)
+	}
+	return resources, nil
 }
 
 func (s *Store) Touch(ctx context.Context, nodeID string) error {
@@ -327,6 +335,9 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `DELETE FROM agentdock_tool_contracts WHERE node_id = ?`, id); err != nil {
 		return fmt.Errorf("删除 AgentDock 工具契约: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM agentdock_ui_resources WHERE node_id = ?`, id); err != nil {
+		return fmt.Errorf("删除 AgentDock UI resource 能力: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_tokens WHERE subject_type = 'device' AND subject_id = ?`, id); err != nil {
 		return fmt.Errorf("删除 AgentDock Device Token: %w", err)
@@ -373,6 +384,35 @@ func scanNode(scanner interface{ Scan(...any) error }) (Node, error) {
 	}
 	node.Enabled = enabled == 1
 	return node, nil
+}
+
+func normalizeUIResources(values []UIResourceCapability) ([]UIResourceCapability, error) {
+	if values == nil {
+		return nil, invalid("AgentDock Bridge v2 握手必须声明 ui_resources")
+	}
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]UIResourceCapability, 0, len(values))
+	for _, value := range values {
+		uri := strings.TrimSpace(value.URI)
+		contract := strings.TrimSpace(value.Contract)
+		mimeType := strings.TrimSpace(value.MIMEType)
+		expectedContract, known := protocol.UIResourceContract(uri)
+		if !known {
+			return nil, invalid("AgentDock 声明了未知 UI resource: " + uri)
+		}
+		if contract != expectedContract {
+			return nil, invalid("AgentDock UI resource contract 不兼容: " + uri)
+		}
+		if mimeType != protocol.MCPAppMIMEType {
+			return nil, invalid("AgentDock UI resource MIME type 不兼容: " + uri)
+		}
+		if _, duplicate := seen[uri]; duplicate {
+			return nil, invalid("AgentDock UI resource 重复声明: " + uri)
+		}
+		seen[uri] = struct{}{}
+		normalized = append(normalized, UIResourceCapability{URI: uri, Contract: contract, MIMEType: mimeType})
+	}
+	return normalized, nil
 }
 
 func normalizeCapabilities(values []string) []string {

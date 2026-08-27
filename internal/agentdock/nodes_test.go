@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"testing"
 
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/core"
 )
 
@@ -54,6 +56,70 @@ func TestPairingCodeIsSingleUseAndStoresNoSecret(t *testing.T) {
 	}
 }
 
+func TestHelloRequiresExplicitUIResources(t *testing.T) {
+	store, _ := newTestStore(t)
+	pairing, err := store.CreatePairingCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := store.Pair(t.Context(), PairInput{Code: pairing.Code, DeviceID: "device_ui_required", Name: "DockMini"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.UpdateHello(t.Context(), node.ID, Hello{
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion,
+		UIResources: nil,
+	})
+	var validation ValidationError
+	if !errors.As(err, &validation) || validation.Message != "AgentDock Bridge v2 握手必须声明 ui_resources" {
+		t.Fatalf("missing ui_resources error = %#v", err)
+	}
+
+	if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion,
+		UIResources: []UIResourceCapability{},
+	}); err != nil {
+		t.Fatalf("explicit empty ui_resources should be valid: %v", err)
+	}
+}
+
+func TestHelloPersistsValidatedUIResources(t *testing.T) {
+	store, _ := newTestStore(t)
+	pairing, err := store.CreatePairingCode(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	node, err := store.Pair(t.Context(), PairInput{Code: pairing.Code, DeviceID: "device_ui_roundtrip", Name: "DockMini"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resources := []UIResourceCapability{
+		{URI: protocol.ContextUIResourceURI, Contract: protocol.ContextUIContract, MIMEType: protocol.MCPAppMIMEType},
+		{URI: protocol.WorkflowUIResourceURI, Contract: protocol.WorkflowUIContract, MIMEType: protocol.MCPAppMIMEType},
+	}
+	if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: resources,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.UIResources(t.Context(), node.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, resources) {
+		t.Fatalf("ui_resources = %#v, want %#v", got, resources)
+	}
+
+	bad := resources[0]
+	bad.Contract = "agentdock.context.fleet.v0"
+	if _, err := store.UpdateHello(t.Context(), node.ID, Hello{
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, UIResources: []UIResourceCapability{bad},
+	}); err == nil {
+		t.Fatal("mismatched renderer contract was accepted")
+	}
+}
+
 func TestHelloUpdatesCapabilitiesAndDisabledNodeIsRejected(t *testing.T) {
 	store, _ := newTestStore(t)
 	pairing, err := store.CreatePairingCode(t.Context())
@@ -67,7 +133,7 @@ func TestHelloUpdatesCapabilitiesAndDisabledNodeIsRejected(t *testing.T) {
 	updated, err := store.UpdateHello(t.Context(), node.ID, Hello{
 		DeviceID: "device_12345678", Version: "0.8.0", ProtocolVersion: ConnectionProtocolVersion,
 		OS: "linux", Arch: "amd64", Capabilities: []string{"read_file", "read_file", "exec_command"}, ToolContractHash: "sha256:test",
-		Tools: []ToolDescriptor{{Name: "read_file", InputSchema: map[string]any{"type": "object"}}},
+		Tools: []ToolDescriptor{{Name: "read_file", InputSchema: map[string]any{"type": "object"}}}, UIResources: []UIResourceCapability{},
 	})
 	if err != nil {
 		t.Fatal(err)

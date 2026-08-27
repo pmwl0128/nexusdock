@@ -67,7 +67,6 @@ func TestToolContractHashIgnoresToolPresentationMetadata(t *testing.T) {
 	presented.Annotations = map[string]any{
 		"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false,
 	}
-	presented.NexusResourceRelay = true
 
 	baseHash, err := toolContractHash(base)
 	if err != nil {
@@ -108,7 +107,7 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	newDescriptor.NexusResourceRelay = true
+	delete(newDescriptor.Meta, "ui")
 	newDescriptor.Annotations = map[string]any{
 		"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false,
 	}
@@ -130,14 +129,18 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 		t.Fatalf("merged annotations = %#v, want %#v", merged.Annotations, wantAnnotations)
 	}
 
-	updatedOld, err := cloneToolDescriptor(newDescriptor)
+	updatedOld, err := cloneToolDescriptor(old)
 	if err != nil {
 		t.Fatal(err)
 	}
 	updatedOld.Annotations = map[string]any{
 		"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false,
 	}
-	converged, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{updatedOld, newDescriptor})
+	updatedNew, err := cloneToolDescriptor(updatedOld)
+	if err != nil {
+		t.Fatal(err)
+	}
+	converged, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{updatedOld, updatedNew})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,24 +152,24 @@ func TestMergeFleetToolDescriptorsMergesPresentationConservatively(t *testing.T)
 		t.Fatalf("converged annotations = %#v", converged.Annotations)
 	}
 
-	firstRenderer, err := cloneToolDescriptor(newDescriptor)
+	firstPresentation, err := cloneToolDescriptor(updatedOld)
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstRenderer.NexusResourceContract = "agentdock.file-change.v1"
-	secondRenderer, err := cloneToolDescriptor(firstRenderer)
+	secondPresentation, err := cloneToolDescriptor(updatedOld)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondRenderer.NexusResourceContract = "agentdock.file-change.v2"
+	secondPresentation.Meta["ui"] = map[string]any{"resourceUri": "ui://agentdock/task-progress"}
 
-	mixedRenderers, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{firstRenderer, secondRenderer})
+	mixedPresentation, _, err := mergeFleetToolDescriptors([]agentdock.ToolDescriptor{firstPresentation, secondPresentation})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mixedRenderers.NexusResourceRelay || mixedRenderers.NexusResourceContract != "" || mixedRenderers.Meta["ui"] != nil {
-		t.Fatalf("mixed renderer contracts must not publish shared UI: %#v", mixedRenderers)
+	if mixedPresentation.Meta["ui"] != nil {
+		t.Fatalf("mixed presentation bindings must not publish shared UI: %#v", mixedPresentation.Meta)
 	}
+
 }
 
 func TestMergeFleetToolDescriptorsSupportsPlatformOptionalProperties(t *testing.T) {

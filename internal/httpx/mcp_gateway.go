@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/privatenotes"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -117,9 +118,7 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 		if exists && (published.ContractHash != contractHash ||
 			!containsToolContractHash(published.AcceptedSemanticHashes, contractHash) ||
 			!jsonValuesEqual(published.Descriptor.Meta, descriptor.Meta) ||
-			!jsonValuesEqual(published.Descriptor.Annotations, descriptor.Annotations) ||
-			published.Descriptor.NexusResourceRelay != descriptor.NexusResourceRelay ||
-			published.Descriptor.NexusResourceContract != descriptor.NexusResourceContract) {
+			!jsonValuesEqual(published.Descriptor.Annotations, descriptor.Annotations)) {
 			// schema 不同不等于不兼容；由 Fleet 合并器决定能否安全形成同一代公开契约。
 			if err := s.reconcileFleetNodeTool(name); err != nil && s.logger != nil {
 				s.logger.Warn("检查 AgentDock 工具契约兼容性失败", "tool", name, "error", err)
@@ -193,7 +192,7 @@ func (s *Server) callNodeTool(ctx context.Context, name string, arguments map[st
 	}
 
 	delete(arguments, "node_id")
-	result, err := s.agentDockHub.Invoke(ctx, nodeID, "tool.call", map[string]any{"tool": name, "arguments": arguments})
+	result, err := s.agentDockHub.Invoke(ctx, nodeID, protocol.OperationToolCall, map[string]any{"tool": name, "arguments": arguments})
 	return gatewayToolResult(name, result, err)
 }
 
@@ -410,7 +409,7 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 
 func centralToolResultMeta(name string, args map[string]any) mcpsdk.Meta {
 	if name == "workflow_template_manage" && strings.EqualFold(stringArgument(args, "action"), "match") {
-		return centralToolUIResourceMeta(workflowUIResourceURI)
+		return centralToolUIResourceMeta(protocol.WorkflowUIResourceURI)
 	}
 	return nil
 }
