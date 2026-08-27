@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/agentdock-protocol/mcpcontract"
 )
 
@@ -47,6 +48,30 @@ func TestCentralToolDefinitionsMatchCanonicalContract(t *testing.T) {
 		if tool.Annotations.IdempotentHint != wantIdempotent {
 			t.Fatalf("%s idempotentHint=%v want=%v", name, tool.Annotations.IdempotentHint, wantIdempotent)
 		}
+	}
+}
+
+func TestCentralRecallSearchPrioritizesCitationOverAppsUI(t *testing.T) {
+	tools := map[string]*mcpsdk.Tool{}
+	for _, tool := range nexusToolDefinitions() {
+		tools[tool.Name] = tool
+	}
+
+	search := tools[mcpcontract.ToolRecallSearch]
+	if search == nil {
+		t.Fatal("recall_search missing")
+	}
+	if search.Meta["ui"] != nil {
+		t.Fatalf("recall_search should not bind an Apps UI: %#v", search.Meta)
+	}
+
+	write := tools[mcpcontract.ToolRecallWrite]
+	if write == nil {
+		t.Fatal("recall_write missing")
+	}
+	ui, ok := write.Meta["ui"].(map[string]any)
+	if !ok || ui["resourceUri"] != protocol.RecallUIResourceURI {
+		t.Fatalf("recall_write should keep Recall Apps UI: %#v", write.Meta)
 	}
 }
 

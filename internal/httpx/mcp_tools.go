@@ -17,7 +17,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 	presentations := []centralToolPresentation{
 		{name: mcpcontract.ToolAgentDockContext, title: "AgentDock fleet context", description: "Return one combined context for all enabled AgentDock nodes, including node-local capabilities and Nexus-owned shared Workflow and Recall context.", uiURI: protocol.ContextUIResourceURI},
 		{name: mcpcontract.ToolRecallBootstrap, title: "Bootstrap NexusDock Recall context", description: "Load high-priority Recall context once from NexusDock."},
-		{name: mcpcontract.ToolRecallSearch, title: "Search NexusDock Recall", description: "Search Markdown documents and cards in the central Recall store.", uiURI: protocol.RecallUIResourceURI},
+		{name: mcpcontract.ToolRecallSearch, title: "Search NexusDock Recall", description: "Search Markdown documents and cards in the central Recall store."},
 		{name: mcpcontract.ToolRecallRead, title: "Read NexusDock Recall entry", description: "Read one central Recall entry by path."},
 		{name: mcpcontract.ToolRecallWrite, title: "Write NexusDock Recall entry", description: "Plan, create, replace, append, patch, update facts, diff, or delete central Recall content. The model must choose target and action explicitly.", uiURI: protocol.RecallUIResourceURI},
 		{name: mcpcontract.ToolRecallMaintain, title: "Maintain NexusDock Recall", description: "Inspect sync/index state or rebuild the central Recall index."},
