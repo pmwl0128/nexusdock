@@ -215,7 +215,14 @@ func (s *Server) loadPublishedNodeTools(ctx context.Context) error {
 		return err
 	}
 	for _, contract := range contracts {
-		if _, central := nexusToolNames[contract.ToolName]; central || strings.TrimSpace(contract.ToolName) == "" {
+		if _, central := nexusToolNames[contract.ToolName]; central {
+			// 已提升为 Nexus 中央工具的旧节点契约不再属于 fleet 发布状态，启动时直接清掉持久化残留。
+			if err := s.agentDock.DeletePublishedToolContract(ctx, contract.ToolName); err != nil {
+				return err
+			}
+			continue
+		}
+		if strings.TrimSpace(contract.ToolName) == "" {
 			continue
 		}
 		hash, err := toolContractHash(contract.Descriptor)

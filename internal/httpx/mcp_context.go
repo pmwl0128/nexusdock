@@ -4,15 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 )
 
-const agentDockContextToolName = "agentdock_context"
+const (
+	agentDockContextToolName           = "agentdock_context"
+	nexusLocalAgentDockContextArgument = "_nexus_local_only"
+)
+
+var nexusSharedAgentDockRules = []string{
+	"涉及多步骤开发、部署、排障、迁移、Docker、VPS 或 Git 提交推送时，先 workflow_template_manage match；无合适模板时创建普通可恢复任务。",
+	"当多个工作流模板同时适合当前任务时，调用 workflow_template_manage get_many 读取详情；模型必须结合用户目标裁剪、去重、排序并生成最终 steps 和 completion_conditions，再用 source_template_ids 创建任务，服务端不会自动拼接模板。",
+	"普通项目记忆走 recall_*；private_note_manage 只在用户明确要求私密笔记，或内容明显包含 secret、凭据、个人敏感信息时使用。私密检索只返回名称、简介、标签、分类和路径等元数据；正文必须显式 read，Git 只备份 age 密文。",
+	"记忆摘要只提供高优先级规则；具体历史事实不确定时，再用 recall_search 或 recall_read 精确召回。",
+}
 
 type agentDockContext struct {
 	Skills            []agentDockContextSkill   `json:"skills"`
@@ -73,6 +81,7 @@ type fleetAgentDockNodeContext struct {
 	Skills     []agentDockContextSkill   `json:"skills"`
 	DynamicMCP []agentDockContextItem    `json:"dynamic_mcp"`
 	ACP        *agentDockContextACP      `json:"acp,omitempty"`
+	Rules      []string                  `json:"rules"`
 	Warnings   []agentDockContextWarning `json:"warnings,omitempty"`
 }
 
@@ -83,13 +92,13 @@ type fleetAgentDockSharedContext struct {
 	Warnings          []agentDockContextWarning `json:"warnings,omitempty"`
 }
 
-func (s *Server) callFleetAgentDockContext(ctx context.Context) (*mcpsdk.CallToolResult, error) {
+func (s *Server) callFleetAgentDockContext(ctx context.Context) (map[string]any, error) {
 	if s.agentDock == nil || s.agentDockHub == nil {
-		return gatewayToolResult(agentDockContextToolName, nil, errors.New("AgentDock 节点运行时不可用"))
+		return nil, errors.New("AgentDock 节点运行时不可用")
 	}
 	nodes, err := s.agentDock.List(ctx)
 	if err != nil {
-		return gatewayToolResult(agentDockContextToolName, nil, err)
+		return nil, err
 	}
 	enabled := make([]agentdock.Node, 0, len(nodes))
 	for _, node := range nodes {
@@ -99,19 +108,15 @@ func (s *Server) callFleetAgentDockContext(ctx context.Context) (*mcpsdk.CallToo
 	}
 
 	fleet := fleetAgentDockContext{
-		Nodes: make([]fleetAgentDockContextNode, len(enabled)),
-		Shared: fleetAgentDockSharedContext{
-			WorkflowTemplates: []agentDockContextItem{},
-			Rules:             []string{},
-		},
+		Nodes:  make([]fleetAgentDockContextNode, len(enabled)),
+		Shared: s.buildFleetAgentDockSharedContext(),
 	}
-	providerContexts := make([]*agentDockContext, len(enabled))
 	var wait sync.WaitGroup
 	for index, node := range enabled {
 		index, node := index, node
 		fleet.Nodes[index] = fleetAgentDockContextNode{
 			NodeID: node.ID, Name: node.Name, Version: node.Version, OS: node.OS, Arch: node.Arch,
-			Online: s.agentDockHub.Online(node.ID), Capabilities: append([]string{}, node.Capabilities...),
+			Online: s.agentDockHub.Online(node.ID), Capabilities: deviceNodeCapabilities(node.Capabilities),
 		}
 		if !containsString(node.Capabilities, agentDockContextToolName) {
 			fleet.Nodes[index].Error = "节点未提供 agentdock_context"
@@ -125,17 +130,8 @@ func (s *Server) callFleetAgentDockContext(ctx context.Context) (*mcpsdk.CallToo
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			mismatch, mismatchErr := s.nodeToolContractMismatch(ctx, node, agentDockContextToolName)
-			if mismatchErr != nil {
-				fleet.Nodes[index].Error = mismatchErr.Error()
-				return
-			}
-			if mismatch != nil {
-				fleet.Nodes[index].Error = mismatch.Message
-				return
-			}
 			remote, invokeErr := s.agentDockHub.Invoke(ctx, node.ID, "tool.call", map[string]any{
-				"tool": agentDockContextToolName, "arguments": map[string]any{},
+				"tool": agentDockContextToolName, "arguments": map[string]any{nexusLocalAgentDockContextArgument: true},
 			})
 			if invokeErr != nil {
 				fleet.Nodes[index].Error = invokeErr.Error()
@@ -146,23 +142,11 @@ func (s *Server) callFleetAgentDockContext(ctx context.Context) (*mcpsdk.CallToo
 				fleet.Nodes[index].Error = decodeErr.Error()
 				return
 			}
-			providerContexts[index] = &providerContext
 			fleet.Nodes[index].Context = localAgentDockContext(providerContext)
 		}()
 	}
 	wait.Wait()
-
-	// Provider 调用并行执行，但共享区按稳定节点顺序合并，确保返回顺序和内容可预测。
-	for _, providerContext := range providerContexts {
-		if providerContext != nil {
-			mergeFleetAgentDockSharedContext(&fleet.Shared, *providerContext)
-		}
-	}
-	mapped, err := asMap(fleet)
-	if err != nil {
-		return nil, err
-	}
-	return gatewayToolResult(agentDockContextToolName, mapped, nil)
+	return asMap(fleet)
 }
 
 func decodeAgentDockContextResult(result map[string]any) (agentDockContext, error) {
@@ -205,98 +189,155 @@ func localAgentDockContext(context agentDockContext) *fleetAgentDockNodeContext 
 		}
 		warnings = append(warnings, warning)
 	}
+	localRules := make([]string, 0, len(context.Rules))
+	for _, rule := range context.Rules {
+		if !containsString(nexusSharedAgentDockRules, strings.TrimSpace(rule)) {
+			localRules = append(localRules, rule)
+		}
+	}
 	return &fleetAgentDockNodeContext{
-		Skills: context.Skills, DynamicMCP: context.DynamicMCP, ACP: context.ACP, Warnings: warnings,
+		Skills: context.Skills, DynamicMCP: context.DynamicMCP, ACP: context.ACP,
+		Rules: localRules, Warnings: warnings,
 	}
 }
 
-func mergeFleetAgentDockSharedContext(shared *fleetAgentDockSharedContext, context agentDockContext) {
-	shared.WorkflowTemplates = mergeContextItems(shared.WorkflowTemplates, context.WorkflowTemplates)
-	if context.Recall != nil && context.Recall.Enabled {
-		if shared.Recall == nil {
-			shared.Recall = &agentDockContextRecall{Enabled: true, Items: []agentDockContextItem{}}
-		}
-		shared.Recall.Items = mergeContextItems(shared.Recall.Items, context.Recall.Items)
+func (s *Server) buildFleetAgentDockSharedContext() fleetAgentDockSharedContext {
+	shared := fleetAgentDockSharedContext{
+		WorkflowTemplates: []agentDockContextItem{},
+		Recall:            &agentDockContextRecall{Enabled: true, Items: []agentDockContextItem{}},
+		Rules:             append([]string(nil), nexusSharedAgentDockRules...),
 	}
-	shared.Rules = mergeContextStrings(shared.Rules, context.Rules)
-	for _, warning := range context.Warnings {
-		if warning.Source != "workflow_templates" && warning.Source != "recall" {
+
+	templates, err := s.listWorkflowTemplates(workflowTemplateActive)
+	if err != nil {
+		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "workflow_templates", Message: "工作流模板索引暂不可用；需要时仍可调用 workflow_template_manage 精确确认。"})
+	} else {
+		for _, template := range latestWorkflowTemplateVersions(templates) {
+			shared.WorkflowTemplates = append(shared.WorkflowTemplates, agentDockContextItem{Name: template.ID, Description: firstNonEmptyString(template.Title, template.ID)})
+		}
+	}
+
+	if s.store == nil {
+		shared.Recall.Enabled = false
+		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "recall", Message: "NexusDock Recall 存储暂不可用。"})
+		return shared
+	}
+	sections, _, err := s.store.Pack("agentdock", 3000)
+	if err != nil {
+		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "recall", Message: "记忆精简摘要暂不可用；需要项目事实时调用 recall_search/recall_read 精确确认。"})
+		return shared
+	}
+	seen := make(map[string]struct{}, 5)
+	for _, section := range sections {
+		description := strings.TrimSpace(section.Body)
+		if description == "" {
+			description = strings.TrimSpace(section.Content)
+		}
+		if description == "" {
 			continue
 		}
-		duplicate := false
-		for _, existing := range shared.Warnings {
-			if existing == warning {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			shared.Warnings = append(shared.Warnings, warning)
-		}
-	}
-}
-
-func mergeContextItems(existing, incoming []agentDockContextItem) []agentDockContextItem {
-	byName := make(map[string]agentDockContextItem, len(existing)+len(incoming))
-	for _, item := range append(append([]agentDockContextItem{}, existing...), incoming...) {
-		name := strings.TrimSpace(item.Name)
+		name := strings.TrimSpace(section.Path)
 		if name == "" {
 			continue
 		}
-		current, exists := byName[name]
-		if !exists || (current.Description == "" && item.Description != "") {
-			item.Name = name
-			byName[name] = item
+		shared.Recall.Items = append(shared.Recall.Items, agentDockContextItem{Name: name, Description: truncateRunes(description, 500)})
+		seen[name] = struct{}{}
+		if len(shared.Recall.Items) >= 5 {
+			return shared
 		}
 	}
-	items := make([]agentDockContextItem, 0, len(byName))
-	for _, item := range byName {
-		items = append(items, item)
+	runbooks, err := s.store.RunbookIndex("agentdock", 5)
+	if err != nil {
+		return shared
 	}
-	sort.SliceStable(items, func(i, j int) bool { return items[i].Name < items[j].Name })
-	return items
-}
-
-func mergeContextStrings(existing, incoming []string) []string {
-	seen := make(map[string]struct{}, len(existing)+len(incoming))
-	merged := make([]string, 0, len(existing)+len(incoming))
-	for _, value := range append(append([]string{}, existing...), incoming...) {
-		value = strings.TrimSpace(value)
-		if value == "" {
+	for _, runbook := range runbooks {
+		name := strings.TrimSpace(runbook.Title)
+		if name == "" {
+			name = strings.TrimSpace(runbook.Path)
+		}
+		if name == "" {
 			continue
 		}
-		if _, exists := seen[value]; exists {
+		if _, exists := seen[name]; exists {
 			continue
 		}
-		seen[value] = struct{}{}
-		merged = append(merged, value)
+		shared.Recall.Items = append(shared.Recall.Items, agentDockContextItem{Name: name, Description: runbook.Path})
+		if len(shared.Recall.Items) >= 5 {
+			break
+		}
 	}
-	return merged
+	return shared
 }
 
-func fleetAgentDockContextOutputSchema(providerSchema map[string]any) map[string]any {
-	properties, _ := providerSchema["properties"].(map[string]any)
-	property := func(name string) any {
-		if schema, ok := properties[name]; ok {
-			return schema
+func deviceNodeCapabilities(capabilities []string) []string {
+	out := make([]string, 0, len(capabilities))
+	seen := make(map[string]struct{}, len(capabilities))
+	for _, capability := range capabilities {
+		capability = strings.TrimSpace(capability)
+		if capability == "" {
+			continue
 		}
-		return map[string]any{}
+		if _, central := nexusToolNames[capability]; central {
+			continue
+		}
+		if _, exists := seen[capability]; exists {
+			continue
+		}
+		seen[capability] = struct{}{}
+		out = append(out, capability)
 	}
+	return out
+}
+
+func fleetAgentDockContextOutputSchema() map[string]any {
+	contextItemSchema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"name": stringProperty("Capability name."), "description": stringProperty("Short capability description.")},
+		"required":   []string{"name"}, "additionalProperties": false,
+	}
+	skillSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name": stringProperty("Skill name."), "description": stringProperty("Short capability description."),
+			"file": stringProperty("skill:// URI for the active SKILL.md."), "bundled": booleanProperty("Whether the Skill is bundled by AgentDock."),
+		},
+		"required": []string{"name", "description", "file"}, "additionalProperties": false,
+	}
+	warningSchema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"source": stringProperty("Context section identifier."), "message": stringProperty("Safe warning message.")},
+		"required":   []string{"source", "message"}, "additionalProperties": false,
+	}
+	rulesSchema := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 	localContextSchema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"skills": property("skills"), "dynamic_mcp": property("dynamic_mcp"),
-			"acp": property("acp"), "warnings": property("warnings"),
+			"skills":      map[string]any{"type": "array", "items": skillSchema},
+			"dynamic_mcp": map[string]any{"type": "array", "items": contextItemSchema},
+			"acp": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"enabled": booleanProperty("Whether ACP is enabled."), "agent": stringProperty("Configured ACP agent name."), "description": stringProperty("Short ACP usage orientation."),
+				}, "required": []string{"enabled", "agent", "description"}, "additionalProperties": false,
+			},
+			"rules":    rulesSchema,
+			"warnings": map[string]any{"type": "array", "items": warningSchema},
 		},
-		"required": []string{"skills", "dynamic_mcp"}, "additionalProperties": false,
+		"required": []string{"skills", "dynamic_mcp", "rules"}, "additionalProperties": false,
 	}
 	sharedSchema := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"workflow_templates": property("workflow_templates"), "recall": property("recall"),
-			"rules": property("rules"), "warnings": property("warnings"),
+			"workflow_templates": map[string]any{"type": "array", "items": contextItemSchema},
+			"recall": map[string]any{
+				"type": "object", "properties": map[string]any{
+					"enabled": booleanProperty("Whether NexusDock Recall is available."),
+					"items":   map[string]any{"type": "array", "items": contextItemSchema},
+				}, "required": []string{"enabled", "items"}, "additionalProperties": false,
+			},
+			"rules":    rulesSchema,
+			"warnings": map[string]any{"type": "array", "items": warningSchema},
 		},
-		"required": []string{"workflow_templates", "rules"}, "additionalProperties": false,
+		"required": []string{"workflow_templates", "recall", "rules"}, "additionalProperties": false,
 	}
 	return map[string]any{
 		"type": "object",

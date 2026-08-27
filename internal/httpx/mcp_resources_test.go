@@ -65,6 +65,27 @@ func TestSyncMCPAppResourcesPublishesToolUIResources(t *testing.T) {
 	}
 }
 
+func TestPublishedMCPAppResourcesAlwaysIncludeCentralApps(t *testing.T) {
+	server := &Server{mcpTools: map[string]publishedNodeTool{}}
+	resources := server.publishedMCPAppResourceURIs()
+	for _, uri := range []string{agentDockContextUIResourceURI, recallUIResourceURI, workflowUIResourceURI} {
+		if _, exists := resources[uri]; !exists {
+			t.Fatalf("central MCP App resource %s is missing: %#v", uri, resources)
+		}
+	}
+}
+
+func TestCentralWorkflowResultMetaIsActionScoped(t *testing.T) {
+	if meta := centralToolResultMeta("workflow_template_manage", map[string]any{"action": "list"}); meta != nil {
+		t.Fatalf("list unexpectedly has Workflow UI meta: %#v", meta)
+	}
+	meta := centralToolResultMeta("workflow_template_manage", map[string]any{"action": "match"})
+	ui, ok := meta["ui"].(map[string]any)
+	if !ok || ui["resourceUri"] != workflowUIResourceURI {
+		t.Fatalf("match Workflow UI meta = %#v", meta)
+	}
+}
+
 func TestDecodeNodeMCPAppResourceReplacesNodeDomainWithNexusDomain(t *testing.T) {
 	const uri = "ui://agentdock/task-progress"
 	const domain = "https://nexus.example.test"

@@ -69,6 +69,28 @@ type workflowTemplateCandidate struct {
 
 var workflowRegistryMu sync.Mutex
 
+type workflowOperationError struct {
+	status int
+	code   string
+	err    error
+}
+
+func (e *workflowOperationError) Error() string { return e.err.Error() }
+func (e *workflowOperationError) Unwrap() error { return e.err }
+
+func newWorkflowOperationError(status int, code string, err error) error {
+	return &workflowOperationError{status: status, code: code, err: err}
+}
+
+func writeWorkflowOperationError(w http.ResponseWriter, err error) {
+	var operationErr *workflowOperationError
+	if errors.As(err, &operationErr) {
+		writeError(w, operationErr.status, operationErr.code, operationErr.Error())
+		return
+	}
+	writeError(w, http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err.Error())
+}
+
 func (s *Server) registerWorkflowTemplateRoutes(mux *http.ServeMux, protected func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /v1/workflow-templates", protected(s.workflowTemplatesList))
 	mux.HandleFunc("POST /v1/workflow-templates/publish", protected(s.workflowTemplatePublish))
@@ -107,37 +129,9 @@ func (s *Server) workflowTemplatePublish(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	workflowRegistryMu.Lock()
-	defer workflowRegistryMu.Unlock()
-
-	t := req.Template
-	// 发布是唯一写入口。忽略调用方携带的生命周期元数据，避免伪造状态或复用旧 hash。
-	t.Status = workflowTemplateActive
-	t.Hash = ""
-	t.PublishedAt = nil
-	t.RetiredAt = nil
-	if err := s.ensureWorkflowRegistryDirs(); err != nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err.Error())
-		return
-	}
-	if err := validateWorkflowTemplate(t); err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err.Error())
-		return
-	}
-	if _, err := os.Stat(s.workflowTemplatePath("published", t.ID, t.Version)); err == nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_VERSION_IMMUTABLE", "published template version already exists and cannot be overwritten")
-		return
-	} else if !errors.Is(err, os.ErrNotExist) {
-		writeError(w, http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err.Error())
-		return
-	}
-
-	now := time.Now().UTC()
-	t.PublishedAt = &now
-	t.Hash = workflowTemplateHash(t)
-	errorCode, err := s.publishWorkflowTemplate(t, now, writeWorkflowTemplateJSON)
+	t, err := s.publishWorkflowTemplateValue(req.Template)
 	if err != nil {
-		writeError(w, http.StatusConflict, errorCode, err.Error())
+		writeWorkflowOperationError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
@@ -146,25 +140,62 @@ func (s *Server) workflowTemplatePublish(w http.ResponseWriter, r *http.Request)
 func (s *Server) workflowTemplateRetire(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("templateID")
 	version := r.PathValue("version")
-	if !validWorkflowTemplateToken(id) || !validWorkflowTemplateToken(version) {
-		writeError(w, http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", "template id or version is invalid")
+	t, err := s.retireWorkflowTemplateValue(id, version)
+	if err != nil {
+		writeWorkflowOperationError(w, err)
 		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
+}
+
+func (s *Server) publishWorkflowTemplateValue(input workflowTemplate) (workflowTemplate, error) {
+	workflowRegistryMu.Lock()
+	defer workflowRegistryMu.Unlock()
+
+	t := input
+	// 发布是唯一写入口。忽略调用方携带的生命周期元数据，避免伪造状态或复用旧 hash。
+	t.Status = workflowTemplateActive
+	t.Hash = ""
+	t.PublishedAt = nil
+	t.RetiredAt = nil
+	if err := s.ensureWorkflowRegistryDirs(); err != nil {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err)
+	}
+	if err := validateWorkflowTemplate(t); err != nil {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", err)
+	}
+	if _, err := os.Stat(s.workflowTemplatePath("published", t.ID, t.Version)); err == nil {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, "WORKFLOW_VERSION_IMMUTABLE", errors.New("published template version already exists and cannot be overwritten"))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err)
+	}
+
+	now := time.Now().UTC()
+	t.PublishedAt = &now
+	t.Hash = workflowTemplateHash(t)
+	errorCode, err := s.publishWorkflowTemplate(t, now, writeWorkflowTemplateJSON)
+	if err != nil {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, errorCode, err)
+	}
+	return t, nil
+}
+
+func (s *Server) retireWorkflowTemplateValue(id, version string) (workflowTemplate, error) {
+	if !validWorkflowTemplateToken(id) || !validWorkflowTemplateToken(version) {
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusBadRequest, "INVALID_WORKFLOW_TEMPLATE", errors.New("template id or version is invalid"))
 	}
 
 	workflowRegistryMu.Lock()
 	defer workflowRegistryMu.Unlock()
 	if err := s.ensureWorkflowRegistryDirs(); err != nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err.Error())
-		return
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, "WORKFLOW_REGISTRY_FAILED", err)
 	}
 	t, err := s.loadWorkflowTemplate("published", id, version)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err.Error())
-		return
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusNotFound, "WORKFLOW_TEMPLATE_NOT_FOUND", err)
 	}
 	if t.Status != workflowTemplateActive {
-		writeError(w, http.StatusBadRequest, "WORKFLOW_TEMPLATE_NOT_ACTIVE", "only active templates can be retired")
-		return
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusBadRequest, "WORKFLOW_TEMPLATE_NOT_ACTIVE", errors.New("only active templates can be retired"))
 	}
 
 	now := time.Now().UTC()
@@ -172,10 +203,9 @@ func (s *Server) workflowTemplateRetire(w http.ResponseWriter, r *http.Request) 
 	t.RetiredAt = &now
 	t.Hash = workflowTemplateHash(t)
 	if err := writeWorkflowTemplateJSON(s.workflowTemplatePath("published", id, version), t); err != nil {
-		writeError(w, http.StatusConflict, "WORKFLOW_RETIRE_FAILED", err.Error())
-		return
+		return workflowTemplate{}, newWorkflowOperationError(http.StatusConflict, "WORKFLOW_RETIRE_FAILED", err)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t, "template_summary": s.workflowTemplateSummary(t), "source": "nexus-registry"})
+	return t, nil
 }
 
 func (s *Server) workflowTemplateRead(w http.ResponseWriter, r *http.Request) {
@@ -237,16 +267,10 @@ func (s *Server) workflowTemplatesMatch(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	candidates, err := s.matchWorkflowTemplates(r.Context(), req.Goal, req.Device, req.Type)
+	result, err := s.workflowTemplateMatchResult(r.Context(), req.Goal, req.Device, req.Type)
 	if err != nil {
 		writeError(w, http.StatusConflict, "WORKFLOW_MATCH_FAILED", err.Error())
 		return
-	}
-	cfg := s.currentConfig()
-	vectorStatus, vectorItems := s.workflowTemplateVectorIndexInfoForConfig(cfg)
-	result := map[string]any{"ok": true, "action": "match", "candidates": candidates, "count": len(candidates), "workflow_dir": s.workflowRegistryRoot(), "root": s.workflowRegistryRoot(), "source": "nexus-registry", "vector_search_enabled": workflowTemplateVectorEnabled(cfg), "vector_index_status": vectorStatus, "vector_index_items": vectorItems, "embedding_model": cfg.EmbeddingModel}
-	for k, v := range workflowMatchRecommendation(candidates) {
-		result[k] = v
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -261,40 +285,12 @@ func (s *Server) workflowTemplatesReindex(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) workflowTemplateVectorIndexRead(w http.ResponseWriter, r *http.Request) {
-	cfg := s.currentConfig()
-	if !workflowTemplateVectorEnabled(cfg) {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "not_configured"})
-		return
-	}
-	data, err := os.ReadFile(s.workflowTemplateVectorIndexPath())
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "missing"})
-		return
-	}
-	idx, err := decodeWorkflowTemplateVectorIndex(data, cfg.EmbeddingModel)
-	if errors.Is(err, errWorkflowVectorIndexStale) {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "available": false, "source": "nexus-registry", "vector_index_status": "stale", "embedding_model": cfg.EmbeddingModel})
-		return
-	}
+	result, err := s.workflowTemplateVectorIndexResult()
 	if err != nil {
 		writeError(w, http.StatusConflict, "WORKFLOW_VECTOR_INDEX_INVALID", err.Error())
 		return
 	}
-	info, _ := os.Stat(s.workflowTemplateVectorIndexPath())
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":                  true,
-		"available":           true,
-		"source":              "nexus-registry",
-		"file_name":           "vector-index.json",
-		"path":                "workflow-templates/vector-index.json",
-		"size_bytes":          fileSize(info),
-		"updated_at":          modTime(info),
-		"content":             string(data),
-		"vector_index_status": "ready",
-		"vector_index_items":  len(idx.Documents),
-		"embedding_model":     idx.Model,
-		"dimension":           idx.Dimension,
-	})
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) getWorkflowTemplate(id, version string) (workflowTemplate, error) {

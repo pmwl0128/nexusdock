@@ -4,83 +4,75 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
 	"github.com/uvwt/nexusdock/internal/agentdock"
+	"github.com/uvwt/nexusdock/internal/config"
+	"github.com/uvwt/nexusdock/internal/recall"
 )
 
-func TestAgentDockContextToolPublishesFleetSchemaWithoutNodeID(t *testing.T) {
-	descriptor := fleetContextTestDescriptor()
-	tool := nodeMCPTool(descriptor)
-
-	input := tool.InputSchema.(map[string]any)
-	properties := input["properties"].(map[string]any)
-	if _, exists := properties["node_id"]; exists {
-		t.Fatalf("fleet context input must not expose node_id: %#v", input)
-	}
-	if tool.Title != "AgentDock fleet context" || !strings.Contains(tool.Description, "all enabled AgentDock nodes") {
-		t.Fatalf("fleet tool presentation = title %q description %q", tool.Title, tool.Description)
-	}
-	output := tool.OutputSchema.(map[string]any)
-	outputProperties := output["properties"].(map[string]any)
-	for _, field := range []string{"nodes", "shared"} {
-		if _, exists := outputProperties[field]; !exists {
-			t.Fatalf("fleet output schema missing %s: %#v", field, output)
+func TestAgentDockContextIsCentralToolWithoutNodeID(t *testing.T) {
+	for _, tool := range nexusToolDefinitions() {
+		if tool.Name != agentDockContextToolName {
+			continue
 		}
+		input := tool.InputSchema.(map[string]any)
+		properties := input["properties"].(map[string]any)
+		if _, exists := properties["node_id"]; exists {
+			t.Fatalf("central context input must not expose node_id: %#v", input)
+		}
+		if tool.Title != "AgentDock fleet context" || !strings.Contains(tool.Description, "Nexus-owned shared") {
+			t.Fatalf("central context presentation = title %q description %q", tool.Title, tool.Description)
+		}
+		output := tool.OutputSchema.(map[string]any)
+		outputProperties := output["properties"].(map[string]any)
+		for _, field := range []string{"nodes", "shared"} {
+			if _, exists := outputProperties[field]; !exists {
+				t.Fatalf("fleet output schema missing %s: %#v", field, output)
+			}
+		}
+		nodesSchema := outputProperties["nodes"].(map[string]any)
+		nodeSchema := nodesSchema["items"].(map[string]any)
+		nodeProperties := nodeSchema["properties"].(map[string]any)
+		if _, exists := nodeProperties["capabilities"]; !exists {
+			t.Fatalf("fleet node schema missing capabilities: %#v", nodeSchema)
+		}
+		return
 	}
-	nodesSchema := outputProperties["nodes"].(map[string]any)
-	nodeSchema := nodesSchema["items"].(map[string]any)
-	nodeProperties := nodeSchema["properties"].(map[string]any)
-	if _, exists := nodeProperties["capabilities"]; !exists {
-		t.Fatalf("fleet node schema missing capabilities: %#v", nodeSchema)
-	}
-	if _, exists := outputProperties["skills"]; exists {
-		t.Fatalf("fleet output must not pretend one node context is the public result: %#v", output)
-	}
+	t.Fatal("central agentdock_context tool is missing")
 }
 
-func TestFleetContextSharedDataIsDeduplicatedAndNodeLocalDataStaysLocal(t *testing.T) {
-	first := agentDockContext{
-		Skills:            []agentDockContextSkill{{Name: "desktop", Description: "Desktop", File: "skill://desktop/SKILL.md"}},
-		DynamicMCP:        []agentDockContextItem{{Name: "github", Description: "GitHub"}},
-		WorkflowTemplates: []agentDockContextItem{{Name: "deploy", Description: "Deploy"}},
-		Recall:            &agentDockContextRecall{Enabled: true, Items: []agentDockContextItem{{Name: "profile.md", Description: "Profile"}}},
-		Rules:             []string{"rule-a", "rule-b"},
-		Warnings: []agentDockContextWarning{
-			{Source: "skills", Message: "skill warning"},
-			{Source: "recall", Message: "recall warning"},
-		},
+func TestFleetSharedContextComesDirectlyFromNexus(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := recall.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
 	}
-	second := agentDockContext{
-		Skills:            []agentDockContextSkill{{Name: "desktop", Description: "Desktop", File: "skill://desktop/SKILL.md"}},
-		DynamicMCP:        []agentDockContextItem{{Name: "dida365", Description: "Tasks"}},
-		WorkflowTemplates: []agentDockContextItem{{Name: "deploy", Description: "Deploy"}, {Name: "review", Description: "Review"}},
-		Recall:            &agentDockContextRecall{Enabled: true, Items: []agentDockContextItem{{Name: "profile.md", Description: "Profile"}}},
-		Rules:             []string{"rule-b", "rule-c"},
-		Warnings:          []agentDockContextWarning{{Source: "recall", Message: "recall warning"}},
+	if _, err := store.Write(recall.WriteRequest{Path: "profile.md", Content: "# Profile\n\nNexus-owned memory.\n", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{cfg: config.Config{NexusDataDir: dataDir}, store: store}
+	template := testWorkflowTemplate("central-context", "1.0.0")
+	if _, err := server.publishWorkflowTemplateValue(template); err != nil {
+		t.Fatal(err)
 	}
 
-	shared := fleetAgentDockSharedContext{WorkflowTemplates: []agentDockContextItem{}, Rules: []string{}}
-	mergeFleetAgentDockSharedContext(&shared, first)
-	mergeFleetAgentDockSharedContext(&shared, second)
-	if got := []string{shared.WorkflowTemplates[0].Name, shared.WorkflowTemplates[1].Name}; !reflect.DeepEqual(got, []string{"deploy", "review"}) {
+	shared := server.buildFleetAgentDockSharedContext()
+	if len(shared.WorkflowTemplates) != 1 || shared.WorkflowTemplates[0].Name != template.ID {
 		t.Fatalf("workflow templates = %#v", shared.WorkflowTemplates)
 	}
-	if shared.Recall == nil || len(shared.Recall.Items) != 1 || shared.Recall.Items[0].Name != "profile.md" {
+	if shared.Recall == nil || !shared.Recall.Enabled || len(shared.Recall.Items) == 0 || shared.Recall.Items[0].Name != "profile.md" {
 		t.Fatalf("recall = %#v", shared.Recall)
 	}
-	if !reflect.DeepEqual(shared.Rules, []string{"rule-a", "rule-b", "rule-c"}) {
-		t.Fatalf("rules = %#v", shared.Rules)
+	if len(shared.Rules) == 0 || !strings.Contains(strings.Join(shared.Rules, "\n"), "workflow_template_manage") {
+		t.Fatalf("shared rules = %#v", shared.Rules)
 	}
-	if len(shared.Warnings) != 1 || shared.Warnings[0].Source != "recall" {
-		t.Fatalf("shared warnings = %#v", shared.Warnings)
-	}
-	local := localAgentDockContext(first)
-	if len(local.Skills) != 1 || len(local.DynamicMCP) != 1 || len(local.Warnings) != 1 || local.Warnings[0].Source != "skills" {
-		t.Fatalf("local context = %#v", local)
+
+	capabilities := deviceNodeCapabilities([]string{"exec_command", agentDockContextToolName, "workflow_template_manage", "recall_search", "exec_command"})
+	if !containsString(capabilities, "exec_command") || containsString(capabilities, agentDockContextToolName) || containsString(capabilities, "workflow_template_manage") || containsString(capabilities, "recall_search") {
+		t.Fatalf("device capabilities = %#v", capabilities)
 	}
 }
 
@@ -103,40 +95,73 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 		"recall":             map[string]any{"enabled": true, "items": []any{map[string]any{"name": "profile.md", "description": "Profile"}}},
 		"rules":              []any{"rule-a", "rule-b"},
 	})
-	hash, err := toolContractHash(descriptor)
+	recallStore, err := recall.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := &Server{
+		cfg: config.Config{NexusDataDir: t.TempDir()}, store: recallStore,
 		agentDock: store, agentDockHub: hub,
-		mcpTools: map[string]publishedNodeTool{agentDockContextToolName: {
-			Descriptor: descriptor, ContractHash: hash, AcceptedSemanticHashes: []string{hash},
-		}},
 	}
 
 	result, err := server.callFleetAgentDockContext(t.Context())
-	if err != nil || result.IsError {
+	if err != nil {
 		t.Fatalf("fleet context result=%#v err=%v", result, err)
 	}
-	structured, ok := result.StructuredContent.(map[string]any)
-	if !ok {
-		t.Fatalf("structuredContent = %#v", result.StructuredContent)
-	}
 	var fleet fleetAgentDockContext
-	if err := decodeMap(structured, &fleet); err != nil {
+	if err := decodeMap(result, &fleet); err != nil {
 		t.Fatal(err)
 	}
 	if len(fleet.Nodes) != 2 {
 		t.Fatalf("enabled fleet nodes = %#v", fleet.Nodes)
 	}
-	if fleet.Nodes[0].Name != "DockMini" || !fleet.Nodes[0].Online || !containsString(fleet.Nodes[0].Capabilities, descriptor.Name) || fleet.Nodes[0].Context == nil || len(fleet.Nodes[0].Context.Skills) != 1 {
+	if fleet.Nodes[0].Name != "DockMini" || !fleet.Nodes[0].Online || containsString(fleet.Nodes[0].Capabilities, descriptor.Name) || fleet.Nodes[0].Context == nil || len(fleet.Nodes[0].Context.Skills) != 1 {
 		t.Fatalf("online node context = %#v", fleet.Nodes[0])
 	}
-	if fleet.Nodes[1].Name != offline.Name || fleet.Nodes[1].Online || !containsString(fleet.Nodes[1].Capabilities, descriptor.Name) || fleet.Nodes[1].Error != agentdock.ErrNodeOffline.Error() || fleet.Nodes[1].Context != nil {
+	if fleet.Nodes[1].Name != offline.Name || fleet.Nodes[1].Online || containsString(fleet.Nodes[1].Capabilities, descriptor.Name) || fleet.Nodes[1].Error != agentdock.ErrNodeOffline.Error() || fleet.Nodes[1].Context != nil {
 		t.Fatalf("offline node context = %#v", fleet.Nodes[1])
 	}
-	if len(fleet.Shared.WorkflowTemplates) != 1 || fleet.Shared.WorkflowTemplates[0].Name != "deploy" || fleet.Shared.Recall == nil || !reflect.DeepEqual(fleet.Shared.Rules, []string{"rule-a", "rule-b"}) {
-		t.Fatalf("shared context = %#v", fleet.Shared)
+	if fleet.Shared.Recall == nil || !fleet.Shared.Recall.Enabled || len(fleet.Shared.Rules) == 0 {
+		t.Fatalf("Nexus-owned shared context = %#v", fleet.Shared)
+	}
+}
+
+func TestFleetContextKeepsNexusSharedContextWhenAllNodesAreOffline(t *testing.T) {
+	nodeStore := newHTTPTestAgentDockStore(t)
+	descriptor := fleetContextTestDescriptor()
+	pairHTTPTestNode(t, nodeStore, "device_context_offline_only", "DockWin", "2.0.0", descriptor)
+
+	recallStore, err := recall.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := recallStore.Write(recall.WriteRequest{Path: "profile.md", Content: "# Profile\n\nShared memory survives offline nodes.\n", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{
+		cfg: config.Config{NexusDataDir: t.TempDir()}, store: recallStore,
+		agentDock: nodeStore, agentDockHub: agentdock.NewHub(nodeStore),
+	}
+	if _, err := server.publishWorkflowTemplateValue(testWorkflowTemplate("offline.shared", "1.0.0")); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := server.callFleetAgentDockContext(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fleet fleetAgentDockContext
+	if err := decodeMap(result, &fleet); err != nil {
+		t.Fatal(err)
+	}
+	if len(fleet.Nodes) != 1 || fleet.Nodes[0].Online || fleet.Nodes[0].Error != agentdock.ErrNodeOffline.Error() {
+		t.Fatalf("offline nodes = %#v", fleet.Nodes)
+	}
+	if len(fleet.Shared.WorkflowTemplates) != 1 || fleet.Shared.WorkflowTemplates[0].Name != "offline.shared" {
+		t.Fatalf("shared workflows = %#v", fleet.Shared.WorkflowTemplates)
+	}
+	if fleet.Shared.Recall == nil || !fleet.Shared.Recall.Enabled || len(fleet.Shared.Recall.Items) == 0 {
+		t.Fatalf("shared Recall = %#v", fleet.Shared.Recall)
 	}
 }
 
@@ -213,6 +238,20 @@ func connectFleetContextTestNode(t *testing.T, hub *agentdock.Hub, node agentdoc
 		}
 		if err := socket.ReadJSON(&invoke); err != nil {
 			return
+		}
+		var call struct {
+			Tool      string         `json:"tool"`
+			Arguments map[string]any `json:"arguments"`
+		}
+		if err := json.Unmarshal(invoke.Arguments, &call); err != nil {
+			t.Errorf("decode context call: %v", err)
+			return
+		}
+		if call.Tool != agentDockContextToolName {
+			t.Errorf("fleet context called %q", call.Tool)
+		}
+		if localOnly, _ := call.Arguments[nexusLocalAgentDockContextArgument].(bool); !localOnly {
+			t.Errorf("fleet context did not request node-local context: %#v", call.Arguments)
 		}
 		_ = socket.WriteJSON(map[string]any{
 			"type": "tool.result", "request_id": invoke.RequestID,

@@ -58,7 +58,11 @@ func (s *Server) syncMCPAppResources() {
 func (s *Server) publishedMCPAppResourceURIs() map[string]struct{} {
 	s.mcpToolsMu.RLock()
 	defer s.mcpToolsMu.RUnlock()
-	uris := make(map[string]struct{})
+	uris := map[string]struct{}{
+		agentDockContextUIResourceURI: {},
+		recallUIResourceURI:           {},
+		workflowUIResourceURI:         {},
+	}
 	for _, published := range s.mcpTools {
 		if !published.Descriptor.NexusResourceRelay {
 			continue
@@ -77,6 +81,9 @@ func (s *Server) readPublishedMCPAppResource(ctx context.Context, uri string) (*
 	nodes, err := s.agentDock.List(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if isCentralMCPAppResourceURI(uri) {
+		return s.readCentralMCPAppResource(ctx, nodes, uri)
 	}
 
 	foundProvider := false
@@ -115,6 +122,39 @@ func (s *Server) readPublishedMCPAppResource(ctx context.Context, uri string) (*
 		return nil, fmt.Errorf("读取 AgentDock MCP App resource %s: %w", uri, lastErr)
 	}
 	return nil, fmt.Errorf("AgentDock MCP App resource %s 当前没有在线 provider", uri)
+}
+
+func isCentralMCPAppResourceURI(uri string) bool {
+	switch uri {
+	case agentDockContextUIResourceURI, recallUIResourceURI, workflowUIResourceURI:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Server) readCentralMCPAppResource(ctx context.Context, nodes []agentdock.Node, uri string) (*mcpsdk.ReadResourceResult, error) {
+	var lastErr error
+	for _, node := range nodes {
+		if !node.Enabled || !s.agentDockHub.Online(node.ID) {
+			continue
+		}
+		result, invokeErr := s.agentDockHub.Invoke(ctx, node.ID, "resource.read", map[string]any{"uri": uri})
+		if invokeErr != nil {
+			lastErr = invokeErr
+			continue
+		}
+		read, decodeErr := decodeNodeMCPAppResource(uri, result, s.cfg.PublicURL)
+		if decodeErr != nil {
+			lastErr = decodeErr
+			continue
+		}
+		return read, nil
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("读取中央 MCP App resource %s: %w", uri, lastErr)
+	}
+	return nil, fmt.Errorf("中央 MCP App resource %s 当前没有在线 AgentDock provider", uri)
 }
 
 func (s *Server) nodeProvidesPublishedMCPAppResource(descriptors []agentdock.ToolDescriptor, uri string) bool {

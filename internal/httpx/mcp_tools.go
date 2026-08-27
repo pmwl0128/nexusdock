@@ -2,15 +2,27 @@ package httpx
 
 import mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+const (
+	agentDockContextUIResourceURI = "ui://agentdock/context"
+	recallUIResourceURI           = "ui://agentdock/recall"
+	workflowUIResourceURI         = "ui://agentdock/workflow"
+)
+
 func nexusToolDefinitions() []*mcpsdk.Tool {
 	return []*mcpsdk.Tool{
+		{
+			Name: "agentdock_context", Title: "AgentDock fleet context",
+			Description: "Return one combined context for all enabled AgentDock nodes, including node-local capabilities and Nexus-owned shared Workflow and Recall context.",
+			InputSchema: objectSchema(map[string]any{}), OutputSchema: fleetAgentDockContextOutputSchema(),
+			Meta: centralToolUIResourceMeta(agentDockContextUIResourceURI),
+		},
 		{Name: "recall_bootstrap", Title: "Bootstrap NexusDock Recall context", Description: "Load high-priority Recall context once from NexusDock.", InputSchema: objectSchema(map[string]any{
 			"max_bytes":   integerProperty("Maximum combined Recall pack bytes."),
 			"include_raw": booleanProperty("Include raw Markdown content."), "include_body": booleanProperty("Include full section bodies."),
 		})},
 		{Name: "recall_search", Title: "Search NexusDock Recall", Description: "Search Markdown documents and cards in the central Recall store.", InputSchema: requiredObjectSchema(map[string]any{
 			"query": stringProperty("Text query."), "kind": enumProperty("all", "markdown", "card"), "max_results": integerProperty("Maximum results."),
-		}, "query")},
+		}, "query"), Meta: centralToolUIResourceMeta(recallUIResourceURI)},
 		{Name: "recall_read", Title: "Read NexusDock Recall entry", Description: "Read one central Recall entry by path.", InputSchema: requiredObjectSchema(map[string]any{
 			"path": stringProperty("Recall-relative path."), "include_raw": booleanProperty("Include raw Markdown."),
 		}, "path")},
@@ -25,7 +37,7 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			"section": stringProperty("Optional Markdown heading containing facts."), "key": stringProperty("Fact key."), "value": stringProperty("Fact value."),
 			"facts": mapStringProperty("Multiple fact key/value replacements."), "append_if_missing": booleanProperty("Append missing facts."),
 			"dry_run": booleanProperty("Force a preview without writing or deleting."), "max_bytes": integerProperty("Maximum diff bytes."),
-		}, "target", "action")},
+		}, "target", "action"), Meta: centralToolUIResourceMeta(recallUIResourceURI)},
 		{Name: "recall_maintain", Title: "Maintain NexusDock Recall", Description: "Inspect sync/index state or rebuild the central Recall index.", InputSchema: objectSchema(map[string]any{
 			"action": enumProperty("list", "lint", "embedding_status", "reindex", "reindex_cards"), "prefix": stringProperty("Optional prefix."), "max_entries": integerProperty("Maximum entries."),
 			"terms": arrayStringProperty("Terms or regular expressions to find."), "regex": booleanProperty("Treat terms as regular expressions."), "max_findings": integerProperty("Maximum lint findings."),
@@ -38,7 +50,16 @@ func nexusToolDefinitions() []*mcpsdk.Tool {
 			"max_bytes": integerProperty("Maximum read bytes."), "status_action": enumProperty("check", "list"),
 			"maintenance_action": enumProperty("init", "init-encryption", "sync-encrypted", "encrypt-all"),
 		}, "action")},
+		{
+			Name: "workflow_template_manage", Title: "Manage workflow templates",
+			Description: "List, get, get multiple, publish, retire, or match NexusDock workflow templates. get_many requires the model to compose the returned templates before task creation.",
+			InputSchema: workflowTemplateManageInputSchema(),
+		},
 	}
+}
+
+func centralToolUIResourceMeta(uri string) mcpsdk.Meta {
+	return mcpsdk.Meta{"ui": map[string]any{"resourceUri": uri}}
 }
 
 func objectSchema(properties map[string]any) map[string]any {

@@ -23,6 +23,7 @@ const nexusServerInstructions = "NexusDock 可以连接并统一操作多台 Age
 	"处理多步骤任务时使用 `task_manage` 记录和维护任务进度。根据用户需求选择合适的设备和能力，检查、操作并验证设备状态。"
 
 var nexusToolNames = map[string]struct{}{
+	"agentdock_context": {}, "workflow_template_manage": {},
 	"recall_bootstrap": {}, "recall_search": {}, "recall_read": {},
 	"recall_write": {}, "recall_maintain": {}, "private_note_manage": {},
 }
@@ -43,7 +44,11 @@ func (s *Server) initializeMCPGateway() {
 				return nil, err
 			}
 			result, err := s.callNexusTool(ctx, definition.Name, arguments)
-			return gatewayToolResult(definition.Name, result, err)
+			response, responseErr := gatewayToolResult(definition.Name, result, err)
+			if responseErr == nil && response != nil {
+				response.Meta = centralToolResultMeta(definition.Name, arguments)
+			}
+			return response, responseErr
 		})
 	}
 	if s.agentDockHub != nil {
@@ -132,17 +137,9 @@ func (s *Server) registerNodeTools(node agentdock.Node, hello agentdock.Hello) {
 }
 
 func nodeMCPTool(descriptor agentdock.ToolDescriptor) *mcpsdk.Tool {
-	title, description := descriptor.Title, descriptor.Description
-	inputSchema, outputSchema := nodeInputSchema(descriptor.InputSchema), descriptor.OutputSchema
-	if descriptor.Name == agentDockContextToolName {
-		title = "AgentDock fleet context"
-		description = "Return one combined context for all enabled AgentDock nodes, including node-local capabilities and shared Nexus context."
-		inputSchema = descriptor.InputSchema
-		outputSchema = fleetAgentDockContextOutputSchema(descriptor.OutputSchema)
-	}
 	tool := &mcpsdk.Tool{
-		Name: descriptor.Name, Title: title, Description: description,
-		InputSchema: inputSchema, OutputSchema: outputSchema,
+		Name: descriptor.Name, Title: descriptor.Title, Description: descriptor.Description,
+		InputSchema: nodeInputSchema(descriptor.InputSchema), OutputSchema: descriptor.OutputSchema,
 	}
 	if len(descriptor.Annotations) > 0 {
 		encoded, _ := json.Marshal(descriptor.Annotations)
@@ -162,9 +159,6 @@ func (s *Server) nodeToolHandler(name string) mcpsdk.ToolHandler {
 		arguments, err := toolArguments(request)
 		if err != nil {
 			return nil, err
-		}
-		if name == agentDockContextToolName {
-			return s.callFleetAgentDockContext(ctx)
 		}
 		return s.callNodeTool(ctx, name, arguments)
 	}
@@ -297,6 +291,10 @@ func prettyJSON(value any) string {
 
 func (s *Server) callNexusTool(ctx context.Context, name string, args map[string]any) (map[string]any, error) {
 	switch name {
+	case "agentdock_context":
+		return s.callFleetAgentDockContext(ctx)
+	case "workflow_template_manage":
+		return s.callWorkflowTemplateManage(ctx, args)
 	case "recall_bootstrap":
 		maxBytes := intArgument(args, "max_bytes", 12000)
 		sections, used, err := s.store.Pack("agentdock", maxBytes)
@@ -366,6 +364,13 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 	default:
 		return nil, fmt.Errorf("unknown NexusDock tool: %s", name)
 	}
+}
+
+func centralToolResultMeta(name string, args map[string]any) mcpsdk.Meta {
+	if name == "workflow_template_manage" && strings.EqualFold(stringArgument(args, "action"), "match") {
+		return centralToolUIResourceMeta(workflowUIResourceURI)
+	}
+	return nil
 }
 
 func (s *Server) callRecallWrite(ctx context.Context, args map[string]any) (map[string]any, error) {
