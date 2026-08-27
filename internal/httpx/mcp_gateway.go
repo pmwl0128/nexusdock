@@ -17,13 +17,12 @@ import (
 )
 
 const nexusServerInstructions = "NexusDock 可以连接并统一操作多台 AgentDock 设备。" +
-	"需要操作具体设备时，先确定目标 AgentDock 节点；目标设备不明确时，优先调用 `node_list` 获取可用节点。" +
-	"优先调用 `agentdock_context` 获取目标设备可用于操作用户设备的核心能力、Skill、动态 MCP、Workflow 模板、重要上下文和长期记忆索引。" +
+	"优先调用 `agentdock_context` 获取可用设备、节点标识以及各设备的核心能力、Skill、动态 MCP、Workflow 模板、重要上下文和长期记忆索引。" +
+	"需要操作具体设备时，根据 `agentdock_context` 返回的节点信息选择目标 `node_id`。" +
 	"需要查找或读取长期记忆时使用 `recall_*`；需要查找或使用 Workflow 模板时使用 `workflow_template_manage`；" +
 	"处理多步骤任务时使用 `task_manage` 记录和维护任务进度。根据用户需求选择合适的设备和能力，检查、操作并验证设备状态。"
 
 var nexusToolNames = map[string]struct{}{
-	"node_list":        {},
 	"recall_bootstrap": {}, "recall_search": {}, "recall_read": {},
 	"recall_write": {}, "recall_maintain": {}, "private_note_manage": {},
 }
@@ -228,7 +227,7 @@ func nodeInputSchema(schema map[string]any) map[string]any {
 		properties = make(map[string]any)
 		cloned["properties"] = properties
 	}
-	properties["node_id"] = map[string]any{"type": "string", "description": "Target AgentDock node ID from the NexusDock node list."}
+	properties["node_id"] = map[string]any{"type": "string", "description": "Target AgentDock node ID from agentdock_context."}
 	required, _ := cloned["required"].([]any)
 	for _, value := range required {
 		if value == "node_id" {
@@ -298,15 +297,6 @@ func prettyJSON(value any) string {
 
 func (s *Server) callNexusTool(ctx context.Context, name string, args map[string]any) (map[string]any, error) {
 	switch name {
-	case "node_list":
-		nodes, err := s.agentDock.List(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for index := range nodes {
-			nodes[index].Online = s.agentDockHub.Online(nodes[index].ID)
-		}
-		return asMap(map[string]any{"ok": true, "nodes": nodes, "count": len(nodes)})
 	case "recall_bootstrap":
 		maxBytes := intArgument(args, "max_bytes", 12000)
 		sections, used, err := s.store.Pack("agentdock", maxBytes)

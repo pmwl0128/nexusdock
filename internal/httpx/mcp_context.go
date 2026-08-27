@@ -58,14 +58,15 @@ type fleetAgentDockContext struct {
 }
 
 type fleetAgentDockContextNode struct {
-	NodeID  string                     `json:"node_id"`
-	Name    string                     `json:"name"`
-	Online  bool                       `json:"online"`
-	Version string                     `json:"version,omitempty"`
-	OS      string                     `json:"os,omitempty"`
-	Arch    string                     `json:"arch,omitempty"`
-	Context *fleetAgentDockNodeContext `json:"context,omitempty"`
-	Error   string                     `json:"error,omitempty"`
+	NodeID       string                     `json:"node_id"`
+	Name         string                     `json:"name"`
+	Online       bool                       `json:"online"`
+	Version      string                     `json:"version,omitempty"`
+	OS           string                     `json:"os,omitempty"`
+	Arch         string                     `json:"arch,omitempty"`
+	Capabilities []string                   `json:"capabilities"`
+	Context      *fleetAgentDockNodeContext `json:"context,omitempty"`
+	Error        string                     `json:"error,omitempty"`
 }
 
 type fleetAgentDockNodeContext struct {
@@ -110,7 +111,7 @@ func (s *Server) callFleetAgentDockContext(ctx context.Context) (*mcpsdk.CallToo
 		index, node := index, node
 		fleet.Nodes[index] = fleetAgentDockContextNode{
 			NodeID: node.ID, Name: node.Name, Version: node.Version, OS: node.OS, Arch: node.Arch,
-			Online: s.agentDockHub.Online(node.ID),
+			Online: s.agentDockHub.Online(node.ID), Capabilities: append([]string{}, node.Capabilities...),
 		}
 		if !containsString(node.Capabilities, agentDockContextToolName) {
 			fleet.Nodes[index].Error = "节点未提供 agentdock_context"
@@ -308,9 +309,10 @@ func fleetAgentDockContextOutputSchema(providerSchema map[string]any) map[string
 						"node_id": map[string]any{"type": "string"}, "name": map[string]any{"type": "string"},
 						"online": map[string]any{"type": "boolean"}, "version": map[string]any{"type": "string"},
 						"os": map[string]any{"type": "string"}, "arch": map[string]any{"type": "string"},
-						"context": localContextSchema, "error": map[string]any{"type": "string"},
+						"capabilities": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"context":      localContextSchema, "error": map[string]any{"type": "string"},
 					},
-					"required": []string{"node_id", "name", "online"}, "additionalProperties": false,
+					"required": []string{"node_id", "name", "online", "capabilities"}, "additionalProperties": false,
 				},
 			},
 			"shared": sharedSchema,

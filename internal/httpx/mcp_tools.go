@@ -4,7 +4,6 @@ import mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 func nexusToolDefinitions() []*mcpsdk.Tool {
 	return []*mcpsdk.Tool{
-		{Name: "node_list", Title: "List AgentDock nodes", Description: "List paired AgentDock nodes and their stable node_id, online state, platform, version, and capabilities.", InputSchema: objectSchema(map[string]any{})},
 		{Name: "recall_bootstrap", Title: "Bootstrap NexusDock Recall context", Description: "Load high-priority Recall context once from NexusDock.", InputSchema: objectSchema(map[string]any{
 			"max_bytes":   integerProperty("Maximum combined Recall pack bytes."),
 			"include_raw": booleanProperty("Include raw Markdown content."), "include_body": booleanProperty("Include full section bodies."),

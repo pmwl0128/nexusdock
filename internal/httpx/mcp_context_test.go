@@ -31,6 +31,12 @@ func TestAgentDockContextToolPublishesFleetSchemaWithoutNodeID(t *testing.T) {
 			t.Fatalf("fleet output schema missing %s: %#v", field, output)
 		}
 	}
+	nodesSchema := outputProperties["nodes"].(map[string]any)
+	nodeSchema := nodesSchema["items"].(map[string]any)
+	nodeProperties := nodeSchema["properties"].(map[string]any)
+	if _, exists := nodeProperties["capabilities"]; !exists {
+		t.Fatalf("fleet node schema missing capabilities: %#v", nodeSchema)
+	}
 	if _, exists := outputProperties["skills"]; exists {
 		t.Fatalf("fleet output must not pretend one node context is the public result: %#v", output)
 	}
@@ -123,10 +129,10 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 	if len(fleet.Nodes) != 2 {
 		t.Fatalf("enabled fleet nodes = %#v", fleet.Nodes)
 	}
-	if fleet.Nodes[0].Name != "DockMini" || !fleet.Nodes[0].Online || fleet.Nodes[0].Context == nil || len(fleet.Nodes[0].Context.Skills) != 1 {
+	if fleet.Nodes[0].Name != "DockMini" || !fleet.Nodes[0].Online || !containsString(fleet.Nodes[0].Capabilities, descriptor.Name) || fleet.Nodes[0].Context == nil || len(fleet.Nodes[0].Context.Skills) != 1 {
 		t.Fatalf("online node context = %#v", fleet.Nodes[0])
 	}
-	if fleet.Nodes[1].Name != offline.Name || fleet.Nodes[1].Online || fleet.Nodes[1].Error != agentdock.ErrNodeOffline.Error() || fleet.Nodes[1].Context != nil {
+	if fleet.Nodes[1].Name != offline.Name || fleet.Nodes[1].Online || !containsString(fleet.Nodes[1].Capabilities, descriptor.Name) || fleet.Nodes[1].Error != agentdock.ErrNodeOffline.Error() || fleet.Nodes[1].Context != nil {
 		t.Fatalf("offline node context = %#v", fleet.Nodes[1])
 	}
 	if len(fleet.Shared.WorkflowTemplates) != 1 || fleet.Shared.WorkflowTemplates[0].Name != "deploy" || fleet.Shared.Recall == nil || !reflect.DeepEqual(fleet.Shared.Rules, []string{"rule-a", "rule-b"}) {

@@ -38,6 +38,15 @@ func TestInitializeMCPGatewayAdvertisesFixedInstructions(t *testing.T) {
 	if result.Instructions != nexusServerInstructions {
 		t.Fatalf("Instructions = %q, want %q", result.Instructions, nexusServerInstructions)
 	}
+	tools, err := clientSession.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name == "node_list" {
+			t.Fatal("tools/list still exposes node_list")
+		}
+	}
 }
 
 func TestNodeInputSchemaRequiresNodeID(t *testing.T) {
@@ -45,8 +54,12 @@ func TestNodeInputSchemaRequiresNodeID(t *testing.T) {
 		"type": "object", "properties": map[string]any{"path": map[string]any{"type": "string"}}, "required": []any{"path"},
 	})
 	properties := schema["properties"].(map[string]any)
-	if _, ok := properties["node_id"]; !ok {
+	nodeID, ok := properties["node_id"].(map[string]any)
+	if !ok {
 		t.Fatal("node_id property is missing")
+	}
+	if nodeID["description"] != "Target AgentDock node ID from agentdock_context." {
+		t.Fatalf("node_id description = %#v", nodeID["description"])
 	}
 	required := schema["required"].([]any)
 	if len(required) != 2 || required[1] != "node_id" {
