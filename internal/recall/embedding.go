@@ -22,6 +22,9 @@ const DefaultEmbeddingModel = "BAAI/bge-m3"
 const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
 const embeddingBatchSize = 5
 const embeddingBatchConcurrency = 2
+const embeddingTextMaxBytes = 2048
+const embeddingFrontmatterMaxBytes = 512
+const embeddingHeadingsMaxBytes = 640
 const maxEmbeddingResponseBytes = 32 << 20
 
 type EmbeddingConfig struct {
@@ -698,12 +701,72 @@ func (s *EmbeddingService) writeIndex(idx embeddingIndex) error {
 }
 
 func embeddingText(mem Recall) string {
-	parts := []string{mem.Path, firstMarkdownTitle(mem.Body), frontmatterText(mem.Frontmatter), mem.Body}
-	text := strings.TrimSpace(strings.Join(parts, "\n"))
-	if len(text) > 8000 {
-		text = truncateUTF8(text, 8000)
+	metadata := []string{
+		mem.Path,
+		firstMarkdownTitle(mem.Body),
+		truncateUTF8(strings.TrimSpace(frontmatterText(mem.Frontmatter)), embeddingFrontmatterMaxBytes),
+		markdownHeadingText(mem.Body),
 	}
-	return text
+	prefix := strings.TrimSpace(strings.Join(metadata, "\n"))
+	if len(prefix) >= embeddingTextMaxBytes {
+		return strings.TrimSpace(truncateUTF8(prefix, embeddingTextMaxBytes))
+	}
+	remaining := embeddingTextMaxBytes - len(prefix)
+	if prefix != "" {
+		remaining--
+	}
+	body := semanticBodyExcerpt(mem.Body, remaining)
+	return strings.TrimSpace(strings.Join([]string{prefix, body}, "\n"))
+}
+
+func markdownHeadingText(body string) string {
+	headings := make([]string, 0, 8)
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		level := 0
+		for level < len(trimmed) && level < 6 && trimmed[level] == '#' {
+			level++
+		}
+		if level == 0 || level >= len(trimmed) || trimmed[level] != ' ' {
+			continue
+		}
+		headings = append(headings, trimmed)
+	}
+	return strings.TrimSpace(truncateUTF8(strings.Join(headings, "\n"), embeddingHeadingsMaxBytes))
+}
+
+func semanticBodyExcerpt(body string, maxBytes int) string {
+	body = strings.TrimSpace(body)
+	if maxBytes <= 0 || body == "" {
+		return ""
+	}
+	if len(body) <= maxBytes {
+		return body
+	}
+	const separator = "\n...\n"
+	if maxBytes <= len(separator)+2 {
+		return strings.TrimSpace(truncateUTF8(body, maxBytes))
+	}
+	contentBudget := maxBytes - len(separator)
+	headBudget := contentBudget * 3 / 4
+	tailBudget := contentBudget - headBudget
+	head := strings.TrimSpace(truncateUTF8(body, headBudget))
+	tail := strings.TrimSpace(tailUTF8(body, tailBudget))
+	return strings.TrimSpace(head + separator + tail)
+}
+
+func tailUTF8(value string, maxBytes int) string {
+	if maxBytes <= 0 || value == "" {
+		return ""
+	}
+	if len(value) <= maxBytes {
+		return value
+	}
+	start := len(value) - maxBytes
+	for start < len(value) && (value[start]&0xC0) == 0x80 {
+		start++
+	}
+	return value[start:]
 }
 
 func snippetFromText(text string) string {

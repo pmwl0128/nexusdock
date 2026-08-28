@@ -159,6 +159,31 @@ func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
 	}
 }
 
+func TestEmbeddingTextBuildsBoundedSemanticRepresentation(t *testing.T) {
+	body := "# Long Recall\n\n" + strings.Repeat("开头语义内容。", 300) +
+		"\n\n## 中段关键标题\n\n" + strings.Repeat("中间正文。", 300) +
+		"\n\n### 尾部操作提示\n\n" + strings.Repeat("结尾语义内容。", 120)
+	text := embeddingText(Recall{
+		Path: "recall/docs/projects/agentdock/runbooks/long.md",
+		Body: body,
+		Frontmatter: map[string]string{
+			"project": "agentdock",
+			"tags":    "recall,semantic,hybrid",
+		},
+	})
+	if len(text) > embeddingTextMaxBytes {
+		t.Fatalf("embedding text has %d bytes, max=%d", len(text), embeddingTextMaxBytes)
+	}
+	for _, want := range []string{"long.md", "Long Recall", "project agentdock", "中段关键标题", "尾部操作提示", "开头语义内容", "结尾语义内容"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("embedding text missing %q: %q", want, text)
+		}
+	}
+	if strings.Contains(text, strings.Repeat("中间正文。", 50)) {
+		t.Fatalf("embedding text unexpectedly kept the full middle body")
+	}
+}
+
 func TestEmbeddingPendingDocumentsGroupsSimilarLengths(t *testing.T) {
 	store := newTestStore(t)
 	var mu sync.Mutex
