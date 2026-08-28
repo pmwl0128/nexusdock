@@ -55,6 +55,13 @@ type SearchResult struct {
 	MatchedFields []string          `json:"matched_fields,omitempty"`
 }
 
+type SearchOptions struct {
+	Query         string
+	Prefix        string
+	ExcludePrefix string
+	MaxResults    int
+}
+
 type RecallIndex struct {
 	Path        string            `json:"path"`
 	Title       string            `json:"title,omitempty"`
@@ -196,10 +203,15 @@ func (s *Store) Read(path string) (Recall, error) {
 }
 
 func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, error) {
-	query = strings.TrimSpace(query)
+	return s.SearchWithOptions(SearchOptions{Query: query, Prefix: prefix, MaxResults: maxResults})
+}
+
+func (s *Store) SearchWithOptions(options SearchOptions) ([]SearchResult, error) {
+	query := strings.TrimSpace(options.Query)
 	if query == "" {
 		return nil, errors.New("query is required")
 	}
+	maxResults := options.MaxResults
 	if maxResults <= 0 || maxResults > 200 {
 		maxResults = 50
 	}
@@ -208,13 +220,14 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 		return nil, errors.New("query has no searchable terms")
 	}
 	base := s.root
-	if strings.TrimSpace(prefix) != "" {
-		resolved, err := s.resolve(prefix)
+	if strings.TrimSpace(options.Prefix) != "" {
+		resolved, err := s.resolve(options.Prefix)
 		if err != nil {
 			return nil, err
 		}
 		base = resolved
 	}
+	excludePrefix := strings.Trim(filepath.ToSlash(strings.TrimSpace(options.ExcludePrefix)), "/")
 	type scoredResult struct {
 		result SearchResult
 		score  int
@@ -246,6 +259,9 @@ func (s *Store) Search(query, prefix string, maxResults int) ([]SearchResult, er
 		}
 		rel, _ := filepath.Rel(s.root, path)
 		rel = filepath.ToSlash(rel)
+		if excludePrefix != "" && (rel == excludePrefix || strings.HasPrefix(rel, excludePrefix+"/")) {
+			return nil
+		}
 		text := string(data)
 		frontmatter, body := SplitFrontmatter(text)
 		title := firstMarkdownTitle(body)

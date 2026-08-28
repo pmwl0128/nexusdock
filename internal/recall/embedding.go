@@ -57,9 +57,10 @@ type EmbeddingReindexResult struct {
 }
 
 type EmbeddingSearchRequest struct {
-	Query      string `json:"query"`
-	Prefix     string `json:"prefix"`
-	MaxResults int    `json:"max_results"`
+	Query         string `json:"query"`
+	Prefix        string `json:"prefix"`
+	ExcludePrefix string `json:"exclude_prefix,omitempty"`
+	MaxResults    int    `json:"max_results"`
 }
 
 type EmbeddingSearchResult struct {
@@ -175,9 +176,6 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 		return EmbeddingReindexResult{}, errors.New("embedding service is disabled or endpoint is empty")
 	}
 	prefix := strings.TrimSpace(req.Prefix)
-	if prefix == "" {
-		prefix = "recall/managed/cards"
-	}
 	maxEntries := req.MaxEntries
 	if maxEntries <= 0 || maxEntries > 2000 {
 		maxEntries = 1000
@@ -272,9 +270,13 @@ func (s *EmbeddingService) Search(ctx context.Context, req EmbeddingSearchReques
 		return EmbeddingSearchResult{}, fmt.Errorf("embedding query dimension %d does not match index dimension %d; rebuild the index", len(queryVectors[0]), idx.Dimension)
 	}
 	prefix := strings.TrimSpace(req.Prefix)
+	excludePrefix := strings.Trim(filepath.ToSlash(strings.TrimSpace(req.ExcludePrefix)), "/")
 	hits := make([]EmbeddingSearchHit, 0, len(idx.Documents))
 	for _, doc := range idx.Documents {
 		if prefix != "" && !strings.HasPrefix(doc.Path, prefix) {
+			continue
+		}
+		if excludePrefix != "" && (doc.Path == excludePrefix || strings.HasPrefix(doc.Path, excludePrefix+"/")) {
 			continue
 		}
 		score := cosine(queryVectors[0], doc.Vector)
@@ -286,10 +288,107 @@ func (s *EmbeddingService) Search(ctx context.Context, req EmbeddingSearchReques
 		}
 		return hits[i].Path < hits[j].Path
 	})
-	if len(hits) > maxResults {
-		hits = hits[:maxResults]
+
+	// Recall 可以在两次 reindex 之间继续修改。旧向量不能作为 semantic-only 证据返回；
+	// 文档变化时由 HybridSearch 的 lexical 基线兜底，下一次 reindex 后再恢复语义增强。
+	freshHits := make([]EmbeddingSearchHit, 0, min(len(hits), maxResults))
+	for _, hit := range hits {
+		memory, err := s.store.Read(hit.Path)
+		if err != nil || embeddingText(memory) != idx.Documents[hit.Path].Text {
+			continue
+		}
+		freshHits = append(freshHits, hit)
+		if len(freshHits) >= maxResults {
+			break
+		}
 	}
-	return EmbeddingSearchResult{OK: true, Enabled: true, Model: s.cfg.Model, Query: query, Results: hits, Count: len(hits), Index: EmbeddingIndexSummarize{Model: idx.Model, Dimension: idx.Dimension, Count: len(idx.Documents), UpdatedAt: idx.UpdatedAt}}, nil
+	return EmbeddingSearchResult{OK: true, Enabled: true, Model: s.cfg.Model, Query: query, Results: freshHits, Count: len(freshHits), Index: EmbeddingIndexSummarize{Model: idx.Model, Dimension: idx.Dimension, Count: len(idx.Documents), UpdatedAt: idx.UpdatedAt}}, nil
+}
+
+// HybridSearch 以关键词检索为可靠基线；向量服务或索引不可用时直接退化为关键词结果。
+// 两路都可用时按排名做 RRF 融合，避免依赖不同检索器不可直接比较的原始分数。
+func (s *EmbeddingService) HybridSearch(ctx context.Context, options SearchOptions) ([]SearchResult, error) {
+	maxResults := normalizeSearchResultLimit(options.MaxResults)
+	lexicalOptions := options
+	lexicalOptions.MaxResults = min(maxResults*2, 200)
+	lexical, err := s.store.SearchWithOptions(lexicalOptions)
+	if err != nil {
+		return nil, err
+	}
+	if !s.Enabled() {
+		return trimSearchResults(lexical, maxResults), nil
+	}
+
+	semantic, err := s.Search(ctx, EmbeddingSearchRequest{
+		Query:         options.Query,
+		Prefix:        options.Prefix,
+		ExcludePrefix: options.ExcludePrefix,
+		MaxResults:    min(max(maxResults*2, 8), 50),
+	})
+	if err != nil {
+		return trimSearchResults(lexical, maxResults), nil
+	}
+	return fuseSearchResults(lexical, semantic.Results, maxResults), nil
+}
+
+func normalizeSearchResultLimit(maxResults int) int {
+	if maxResults <= 0 || maxResults > 200 {
+		return 50
+	}
+	return maxResults
+}
+
+func trimSearchResults(results []SearchResult, maxResults int) []SearchResult {
+	if len(results) <= maxResults {
+		return results
+	}
+	return results[:maxResults]
+}
+
+func fuseSearchResults(lexical []SearchResult, semantic []EmbeddingSearchHit, maxResults int) []SearchResult {
+	const rrfK = 60.0
+	type fusedResult struct {
+		result SearchResult
+		score  float64
+	}
+
+	byPath := make(map[string]*fusedResult, len(lexical)+len(semantic))
+	for rank, result := range lexical {
+		item := &fusedResult{result: result, score: 1 / (rrfK + float64(rank+1))}
+		byPath[result.Path] = item
+	}
+	for rank, hit := range semantic {
+		item := byPath[hit.Path]
+		if item == nil {
+			item = &fusedResult{result: SearchResult{
+				Path:        hit.Path,
+				Title:       hit.Title,
+				Snippet:     hit.Snippet,
+				Frontmatter: hit.Frontmatter,
+			}}
+			byPath[hit.Path] = item
+		}
+		item.score += 1 / (rrfK + float64(rank+1))
+	}
+
+	fused := make([]fusedResult, 0, len(byPath))
+	for _, item := range byPath {
+		fused = append(fused, *item)
+	}
+	sort.SliceStable(fused, func(i, j int) bool {
+		if fused[i].score != fused[j].score {
+			return fused[i].score > fused[j].score
+		}
+		return fused[i].result.Path < fused[j].result.Path
+	})
+	if len(fused) > maxResults {
+		fused = fused[:maxResults]
+	}
+	results := make([]SearchResult, 0, len(fused))
+	for _, item := range fused {
+		results = append(results, item.result)
+	}
+	return results
 }
 
 func (s *EmbeddingService) embed(ctx context.Context, texts []string) ([][]float64, error) {

@@ -355,15 +355,17 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 			return nil, errors.New("query is required")
 		}
 		kind := strings.ToLower(stringArgumentDefault(args, "kind", "all"))
-		prefix := ""
+		options := recall.SearchOptions{Query: query, MaxResults: intArgument(args, "max_results", 20)}
 		switch kind {
 		case "card":
-			prefix = "recall/managed/cards"
-		case "all", "markdown":
+			options.Prefix = "recall/managed/cards"
+		case "markdown":
+			options.ExcludePrefix = "recall/managed/cards"
+		case "all":
 		default:
 			return nil, fmt.Errorf("unsupported recall_search kind: %s", kind)
 		}
-		results, err := s.store.Search(query, prefix, intArgument(args, "max_results", 20))
+		results, err := s.searchRecall(ctx, options)
 		if err != nil {
 			return nil, err
 		}

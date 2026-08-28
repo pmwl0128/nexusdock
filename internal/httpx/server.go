@@ -437,16 +437,27 @@ func (s *Server) deleteRecall(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "path": path})
 }
 
+func (s *Server) searchRecall(ctx context.Context, options recall.SearchOptions) ([]recall.SearchResult, error) {
+	embedding := s.currentEmbedding()
+	if embedding == nil {
+		return s.store.SearchWithOptions(options)
+	}
+	return embedding.HybridSearch(ctx, options)
+}
+
 func (s *Server) searchMemories(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Query      string `json:"query"`
-		Prefix     string `json:"prefix"`
-		MaxResults int    `json:"max_results"`
+		Query         string `json:"query"`
+		Prefix        string `json:"prefix"`
+		ExcludePrefix string `json:"exclude_prefix"`
+		MaxResults    int    `json:"max_results"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	results, err := s.store.Search(req.Query, req.Prefix, req.MaxResults)
+	results, err := s.searchRecall(r.Context(), recall.SearchOptions{
+		Query: req.Query, Prefix: req.Prefix, ExcludePrefix: req.ExcludePrefix, MaxResults: req.MaxResults,
+	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "SEARCH_FAILED", err.Error())
 		return
@@ -528,7 +539,9 @@ func (s *Server) searchCards(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	results, err := s.store.Search(req.Query, "recall/managed/cards", req.MaxResults)
+	results, err := s.searchRecall(r.Context(), recall.SearchOptions{
+		Query: req.Query, Prefix: "recall/managed/cards", MaxResults: req.MaxResults,
+	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "SEARCH_CARDS_FAILED", err.Error())
 		return
