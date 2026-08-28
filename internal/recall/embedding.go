@@ -22,7 +22,7 @@ const DefaultEmbeddingModel = "BAAI/bge-m3"
 const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
 const embeddingBatchSize = 5
 const embeddingBatchConcurrency = 2
-const embeddingTextMaxBytes = 2048
+const embeddingTextMaxBytes = 1536
 const embeddingFrontmatterMaxBytes = 512
 const embeddingHeadingsMaxBytes = 640
 const maxEmbeddingResponseBytes = 32 << 20
@@ -179,7 +179,7 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 	if !s.Enabled() {
 		return EmbeddingReindexResult{}, errors.New("embedding service is disabled or endpoint is empty")
 	}
-	prefix := strings.TrimSpace(req.Prefix)
+	prefix := strings.Trim(filepath.ToSlash(strings.TrimSpace(req.Prefix)), "/")
 	maxEntries := req.MaxEntries
 	if maxEntries <= 0 || maxEntries > 2000 {
 		maxEntries = 1000
@@ -228,23 +228,43 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 	if len(vectors) != len(docs) {
 		return EmbeddingReindexResult{}, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(docs))
 	}
-	dimension := 0
-	if len(vectors) > 0 {
-		dimension = len(vectors[0])
-	}
 	index := embeddingIndex{Model: s.cfg.Model, UpdatedAt: time.Now().UTC(), Documents: map[string]embeddingDocument{}}
+	dimension := 0
+	if prefix != "" && canReuse {
+		// 局部重建只刷新目标前缀；其余同模型向量继续保留，避免 reindex_cards
+		// 把已经建立好的全 Recall 索引重新缩成 Cards-only。
+		dimension = existing.Dimension
+		for path, document := range existing.Documents {
+			if pathWithinPrefix(path, prefix) {
+				continue
+			}
+			index.Documents[path] = document
+		}
+	}
 	for i := range docs {
+		if dimension == 0 {
+			dimension = len(vectors[i])
+		}
 		if len(vectors[i]) != dimension {
 			return EmbeddingReindexResult{}, fmt.Errorf("embedding dimension mismatch at result %d: got %d want %d", i, len(vectors[i]), dimension)
 		}
 		docs[i].Vector = vectors[i]
 		index.Documents[docs[i].Path] = docs[i]
 	}
+	if len(index.Documents) == 0 {
+		dimension = 0
+	}
 	index.Dimension = dimension
 	if err := s.writeIndex(index); err != nil {
 		return EmbeddingReindexResult{}, err
 	}
 	return EmbeddingReindexResult{OK: true, Enabled: true, Model: s.cfg.Model, Endpoint: s.cfg.Endpoint, IndexPath: s.cfg.IndexPath, Prefix: prefix, Count: len(index.Documents), Dimension: dimension, UpdatedAt: index.UpdatedAt}, nil
+}
+
+func pathWithinPrefix(path, prefix string) bool {
+	path = strings.Trim(filepath.ToSlash(strings.TrimSpace(path)), "/")
+	prefix = strings.Trim(filepath.ToSlash(strings.TrimSpace(prefix)), "/")
+	return prefix != "" && (path == prefix || strings.HasPrefix(path, prefix+"/"))
 }
 
 func (s *EmbeddingService) embedPendingDocuments(ctx context.Context, docs []embeddingDocument, pending []int, vectors [][]float64) error {

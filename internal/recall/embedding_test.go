@@ -350,6 +350,88 @@ func TestEmbeddingReindexDefaultsToAllRecallDocuments(t *testing.T) {
 	}
 }
 
+func TestEmbeddingPartialReindexPreservesOutsidePrefixAndPrunesDeletedTarget(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Write(WriteRequest{Path: "profile.md", Content: "# Profile\n\nshared preference\n", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	keepCard, err := store.WriteCard(CardRequest{
+		Title: "Keep card", Content: "Reusable card that should remain after a partial card reindex.", Type: CardRunbook,
+		Scope: ScopeProject, Project: "agentdock", Status: StatusInbox, Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleteCard, err := store.WriteCard(CardRequest{
+		Title: "Delete card", Content: "Card removed before the next partial card reindex operation.", Type: CardRunbook,
+		Scope: ScopeProject, Project: "agentdock", Status: StatusInbox, Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		data := make([]map[string]any, 0, len(req.Input))
+		for i := range req.Input {
+			data = append(data, map[string]any{"index": i, "embedding": []float64{1, 0}})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer server.Close()
+
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
+	if _, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(deleteCard.Recall.Path, true); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{Prefix: "recall/managed/cards"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Count != 2 {
+		t.Fatalf("partial reindex count=%d want=2", result.Count)
+	}
+	idx, err := svc.loadIndex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := idx.Documents["profile.md"]; !ok {
+		t.Fatal("partial card reindex removed profile.md")
+	}
+	if _, ok := idx.Documents[keepCard.Recall.Path]; !ok {
+		t.Fatalf("partial card reindex removed target card %q", keepCard.Recall.Path)
+	}
+	if _, ok := idx.Documents[deleteCard.Recall.Path]; ok {
+		t.Fatalf("partial card reindex kept deleted target card %q", deleteCard.Recall.Path)
+	}
+}
+
+func TestHybridSearchFallsBackWhenEmbeddingsAreDisabled(t *testing.T) {
+	store := newTestStore(t)
+	const path = "recall/docs/projects/agentdock/project.md"
+	if _, err := store.Write(WriteRequest{Path: path, Content: "# Project\n\nlexical-disabled-embedding-marker\n", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Enabled=false 代表根本没有配置向量能力；这里也故意不给任何索引文件。
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: false, IndexPath: filepath.Join(t.TempDir(), "missing-index.json")})
+	results, err := svc.HybridSearch(context.Background(), SearchOptions{Query: "lexical-disabled-embedding-marker", MaxResults: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) == 0 || results[0].Path != path {
+		t.Fatalf("disabled embeddings should keep lexical results: %#v", results)
+	}
+}
+
 func TestHybridSearchUsesSemanticEnhancementAndLexicalFallback(t *testing.T) {
 	store := newTestStore(t)
 	const projectPath = "recall/docs/projects/agentdock/project.md"

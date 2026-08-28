@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func newTestStore(t *testing.T) *Store {
@@ -111,5 +112,38 @@ func TestFrontmatterAndDefaultPath(t *testing.T) {
 	}
 	if mem.Frontmatter["type"] != "runbook" || mem.Frontmatter["project"] != "agentdock" {
 		t.Fatalf("unexpected frontmatter: %#v", mem.Frontmatter)
+	}
+}
+
+func TestSearchSnippetKeepsUTF8Boundaries(t *testing.T) {
+	store := newTestStore(t)
+	content := "# 中文检索\n\n" + strings.Repeat("前", 100) + "目标词" + strings.Repeat("后", 100)
+	if _, err := store.Write(WriteRequest{Path: "recall/docs/projects/demo/project.md", Content: content, Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := store.Search("目标词", "", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if !utf8.ValidString(results[0].Snippet) || strings.ContainsRune(results[0].Snippet, utf8.RuneError) {
+		t.Fatalf("matched snippet is not valid UTF-8: %q", results[0].Snippet)
+	}
+
+	if _, err := store.Write(WriteRequest{Path: "recall/docs/projects/pathmatch/runbooks/target.md", Content: "# 路径匹配\n\n" + strings.Repeat("正文", 100), Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	pathResults, err := store.Search("target", "", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pathResults) == 0 {
+		t.Fatal("expected path-only search result")
+	}
+	if !utf8.ValidString(pathResults[0].Snippet) || strings.ContainsRune(pathResults[0].Snippet, utf8.RuneError) {
+		t.Fatalf("fallback snippet is not valid UTF-8: %q", pathResults[0].Snippet)
 	}
 }

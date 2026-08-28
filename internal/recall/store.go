@@ -841,7 +841,7 @@ func buildSnippet(path, content, body, lowerQuery string, terms []string) string
 			return path
 		}
 		if len(trimmed) > 260 {
-			trimmed = trimmed[:260]
+			trimmed = truncateUTF8(trimmed, 260)
 		}
 		return trimmed
 	}
@@ -849,9 +849,15 @@ func buildSnippet(path, content, body, lowerQuery string, terms []string) string
 	if start < 0 {
 		start = 0
 	}
+	for start > 0 && !utf8.RuneStart(content[start]) {
+		start--
+	}
 	end := idx + needleLen + 180
 	if end > len(content) {
 		end = len(content)
+	}
+	for end < len(content) && !utf8.RuneStart(content[end]) {
+		end++
 	}
 	return strings.TrimSpace(content[start:end])
 }
