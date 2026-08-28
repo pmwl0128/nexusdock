@@ -120,6 +120,12 @@ func TestCentralRuntimeOutputContractRecallBasics(t *testing.T) {
 	}
 	assertCentralToolResultMatchesOutputSchema(t, mcpcontract.ToolRecallMaintain, lint)
 
+	embeddingStatus, err := server.callNexusTool(t.Context(), mcpcontract.ToolRecallMaintain, map[string]any{"action": "embedding_status"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCentralToolResultMatchesOutputSchema(t, mcpcontract.ToolRecallMaintain, embeddingStatus)
+
 	card, err := server.callNexusTool(t.Context(), mcpcontract.ToolRecallWrite, map[string]any{
 		"target": "card", "action": "plan", "title": "Output contract card",
 		"content": "Reusable output contract regression knowledge for central Recall validation.",

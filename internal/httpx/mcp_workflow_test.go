@@ -107,3 +107,25 @@ func TestCentralWorkflowListDefaultsToCurrentVersionPerTemplate(t *testing.T) {
 		t.Fatalf("retired history=%#v err=%v", retired, err)
 	}
 }
+
+func TestCentralWorkflowPublishRetireOutputContract(t *testing.T) {
+	server := &Server{cfg: config.Config{NexusDataDir: t.TempDir()}}
+	template, err := asMap(testWorkflowTemplate("development.contract", "1.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	published, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{"action": "publish", "template": template})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", published)
+
+	retired, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{
+		"action": "retire", "template_id": "development.contract", "template_version": "1.0.0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", retired)
+}

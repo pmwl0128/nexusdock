@@ -31,6 +31,9 @@ func TestRecallWriteMatchesCanonicalBehaviorCases(t *testing.T) {
 			before, existedBefore := prepareRecallWriteBehaviorFixture(t, store, behavior)
 
 			result, err := server.callRecallWrite(t.Context(), args)
+			if err == nil {
+				assertCentralToolResultMatchesOutputSchema(t, mcpcontract.ToolRecallWrite, result)
+			}
 			got := classifyRecallWriteOutcome(behavior, result, err)
 			if got != behavior.Expected {
 				t.Fatalf("outcome=%s want=%s result=%#v err=%v", got, behavior.Expected, result, err)
@@ -394,6 +397,7 @@ func TestCentralRecallResultsDoNotExposeGenericOK(t *testing.T) {
 
 func TestCentralRecallSearchKindFiltersCardsFromMarkdown(t *testing.T) {
 	server, store := newRecallToolTestServer(t)
+	server.cfg.PublicURL = "https://nexus.example.test"
 	if _, err := store.Write(recall.WriteRequest{Path: "profile.md", Content: "# Profile\n\nshared recall term\n", Confirmed: true}); err != nil {
 		t.Fatal(err)
 	}
