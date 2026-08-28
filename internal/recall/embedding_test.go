@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestEmbeddingServiceDisabledStatus(t *testing.T) {
@@ -103,6 +106,9 @@ func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
 	}
 
 	requestSizes := []int{}
+	activeRequests := 0
+	maxActiveRequests := 0
+	var requestMu sync.Mutex
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Input []string `json:"input"`
@@ -110,10 +116,21 @@ func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatal(err)
 		}
+		requestMu.Lock()
 		requestSizes = append(requestSizes, len(req.Input))
+		activeRequests++
+		maxActiveRequests = max(maxActiveRequests, activeRequests)
+		requestMu.Unlock()
+		defer func() {
+			requestMu.Lock()
+			activeRequests--
+			requestMu.Unlock()
+		}()
 		if len(req.Input) > embeddingBatchSize {
 			t.Fatalf("embedding batch too large: %d", len(req.Input))
 		}
+		// 保持两个请求有重叠，验证实现确实是有限并发，而不是又退回串行。
+		time.Sleep(20 * time.Millisecond)
 		data := make([]map[string]any, 0, len(req.Input))
 		for i, text := range req.Input {
 			data = append(data, map[string]any{"index": i, "embedding": fakeEmbeddingVector(text)})
@@ -130,8 +147,84 @@ func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
 	if indexed.Count != embeddingBatchSize*2+2 {
 		t.Fatalf("unexpected indexed count %d", indexed.Count)
 	}
-	if len(requestSizes) != 3 || requestSizes[0] != embeddingBatchSize || requestSizes[1] != embeddingBatchSize || requestSizes[2] != 2 {
+	requestMu.Lock()
+	sort.Ints(requestSizes)
+	gotMaxActive := maxActiveRequests
+	requestMu.Unlock()
+	if len(requestSizes) != 3 || requestSizes[0] != 2 || requestSizes[1] != embeddingBatchSize || requestSizes[2] != embeddingBatchSize {
 		t.Fatalf("unexpected embedding batches: %#v", requestSizes)
+	}
+	if gotMaxActive != embeddingBatchConcurrency {
+		t.Fatalf("embedding batch concurrency=%d want=%d", gotMaxActive, embeddingBatchConcurrency)
+	}
+}
+
+func TestEmbeddingReindexReusesUnchangedVectors(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Write(WriteRequest{Path: "profile.md", Content: "# Profile\n\nkeep this preference\n", Confirmed: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.WriteCard(CardRequest{
+		Title: "Reusable runbook", Content: "This reusable runbook remains unchanged between reindex operations.", Type: CardRunbook,
+		Scope: ScopeProject, Project: "agentdock", Status: StatusInbox, Confirmed: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	embeddedTexts := 0
+	var embeddedMu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		embeddedMu.Lock()
+		embeddedTexts += len(req.Input)
+		embeddedMu.Unlock()
+		data := make([]map[string]any, 0, len(req.Input))
+		for i, text := range req.Input {
+			data = append(data, map[string]any{"index": i, "embedding": fakeEmbeddingVector(text)})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer server.Close()
+
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
+	if _, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	embeddedMu.Lock()
+	firstEmbedded := embeddedTexts
+	embeddedTexts = 0
+	embeddedMu.Unlock()
+	if firstEmbedded != 2 {
+		t.Fatalf("first reindex embedded %d texts, want 2", firstEmbedded)
+	}
+
+	if _, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	embeddedMu.Lock()
+	unchangedEmbedded := embeddedTexts
+	embeddedTexts = 0
+	embeddedMu.Unlock()
+	if unchangedEmbedded != 0 {
+		t.Fatalf("unchanged reindex embedded %d texts, want 0", unchangedEmbedded)
+	}
+
+	if _, err := store.Write(WriteRequest{Path: "profile.md", Content: "# Profile\n\nupdated preference\n", Confirmed: true, Overwrite: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Reindex(context.Background(), EmbeddingReindexRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	embeddedMu.Lock()
+	changedEmbedded := embeddedTexts
+	embeddedMu.Unlock()
+	if changedEmbedded != 1 {
+		t.Fatalf("changed reindex embedded %d texts, want 1", changedEmbedded)
 	}
 }
 

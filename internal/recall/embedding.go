@@ -21,6 +21,7 @@ import (
 const DefaultEmbeddingModel = "BAAI/bge-m3"
 const DefaultEmbeddingEndpoint = "http://host.docker.internal:18788/v1/embeddings"
 const embeddingBatchSize = 5
+const embeddingBatchConcurrency = 2
 const maxEmbeddingResponseBytes = 32 << 20
 
 type EmbeddingConfig struct {
@@ -185,7 +186,6 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 		return EmbeddingReindexResult{}, err
 	}
 	docs := make([]embeddingDocument, 0, len(entries))
-	texts := []string{}
 	for _, entry := range entries {
 		if entry.Type != "file" || !IsTextFile(entry.Path) {
 			continue
@@ -199,17 +199,28 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 			continue
 		}
 		docs = append(docs, embeddingDocument{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Text: text, Frontmatter: mem.Frontmatter, UpdatedAt: time.Now().UTC()})
-		texts = append(texts, text)
 	}
-	// BGE-M3 对大批量长文本的单次请求耗时会明显放大；小批次可让重建稳定落在 API 超时窗口内。
-	vectors := make([][]float64, 0, len(texts))
-	for start := 0; start < len(texts); start += embeddingBatchSize {
-		end := min(start+embeddingBatchSize, len(texts))
-		batch, err := s.embed(ctx, texts[start:end])
-		if err != nil {
-			return EmbeddingReindexResult{}, err
+
+	// 重建不是“无条件重算”：内容和模型都没变的文档直接复用旧向量。
+	// 这样日常维护只为新增/修改文档付推理成本，同时首次从 Cards-only 扩展到全 Recall 时仍会补齐缺失文档。
+	vectors := make([][]float64, len(docs))
+	existing, existingErr := s.loadIndex()
+	canReuse := existingErr == nil && existing.Model == s.cfg.Model
+	pending := make([]int, 0, len(docs))
+	for i := range docs {
+		if canReuse {
+			if previous, ok := existing.Documents[docs[i].Path]; ok && previous.Text == docs[i].Text && len(previous.Vector) > 0 {
+				vectors[i] = previous.Vector
+				continue
+			}
 		}
-		vectors = append(vectors, batch...)
+		pending = append(pending, i)
+	}
+
+	// BGE-M3 对长文本批次的 CPU 推理较慢。保持每批很小，并只允许两批并行，
+	// 既避免全量重建因纯串行推理拖得过长，也不把本机 embedding 服务打满。
+	if err := s.embedPendingDocuments(ctx, docs, pending, vectors); err != nil {
+		return EmbeddingReindexResult{}, err
 	}
 	if len(vectors) != len(docs) {
 		return EmbeddingReindexResult{}, fmt.Errorf("embedding response count mismatch: got %d want %d", len(vectors), len(docs))
@@ -231,6 +242,76 @@ func (s *EmbeddingService) Reindex(ctx context.Context, req EmbeddingReindexRequ
 		return EmbeddingReindexResult{}, err
 	}
 	return EmbeddingReindexResult{OK: true, Enabled: true, Model: s.cfg.Model, Endpoint: s.cfg.Endpoint, IndexPath: s.cfg.IndexPath, Prefix: prefix, Count: len(index.Documents), Dimension: dimension, UpdatedAt: index.UpdatedAt}, nil
+}
+
+func (s *EmbeddingService) embedPendingDocuments(ctx context.Context, docs []embeddingDocument, pending []int, vectors [][]float64) error {
+	if len(pending) == 0 {
+		return nil
+	}
+	type batch struct {
+		indices []int
+		texts   []string
+	}
+
+	workerCount := min(embeddingBatchConcurrency, (len(pending)+embeddingBatchSize-1)/embeddingBatchSize)
+	jobs := make(chan batch)
+	errCh := make(chan error, 1)
+	workerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var workers sync.WaitGroup
+	for range workerCount {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for job := range jobs {
+				batchVectors, err := s.embed(workerCtx, job.texts)
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+				if len(batchVectors) != len(job.indices) {
+					select {
+					case errCh <- fmt.Errorf("embedding response count mismatch: got %d want %d", len(batchVectors), len(job.indices)):
+					default:
+					}
+					cancel()
+					return
+				}
+				for i, documentIndex := range job.indices {
+					vectors[documentIndex] = batchVectors[i]
+				}
+			}
+		}()
+	}
+
+sendBatches:
+	for start := 0; start < len(pending); start += embeddingBatchSize {
+		end := min(start+embeddingBatchSize, len(pending))
+		indices := append([]int(nil), pending[start:end]...)
+		texts := make([]string, len(indices))
+		for i, documentIndex := range indices {
+			texts[i] = docs[documentIndex].Text
+		}
+		select {
+		case jobs <- batch{indices: indices, texts: texts}:
+		case <-workerCtx.Done():
+			break sendBatches
+		}
+	}
+	close(jobs)
+	workers.Wait()
+
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		return workerCtx.Err()
+	}
 }
 
 func (s *EmbeddingService) Search(ctx context.Context, req EmbeddingSearchRequest) (EmbeddingSearchResult, error) {
