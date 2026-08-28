@@ -119,7 +119,16 @@ func (s *Server) callWorkflowTemplateManage(ctx context.Context, args map[string
 		return s.workflowTemplateMatchResult(ctx, stringArgument(args, "goal"), stringArgument(args, "device"), stringArgument(args, "type"))
 
 	case "vector_index":
-		return s.workflowTemplateVectorIndexResult()
+		result, err := s.workflowTemplateVectorIndexResult()
+		if err != nil {
+			return nil, err
+		}
+		result["action"] = action
+		if available, exists := result["available"]; exists {
+			result["vector_index_available"] = available
+			delete(result, "available")
+		}
+		return result, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported workflow_template_manage action: %s", action)

@@ -286,9 +286,14 @@ func prettyJSON(value any) string {
 }
 
 func (s *Server) decorateRecallSearchResults(results []recall.SearchResult) ([]map[string]any, error) {
-	baseURL, _ := url.Parse(strings.TrimSpace(s.cfg.PublicURL))
-	validBaseURL := baseURL != nil && baseURL.IsAbs() && baseURL.Host != ""
 	decorated := make([]map[string]any, 0, len(results))
+	if len(results) == 0 {
+		return decorated, nil
+	}
+	baseURL, err := url.Parse(strings.TrimSpace(s.cfg.PublicURL))
+	if err != nil || baseURL == nil || !baseURL.IsAbs() || baseURL.Host == "" {
+		return nil, errors.New("NEXUS_PUBLIC_URL is required to generate recall_search citation URLs")
+	}
 	for _, result := range results {
 		item, err := asMap(result)
 		if err != nil {
@@ -303,14 +308,12 @@ func (s *Server) decorateRecallSearchResults(results []recall.SearchResult) ([]m
 			name := pathpkg.Base(path)
 			item["title"] = strings.TrimSuffix(name, pathpkg.Ext(name))
 		}
-		if validBaseURL {
-			sourceURL := *baseURL
-			query := sourceURL.Query()
-			query.Set("path", path)
-			sourceURL.RawQuery = query.Encode()
-			sourceURL.Fragment = "recall/library"
-			item["url"] = sourceURL.String()
-		}
+		sourceURL := *baseURL
+		query := sourceURL.Query()
+		query.Set("path", path)
+		sourceURL.RawQuery = query.Encode()
+		sourceURL.Fragment = "recall/library"
+		item["url"] = sourceURL.String()
 		decorated = append(decorated, item)
 	}
 	return decorated, nil
@@ -725,8 +728,12 @@ func (s *Server) callPrivateNote(ctx context.Context, args map[string]any) (map[
 func (s *Server) callPrivateNoteOperation(ctx context.Context, args map[string]any, action string) (map[string]any, error) {
 	switch action {
 	case "search":
-		results, err := s.privateNotes.Search(ctx, stringArgument(args, "query"), intArgument(args, "max_results", 8))
-		return asMap(map[string]any{"action": action, "results": results, "count": len(results)}, err)
+		query := stringArgument(args, "query")
+		results, err := s.privateNotes.Search(ctx, query, intArgument(args, "max_results", 8))
+		return asMap(map[string]any{
+			"action": action, "query": query, "root": s.privateNotes.Root(),
+			"results": results, "count": len(results), "metadata_only": true,
+		}, err)
 	case "read":
 		result, err := s.privateNotes.Read(stringArgument(args, "path"), intArgument(args, "max_bytes", 256000))
 		return asMap(result, err)

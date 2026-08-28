@@ -18,11 +18,13 @@ func TestCentralWorkflowTemplateManageUsesNexusRegistry(t *testing.T) {
 	if err != nil || listed["count"] != 2 {
 		t.Fatalf("list=%#v err=%v", listed, err)
 	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", listed)
 
 	loaded, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{"action": "get", "template_id": "development.demo"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", loaded)
 	template, ok := loaded["template"].(workflowTemplate)
 	if !ok || template.ID != "development.demo" || template.Status != workflowTemplateActive {
 		t.Fatalf("get=%#v", loaded)
@@ -34,6 +36,7 @@ func TestCentralWorkflowTemplateManageUsesNexusRegistry(t *testing.T) {
 	if err != nil || many["count"] != 2 || many["composition_required"] != true || many["next_required_action"] != workflowCompositionNextAction {
 		t.Fatalf("get_many=%#v err=%v", many, err)
 	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", many)
 
 	matched, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{
 		"action": "match", "goal": "demo development", "device": "DockMini", "type": "development",
@@ -41,8 +44,21 @@ func TestCentralWorkflowTemplateManageUsesNexusRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", matched)
 	if matched["action"] != "match" || matched["count"].(int) == 0 {
 		t.Fatalf("match=%#v", matched)
+	}
+
+	vectorIndex, err := server.callWorkflowTemplateManage(t.Context(), map[string]any{"action": "vector_index"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCentralToolResultMatchesOutputSchema(t, "workflow_template_manage", vectorIndex)
+	if vectorIndex["action"] != "vector_index" || vectorIndex["vector_index_available"] != false {
+		t.Fatalf("vector_index=%#v", vectorIndex)
+	}
+	if _, legacy := vectorIndex["available"]; legacy {
+		t.Fatalf("vector_index leaked REST-only available field: %#v", vectorIndex)
 	}
 }
 

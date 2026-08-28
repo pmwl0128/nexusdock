@@ -110,6 +110,7 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 	if err != nil {
 		t.Fatalf("fleet context result=%#v err=%v", result, err)
 	}
+	assertCentralToolResultMatchesOutputSchema(t, "agentdock_context", result)
 	var fleet fleetAgentDockContext
 	if err := decodeMap(result, &fleet); err != nil {
 		t.Fatal(err)
