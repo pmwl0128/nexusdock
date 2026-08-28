@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/auth"
 	"github.com/uvwt/nexusdock/internal/core"
@@ -175,6 +176,67 @@ func TestNodeDisablePromotesConvergedToolContract(t *testing.T) {
 	if published.ContractHash != newHash || len(published.AcceptedSemanticHashes) != 1 || published.AcceptedSemanticHashes[0] != newHash {
 		t.Fatalf("disable did not promote remaining contract: %#v", published)
 	}
+}
+
+func TestNodeEnableReconcileKeepsCanonicalToolsCentral(t *testing.T) {
+	server := newNodeTestServer(t)
+	server.mcpTools = make(map[string]publishedNodeTool)
+	server.mcpResources = make(map[string]struct{})
+
+	input, ok := mcpcontract.InputSchema(mcpcontract.ToolAgentDockContext)
+	if !ok {
+		t.Fatal("agentdock_context input contract is missing")
+	}
+	descriptor := agentdock.ToolDescriptor{
+		Name:        mcpcontract.ToolAgentDockContext,
+		InputSchema: input,
+	}
+	node := pairHTTPTestNode(t, server.agentDock, "device_canonical_reconcile", "DockMini", "1.9.0", descriptor)
+	server.initializeMCPGateway()
+
+	// 即使 enabled 没有变化，管理端 PATCH 仍会触发一次完整工具契约重算。
+	request := httptest.NewRequest(http.MethodPatch, "/v1/runtime/nodes/"+node.ID, strings.NewReader(`{"enabled":true}`))
+	request.SetPathValue("nodeID", node.ID)
+	response := httptest.NewRecorder()
+	server.agentDockNodeUpdate(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	contracts, err := server.agentDock.ListPublishedToolContracts(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contracts) != 0 {
+		t.Fatalf("node reconcile published canonical contracts: %#v", contracts)
+	}
+
+	clientTransport, serverTransport := mcpsdk.NewInMemoryTransports()
+	serverSession, err := server.mcpServer.Connect(t.Context(), serverTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "nexusdock-test", Version: "1"}, nil)
+	clientSession, err := client.Connect(t.Context(), clientTransport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientSession.Close()
+	tools, err := clientSession.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != mcpcontract.ToolAgentDockContext {
+			continue
+		}
+		properties := tool.InputSchema.(map[string]any)["properties"].(map[string]any)
+		if _, hasNodeID := properties["node_id"]; hasNodeID {
+			t.Fatalf("node reconcile replaced central agentdock_context: %#v", tool.InputSchema)
+		}
+		return
+	}
+	t.Fatal("agentdock_context is missing")
 }
 
 func TestNodeDeletePromotesConvergedToolContract(t *testing.T) {

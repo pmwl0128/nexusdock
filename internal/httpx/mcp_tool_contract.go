@@ -255,6 +255,10 @@ func (s *Server) persistPublishedNodeTool(ctx context.Context, published publish
 }
 
 func (s *Server) reconcileFleetNodeTool(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || mcpcontract.IsCanonicalTool(name) {
+		return nil
+	}
 	if s.agentDock == nil {
 		return nil
 	}
@@ -693,7 +697,9 @@ func (s *Server) reconcileNodeToolContracts(names []string) {
 	seen := make(map[string]struct{}, len(names))
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		if name == "" {
+		// 节点启停或删除后的 fleet 重算也会收到完整 descriptor 名单；中央工具始终由
+		// Nexus 唯一持有，不能在这条旁路中被重新发布为要求 node_id 的节点工具。
+		if name == "" || mcpcontract.IsCanonicalTool(name) {
 			continue
 		}
 		if _, ok := seen[name]; ok {
