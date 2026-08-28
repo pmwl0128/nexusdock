@@ -40,7 +40,7 @@ func TestHubInvokesConnectedNode(t *testing.T) {
 	}
 	defer socket.Close()
 	if err := socket.WriteJSON(connectionMessage{Type: protocol.MessageNodeHello, ProtocolVersion: ConnectionProtocolVersion, Hello: &Hello{
-		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, Capabilities: []string{"server_info"}, UIResources: []UIResourceCapability{},
+		DeviceID: node.DeviceID, ProtocolVersion: ConnectionProtocolVersion, Capabilities: []string{"read_file"}, UIResources: []UIResourceCapability{},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestHubInvokesConnectedNode(t *testing.T) {
 		}
 		done <- socket.WriteJSON(connectionMessage{Type: protocol.MessageToolResult, RequestID: invoke.RequestID, Result: []byte(`{"ok":true}`)})
 	}()
-	result, err := hub.Invoke(context.Background(), node.ID, "tool.call", map[string]any{"tool": "server_info"})
+	result, err := hub.Invoke(context.Background(), node.ID, "tool.call", map[string]any{"tool": "read_file"})
 	if err != nil {
 		t.Fatal(err)
 	}

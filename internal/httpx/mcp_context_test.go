@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	protocol "github.com/uvwt/agentdock-protocol"
+	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
 	"github.com/uvwt/nexusdock/internal/config"
 	"github.com/uvwt/nexusdock/internal/recall"
@@ -82,6 +83,14 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 	store := newHTTPTestAgentDockStore(t)
 	descriptor := fleetContextTestDescriptor()
 	online := pairHTTPTestNode(t, store, "device_context_online", "DockMini", "2.0.0", descriptor)
+	var err error
+	online, err = store.UpdateHello(t.Context(), online.ID, agentdock.Hello{
+		DeviceID: online.DeviceID, Version: online.Version, ProtocolVersion: agentdock.ConnectionProtocolVersion,
+		OS: "darwin", Arch: "arm64", Capabilities: []string{descriptor.Name}, Tools: []agentdock.ToolDescriptor{descriptor}, UIResources: []agentdock.UIResourceCapability{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	offline := pairHTTPTestNode(t, store, "device_context_offline", "DockWin", "2.0.0", descriptor)
 	disabled := pairHTTPTestNode(t, store, "device_context_disabled", "DockAir", "2.0.0", descriptor)
 	enabled := false
@@ -90,7 +99,12 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 	}
 
 	hub := agentdock.NewHub(store)
+	// 故意注入与 Hello 冲突的 runtime，证明 Nexus 节点事实不会被 provider context 覆盖。
 	connectFleetContextTestNode(t, hub, online, descriptor, map[string]any{
+		"runtime": map[string]any{
+			"version": "9.9.9", "os": "linux", "arch": "amd64",
+			"agentdock_home": "/wrong", "agentdock_default_dir": "/wrong", "default_cwd": ".", "path_model": "host",
+		},
 		"skills":             []any{map[string]any{"name": "desktop", "description": "Desktop", "file": "skill://desktop/SKILL.md"}},
 		"dynamic_mcp":        []any{map[string]any{"name": "github", "description": "GitHub"}},
 		"workflow_templates": []any{map[string]any{"name": "deploy", "description": "Deploy"}},
@@ -120,6 +134,9 @@ func TestCallFleetAgentDockContextAggregatesOnlineAndOfflineNodes(t *testing.T) 
 	}
 	if fleet.Nodes[0].Name != "DockMini" || !fleet.Nodes[0].Online || containsString(fleet.Nodes[0].Capabilities, descriptor.Name) || fleet.Nodes[0].Context == nil || len(fleet.Nodes[0].Context.Skills) != 1 {
 		t.Fatalf("online node context = %#v", fleet.Nodes[0])
+	}
+	if fleet.Nodes[0].Version != "2.0.0" || fleet.Nodes[0].OS != "darwin" || fleet.Nodes[0].Arch != "arm64" {
+		t.Fatalf("fleet node facts must come from Bridge Hello, got %#v", fleet.Nodes[0])
 	}
 	if fleet.Nodes[1].Name != offline.Name || fleet.Nodes[1].Online || containsString(fleet.Nodes[1].Capabilities, descriptor.Name) || fleet.Nodes[1].Error != agentdock.ErrNodeOffline.Error() || fleet.Nodes[1].Context != nil {
 		t.Fatalf("offline node context = %#v", fleet.Nodes[1])
@@ -179,24 +196,13 @@ func TestDecodeAgentDockContextRejectsLegacyMarkdownResult(t *testing.T) {
 }
 
 func fleetContextTestDescriptor() agentdock.ToolDescriptor {
+	inputSchema, ok := mcpcontract.InputSchema(agentDockContextToolName)
+	if !ok {
+		panic("agentdock_context input schema is missing")
+	}
 	return agentdock.ToolDescriptor{
-		Name:        agentDockContextToolName,
-		Title:       "AgentDock context",
-		Description: "Return structured AgentDock bootstrap context.",
-		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": true},
-		OutputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"skills":             map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-				"dynamic_mcp":        map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-				"acp":                map[string]any{"type": "object"},
-				"workflow_templates": map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-				"recall":             map[string]any{"type": "object"},
-				"rules":              map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"warnings":           map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
-			},
-			"required": []any{"skills", "dynamic_mcp", "workflow_templates", "rules"}, "additionalProperties": true,
-		},
+		Name: agentDockContextToolName, Title: "AgentDock context", Description: "Return structured AgentDock bootstrap context.",
+		InputSchema: inputSchema, OutputSchema: mcpcontract.LocalAgentDockContextOutputSchema(),
 	}
 }
 
