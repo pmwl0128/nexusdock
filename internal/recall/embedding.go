@@ -253,6 +253,12 @@ func (s *EmbeddingService) embedPendingDocuments(ctx context.Context, docs []emb
 		texts   []string
 	}
 
+	// Transformer batch 会 pad 到本批最长文本。按长度聚类后再切批，避免一篇长文
+	// 迫使同批短文一起跑到相同序列长度，尤其适合 Recall 这种文档长度差异很大的语料。
+	sort.SliceStable(pending, func(i, j int) bool {
+		return len(docs[pending[i]].Text) < len(docs[pending[j]].Text)
+	})
+
 	workerCount := min(embeddingBatchConcurrency, (len(pending)+embeddingBatchSize-1)/embeddingBatchSize)
 	jobs := make(chan batch)
 	errCh := make(chan error, 1)

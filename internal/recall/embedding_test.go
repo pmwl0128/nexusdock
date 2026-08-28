@@ -159,6 +159,58 @@ func TestEmbeddingReindexBatchesLargeCardSets(t *testing.T) {
 	}
 }
 
+func TestEmbeddingPendingDocumentsGroupsSimilarLengths(t *testing.T) {
+	store := newTestStore(t)
+	var mu sync.Mutex
+	batchLengths := [][]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Input []string `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		lengths := make([]int, len(req.Input))
+		data := make([]map[string]any, 0, len(req.Input))
+		for i, text := range req.Input {
+			lengths[i] = len(text)
+			data = append(data, map[string]any{"index": i, "embedding": []float64{1, 0}})
+		}
+		mu.Lock()
+		batchLengths = append(batchLengths, lengths)
+		mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer server.Close()
+
+	svc := NewEmbeddingService(store, EmbeddingConfig{Enabled: true, Endpoint: server.URL, IndexPath: filepath.Join(t.TempDir(), "embedding-index.json")})
+	lengths := []int{1000, 10, 1100, 20, 1200, 30, 1300, 40, 1400, 50}
+	docs := make([]embeddingDocument, len(lengths))
+	pending := make([]int, len(lengths))
+	for i, length := range lengths {
+		docs[i] = embeddingDocument{Path: fmt.Sprintf("doc-%d.md", i), Text: strings.Repeat("x", length)}
+		pending[i] = i
+	}
+	vectors := make([][]float64, len(docs))
+	if err := svc.embedPendingDocuments(context.Background(), docs, pending, vectors); err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	got := append([][]int(nil), batchLengths...)
+	mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("got %d batches, want 2: %#v", len(got), got)
+	}
+	for _, batch := range got {
+		sort.Ints(batch)
+	}
+	sort.Slice(got, func(i, j int) bool { return got[i][0] < got[j][0] })
+	if fmt.Sprint(got[0]) != "[10 20 30 40 50]" || fmt.Sprint(got[1]) != "[1000 1100 1200 1300 1400]" {
+		t.Fatalf("similar text lengths were not grouped: %#v", got)
+	}
+}
+
 func TestEmbeddingReindexReusesUnchangedVectors(t *testing.T) {
 	store := newTestStore(t)
 	if _, err := store.Write(WriteRequest{Path: "profile.md", Content: "# Profile\n\nkeep this preference\n", Confirmed: true}); err != nil {
