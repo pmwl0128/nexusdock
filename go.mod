@@ -7,7 +7,7 @@ require (
 	github.com/google/jsonschema-go v0.4.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/modelcontextprotocol/go-sdk v1.7.0
-	github.com/uvwt/agentdock-protocol v0.1.1-0.20260828062216-a555c9ef1f88
+	github.com/uvwt/agentdock-protocol v0.2.0
 	golang.org/x/crypto v0.37.0
 	modernc.org/sqlite v1.39.1
 )
