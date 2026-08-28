@@ -190,7 +190,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/recall/preview", deviceProtected(s.previewRecall))
 	mux.HandleFunc("POST /v1/recall/move", deviceProtected(s.moveRecall))
 	mux.HandleFunc("POST /v1/recall/search", deviceProtected(s.searchMemories))
-	mux.HandleFunc("POST /v1/recall/pack", deviceProtected(s.packMemories))
+	mux.HandleFunc("POST /v1/recall/context-index", deviceProtected(s.contextIndexMemories))
 	mux.HandleFunc("GET /v1/recall/cards", deviceProtected(s.listCards))
 	mux.HandleFunc("POST /v1/recall/cards", deviceProtected(s.writeCard))
 	mux.HandleFunc("POST /v1/recall/cards/capture", deviceProtected(s.captureCard))
@@ -465,24 +465,17 @@ func (s *Server) searchMemories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "query": req.Query, "results": results, "count": len(results)})
 }
 
-func (s *Server) packMemories(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Project  string `json:"project"`
-		MaxBytes int    `json:"max_bytes"`
-	}
+func (s *Server) contextIndexMemories(w http.ResponseWriter, r *http.Request) {
+	var req recall.ContextIndexRequest
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	sections, bytes, err := s.store.Pack(req.Project, req.MaxBytes)
+	index, err := s.store.BuildContextIndex(req)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "PACK_FAILED", err.Error())
+		writeError(w, http.StatusBadRequest, "CONTEXT_INDEX_FAILED", err.Error())
 		return
 	}
-	runbookIndex, indexErr := s.store.RunbookIndex(req.Project, 50)
-	if indexErr != nil {
-		runbookIndex = nil
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "project": req.Project, "sections": sections, "count": len(sections), "bytes": bytes, "runbook_index": runbookIndex, "runbook_index_count": len(runbookIndex)})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "context_index": index})
 }
 
 func (s *Server) listCards(w http.ResponseWriter, r *http.Request) {

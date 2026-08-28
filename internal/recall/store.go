@@ -62,15 +62,6 @@ type SearchOptions struct {
 	MaxResults    int
 }
 
-type RecallIndex struct {
-	Path        string            `json:"path"`
-	Title       string            `json:"title,omitempty"`
-	Frontmatter map[string]string `json:"frontmatter,omitempty"`
-	Aliases     []string          `json:"aliases,omitempty"`
-	Keywords    []string          `json:"keywords,omitempty"`
-	SizeBytes   int               `json:"size_bytes,omitempty"`
-}
-
 type WriteRequest struct {
 	Path              string   `json:"path"`
 	Content           string   `json:"content"`
@@ -337,127 +328,6 @@ func (s *Store) SearchWithOptions(options SearchOptions) ([]SearchResult, error)
 		out = append(out, result.result)
 	}
 	return out, nil
-}
-
-func appendUniquePaths(paths []string, extras ...string) []string {
-	seen := map[string]bool{}
-	for _, path := range paths {
-		seen[path] = true
-	}
-	for _, path := range extras {
-		path = strings.TrimSpace(path)
-		if path == "" || seen[path] {
-			continue
-		}
-		seen[path] = true
-		paths = append(paths, path)
-	}
-	return paths
-}
-
-func (s *Store) firstExistingPath(paths ...string) string {
-	for _, path := range paths {
-		path = strings.TrimSpace(path)
-		if path == "" {
-			continue
-		}
-		abs, err := s.resolve(path)
-		if err != nil {
-			continue
-		}
-		if _, err := os.Stat(abs); err == nil {
-			return path
-		}
-	}
-	return ""
-}
-
-func (s *Store) listUnderAny(maxEntries int, bases ...string) []string {
-	out := []string{}
-	seen := map[string]bool{}
-	for _, base := range bases {
-		for _, path := range s.listUnder(base, maxEntries) {
-			if seen[path] {
-				continue
-			}
-			seen[path] = true
-			out = append(out, path)
-			if len(out) >= maxEntries {
-				return out
-			}
-		}
-	}
-	return out
-}
-
-func (s *Store) RunbookIndex(project string, maxEntries int) ([]RecallIndex, error) {
-	if maxEntries <= 0 || maxEntries > 200 {
-		maxEntries = 50
-	}
-	if strings.TrimSpace(project) == "" {
-		return []RecallIndex{}, nil
-	}
-	projectSegment := SafeSegment(project)
-	paths := s.listUnderAny(maxEntries,
-		"recall/docs/projects/"+projectSegment+"/runbooks",
-	)
-	indexes := make([]RecallIndex, 0, len(paths))
-	for _, rel := range paths {
-		mem, err := s.Read(rel)
-		if err != nil {
-			continue
-		}
-		indexes = append(indexes, RecallIndex{Path: mem.Path, Title: firstMarkdownTitle(mem.Body), Frontmatter: mem.Frontmatter, Aliases: frontmatterList(mem.Frontmatter, "aliases"), Keywords: frontmatterList(mem.Frontmatter, "keywords"), SizeBytes: mem.SizeBytes})
-	}
-	return indexes, nil
-}
-
-func (s *Store) Pack(project string, maxBytes int) ([]Recall, int, error) {
-	if maxBytes <= 0 || maxBytes > 512000 {
-		maxBytes = 120000
-	}
-	paths := []string{}
-	paths = appendUniquePaths(paths, s.firstExistingPath("profile.md"))
-	if strings.TrimSpace(project) != "" {
-		projectSegment := SafeSegment(project)
-		newBase := "recall/docs/projects/" + projectSegment
-		paths = appendUniquePaths(paths,
-			s.firstExistingPath(newBase+"/project.md"),
-			s.firstExistingPath(newBase+"/conventions.md"),
-			s.firstExistingPath(newBase+"/environment.md"),
-			s.firstExistingPath(newBase+"/session-handoff.md"),
-		)
-		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/decisions")...)
-		paths = appendUniquePaths(paths, s.listUnderAny(10, newBase+"/runbooks")...)
-	}
-	sections := []Recall{}
-	total := 0
-	seen := map[string]bool{}
-	for _, rel := range paths {
-		if rel == "" || seen[rel] {
-			continue
-		}
-		seen[rel] = true
-		section, err := s.Read(rel)
-		if err != nil {
-			continue
-		}
-		if total+len(section.Content) > maxBytes {
-			remaining := maxBytes - total
-			if remaining <= 0 {
-				break
-			}
-			section.Content = section.Content[:remaining]
-			section.Frontmatter, section.Body = SplitFrontmatter(section.Content)
-			section.SizeBytes = len(section.Content)
-		}
-		sections = append(sections, section)
-		total += len(section.Content)
-		if total >= maxBytes {
-			break
-		}
-	}
-	return sections, total, nil
 }
 
 func IsAllowedRecallPath(path string) bool {
@@ -756,27 +626,6 @@ func hasParentSegment(rel string) bool {
 		}
 	}
 	return false
-}
-
-func (s *Store) listUnder(rel string, max int) []string {
-	abs, err := s.resolve(rel)
-	if err != nil {
-		return nil
-	}
-	files := []string{}
-	_ = filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !IsTextFile(path) {
-			return nil
-		}
-		relPath, _ := filepath.Rel(s.root, path)
-		files = append(files, filepath.ToSlash(relPath))
-		return nil
-	})
-	sort.Strings(files)
-	if len(files) > max {
-		files = files[len(files)-max:]
-	}
-	return files
 }
 
 func queryTerms(query string) []string {

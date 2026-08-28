@@ -116,51 +116,10 @@ type ListRequest struct {
 	MaxEntries int      `json:"max_entries,omitempty"`
 }
 
-type BootstrapRequest struct {
-	Project  string `json:"project,omitempty"`
-	Device   string `json:"device,omitempty"`
-	Agent    string `json:"agent,omitempty"`
-	Skill    string `json:"skill,omitempty"`
-	MaxBytes int    `json:"max_bytes,omitempty"`
-}
-
-type ContextPackRequest struct {
-	TaskID   string `json:"task_id,omitempty"`
-	Project  string `json:"project,omitempty"`
-	Device   string `json:"device,omitempty"`
-	Agent    string `json:"agent,omitempty"`
-	Skill    string `json:"skill,omitempty"`
-	MaxBytes int    `json:"max_bytes,omitempty"`
-}
-
-type ContextSection struct {
-	Kind      string   `json:"kind"`
-	Path      string   `json:"path"`
-	Content   string   `json:"content"`
-	SizeBytes int      `json:"size_bytes"`
-	Truncated bool     `json:"truncated,omitempty"`
-	Metadata  Metadata `json:"metadata"`
-}
-
-type ContextPack struct {
-	TaskID     string           `json:"task_id,omitempty"`
-	Project    string           `json:"project,omitempty"`
-	Device     string           `json:"device,omitempty"`
-	Agent      string           `json:"agent,omitempty"`
-	Skill      string           `json:"skill,omitempty"`
-	Sections   []ContextSection `json:"sections"`
-	Conflicts  []RecallConflict `json:"conflicts,omitempty"`
-	TotalBytes int              `json:"total_bytes"`
-	MaxBytes   int              `json:"max_bytes"`
-	Truncated  bool             `json:"truncated"`
-}
-
 type MemoryService interface {
 	Search(context.Context, SearchRequest) ([]Record, error)
 	Read(context.Context, string) (Record, error)
 	List(context.Context, ListRequest) ([]Record, error)
-	Bootstrap(context.Context, BootstrapRequest) (ContextPack, error)
-	BuildContextPack(context.Context, ContextPackRequest) (ContextPack, error)
 	DetectConflict(context.Context, DetectConflictRequest) ([]RecallConflict, error)
 	ProposeUpdate(context.Context, ProposeUpdateRequest) (UpdateProposal, error)
 	ApplyUpdate(context.Context, ApplyUpdateRequest) (Record, error)

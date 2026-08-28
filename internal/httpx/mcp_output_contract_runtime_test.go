@@ -80,12 +80,6 @@ func TestCentralRuntimeOutputContractRecallBasics(t *testing.T) {
 	server, store := newRecallToolTestServer(t)
 	server.cfg.PublicURL = "https://nexus.example.test"
 
-	bootstrap, err := server.callNexusTool(t.Context(), mcpcontract.ToolRecallBootstrap, map[string]any{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertCentralToolResultMatchesOutputSchema(t, mcpcontract.ToolRecallBootstrap, bootstrap)
-
 	path := "recall/docs/inbox/output-contract.md"
 	if _, err := store.Write(recall.WriteRequest{
 		Path: path, Content: "# Output Contract\n\nschema validation marker\n", Confirmed: true,

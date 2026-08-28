@@ -73,9 +73,14 @@ type RecallConflict struct {
 	ResolvedAt    *time.Time     `json:"resolved_at,omitempty"`
 }
 
+type ConflictListRequest struct {
+	Device string
+	Agent  string
+}
+
 type ConflictRepository interface {
 	Upsert(context.Context, RecallConflict) error
-	ListOpen(context.Context, ContextPackRequest) ([]RecallConflict, error)
+	ListOpen(context.Context, ConflictListRequest) ([]RecallConflict, error)
 	Resolve(context.Context, string, ConflictStatus) error
 }
 
@@ -98,7 +103,7 @@ func (r *InRecallConflictRepository) Upsert(_ context.Context, conflict RecallCo
 	return nil
 }
 
-func (r *InRecallConflictRepository) ListOpen(_ context.Context, req ContextPackRequest) ([]RecallConflict, error) {
+func (r *InRecallConflictRepository) ListOpen(_ context.Context, req ConflictListRequest) ([]RecallConflict, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]RecallConflict, 0, len(r.items))

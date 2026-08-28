@@ -303,6 +303,50 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         },
         ("path", "snippet", "frontmatter"),
     )
+    schemas["RecallContextIndexRequest"] = obj(
+        "为 agentdock_context 构造无查询的紧凑 Recall 启动索引。",
+        {
+            "project": scalar("string", "项目标识；为空时只返回全局可用条目。"),
+            "max_bytes": scalar("integer", "索引 items 的最大 JSON 字节预算；无效值使用服务默认值。", minimum=2, maximum=32000),
+        },
+    )
+    schemas["RecallContextIndexItem"] = obj(
+        "紧凑 Recall 启动索引中的单条候选。",
+        {
+            "kind": enum("候选类别。", ["profile", "project", "verified_fact", "runbook", "card"]),
+            "path": scalar("string", "可直接交给 recall_read 的 Recall 相对路径。"),
+            "title": scalar("string", "用于判断相关性的短标题。"),
+            "summary": scalar("string", "仅对可安全独立理解的类别返回的短摘要。"),
+            "keywords": array("用于路由到完整文档的关键词。", scalar("string", "关键词。")),
+            "aliases": array("用于路由到完整文档的别名。", scalar("string", "别名。")),
+            "tags": array("卡片标签。", scalar("string", "标签。")),
+            "card_type": scalar("string", "经验卡片类型。"),
+            "status": enum("进入启动索引的 Recall 生命周期状态。", ["active", "verified"]),
+            "confidence": enum("候选可信度。", ["low", "medium", "high"]),
+            "verified_at": TIMESTAMP,
+        },
+        ("kind", "path"),
+    )
+    schemas["RecallContextIndex"] = obj(
+        "按类别配额和总字节预算裁剪后的 Recall 启动索引。",
+        {
+            "project": scalar("string", "规范化后的项目标识。"),
+            "items": array("按 profile、project、verified_fact、runbook、card 顺序排列的候选。", ref("RecallContextIndexItem")),
+            "total_bytes": scalar("integer", "items 实际 JSON 编码字节数。", minimum=0),
+            "max_bytes": scalar("integer", "items 允许的最大 JSON 字节预算。", minimum=1, maximum=32000),
+            "truncated": scalar("boolean", "是否因预算或候选不可读而省略了条目。"),
+            "omitted_count": scalar("integer", "因预算或候选不可读而省略的条目数。", minimum=0),
+        },
+        ("items", "total_bytes", "max_bytes", "truncated"),
+    )
+    schemas["RecallContextIndexResponse"] = obj(
+        "紧凑 Recall 启动索引响应。",
+        {
+            "ok": scalar("boolean", "请求是否成功。"),
+            "context_index": ref("RecallContextIndex"),
+        },
+        ("ok", "context_index"),
+    )
     schemas["RecallCardRequest"] = obj(
         "捕获或写入一张可复用 Recall 卡片。",
         {
@@ -970,7 +1014,14 @@ def build_openapi(schemas: dict[str, Any]) -> dict[str, Any]:
         },
         "/v1/recall/move": {"post": operation("moveRecall", "移动召回条目", request=body())},
         "/v1/recall/search": {"post": operation("searchRecall", "搜索召回内容", request=body())},
-        "/v1/recall/pack": {"post": operation("packRecall", "打包召回条目", request=body())},
+        "/v1/recall/context-index": {
+            "post": operation(
+                "buildRecallContextIndex",
+                "构造紧凑 Recall 启动索引",
+                request=body(ref("RecallContextIndexRequest")),
+                success=ok(ref("RecallContextIndexResponse")),
+            )
+        },
         "/v1/recall/cards": {
             "get": operation(
                 "listRecallCards",

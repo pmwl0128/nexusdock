@@ -325,33 +325,6 @@ func (s *Server) callNexusTool(ctx context.Context, name string, args map[string
 		return s.callFleetAgentDockContext(ctx)
 	case "workflow_template_manage":
 		return s.callWorkflowTemplateManage(ctx, args)
-	case "recall_bootstrap":
-		maxBytes := intArgument(args, "max_bytes", 12000)
-		sections, used, err := s.store.Pack("agentdock", maxBytes)
-		if err != nil {
-			return nil, err
-		}
-		compacted := make([]map[string]any, 0, len(sections))
-		for _, section := range sections {
-			item, mapErr := asMap(section)
-			if mapErr != nil {
-				return nil, mapErr
-			}
-			content, _ := item["content"].(string)
-			delete(item, "content")
-			if boolArgument(args, "include_raw") {
-				item["raw_content"] = content
-			}
-			if !boolArgument(args, "include_body") {
-				body, _ := item["body"].(string)
-				delete(item, "body")
-				if body != "" {
-					item["body_excerpt"] = truncateRunes(strings.TrimSpace(body), 320)
-				}
-			}
-			compacted = append(compacted, item)
-		}
-		return asMap(map[string]any{"bootstrap": true, "compact": !boolArgument(args, "include_body"), "project": "agentdock", "sections": compacted, "count": len(compacted), "bytes": used, "max_bytes": maxBytes, "recall_store": "NexusDock Recall", "recall_endpoint": s.cfg.PublicURL})
 	case "recall_search":
 		query := stringArgument(args, "query")
 		if query == "" {

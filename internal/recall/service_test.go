@@ -40,36 +40,6 @@ func TestMetadataScopesAndVerification(t *testing.T) {
 	}
 }
 
-func TestContextPackPriorityLimitAndDeprecatedExclusion(t *testing.T) {
-	store := newTestStore(t)
-	fixtures := map[string]string{
-		"profile.md":                                    "---\nscope: profile\nstatus: active\n---\n\n# Profile\nowner\n",
-		"recall/docs/projects/nexus/project.md":         "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Nexus\nproject facts\n",
-		"recall/docs/projects/nexus/runbooks/deploy.md": "---\nscope: project\nstatus: active\nproject: nexus\n---\n\n# Deploy\nsteps\n",
-		"recall/docs/runtime/dockmini.md":               "---\nscope: device\nstatus: active\ndevice: dockmini\n---\n\n# Device\nstate\n",
-		"recall/docs/ops/old.md":                        "---\nscope: ops\nstatus: deprecated\n---\n\n# Old\nignore\n",
-	}
-	for path, content := range fixtures {
-		writeFixture(t, store, path, content)
-	}
-	svc, _ := NewService(store)
-	pack, err := svc.BuildContextPack(context.Background(), ContextPackRequest{Project: "nexus", Device: "dockmini", MaxBytes: 180})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pack.TotalBytes > 180 {
-		t.Fatalf("pack exceeded max: %d", pack.TotalBytes)
-	}
-	if len(pack.Sections) == 0 || pack.Sections[0].Kind != "profile" {
-		t.Fatalf("unexpected priority: %#v", pack.Sections)
-	}
-	for _, section := range pack.Sections {
-		if section.Path == "recall/docs/ops/old.md" {
-			t.Fatal("deprecated recall entered context")
-		}
-	}
-}
-
 func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 	store := newTestStore(t)
 	writeFixture(t, store, "recall/docs/runtime/dockmini.md", "# Device\nport: 18766\n")
@@ -91,7 +61,7 @@ func TestConflictDetectionDeduplicatesAndIgnoresLowConfidence(t *testing.T) {
 	if len(ignored) != 0 {
 		t.Fatalf("low confidence conflict accepted: %#v", ignored)
 	}
-	open, _ := repo.ListOpen(context.Background(), ContextPackRequest{Device: "dockmini"})
+	open, _ := repo.ListOpen(context.Background(), ConflictListRequest{Device: "dockmini"})
 	if len(open) != 1 {
 		t.Fatalf("repository did not deduplicate: %#v", open)
 	}

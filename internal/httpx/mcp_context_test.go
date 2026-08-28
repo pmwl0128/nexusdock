@@ -185,6 +185,15 @@ func TestFleetContextKeepsNexusSharedContextWhenAllNodesAreOffline(t *testing.T)
 	}
 }
 
+func TestLocalAgentDockContextRemovesSharedRecallRoutingRule(t *testing.T) {
+	sharedRecallRule := nexusSharedAgentDockRules[len(nexusSharedAgentDockRules)-1]
+	localOnlyRule := "local-only-rule"
+	local := localAgentDockContext(agentDockContext{Rules: []string{sharedRecallRule, localOnlyRule}})
+	if len(local.Rules) != 1 || local.Rules[0] != localOnlyRule {
+		t.Fatalf("shared recall routing rule should be deduplicated from node context: %#v", local.Rules)
+	}
+}
+
 func TestDecodeAgentDockContextRejectsLegacyMarkdownResult(t *testing.T) {
 	_, err := decodeAgentDockContextResult(map[string]any{
 		"isError":           false,

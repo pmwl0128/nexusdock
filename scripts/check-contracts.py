@@ -15,6 +15,7 @@ HTTP_SOURCE = ROOT / "internal" / "httpx"
 
 REQUIRED_PATHS = {
     "/v1/recall",
+    "/v1/recall/context-index",
     "/v1/runtime/nodes",
     "/v1/runtime/nodes/{nodeID}/tasks",
     "/v1/runtime/nodes/{nodeID}/skills",
@@ -23,6 +24,7 @@ REQUIRED_PATHS = {
 }
 FORBIDDEN_PATH_PREFIXES = (
     "/v1/backup",
+    "/v1/recall/pack",
     "/v1/" + "arti" + "facts",
     "/v1/" + "arti" + "fact-fetches",
     "/v1/devices/{deviceId}/" + "arti" + "facts",
@@ -70,6 +72,7 @@ ERROR_CODES = [
     "AUTH_STATUS_FAILED",
     "CAPTURE_CARD_FAILED",
     "CONFIRMATION_REQUIRED",
+    "CONTEXT_INDEX_FAILED",
     "CREDENTIAL_POLICY_FAILED",
     "CREDENTIAL_UPDATE_FAILED",
     "CREDENTIAL_UPDATE_REQUIRED",
@@ -120,7 +123,6 @@ ERROR_CODES = [
     "MISSING_QUERY",
     "MOVE_FAILED",
     "ORIGIN_REJECTED",
-    "PACK_FAILED",
     "PATCH_FAILED",
     "PREVIEW_FAILED",
     "PRIVATE_NOTES_AGE_IDENTITY_INVALID",

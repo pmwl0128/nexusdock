@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -113,83 +111,6 @@ func (s *Service) List(ctx context.Context, req ListRequest) ([]Record, error) {
 	return out, nil
 }
 
-func (s *Service) Bootstrap(ctx context.Context, req BootstrapRequest) (ContextPack, error) {
-	return s.BuildContextPack(ctx, ContextPackRequest{
-		Project: req.Project, Device: req.Device, Agent: req.Agent, Skill: req.Skill, MaxBytes: req.MaxBytes,
-	})
-}
-
-func (s *Service) BuildContextPack(ctx context.Context, req ContextPackRequest) (ContextPack, error) {
-	maxBytes := req.MaxBytes
-	if maxBytes <= 0 {
-		maxBytes = 50_000
-	}
-	if maxBytes > 512_000 {
-		maxBytes = 512_000
-	}
-	pack := ContextPack{
-		TaskID: req.TaskID, Project: req.Project, Device: req.Device, Agent: req.Agent, Skill: req.Skill,
-		Sections: []ContextSection{}, MaxBytes: maxBytes,
-	}
-
-	all, err := s.List(ctx, ListRequest{MaxEntries: 1000})
-	if err != nil {
-		return ContextPack{}, err
-	}
-	candidates := make([]contextCandidate, 0, len(all))
-	for _, record := range all {
-		priority, kind, include := contextPriority(record, req)
-		if !include || record.Metadata.Status == StatusDeprecated {
-			continue
-		}
-		candidates = append(candidates, contextCandidate{record: record, priority: priority, kind: kind})
-	}
-	sort.SliceStable(candidates, func(i, j int) bool {
-		if candidates[i].priority != candidates[j].priority {
-			return candidates[i].priority < candidates[j].priority
-		}
-		left := verifiedTime(candidates[i].record.Metadata)
-		right := verifiedTime(candidates[j].record.Metadata)
-		if !left.Equal(right) {
-			return left.After(right)
-		}
-		return candidates[i].record.Path < candidates[j].record.Path
-	})
-
-	for _, candidate := range candidates {
-		remaining := maxBytes - pack.TotalBytes
-		if remaining <= 0 {
-			pack.Truncated = true
-			break
-		}
-		content := candidate.record.Content
-		truncated := false
-		if len(content) > remaining {
-			content = truncateUTF8(content, remaining)
-			truncated = true
-			pack.Truncated = true
-		}
-		if content == "" {
-			continue
-		}
-		pack.Sections = append(pack.Sections, ContextSection{
-			Kind: candidate.kind, Path: candidate.record.Path, Content: content, SizeBytes: len(content),
-			Truncated: truncated, Metadata: candidate.record.Metadata,
-		})
-		pack.TotalBytes += len(content)
-		if truncated {
-			break
-		}
-	}
-
-	conflicts, err := s.conflicts.ListOpen(ctx, req)
-	if err != nil {
-		return ContextPack{}, err
-	}
-	pack.Conflicts = conflicts
-	return pack, nil
-}
-
 func (s *Service) DetectConflict(ctx context.Context, req DetectConflictRequest) ([]RecallConflict, error) {
 	out := make([]RecallConflict, 0, len(req.Facts))
 	now := s.now()
@@ -285,42 +206,6 @@ func (s *Service) ApplyUpdate(ctx context.Context, req ApplyUpdateRequest) (Reco
 
 func recordFromRecall(mem Recall) Record {
 	return Record{Recall: mem, Metadata: MetadataFromRecall(mem)}
-}
-
-type contextCandidate struct {
-	record   Record
-	priority int
-	kind     string
-}
-
-func contextPriority(record Record, req ContextPackRequest) (int, string, bool) {
-	meta := record.Metadata
-	path := filepath.ToSlash(record.Path)
-	if meta.Scope == ScopeProfile {
-		return 10, "profile", true
-	}
-	if req.Project != "" && strings.EqualFold(meta.Project, req.Project) {
-		if strings.Contains(path, "/runbooks/") {
-			return 30, "runbook", true
-		}
-		return 20, "project", true
-	}
-	if req.Device != "" && (strings.EqualFold(meta.Device, req.Device) || strings.EqualFold(meta.Verification.SourceDevice, req.Device)) {
-		return 25, "device", true
-	}
-	if req.Agent != "" && (strings.EqualFold(meta.Agent, req.Agent) || strings.EqualFold(meta.Verification.SourceAgent, req.Agent)) {
-		return 26, "agent", true
-	}
-	if req.Skill != "" && strings.EqualFold(meta.Skill, req.Skill) {
-		return 27, "skill", true
-	}
-	if meta.Verification.VerifiedAt != nil && meta.Status == StatusActive && meta.Verification.Confidence == ConfidenceHigh {
-		return 40, "verified_fact", true
-	}
-	if meta.Scope == ScopeGlobal || meta.Scope == ScopeOps {
-		return 50, string(meta.Scope), true
-	}
-	return 100, "", false
 }
 
 func verifiedTime(meta Metadata) time.Time {

@@ -238,6 +238,56 @@ func TestWriteMoveDeleteConfirmationAndErrorShape(t *testing.T) {
 	}
 }
 
+func TestRecallContextIndexEndpointReturnsCompactMixedCategories(t *testing.T) {
+	h := newTestHandler(t, config.Config{})
+	writes := []map[string]any{
+		{"path": "profile.md", "content": "# Profile\n\n## Git 协作\n\n" + strings.Repeat("长期偏好", 1200), "scope": "profile", "status": "active", "confirmed": true},
+		{"path": "recall/docs/projects/agentdock/project.md", "content": "# AgentDock\n\n## 当前架构\n\n项目事实。", "scope": "project", "project": "agentdock", "status": "active", "confirmed": true},
+		{"path": "recall/docs/projects/agentdock/runbooks/deploy.md", "content": "# Deploy\n\n部署步骤必须全文读取。", "scope": "project", "project": "agentdock", "status": "active", "confirmed": true},
+	}
+	for _, write := range writes {
+		body, err := json.Marshal(write)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res := doJSON(t, h, http.MethodPost, "/v1/recall", string(body))
+		if res.Code != http.StatusOK {
+			t.Fatalf("write status=%d body=%s", res.Code, res.Body.String())
+		}
+	}
+	card, _ := json.Marshal(map[string]any{
+		"title": "Global preference", "content": "Use compact context for startup routing, then read exact Recall only when the task needs it.", "type": "preference", "scope": "global",
+		"project": "global", "status": "active", "confidence": "high", "evidence": "verified by context-index integration test", "confirmed": true,
+	})
+	if res := doJSON(t, h, http.MethodPost, "/v1/recall/cards", string(card)); res.Code != http.StatusOK {
+		t.Fatalf("card write status=%d body=%s", res.Code, res.Body.String())
+	}
+
+	res := doJSON(t, h, http.MethodPost, "/v1/recall/context-index", `{"project":"agentdock","max_bytes":3000}`)
+	if res.Code != http.StatusOK {
+		t.Fatalf("context index status=%d body=%s", res.Code, res.Body.String())
+	}
+	var payload struct {
+		OK           bool                `json:"ok"`
+		ContextIndex recall.ContextIndex `json:"context_index"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if !payload.OK || payload.ContextIndex.TotalBytes > 3000 {
+		t.Fatalf("context index response=%#v", payload)
+	}
+	kinds := map[string]bool{}
+	for _, item := range payload.ContextIndex.Items {
+		kinds[item.Kind] = true
+	}
+	for _, kind := range []string{"profile", "project", "runbook", "card"} {
+		if !kinds[kind] {
+			t.Fatalf("context index missing %s: %#v", kind, payload.ContextIndex.Items)
+		}
+	}
+}
+
 func TestJSONEndpointsRejectTrailingValues(t *testing.T) {
 	h := newTestHandler(t, config.Config{})
 	res := doJSON(t, h, http.MethodPost, "/v1/recall/search", `{"query":"first"} {"query":"second"}`)

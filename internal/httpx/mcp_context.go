@@ -11,6 +11,7 @@ import (
 	protocol "github.com/uvwt/agentdock-protocol"
 	"github.com/uvwt/agentdock-protocol/mcpcontract"
 	"github.com/uvwt/nexusdock/internal/agentdock"
+	"github.com/uvwt/nexusdock/internal/recall"
 )
 
 const (
@@ -22,7 +23,7 @@ var nexusSharedAgentDockRules = []string{
 	"涉及多步骤开发、部署、排障、迁移、Docker、VPS 或 Git 提交推送时，先 workflow_template_manage match；无合适模板时创建普通可恢复任务。",
 	"当多个工作流模板同时适合当前任务时，调用 workflow_template_manage get_many 读取详情；模型必须结合用户目标裁剪、去重、排序并生成最终 steps 和 completion_conditions，再用 source_template_ids 创建任务，服务端不会自动拼接模板。",
 	"普通项目记忆走 recall_*；private_note_manage 只在用户明确要求私密笔记，或内容明显包含 secret、凭据、个人敏感信息时使用。私密检索只返回名称、简介、标签、分类和路径等元数据；正文必须显式 read，Git 只备份 age 密文。",
-	"记忆摘要只提供高优先级规则；具体历史事实不确定时，再用 recall_search 或 recall_read 精确召回。",
+	"记忆启动索引只提供紧凑背景与资料入口；索引已给出具体 path 时优先 recall_read 该条目，只有索引未覆盖且任务依赖具体历史事实时才 recall_search，索引信息已足够时不要机械检索。",
 }
 
 type agentDockContext struct {
@@ -233,51 +234,54 @@ func (s *Server) buildFleetAgentDockSharedContext() fleetAgentDockSharedContext 
 		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "recall", Message: "NexusDock Recall 存储暂不可用。"})
 		return shared
 	}
-	sections, _, err := s.store.Pack("agentdock", 3000)
+	index, err := s.store.BuildContextIndex(recall.ContextIndexRequest{Project: "agentdock", MaxBytes: recall.ContextIndexDefaultMaxBytes})
 	if err != nil {
-		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "recall", Message: "记忆精简摘要暂不可用；需要项目事实时调用 recall_search/recall_read 精确确认。"})
+		shared.Warnings = append(shared.Warnings, agentDockContextWarning{Source: "recall", Message: "记忆精简索引暂不可用；需要项目事实时调用 recall_search/recall_read 精确确认。"})
 		return shared
 	}
-	seen := make(map[string]struct{}, 5)
-	for _, section := range sections {
-		description := strings.TrimSpace(section.Body)
-		if description == "" {
-			description = strings.TrimSpace(section.Content)
-		}
-		if description == "" {
-			continue
-		}
-		name := strings.TrimSpace(section.Path)
-		if name == "" {
-			continue
-		}
-		shared.Recall.Items = append(shared.Recall.Items, agentDockContextItem{Name: name, Description: truncateRunes(description, 500)})
-		seen[name] = struct{}{}
-		if len(shared.Recall.Items) >= 5 {
-			return shared
-		}
-	}
-	runbooks, err := s.store.RunbookIndex("agentdock", 5)
-	if err != nil {
-		return shared
-	}
-	for _, runbook := range runbooks {
-		name := strings.TrimSpace(runbook.Title)
-		if name == "" {
-			name = strings.TrimSpace(runbook.Path)
-		}
+	seen := make(map[string]struct{}, len(index.Items))
+	for _, item := range index.Items {
+		name := strings.TrimSpace(item.Path)
 		if name == "" {
 			continue
 		}
 		if _, exists := seen[name]; exists {
 			continue
 		}
-		shared.Recall.Items = append(shared.Recall.Items, agentDockContextItem{Name: name, Description: runbook.Path})
-		if len(shared.Recall.Items) >= 5 {
-			break
-		}
+		seen[name] = struct{}{}
+		shared.Recall.Items = append(shared.Recall.Items, agentDockContextItem{Name: name, Description: contextIndexDescription(item)})
+	}
+	if index.Truncated {
+		shared.Warnings = append(shared.Warnings, agentDockContextWarning{
+			Source:  "recall",
+			Message: "记忆启动索引受预算或可读性限制，只包含部分候选；需要具体历史事实时使用 recall_search/recall_read 精确确认。",
+		})
 	}
 	return shared
+}
+
+func contextIndexDescription(item recall.ContextIndexItem) string {
+	if summary := strings.TrimSpace(item.Summary); summary != "" {
+		if title := strings.TrimSpace(item.Title); title != "" {
+			return truncateRunes(title+" — "+summary, 360)
+		}
+		return truncateRunes(summary, 360)
+	}
+	parts := []string{}
+	if title := strings.TrimSpace(item.Title); title != "" {
+		parts = append(parts, title)
+	}
+	if kind := strings.TrimSpace(item.Kind); kind != "" {
+		parts = append(parts, kind)
+	}
+	if item.CardType != "" {
+		parts = append(parts, item.CardType)
+	}
+	labels := append(append(append([]string{}, item.Keywords...), item.Aliases...), item.Tags...)
+	if len(labels) > 0 {
+		parts = append(parts, strings.Join(labels, ", "))
+	}
+	return truncateRunes(strings.Join(parts, " · "), 360)
 }
 
 func deviceNodeCapabilities(capabilities []string) []string {

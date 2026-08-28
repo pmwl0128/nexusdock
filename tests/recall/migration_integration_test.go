@@ -58,9 +58,9 @@ func TestLegacyRepositoryMigrationIsLosslessAndGitDiffVisible(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc, _ := recall.NewService(store)
-	pack, err := svc.Bootstrap(context.Background(), recall.BootstrapRequest{Project: "agentdock", MaxBytes: 4096})
-	if err != nil || len(pack.Sections) < 2 {
-		t.Fatalf("bootstrap regressed: %#v err=%v", pack, err)
+	index, err := store.BuildContextIndex(recall.ContextIndexRequest{Project: "agentdock", MaxBytes: 4096})
+	if err != nil || len(index.Items) < 2 {
+		t.Fatalf("context index regressed: %#v err=%v", index, err)
 	}
 
 	runGit(t, target, "init", "-b", "main")
